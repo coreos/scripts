@@ -62,6 +62,11 @@ cat <<EOF > /usr/share/icons/default/index.theme
 Inherits=chromeos-cursors
 EOF
 
+# Turn user metrics logging on for official builds only.
+if [ ${CHROMEOS_OFFICIAL:-0} -eq 1 ]; then
+  touch /etc/send_metrics
+fi
+
 # Create the admin group and a chronos user that can act as admin.
 groupadd ${ADMIN_GROUP}
 echo "%admin ALL=(ALL) ALL" >> /etc/sudoers
@@ -73,39 +78,6 @@ USER_LOG_DIR=/home/${USERNAME}/logs
 mkdir ${USER_LOG_DIR}
 chown ${USERNAME}:${ADMIN_GROUP} ${USER_LOG_DIR}
 chmod 755 ${USER_LOG_DIR}
-
-# Create a .xsession file to start session programs.
-USER_XSESSION_FILE=/home/${USERNAME}/.xsession
-cat <<EOF > ${USER_XSESSION_FILE}
-#!/bin/sh
-BACKGROUND_FILE=background_1024x600.png
-if [ -e /tmp/use_ugly_x_cursor ]; then
-  BACKGROUND_FILE=background_1024x600_retro.png
-fi
-
-WM=/usr/bin/chromeos-wm
-IMAGES=/usr/share/chromeos-assets/images
-BACKGROUND="\${IMAGES}/\${BACKGROUND_FILE}"
-LOG_DIR="\${HOME}/logs"
-CHROME_COMMAND="/usr/bin/chromeos-chrome"
-
-/usr/bin/xscreensaver -no-splash &
-
-python /opt/google/controlpanel/webapp.py &
-
-exec "\${WM}"                                        \\
-  --hotkey_overlay_image_dir="\${IMAGES}"            \\
-  --panel_anchor_image="\${IMAGES}/panel_anchor.png" \\
-  --panel_bar_image="\${IMAGES}/panel_bar_bg.png"    \\
-  --shadow_image_dir="\${IMAGES}"                    \\
-  --wm_background_image="\${BACKGROUND}"             \\
-  --wm_chrome_command="\${CHROME_COMMAND}"           \\
-  --wm_spawn_chrome_on_start=true                    \\
-  --v=1                                              \\
-  --log_dir="\${LOG_DIR}"
-EOF
-chown ${USERNAME}:${ADMIN_GROUP} ${USER_XSESSION_FILE}
-chmod 700 ${USER_XSESSION_FILE}
 
 # Create apt source.list
 cat <<EOF > /etc/apt/sources.list
@@ -435,7 +407,7 @@ sed -i '{ s/xserver_arguments .*/xserver_arguments -nolisten tcp vt01/ }' \
 mv /etc/init.d/rcS /etc/init.d/rcS.orig
 ln -s /etc/init.d/chromeos_init.sh /etc/init.d/rcS
 
-# Add some tmpfs filesystems to fstab to enable Memento semantics
+# Add some tmpfs filesystems to fstab to enable session semantics
 cat <<EOF >> /etc/fstab
 tmpfs /tmp tmpfs rw,nosuid,nodev 0 0
 tmphomedir /home/chronos tmpfs rw,nosuid,nodev 0 0
