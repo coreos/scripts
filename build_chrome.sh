@@ -13,10 +13,10 @@
 # Script must be run outside the chroot
 assert_outside_chroot
 
-# This script defaults Chrome source is in /usr/local/google/home/$USER/chrome
-# You may override the Chrome source dir by passing in chrome_dir
-# or with the CHROME_DIR environment variable
-DEFAULT_CHROME_DIR="${CHROME_DIR:-/usr/local/google/home/$USER/chrome}"
+# This script defaults Chrome source is in ~/chrome
+# You may override the Chrome source dir via the --chrome_dir option or by 
+# setting CHROMEOS_CHROME_DIR (for example, in ./.chromeos_dev)
+DEFAULT_CHROME_DIR="${CHROMEOS_CHROME_DIR:-/home/$USER/chrome}"
 
 # Flags
 DEFINE_string chrome_dir "$DEFAULT_CHROME_DIR" \
