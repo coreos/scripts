@@ -221,6 +221,7 @@ cat <<EOF > /etc/acpi/lid.sh
 #!/bin/sh
 # On lid close:
 # - lock the screen
+export HOME=/home/chronos
 /usr/bin/xscreensaver-command -l
 
 # - suspend the cryptohome device
