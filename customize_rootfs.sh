@@ -217,7 +217,7 @@ cat <<EOF > /etc/acpi/events/lidbtn
 event=button[ /]lid
 action=/etc/acpi/lid.sh
 EOF
-cat <<EOF > /etc/acpi/lid.sh
+cat <<'EOF' > /etc/acpi/lid.sh
 #!/bin/sh
 # On lid close:
 # - lock the screen
@@ -228,8 +228,15 @@ export HOME=/home/chronos
 #CRYPTOHOME=/dev/mapper/cryptohome
 #/usr/bin/test -b $CRYPTOHOME && /sbin/dmsetup suspend $CRYPTOHOME
 
+# - stop wireless if UP
+wlan0isup=`/sbin/ifconfig wlan0 2>/dev/null | /bin/grep UP`
+test "$wlan0isup" && /sbin/ifconfig wlan0 down
+
 # - suspend to ram
 echo -n mem > /sys/power/state
+
+# - restore wireless state
+test "$wlan0isup" && /sbin/ifconfig wlan0 up
 
 # On lid open:
 # - resume cryptohome device
