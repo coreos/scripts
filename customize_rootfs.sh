@@ -415,6 +415,20 @@ sed -i '{ s/xserver_arguments .*/xserver_arguments -nolisten tcp vt01/ }' \
 mv /etc/init.d/rcS /etc/init.d/rcS.orig
 ln -s /etc/init.d/chromeos_init.sh /etc/init.d/rcS
 
+# Clean out unneeded Xsession scripts
+XSESSION_D="/etc/X11/Xsession.d"
+KEEPERS="20x11-common_process-args 51x11-chromeos-set-startup \
+         90consolekit 99x11-common_start"
+for script in ${KEEPERS}
+do
+  mv "$XSESSION_D"/"$script" /tmp
+done
+rm -rf "$XSESSION_D"/*
+for script in ${KEEPERS}
+do
+  mv /tmp/"$script" "$XSESSION_D"
+done
+
 # Add some tmpfs filesystems to fstab to enable session semantics
 cat <<EOF >> /etc/fstab
 tmpfs /tmp tmpfs rw,nosuid,nodev 0 0
