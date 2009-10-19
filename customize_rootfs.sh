@@ -127,17 +127,6 @@ EOF
 update-initramfs -u
 fi
 
-cat <<EOF > /etc/network/interfaces
-auto lo
-iface lo inet loopback
-EOF
-
-cat <<EOF > /etc/resolv.conf
-# Use the connman dns proxy.
-nameserver 127.0.0.1
-EOF
-chmod a-wx /etc/resolv.conf
-
 # If we don't create generic udev rules, then udev will try to save the
 # history of various devices (i.e. always associate a given device and MAC
 # address with the same wlan number). As we use a keyfob across different
@@ -438,3 +427,17 @@ EOF
 # List all packages still installed post-pruning
 sudo sh -c "/trunk/src/scripts/list_installed_packages.sh \
   > /etc/package_list_pruned.txt"
+
+# Clear network settings.  This must be done last, since it prevents
+# any subseuqent steps from accessing the network.
+cat <<EOF > /etc/network/interfaces
+auto lo
+iface lo inet loopback
+EOF
+
+cat <<EOF > /etc/resolv.conf
+# Use the connman dns proxy.
+nameserver 127.0.0.1
+EOF
+chmod a-wx /etc/resolv.conf
+
