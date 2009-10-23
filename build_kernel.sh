@@ -102,9 +102,11 @@ cd "$SRCDIR"
 # TODO: find a better source for the kernel source.  Old versions of karmic
 # aren't hosted on archive.ubuntu.com
 #apt-get source linux-source-$MAJOR.$MINOR.$EXTRA
-tar -xzf "$KERNEL_DIR"/linux_${VER_MME}-*.tar.gz
-# Rename directory to what the patches expect
-mv ubuntu-* "linux-$VER_MME"
+# TODO(msb): uncomment once git is available in the chroot
+# git clone "${KERNEL_DIR}"/files linux_${VER_MME}
+# Name directory to what the patches expect
+mkdir linux-${VER_MME}
+cp -a "${KERNEL_DIR}"/files/* linux-${VER_MME}
 
 if [ ! -z $PATCHES ]
 then
