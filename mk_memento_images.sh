@@ -22,87 +22,13 @@ then
   exit 1
 fi
 
-FINAL_OUT_FILE=$(dirname "$1")/update.tgz
+FINAL_OUT_FILE=$(dirname "$1")/update.gz
 UNCOMPRESSED_OUT_FILE="$FINAL_OUT_FILE.uncompressed"
-MOUNTPOINT="/tmp/mk_memento_images_mntpoint"
 
 ORIGINAL_LABEL=$(sudo /sbin/e2label "$1")
 
 # copy original over to the new file
 cp "$1" "$UNCOMPRESSED_OUT_FILE"
-
-# next steps require fs to be mounted. unmount if we die early
-function cleanup_mount {
-  sudo umount "$MOUNTPOINT" || true
-  rmdir "$MOUNTPOINT"
-}
-mkdir -p "$MOUNTPOINT"
-sudo mount -o loop "$UNCOMPRESSED_OUT_FILE" "$MOUNTPOINT"
-trap cleanup_mount INT TERM EXIT
-
-# make an empty postinst script. the quotes around EOF mean don't evaluate
-# anything inside this HEREDOC.
-cat <<"EOF" | sudo dd of="$MOUNTPOINT/postinst"
-#!/bin/sh
-
-set -e
-
-# see if we're booted from hard drive or USB. We should not have booted from
-# USB.
-
-INITRD=$(cat /proc/cmdline | tr ' ' '\n' | grep ^initrd= | wc -l)
-if [ "0" != "$INITRD" ]
-then
-  # we're usb. abort.
-  exit 1
-fi
-
-# update /boot/extlinux.conf
-
-INSTALL_ROOT=`dirname "$0"`
-INSTALL_DEV="$1"
-STATEFUL_PARTITION=$(echo "$INSTALL_DEV" | tr 12 44)
-STATEFUL_PARTITION_DIR=/tmp/stateful_partition
-
-# set default label to chromeos-hd
-sed -i 's/^DEFAULT .*/DEFAULT chromeos-hd/' "$INSTALL_ROOT"/boot/extlinux.conf
-sed -i "{ s:HDROOT:$INSTALL_DEV: }" "$INSTALL_ROOT"/boot/extlinux.conf
-
-# fix fstab
-# keep in sync with src/platform/installer/chromeos_install.sh
-# TODO: Figure out if we can mount rootfs read-only
-cat <<ENDFSTAB | sudo dd of="$INSTALL_ROOT"/etc/fstab
-/dev/root / rootfs ro 0 0
-tmpfs /tmp tmpfs rw,nosuid,nodev 0 0
-$STATEFUL_PARTITION /mnt/stateful_partition ext3 rw 0 1
-/mnt/stateful_partition/home /home bind defaults,bind 0 0
-/mnt/stateful_partition/var /var bind defaults,bind 0 0
-ENDFSTAB
-
-mkdir -p "$INSTALL_ROOT"/mnt/stateful_partition
-chmod 0755 "$INSTALL_ROOT"/mnt
-chmod 0755 "$INSTALL_ROOT"/mnt/stateful_partition
-
-# Creates an empty resolv.conf file with the right permissions to avoid
-# it being clobbered by connman/dhclient.
-
-# We assume the stateful partition at /mnt/stateful_partition will still be
-# there when we boot into the new image
-mkdir -p /mnt/stateful_partition/etc
-
-# Default to Pacific timezone
-# If user already has a timezone set, this won't replace it
-ln -s /usr/share/zoneinfo/US/Pacific \
-    /mnt/stateful_partition/etc/localtime || true
-ln -sf /mnt/stateful_partition/etc/localtime \
-    "$INSTALL_ROOT"/etc/localtime
-EOF
-
-sudo chmod 0755 "$MOUNTPOINT/postinst"
-
-# done with mounting
-trap - INT TERM EXIT
-cleanup_mount
 
 # Fix up the file system label. We prefix with 'A'
 NEW_LABEL="A${ORIGINAL_LABEL}"

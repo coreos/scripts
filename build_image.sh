@@ -146,7 +146,7 @@ if [ ! -e /etc/mtab ]; then
   sudo touch /etc/mtab
 fi
 UUID=`uuidgen`
-DISK_LABEL=C-$CHROMEOS_VERSION
+DISK_LABEL=C-$CHROMEOS_VERSION_STRING
 LOOP_DEV=`sudo losetup -f`
 sudo losetup "$LOOP_DEV" "$ROOT_FS_IMG"
 sudo mkfs.ext3 "$LOOP_DEV"
@@ -258,9 +258,9 @@ dd if="$SYSLINUX_MBR" of="$MBR_IMG" bs=512 count=1 conv=sync
 # Create a partition table in the MBR.
 NUM_SECTORS=$((`stat --format="%s" "$ROOT_FS_IMG"` / 512))
 sudo sfdisk -H64 -S32 -uS -f "$MBR_IMG" <<EOF
-,$NUM_SECTORS,L,*,
 ,$NUM_SECTORS,L,-,
 ,$NUM_SECTORS,S,-,
+,$NUM_SECTORS,L,*,
 ;
 EOF
 

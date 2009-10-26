@@ -64,16 +64,38 @@ then
       exit 1
     fi
   fi
+  
+  STATE_PART="$FLAGS_to"1
+  ROOT_PART="$FLAGS_to"3
 
-  sudo bash -c "cat \"${FLAGS_from}/mbr.image\" \
-    \"${FLAGS_from}/rootfs.image\" \
-    | dd of=\"$FLAGS_to\" bs=4M"
+  sudo dd if="${FLAGS_from}/mbr.image" of="$FLAGS_to"
+  sync
+  sudo partprobe "$FLAGS_to"
+  sync
+  sudo dd if="${FLAGS_from}/rootfs.image" of="$ROOT_PART" bs=4M
+  sudo mkfs.ext3 -F -L C-STATE "$STATE_PART"
   sync
   echo "Done."
 else
   # Output to a file, so just cat the source images together
+
+  PART_SIZE=$(stat -c%s "${FLAGS_from}/rootfs.image")
+
+  echo "Creating empty stateful partition"
+  dd if=/dev/zero of="${FLAGS_from}/stateful_partition.image" bs=1 count=1 \
+      seek=$(($PART_SIZE - 1))
+  mkfs.ext3 -F -L C-STATE "${FLAGS_from}/stateful_partition.image"
+  
+  # Create a sparse output file
+  dd if=/dev/zero of="${FLAGS_to}" bs=1 count=1 \
+      seek=$(( ($PART_SIZE * 2) + 512 - 1))
+
   echo "Copying USB image to file ${FLAGS_to}..."
-  cat "${FLAGS_from}/mbr.image" "${FLAGS_from}/rootfs.image" > "$FLAGS_to"
+
+  dd if="${FLAGS_from}/mbr.image" of="$FLAGS_to" conv=notrunc
+  dd if="${FLAGS_from}/stateful_partition.image" of="$FLAGS_to" seek=1 bs=512 \
+      conv=notrunc
+  cat "${FLAGS_from}/rootfs.image" >> "$FLAGS_to"
 
   echo "Done.  To copy to USB keyfob, outside the chroot, do something like:"
   echo "   sudo dd if=${FLAGS_to} of=/dev/sdb bs=4M"

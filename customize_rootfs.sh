@@ -127,6 +127,55 @@ EOF
 update-initramfs -u
 fi
 
+cat <<EOF > /etc/network/interfaces
+auto lo
+iface lo inet loopback
+EOF
+
+cat <<EOF > /etc/resolv.conf
+# Use the connman dns proxy.
+nameserver 127.0.0.1
+EOF
+chmod a-wx /etc/resolv.conf
+
+# Set timezone symlink
+rm -f /etc/localtime
+ln -s /mnt/stateful_partition/etc/localtime /etc/localtime
+
+# The postinst script is called after an AutoUpdate or USB install.
+# the quotes around EOF mean don't evaluate anything inside this HEREDOC.
+# TODO(adlr): set this file up in a package rather than here
+cat <<"EOF" > /usr/sbin/chromeos-postinst
+#!/bin/sh
+
+set -e
+
+# update /boot/extlinux.conf
+INSTALL_ROOT=`dirname "$0"`
+INSTALL_DEV="$1"
+STATEFUL_PARTITION=$(echo "$INSTALL_DEV" | tr 1234 4411)
+
+# set default label to chromeos-hd
+sed -i 's/^DEFAULT .*/DEFAULT chromeos-hd/' "$INSTALL_ROOT"/boot/extlinux.conf
+sed -i "{ s:HDROOT:$INSTALL_DEV: }" "$INSTALL_ROOT"/boot/extlinux.conf
+
+# update /etc/fstab
+sed -i "s|^[^ ]* /mnt/stateful_partition |\
+$STATEFUL_PARTITION /mnt/stateful_partition |" "$INSTALL_ROOT"/etc/fstab
+
+# NOTE: The stateful partition will not be mounted when this is
+# called at USB-key install time.
+EOF
+chmod 0755 /usr/sbin/chromeos-postinst
+
+ln -s /usr/sbin/chromeos-postinst /postinst
+
+
+# make a mountpoint for stateful partition
+sudo mkdir -p "$ROOTFS_DIR"/mnt/stateful_partition
+sudo chmod 0755 "$ROOTFS_DIR"/mnt
+sudo chmod 0755 "$ROOTFS_DIR"/mnt/stateful_partition
+
 # If we don't create generic udev rules, then udev will try to save the
 # history of various devices (i.e. always associate a given device and MAC
 # address with the same wlan number). As we use a keyfob across different
@@ -361,6 +410,11 @@ mknod --mode=0660 "$UDEV_DEVICES"/sda1 b 8 1
 mknod --mode=0660 "$UDEV_DEVICES"/sda2 b 8 2
 mknod --mode=0660 "$UDEV_DEVICES"/sda3 b 8 3
 mknod --mode=0660 "$UDEV_DEVICES"/sda4 b 8 4
+mknod --mode=0660 "$UDEV_DEVICES"/sdb  b 8 16
+mknod --mode=0660 "$UDEV_DEVICES"/sdb1 b 8 17
+mknod --mode=0660 "$UDEV_DEVICES"/sdb2 b 8 18
+mknod --mode=0660 "$UDEV_DEVICES"/sdb3 b 8 19
+mknod --mode=0660 "$UDEV_DEVICES"/sdb4 b 8 20
 mknod --mode=0660 "$UDEV_DEVICES"/fb0 c 29 0
 mknod --mode=0660 "$UDEV_DEVICES"/dri/card0 c 226 0
 mknod --mode=0640 "$UDEV_DEVICES"/input/mouse0 c 13 32
@@ -420,8 +474,11 @@ done
 
 # Add some tmpfs filesystems to fstab to enable session semantics
 cat <<EOF >> /etc/fstab
+/dev/root / rootfs ro 0 0
 tmpfs /tmp tmpfs rw,nosuid,nodev 0 0
-tmphomedir /home/chronos tmpfs rw,nosuid,nodev 0 0
+LABEL=C-STATE /mnt/stateful_partition ext3 rw 0 1
+/mnt/stateful_partition/home /home bind defaults,bind 0 0
+/mnt/stateful_partition/var /var bind defaults,bind 0 0
 EOF
 
 # List all packages still installed post-pruning
