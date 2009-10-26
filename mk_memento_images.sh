@@ -18,21 +18,20 @@ fi
 
 if [ $(whoami) = "root" ]
 then
-  echo "run $0 as non root"
-  exit 1
+  echo "running $0 as root which is unneccessary"
 fi
 
 FINAL_OUT_FILE=$(dirname "$1")/update.gz
 UNCOMPRESSED_OUT_FILE="$FINAL_OUT_FILE.uncompressed"
 
-ORIGINAL_LABEL=$(sudo /sbin/e2label "$1")
+ORIGINAL_LABEL=$(/sbin/e2label "$1")
 
 # copy original over to the new file
 cp "$1" "$UNCOMPRESSED_OUT_FILE"
 
 # Fix up the file system label. We prefix with 'A'
 NEW_LABEL="A${ORIGINAL_LABEL}"
-sudo /sbin/tune2fs -L "$NEW_LABEL" "$UNCOMPRESSED_OUT_FILE"
+/sbin/tune2fs -L "$NEW_LABEL" "$UNCOMPRESSED_OUT_FILE"
 
 # compress and hash
 CS_AND_RET_CODES=$(gzip -c "$UNCOMPRESSED_OUT_FILE" | \
