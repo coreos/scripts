@@ -53,6 +53,8 @@ CHROMEOS_RELEASE_NAME=$CHROMEOS_VERSION_NAME
 CHROMEOS_RELEASE_TRACK=$CHROMEOS_VERSION_TRACK
 CHROMEOS_RELEASE_VERSION=$CHROMEOS_VERSION_STRING
 GOOGLE_RELEASE=$CHROMEOS_VERSION_STRING
+CHROMEOS_AUSERVER=$CHROMEOS_VERSION_AUSERVER
+CHROMEOS_DEVSERVER=$CHROMEOS_VERSION_DEVSERVER
 EOF
 
 # Set the default X11 cursor theme to inherit our cursors.
@@ -168,7 +170,7 @@ $STATEFUL_PARTITION /mnt/stateful_partition |" "$INSTALL_ROOT"/etc/fstab
 EOF
 chmod 0755 /usr/sbin/chromeos-postinst
 
-ln -s /usr/sbin/chromeos-postinst /postinst
+ln -s ./usr/sbin/chromeos-postinst /postinst
 
 
 # make a mountpoint for stateful partition
@@ -255,6 +257,7 @@ cat <<EOF > /etc/acpi/events/lidbtn
 event=button[ /]lid
 action=/etc/acpi/lid.sh
 EOF
+
 cat <<'EOF' > /etc/acpi/lid.sh
 #!/bin/sh
 # On lid close:

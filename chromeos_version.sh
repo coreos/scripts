@@ -12,30 +12,56 @@
 # Version numbering scheme is much like Chrome's, with the addition of 
 # double-incrementing branch number so trunk is always odd.
 
-# Major/minor versions.  
-# Primarily for product marketing.
-export CHROMEOS_VERSION_MAJOR=0
-export CHROMEOS_VERSION_MINOR=3
+# Sets up a version number for release builds.
+function export_release_version {
+  # Major/minor versions.  
+  # Primarily for product marketing.
+  export CHROMEOS_VERSION_MAJOR=0
+  export CHROMEOS_VERSION_MINOR=3
 
-# Branch number.
-# Increment by 1 in a new release branch.
-# Increment by 2 in trunk after making a release branch.
-# Does not reset on a major/minor change (always increases).
-# (Trunk is always odd; branches are always even).
-export CHROMEOS_VERSION_BRANCH=19
+  # Branch number.
+  # Increment by 1 in a new release branch.
+  # Increment by 2 in trunk after making a release branch.
+  # Does not reset on a major/minor change (always increases).
+  # (Trunk is always odd; branches are always even).
+  export CHROMEOS_VERSION_BRANCH=19
 
-# Patch number.
-# Increment by 1 each release on a branch.
-# Reset to 0 when increasing branch number.
-export CHROMEOS_VERSION_PATCH=0
+  # Patch number.
+  # Increment by 1 each release on a branch.
+  # Reset to 0 when increasing branch number.
+  export CHROMEOS_VERSION_PATCH=0
 
-# Codename of this version
-export CHROMEOS_VERSION_CODENAME="Indy"
+  # Codename of this version.
+  export CHROMEOS_VERSION_CODENAME="Indy"
 
-# Version string
+}
+
+# Sets up a version for developer builds.
+function export_developer_version {
+  # Use an arbitrarily high number to indicate that this is a dev build.
+  export CHROMEOS_VERSION_MAJOR=999
+
+  # Use the SVN revision number of the tree here.
+  # TODO(rtc): Figure out how to do this.
+  export CHROMEOS_VERSION_MINOR=999
+
+  # Use the day of year and two digit year.
+  export CHROMEOS_VERSION_BRANCH=$(date +"%j%y")
+
+  export CHROMEOS_VERSION_PATCH=$(date +"%H%M%S")
+
+  # Sets the codename to the user who built the image. This
+  # will help us figure out who did the build if a different
+  # person is debugging the system.
+  export CHROMEOS_VERSION_CODENAME="$USER"
+  
+}
+function export_version_string {
+# Version string. Not indentied to appease bash.
 export CHROMEOS_VERSION_STRING=\
 "${CHROMEOS_VERSION_MAJOR}.${CHROMEOS_VERSION_MINOR}"\
 ".${CHROMEOS_VERSION_BRANCH}.${CHROMEOS_VERSION_PATCH}"
+}
 
 # Official builds must set 
 #   CHROMEOS_OFFICIAL=1 
@@ -44,17 +70,29 @@ export CHROMEOS_VERSION_STRING=\
 if [ ${CHROMEOS_OFFICIAL:-0} -eq 1 ]
 then
   # Official builds (i.e., buildbot)
+  export_release_version
+  export_version_string
   export CHROMEOS_VERSION_NAME="Chrome OS"
   export CHROMEOS_VERSION_TRACK="dev-channel"
   # CHROMEOS_REVISION must be set in the environment for official builds
   export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Official Build ${CHROMEOS_REVISION:?})" 
+  export CHROMEOS_VERSION_AUSERVER="https://tools.google.com/service/update2"
+  export CHROMEOS_VERSION_DEVSERVER=""
 else
   # Continuous builds and developer hand-builds
+  export_developer_version
+  export_version_string
   export CHROMEOS_VERSION_NAME="Chromium OS"
   export CHROMEOS_VERSION_TRACK="developer-build"
-  export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Developer Build - $(date))"
+  export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Developer Build - $(date)-$USER)"
+  HOSTNAME=$(hostname)
+  export CHROMEOS_VERSION_AUSERVER="http://$HOSTNAME:8080/update"
+  export CHROMEOS_VERSION_DEVSERVER="http://$HOSTNAME:8080/static/devkit"
 fi
 
-# Print version info
+
+
+# Print version info.
 echo "ChromeOS version information:"
 set | grep "CHROMEOS_VERSION" | sed 's/^/    /'
+

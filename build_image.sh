@@ -32,6 +32,8 @@ DEFINE_string build_root "$DEFAULT_BUILD_ROOT"                \
 DEFINE_boolean use_ubuntu_kernel $FLAGS_FALSE                 \
   "Use the Ubuntu kernel (rather than our own)?"
 DEFINE_boolean replace $FLAGS_FALSE "Overwrite existing output, if any."
+DEFINE_boolean increment $FLAGS_FALSE \
+  "Picks the latest build and increments the minor version by one."
 
 DEFINE_string mirror "$DEFAULT_IMG_MIRROR" "Repository mirror to use."
 DEFINE_string suite "$DEFAULT_IMG_SUITE" "Repository suite to base image on."
