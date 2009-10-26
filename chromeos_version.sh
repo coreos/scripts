@@ -22,7 +22,7 @@ export CHROMEOS_VERSION_MINOR=3
 # Increment by 2 in trunk after making a release branch.
 # Does not reset on a major/minor change (always increases).
 # (Trunk is always odd; branches are always even).
-export CHROMEOS_VERSION_BRANCH=17
+export CHROMEOS_VERSION_BRANCH=19
 
 # Patch number.
 # Increment by 1 each release on a branch.
