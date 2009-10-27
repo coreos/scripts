@@ -24,7 +24,8 @@ PLATFORM_DIR="$SRC_ROOT/platform"
 
 PLATFORM_DIRS="assets control_panel fake_hal init installer login_manager \
                memento_softwareupdate pam_google window_manager \
-               control_panel cros chrome wifi screenlocker cryptohome"
+               control_panel cros chrome wifi screenlocker cryptohome \
+               monitor_reconfig"
 
 THIRD_PARTY_DIR="$SRC_ROOT/third_party"
 THIRD_PARTY_PACKAGES="connman e2fsprogs/files gflags gtest glog \
