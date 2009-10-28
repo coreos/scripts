@@ -148,7 +148,7 @@ if [ ! -e /etc/mtab ]; then
   sudo touch /etc/mtab
 fi
 UUID=`uuidgen`
-DISK_LABEL=C-$CHROMEOS_VERSION_STRING
+DISK_LABEL=C-ROOT
 LOOP_DEV=`sudo losetup -f`
 sudo losetup "$LOOP_DEV" "$ROOT_FS_IMG"
 sudo mkfs.ext3 "$LOOP_DEV"

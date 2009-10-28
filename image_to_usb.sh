@@ -45,6 +45,10 @@ set -e
 FLAGS_from=`eval readlink -f $FLAGS_from`
 FLAGS_to=`eval readlink -f $FLAGS_to`
 
+function do_cleanup {
+  sudo losetup -d "$LOOP_DEV"
+}
+
 # Copy MBR and rootfs to output image
 if [ -b "$FLAGS_to" ]
 then
@@ -65,15 +69,40 @@ then
     fi
   fi
   
-  STATE_PART="$FLAGS_to"1
-  ROOT_PART="$FLAGS_to"3
+  echo "attempting to unmount any mounts on the USB device"
+  for i in "$FLAGS_to"*
+  do
+    ! sudo umount "$i"
+  done
+  sleep 3
+  
+  PART_SIZE=$(stat -c%s "${FLAGS_from}/rootfs.image")  # Bytes
 
-  sudo dd if="${FLAGS_from}/mbr.image" of="$FLAGS_to"
+  echo "Copying root fs..."
+  sudo ./file_copy.py if="${FLAGS_from}/rootfs.image" of="$FLAGS_to" bs=4M \
+      seek_bytes=$(( ($PART_SIZE * 2) + 512 ))
+
+  # Set up loop device
+  LOOP_DEV=$(sudo losetup -f)
+  if [ -z "$LOOP_DEV" ]
+  then
+    echo "No free loop device. Free up a loop device or reboot. exiting."
+    exit 1
+  fi
+  
+  trap do_cleanup EXIT
+
+  echo "Creating stateful partition..."
+  sudo losetup -o 512 "$LOOP_DEV" "$FLAGS_to"
+  sudo mkfs.ext3 -F -b 4096 -L C-STATE "$LOOP_DEV" $(( $PART_SIZE / 4096 ))
   sync
-  sudo partprobe "$FLAGS_to"
+  sudo losetup -d "$LOOP_DEV"
   sync
-  sudo dd if="${FLAGS_from}/rootfs.image" of="$ROOT_PART" bs=4M
-  sudo mkfs.ext3 -F -L C-STATE "$STATE_PART"
+  
+  trap - EXIT
+
+  echo "Copying MBR..."
+  sudo ./file_copy.py if="${FLAGS_from}/mbr.image" of="$FLAGS_to"
   sync
   echo "Done."
 else
