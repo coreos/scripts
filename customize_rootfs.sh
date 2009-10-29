@@ -155,15 +155,10 @@ set -e
 # update /boot/extlinux.conf
 INSTALL_ROOT=`dirname "$0"`
 INSTALL_DEV="$1"
-STATEFUL_PARTITION=$(echo "$INSTALL_DEV" | tr 1234 4411)
 
 # set default label to chromeos-hd
 sed -i 's/^DEFAULT .*/DEFAULT chromeos-hd/' "$INSTALL_ROOT"/boot/extlinux.conf
 sed -i "{ s:HDROOT:$INSTALL_DEV: }" "$INSTALL_ROOT"/boot/extlinux.conf
-
-# update /etc/fstab
-sed -i "s|^[^ ]* /mnt/stateful_partition |\
-$STATEFUL_PARTITION /mnt/stateful_partition |" "$INSTALL_ROOT"/etc/fstab
 
 # NOTE: The stateful partition will not be mounted when this is
 # called at USB-key install time.
