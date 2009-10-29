@@ -33,10 +33,22 @@ set -e
 FLAGS_from=`eval readlink -f $FLAGS_from`
 FLAGS_to=`eval readlink -f $FLAGS_to`
 
+# Make two sparse files. One for an empty partition, another for
+# stateful partition.
+PART_SIZE=$(stat -c%s "${FLAGS_from}/rootfs.image")
+dd if=/dev/zero of="${FLAGS_from}/empty.image" bs=1 count=1 \
+    seek=$(( $PART_SIZE - 1 ))
+dd if=/dev/zero of="${FLAGS_from}/state.image" bs=1 count=1 \
+    seek=$(( $PART_SIZE - 1 ))
+mkfs.ext3 -F -L C-STATE "${FLAGS_from}/state.image"
+
 # Copy MBR and rootfs to output image
 qemu-img convert -f raw \
-  "${FLAGS_from}/mbr.image" "${FLAGS_from}/rootfs.image" \
+  "${FLAGS_from}/mbr.image" "${FLAGS_from}/state.image" \
+  "${FLAGS_from}/empty.image" "${FLAGS_from}/rootfs.image" \
   -O vmdk "${FLAGS_to}"
+
+rm -f "${FLAGS_from}/empty.image" "${FLAGS_from}/state.image"
 
 echo "Done. Created VMware image ${FLAGS_to}"
 
