@@ -479,6 +479,9 @@ LABEL=C-STATE /mnt/stateful_partition ext3 rw 0 1
 /mnt/stateful_partition/var /var bind defaults,bind 0 0
 EOF
 
+# Remove pam-mount's default entry in common-auth and common-session
+sed -i 's/^\(.*pam_mount.so.*\)/#\1/g' /etc/pam.d/common-*
+
 # List all packages still installed post-pruning
 sudo sh -c "/trunk/src/scripts/list_installed_packages.sh \
   > /etc/package_list_pruned.txt"
