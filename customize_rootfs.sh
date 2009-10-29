@@ -470,14 +470,12 @@ do
   mv /tmp/"$script" "$XSESSION_D"
 done
 
-# Add some tmpfs filesystems to fstab to enable session semantics
-cat <<EOF >> /etc/fstab
-/dev/root / rootfs ro 0 0
-tmpfs /tmp tmpfs rw,nosuid,nodev 0 0
-LABEL=C-STATE /mnt/stateful_partition ext3 rw 0 1
-/mnt/stateful_partition/home /home bind defaults,bind 0 0
-/mnt/stateful_partition/var /var bind defaults,bind 0 0
-EOF
+# By default, xkb writes computed configuration data to
+# /var/lib/xkb. It can re-use this data to reduce startup
+# time. In addition, if it fails to write we've observed
+# keyboard issues. We add a symlink to allow these writes.
+rm -rf /var/lib/xkb
+ln -s /var/cache /var/lib/xkb
 
 # Remove pam-mount's default entry in common-auth and common-session
 sed -i 's/^\(.*pam_mount.so.*\)/#\1/g' /etc/pam.d/common-*
