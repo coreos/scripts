@@ -7,7 +7,6 @@
 # start sshd at os init time.
 
 cp -pf sshd.conf /etc/init/sshd.conf
-
 chmod 644 /etc/init/sshd.conf
 chown 0:0 /etc/init/sshd.conf
 
