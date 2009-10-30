@@ -37,14 +37,18 @@ FLAGS_chrome_dir=`eval readlink -f $FLAGS_chrome_dir`
 
 # Build Chrome
 echo Building Chrome in mode $FLAGS_mode
+# The number of jobs to pass to tools that can run in parallel (such as make
+# and dpkg-buildpackage
+NUM_JOBS=`cat /proc/cpuinfo | grep processor | awk '{a++} END {print a}'`
+export GYP_GENERATORS="make"
 export GYP_DEFINES="chromeos=1 target_arch=ia32"
 CHROME_DIR=$FLAGS_chrome_dir
-cd "$CHROME_DIR/src/build"
+cd "$CHROME_DIR/src"
 gclient runhooks --force
-hammer --implicit-deps-changed --mode=$FLAGS_mode chrome
+make BUILDTYPE=$FLAGS_mode -j$NUM_JOBS -r chrome
 
 # Zip into chrome-chromeos.zip and put in local_assets
-BUILD_DIR="$CHROME_DIR/src/sconsbuild"
+BUILD_DIR="$CHROME_DIR/src/out"
 CHROME_LINUX_DIR="$BUILD_DIR/chrome-chromeos"
 OUTPUT_DIR="${SRC_ROOT}/build/x86/local_assets"
 OUTPUT_ZIP="$BUILD_DIR/chrome-chromeos.zip"
