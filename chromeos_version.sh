@@ -13,7 +13,7 @@
 # double-incrementing branch number so trunk is always odd.
 
 # Sets up a version number for release builds.
-function export_release_version {
+export_release_version() {
   # Major/minor versions.  
   # Primarily for product marketing.
   export CHROMEOS_VERSION_MAJOR=0
@@ -33,11 +33,10 @@ function export_release_version {
 
   # Codename of this version.
   export CHROMEOS_VERSION_CODENAME="Indy"
-
 }
 
 # Sets up a version for developer builds.
-function export_developer_version {
+export_developer_version() {
   # Use an arbitrarily high number to indicate that this is a dev build.
   export CHROMEOS_VERSION_MAJOR=999
 
@@ -54,9 +53,9 @@ function export_developer_version {
   # will help us figure out who did the build if a different
   # person is debugging the system.
   export CHROMEOS_VERSION_CODENAME="$USER"
-  
 }
-function export_version_string {
+
+export_version_string() {
 # Version string. Not indentied to appease bash.
 export CHROMEOS_VERSION_STRING=\
 "${CHROMEOS_VERSION_MAJOR}.${CHROMEOS_VERSION_MINOR}"\
@@ -89,8 +88,6 @@ else
   export CHROMEOS_VERSION_AUSERVER="http://$HOSTNAME:8080/update"
   export CHROMEOS_VERSION_DEVSERVER="http://$HOSTNAME:8080/static/devkit"
 fi
-
-
 
 # Print version info.
 echo "ChromeOS version information:"
