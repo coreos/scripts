@@ -20,6 +20,8 @@
 # Script must be run inside the chroot
 assert_inside_chroot
 
+KERNEL_VERSION=${KERNEL_VERSION:-"2.6.30-chromeos-intel-menlow"}
+
 DEFAULT_PKGLIST="${SRC_ROOT}/package_repo/package-list-prod.txt"
 
 # Flags
@@ -208,6 +210,7 @@ CUST_OPTS="${SETUP_DIR}/customize_opts.sh"
 cat <<EOF > $CUST_OPTS
 SETUP_DIR="$ROOTFS_SETUP_DIR"
 USE_UBUNTU_KERNEL="$USE_UBUNTU_KERNEL"
+KERNEL_VERSION="$KERNEL_VERSION"
 SERVER="$MIRROR_INSIDE"
 SUITE="$FLAGS_suite"
 SERVER2="$MIRROR2_INSIDE"

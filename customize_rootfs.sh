@@ -109,12 +109,7 @@ do_initrd = yes
 warn_initrd = no
 EOF
 
-if [ $USE_UBUNTU_KERNEL -eq 1 ]
-then
-  KERNEL_VERSION="2.6.30-9-generic"
-else
-  KERNEL_VERSION="2.6.30-chromeos-intel-menlow"
-fi
+# NB: KERNEL_VERSION comes from customize_opts.sh
 apt-get --yes --force-yes install "linux-image-${KERNEL_VERSION}"
 
 # Create custom initramfs

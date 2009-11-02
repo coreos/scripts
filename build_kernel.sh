@@ -18,9 +18,11 @@
 SRC_ROOT=$(dirname $(readlink -f $(dirname "$0")))
 . "${SRC_ROOT}/third_party/shflags/files/src/shflags"
 
+KERNEL_VERSION=${KERNEL_VERSION:-"2.6.30-chromeos-intel-menlow"}
+
 # Flags
 DEFAULT_BUILD_ROOT=${BUILD_ROOT:-"${SRC_ROOT}/build"}
-DEFINE_string config "config.2.6.30-chromeos-intel-menlow"              \
+DEFINE_string config "config.${KERNEL_VERSION}"                        \
   "The kernel configuration file to use. See src/platform/kernel/config/*"
 DEFINE_integer revision 002                                            \
   "The package revision to use"
@@ -99,37 +101,43 @@ mkdir -p "$SRCDIR"
 cd "$SRCDIR"
 
 # Get kernel sources and patches.
+if [ -d ${KERNEL_DIR}/linux-${VER_MME} ]; then
+# TODO(msb): uncomment once git is available in the chroot
+#   git clone "${KERNEL_DIR}"/linux_${VER_MME}
+    cp -a "${KERNEL_DIR}"/linux-${VER_MME} .
+else
+    # old way...
 # TODO: find a better source for the kernel source.  Old versions of karmic
 # aren't hosted on archive.ubuntu.com
 #apt-get source linux-source-$MAJOR.$MINOR.$EXTRA
-# TODO(msb): uncomment once git is available in the chroot
-# git clone "${KERNEL_DIR}"/files linux_${VER_MME}
 # Name directory to what the patches expect
-mkdir linux-${VER_MME}
-cp -a "${KERNEL_DIR}"/files/* linux-${VER_MME}
+    mkdir linux-${VER_MME}
+    cp -a "${KERNEL_DIR}"/files/* linux-${VER_MME}
 
-if [ ! -z $PATCHES ]
-then
-    # TODO: Get rid of sudo if possible. Maybe the non-chromeos kernel patches
-    # will be infrequent enough that we can make them part of the chroot env?
-    sudo apt-get install $PATCHES
+    if [ ! -z $PATCHES ]
+    then
+        # TODO: Get rid of sudo if possible. Maybe the non-chromeos kernel
+	# patches will be infrequent enough that we can make them part of
+	# the chroot env?
+        sudo apt-get install $PATCHES
+    fi
+
+    # Apply chromeos patches
+    CHROMEOS_PATCHES=`ls "$KERNEL_DIR"/patches/*.patch`
+    for i in ${CHROMEOS_PATCHES}
+    do
+      patch -d "linux-$VER_MME" -p1 < "$i"
+    done
+
+    # TODO: Remove a config option which references a non-existent directory in
+    # ubuntu kernel sources.
+    sed -i '/gfs/ d' linux-$VER_MME/ubuntu/Makefile
 fi
-
-# Apply chromeos patches
-CHROMEOS_PATCHES=`ls "$KERNEL_DIR"/patches/*.patch`
-for i in ${CHROMEOS_PATCHES}
-do
-  patch -d "linux-$VER_MME" -p1 < "$i"
-done
 
 # Move kernel config to kernel source tree and rename to .config so that
 # it can be used for "make oldconfig" by make-kpkg.
 cp "$KCONFIG" "linux-${VER_MME}/.config"
 cd "linux-$VER_MME"
-
-# TODO: Remove a config option which references a non-existent directory in
-# ubuntu kernel sources.
-sed -i '/gfs/ d' ubuntu/Makefile
 
 # Remove stale packages. make-kpkg will dump the package in the parent
 # directory. From there, it will be moved to the output directory.
