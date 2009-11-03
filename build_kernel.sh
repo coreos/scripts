@@ -122,13 +122,6 @@ else
         sudo apt-get install $PATCHES
     fi
 
-    # Apply chromeos patches
-    CHROMEOS_PATCHES=`ls "$KERNEL_DIR"/patches/*.patch`
-    for i in ${CHROMEOS_PATCHES}
-    do
-      patch -d "linux-$VER_MME" -p1 < "$i"
-    done
-
     # TODO: Remove a config option which references a non-existent directory in
     # ubuntu kernel sources.
     sed -i '/gfs/ d' linux-$VER_MME/ubuntu/Makefile
