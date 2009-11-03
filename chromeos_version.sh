@@ -91,5 +91,5 @@ fi
 
 # Print version info.
 echo "ChromeOS version information:"
-set | grep "CHROMEOS_VERSION" | sed 's/^/    /'
+env | grep "^CHROMEOS_VERSION" | sed 's/^/    /'
 
