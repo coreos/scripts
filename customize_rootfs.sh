@@ -75,12 +75,6 @@ echo "%admin ALL=(ALL) ALL" >> /etc/sudoers
 useradd -G "${ADMIN_GROUP},${DEFGROUPS}" -g ${ADMIN_GROUP} -s /bin/bash -m \
   -c "${FULLNAME}" -p ${CRYPTED_PASSWD} ${USERNAME}
 
-# Create a directory inside of the user's home directory for storing logs.
-USER_LOG_DIR=/home/${USERNAME}/logs
-mkdir ${USER_LOG_DIR}
-chown ${USERNAME}:${ADMIN_GROUP} ${USER_LOG_DIR}
-chmod 755 ${USER_LOG_DIR}
-
 # Create apt source.list
 cat <<EOF > /etc/apt/sources.list
 deb file:"$SETUP_DIR" local_packages/
