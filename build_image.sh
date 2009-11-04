@@ -242,7 +242,7 @@ TIMEOUT 0
 label chromeos-usb
   menu label chromeos-usb
   kernel vmlinuz
-  append quiet console=tty2 initrd=initrd.img init=/sbin/init boot=local rootwait root=LABEL=$DISK_LABEL noresume noswap i915.modeset=1 loglevel=1
+  append quiet console=tty2 initrd=initrd.img init=/sbin/init boot=local rootwait root=LABEL=$DISK_LABEL ro noresume noswap i915.modeset=1 loglevel=1
 
 label chromeos-hd
   menu label chromeos-hd
