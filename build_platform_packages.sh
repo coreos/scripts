@@ -20,6 +20,9 @@ eval set -- "${FLAGS_ARGV}"
 # Die on error
 set -e
 
+# Number of jobs for scons calls.
+NUM_JOBS=`cat /proc/cpuinfo | grep processor | awk '{a++} END {print a}'`
+
 PLATFORM_DIR="$SRC_ROOT/platform"
 
 PLATFORM_DIRS="assets control_panel fake_hal init installer login_manager \
@@ -28,7 +31,7 @@ PLATFORM_DIRS="assets control_panel fake_hal init installer login_manager \
                monitor_reconfig"
 
 THIRD_PARTY_DIR="$SRC_ROOT/third_party"
-THIRD_PARTY_PACKAGES="connman e2fsprogs/files gflags gtest glog \
+THIRD_PARTY_PACKAGES="connman e2fsprogs/files gflags gtest \
                       ply-image slim/src synaptics \
                       wpa_supplicant xscreensaver/xscreensaver-5.08 \
                       xserver-xorg-core xserver-xorg-video-intel"
@@ -44,14 +47,14 @@ done
 
 # Build base lib next, since packages depend on it.
 echo "Building base library..."
-cd "$PLATFORM_DIR/base"
-scons
+cd "$THIRD_PARTY_DIR/chrome"
+scons -j$NUM_JOBS
 cd -
 
 #Build common lib next.
 echo "Building common library..."
 cd "$SRC_ROOT/common"
-scons
+scons -j$NUM_JOBS
 cd -
 
 # Build platform packages
