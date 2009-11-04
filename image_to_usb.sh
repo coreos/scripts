@@ -17,7 +17,7 @@ DEFAULT_FROM="${IMAGES_DIR}/`ls -t $IMAGES_DIR | head -1`"
 # Script can be run either inside or outside the chroot.
 if [ $INSIDE_CHROOT -eq 1 ]
 then
-  # Inside the chroot, so output to usb.img in the same dir as the other 
+  # Inside the chroot, so output to usb.img in the same dir as the other
   # images.
   DEFAULT_TO="${DEFAULT_FROM}/usb.img"
   DEFAULT_TO_HELP="Destination file for USB image."
@@ -40,7 +40,7 @@ eval set -- "${FLAGS_ARGV}"
 # Die on any errors.
 set -e
 
-# Convert args to paths.  Need eval to un-quote the string so that shell 
+# Convert args to paths.  Need eval to un-quote the string so that shell
 # chars like ~ are processed; just doing FOO=`readlink -f $FOO` won't work.
 FLAGS_from=`eval readlink -f $FLAGS_from`
 FLAGS_to=`eval readlink -f $FLAGS_to`
@@ -68,19 +68,21 @@ then
       exit 1
     fi
   fi
-  
+
   echo "attempting to unmount any mounts on the USB device"
   for i in "$FLAGS_to"*
   do
     ! sudo umount "$i"
   done
   sleep 3
-  
+
   PART_SIZE=$(stat -c%s "${FLAGS_from}/rootfs.image")  # Bytes
 
   echo "Copying root fs..."
-  sudo ./file_copy.py if="${FLAGS_from}/rootfs.image" of="$FLAGS_to" bs=4M \
-      seek_bytes=$(( ($PART_SIZE * 2) + 512 ))
+  sudo "${SCRIPTS_DIR}"/file_copy.py \
+    if="${FLAGS_from}/rootfs.image" \
+    of="$FLAGS_to" bs=4M \
+    seek_bytes=$(( ($PART_SIZE * 2) + 512 ))
 
   # Set up loop device
   LOOP_DEV=$(sudo losetup -f)
@@ -89,7 +91,7 @@ then
     echo "No free loop device. Free up a loop device or reboot. exiting."
     exit 1
   fi
-  
+
   trap do_cleanup EXIT
 
   echo "Creating stateful partition..."
@@ -98,11 +100,12 @@ then
   sync
   sudo losetup -d "$LOOP_DEV"
   sync
-  
+
   trap - EXIT
 
   echo "Copying MBR..."
-  sudo ./file_copy.py if="${FLAGS_from}/mbr.image" of="$FLAGS_to"
+  sudo "${SCRIPTS_DIR}"/file_copy.py \
+    if="${FLAGS_from}/mbr.image" of="$FLAGS_to"
   sync
   echo "Done."
 else
@@ -114,7 +117,7 @@ else
   dd if=/dev/zero of="${FLAGS_from}/stateful_partition.image" bs=1 count=1 \
       seek=$(($PART_SIZE - 1))
   mkfs.ext3 -F -L C-STATE "${FLAGS_from}/stateful_partition.image"
-  
+
   # Create a sparse output file
   dd if=/dev/zero of="${FLAGS_to}" bs=1 count=1 \
       seek=$(( ($PART_SIZE * 2) + 512 - 1))
