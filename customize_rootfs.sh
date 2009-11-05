@@ -425,6 +425,10 @@ chmod 0666 "$UDEV_DEVICES"/null  # Fix misconfiguration of /dev/null
 # Since we may mount read-only, our mtab should symlink to /proc
 ln -sf /proc/mounts /etc/mtab
 
+# TODO(tedbo): We don't rely on any upstart provided jobs. When we build
+# our own upstart, stop if from installing jobs and then remove the lines
+# below that remove stuff from /etc/init
+
 # We don't need last-good-boot if it exits
 rm -f /etc/init/last-good-boot.conf
 
@@ -436,6 +440,10 @@ sed -i '{ s:ACTIVE_CONSOLES=.*:ACTIVE_CONSOLES="/dev/tty2": }' \
 
 # We don't use the rc.conf that triggers scripts in /etc/rc?.d/
 rm -f /etc/init/rc.conf
+
+# We don't use the rcS or rc-sysinit upstart jobs either.
+rm -f /etc/init/rcS.conf
+rm -f /etc/init/rc-sysinit.conf
 
 # Start X on vt01
 sed -i '{ s/xserver_arguments .*/xserver_arguments -nolisten tcp vt01/ }' \
