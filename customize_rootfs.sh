@@ -383,6 +383,7 @@ sed -i '{ s^cp -a -f /lib/udev/devices/\* /dev^^ }' \
 UDEV_DEVICES=/lib/udev/devices
 mkdir "$UDEV_DEVICES"/dri
 mkdir "$UDEV_DEVICES"/input
+mknod --mode=0600 "$UDEV_DEVICES"/initctl p
 mknod --mode=0660 "$UDEV_DEVICES"/tty0 c 4 0
 mknod --mode=0660 "$UDEV_DEVICES"/tty1 c 4 1
 mknod --mode=0660 "$UDEV_DEVICES"/tty2 c 4 2
