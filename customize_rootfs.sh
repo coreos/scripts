@@ -118,17 +118,6 @@ EOF
 update-initramfs -u
 fi
 
-cat <<EOF > /etc/network/interfaces
-auto lo
-iface lo inet loopback
-EOF
-
-cat <<EOF > /etc/resolv.conf
-# Use the connman dns proxy.
-nameserver 127.0.0.1
-EOF
-chmod a-wx /etc/resolv.conf
-
 # Set timezone symlink
 rm -f /etc/localtime
 ln -s /mnt/stateful_partition/etc/localtime /etc/localtime
