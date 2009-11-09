@@ -41,7 +41,7 @@ echo Building Chrome in mode $FLAGS_mode
 # and dpkg-buildpackage
 NUM_JOBS=`cat /proc/cpuinfo | grep processor | awk '{a++} END {print a}'`
 export GYP_GENERATORS="make"
-export GYP_DEFINES="chromeos=1 target_arch=ia32"
+export GYP_DEFINES="chromeos=1 target_arch=ia32 branding=Chrome"
 CHROME_DIR=$FLAGS_chrome_dir
 cd "$CHROME_DIR/src"
 gclient runhooks --force
