@@ -25,9 +25,9 @@ NUM_JOBS=`cat /proc/cpuinfo | grep processor | awk '{a++} END {print a}'`
 
 PLATFORM_DIR="$SRC_ROOT/platform"
 
-PLATFORM_DIRS="assets control_panel fake_hal init installer login_manager \
+PLATFORM_DIRS="assets fake_hal init installer login_manager \
                memento_softwareupdate pam_google window_manager \
-               control_panel cros chrome wifi screenlocker cryptohome \
+               cros chrome wifi screenlocker cryptohome \
                monitor_reconfig"
 
 THIRD_PARTY_DIR="$SRC_ROOT/third_party"
