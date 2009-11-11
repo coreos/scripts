@@ -20,7 +20,7 @@ echo bin is "$EXTLINUX_BIN"
 if [ ! -e $EXTLINUX_BIN ]
 then
   # compile extlinux
-  (cd "$SCRIPTS_ROOT/../third_party/syslinux"/syslinux-*/ && make)
+  (cd "$SCRIPTS_ROOT/../third_party/syslinux/files/" && make)
   if [ ! -e $EXTLINUX_BIN ]
   then
     echo "Can't find or compile extlinux. Sorry."
