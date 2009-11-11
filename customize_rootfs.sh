@@ -460,6 +460,13 @@ done
 rm -rf /var/lib/xkb
 ln -s /var/cache /var/lib/xkb
 
+# This is needed so that devicekit-disks has a place to
+# put its sql lite database. Since we do not need to
+# retain this information across boots, we are just
+# putting it in /var/tmp
+rm -rf /var/lib/DeviceKit-disks
+ln -s /var/tmp /var/lib/DeviceKit-disks
+
 # Remove pam-mount's default entry in common-auth and common-session
 sed -i 's/^\(.*pam_mount.so.*\)/#\1/g' /etc/pam.d/common-*
 
