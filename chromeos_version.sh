@@ -86,7 +86,7 @@ else
   export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Developer Build - $(date)-$USER)"
   HOSTNAME=$(hostname)
   export CHROMEOS_VERSION_AUSERVER="http://$HOSTNAME:8080/update"
-  export CHROMEOS_VERSION_DEVSERVER="http://$HOSTNAME:8080/static/devkit"
+  export CHROMEOS_VERSION_DEVSERVER="http://$HOSTNAME:8080"
 fi
 
 # Print version info.
