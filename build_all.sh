@@ -9,8 +9,10 @@
 # Die on error; print commands
 set -e
 
-./build_platform_packages.sh
-./build_tests.sh
-./build_kernel.sh
-./run_tests.sh
-./build_image.sh --replace
+SCRIPTS_DIR=$(dirname $0)
+
+$SCRIPTS_DIR/build_platform_packages.sh
+$SCRIPTS_DIR/build_tests.sh
+$SCRIPTS_DIR/build_kernel.sh
+$SCRIPTS_DIR/run_tests.sh
+$SCRIPTS_DIR/build_image.sh 
