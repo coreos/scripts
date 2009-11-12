@@ -18,11 +18,12 @@
 SRC_ROOT=$(dirname $(readlink -f $(dirname "$0")))
 . "${SRC_ROOT}/third_party/shflags/files/src/shflags"
 
-KERNEL_VERSION=${KERNEL_VERSION:-"2.6.30-chromeos-intel-menlow"}
+KERNEL_DIR="$SRC_ROOT/third_party/kernel"
+KCONFIG="${KERNEL_DIR}/files/chromeos/config/chromeos-intel-menlow"
 
 # Flags
 DEFAULT_BUILD_ROOT=${BUILD_ROOT:-"${SRC_ROOT}/build"}
-DEFINE_string config "config.${KERNEL_VERSION}"                        \
+DEFINE_string config "${KCONFIG}"                                      \
   "The kernel configuration file to use. See src/platform/kernel/config/*"
 DEFINE_integer revision 002                                            \
   "The package revision to use"
@@ -38,9 +39,6 @@ eval set -- "${FLAGS_ARGV}"
 
 # Die on any errors.
 set -e
-
-KERNEL_DIR="$SRC_ROOT/third_party/kernel"
-KCONFIG="${KERNEL_DIR}/config/${FLAGS_config}"
 
 # TODO: We detect the ARCH below. We can sed the FLAGS_output_root to replace
 # an ARCH placeholder with the proper architecture rather than assuming x86.
@@ -80,9 +78,15 @@ FULLVERSION=$(sed -e '/version/ !d' -e 's/^[^0-9]*//' $KCONFIG)
 # example MAJOR is 2, MINOR is 6, EXTRA is 30, RELEASE is rc1, LOCAL is
 # asus-eeepc. RC is optional since it only shows up for release candidates.
 MAJOR=$(echo $FULLVERSION | sed -e 's/[^0-9].*//')
-MINOR=$(echo $FULLVERSION | sed -e 's/[0-9].//' -e 's/[^0-9].*//')
-EXTRA=$(echo $FULLVERSION | sed -e 's/[0-9].//' -e 's/[0-9].//' -e 's/[^0-9].*//')
-VER_MME="${MAJOR}.${MINOR}.${EXTRA}"
+MIDDLE=$(echo $FULLVERSION | sed -e 's/[0-9].//' -e 's/[^0-9].*//')
+MINOR=$(echo $FULLVERSION | sed -e 's/[0-9].//' -e 's/[0-9].//' -e 's/[^0-9].*//')
+EXTRA=$(echo $FULLVERSION | sed -e 's/[0-9].//' -e 's/[0-9].//' -e 's/[0-9]*.//' -e 's/[^0-9].*//')
+if [ ! -z $EXTRA ]; then
+    VER_MME="${MAJOR}.${MIDDLE}.${MINOR}.${EXTRA}"
+else
+    VER_MME="${MAJOR}.${MIDDLE}.${MINOR}"
+fi
+
 LOCAL=$(sed -e '/CONFIG_LOCALVERSION=/ !d' -e 's/.*="-//' -e 's/"//' $KCONFIG)
 RC=$(echo $FULLVERSION | sed -r \
    "s/${VER_MME}-([^-]*)-*${LOCAL}/\1/")
@@ -168,6 +172,7 @@ MAKEFLAGS="CONCURRENCY_LEVEL=$CONCURRENCY_LEVEL" \
 # make-kpkg dumps the newly created package in the parent directory
 if [ -e "../${PACKAGE}" ]
 then
+    rm "${FLAGS_output_root}"/linux-image-*.deb
     mv "../${PACKAGE}" "${FLAGS_output_root}"
     echo "Kernel build successful, check ${FLAGS_output_root}/${PACKAGE}"
 else

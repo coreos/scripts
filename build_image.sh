@@ -20,8 +20,6 @@
 # Script must be run inside the chroot
 assert_inside_chroot
 
-KERNEL_VERSION=${KERNEL_VERSION:-"2.6.30-chromeos-intel-menlow"}
-
 DEFAULT_PKGLIST="${SRC_ROOT}/package_repo/package-list-prod.txt"
 
 # Flags
@@ -46,6 +44,10 @@ DEFINE_string mirror2 "$DEFAULT_EXT_MIRROR" "Additional mirror to use."
 DEFINE_string suite2 "$DEFAULT_EXT_SUITE" "Suite to use in additional mirror."
 DEFINE_string pkglist2 "" \
   "Name of file listing packages to install from additional mirror."
+
+KERNEL_DEB_PATH=$(find "${FLAGS_build_root}/x86/local_packages" -name "linux-image-*.deb")
+KERNEL_DEB=$(basename "${KERNEL_DEB_PATH}" .deb | sed -e 's/linux-image-//' -e 's/_.*//')
+KERNEL_VERSION=${KERNEL_VERSION:-${KERNEL_DEB}}
 
 # Parse command line
 FLAGS "$@" || exit 1
