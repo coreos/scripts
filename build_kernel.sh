@@ -172,7 +172,7 @@ MAKEFLAGS="CONCURRENCY_LEVEL=$CONCURRENCY_LEVEL" \
 # make-kpkg dumps the newly created package in the parent directory
 if [ -e "../${PACKAGE}" ]
 then
-    rm "${FLAGS_output_root}"/linux-image-*.deb
+    rm -f "${FLAGS_output_root}"/linux-image-*.deb
     mv "../${PACKAGE}" "${FLAGS_output_root}"
     echo "Kernel build successful, check ${FLAGS_output_root}/${PACKAGE}"
 else
