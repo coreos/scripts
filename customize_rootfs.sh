@@ -163,15 +163,6 @@ EOF
 # Setup bootchart. Due to dependencies, this adds about 180MB!
 apt-get --yes --force-yes install bootchart
 
-# Bootchart has been dying from a SIGHUP partway through boot. Daemonize it
-# so that it won't get HUP'd
-# TODO(tedbo): Remove when fixed upstream.
-if [ -f /etc/init.d/bootchart ]
-then
-  sed -i 's^/lib/bootchart/collector \$HZ \$LOGS 2>/dev/null \&^start-stop-daemon --background --start --exec /lib/bootchart/collector -- \$HZ \$LOGS^'  \
-    /etc/init.d/bootchart
-fi
-
 # Install additional packages from a second mirror, if necessary.  This must
 # be done after all packages from the first repository are installed; after
 # the apt-get update, apt-get and debootstrap will prefer the newest package
@@ -357,18 +348,10 @@ Section "ServerLayout"
 EndSection
 EOF
 
-# The udev daemon takes a long time to start up and settle. We modify the
-# udev init script to settle in the backround, but in order to be able to
-# mount the root file system and start X we pre-propulate some devices.
-# Our rcS script copies whatever devices are in /lib/udev/devices
-# to the tmpfs /dev well before we start udev, so we need to disable
-# the copy step that is in the udev start script.
-sed -i '{ s/# This next bit can take a while/&\n\{/ }' \
-  /etc/init.d/udev   # Add '{' after the comment line.
-sed -i '{ s/kill $UDEV_MONITOR_PID/&\n\} \&/ }' \
-  /etc/init.d/udev   # Add '} &' after the kill line.
-sed -i '{ s^cp -a -f /lib/udev/devices/\* /dev^^ }' \
-  /etc/init.d/udev   # Remove step that prepopulates /dev
+# The udev daemon takes a long time to start up and settle so we defer it until
+# after X11 has been started. In order to be able to mount the root file system
+# and start X we pre-propulate some devices. These are copied into /dev by the
+# chromeos_startup script.
 UDEV_DEVICES=/lib/udev/devices
 mkdir "$UDEV_DEVICES"/dri
 mkdir "$UDEV_DEVICES"/input
@@ -416,7 +399,7 @@ chmod 0666 "$UDEV_DEVICES"/null  # Fix misconfiguration of /dev/null
 ln -sf /proc/mounts /etc/mtab
 
 # TODO(tedbo): We don't rely on any upstart provided jobs. When we build
-# our own upstart, stop if from installing jobs and then remove the lines
+# our own upstart, stop it from installing jobs and then remove the lines
 # below that remove stuff from /etc/init
 
 # We don't need last-good-boot if it exits
@@ -434,6 +417,9 @@ rm -f /etc/init/rc.conf
 # We don't use the rcS or rc-sysinit upstart jobs either.
 rm -f /etc/init/rcS.conf
 rm -f /etc/init/rc-sysinit.conf
+
+# We may want to tell init to connect to dbus in the future, but not now.
+rm -f /etc/init/dbus-reconnect.conf
 
 # By default, xkb writes computed configuration data to
 # /var/lib/xkb. It can re-use this data to reduce startup
