@@ -374,8 +374,8 @@ sed -i 's/^\(.*pam_mount.so.*\)/#\1/g' /etc/pam.d/common-*
 sudo sh -c "/trunk/src/scripts/list_installed_packages.sh \
   > /etc/package_list_pruned.txt"
 
-# Clear network settings.  This must be done last, since it prevents
-# any subseuqent steps from accessing the network.
+# Clear the network settings.  This must be done last, since it prevents
+# any subsequent steps from accessing the network.
 cat <<EOF > /etc/network/interfaces
 auto lo
 iface lo inet loopback
