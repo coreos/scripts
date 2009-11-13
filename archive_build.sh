@@ -35,12 +35,18 @@ set -e
 # Get version information
 . "${SCRIPTS_DIR}/chromeos_version.sh"
 
-# Get subversion revision
-SVN_REVISION=`svn info | grep "Revision: " | awk '{print $2}'`
+# Get subversion or git revision
+REVISION=$(svn info 2>&-| grep "Revision: " | awk '{print $2}')
+if [ -z "$REVISION" ]
+then
+   # Use git:8 chars of sha1
+   REVISION=$(git rev-parse HEAD)
+   REVISION=${REVISION:8}
+fi
 
 # Use the version number plus revision as the last change.  (Need both, since
 # trunk builds multiple times with the same version string.)
-LAST_CHANGE="${CHROMEOS_VERSION_STRING}-r${SVN_REVISION}"
+LAST_CHANGE="${CHROMEOS_VERSION_STRING}-r${REVISION}"
 
 # The Chromium buildbot scripts only create a clickable link to the archive
 # if an output line of the form "last change: XXX" exists
