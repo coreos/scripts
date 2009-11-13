@@ -87,7 +87,8 @@ apt-get --yes --force-yes install $COMPONENTS
 if [ "$SUITE" = "jaunty" ]
 then
   # Additional driver modules needed for chromeos-wifi on jaunty.
-  apt-get --yes --force-yes install linux-backports-modules-jaunty
+  apt-get --yes --force-yes --no-install-recommends \
+    install linux-backports-modules-jaunty
 fi
 
 # Create kernel installation configuration to suppress warnings,
@@ -104,7 +105,8 @@ warn_initrd = no
 EOF
 
 # NB: KERNEL_VERSION comes from customize_opts.sh
-apt-get --yes --force-yes install "linux-image-${KERNEL_VERSION}"
+apt-get --yes --force-yes --no-install-recommends \
+  install "linux-image-${KERNEL_VERSION}"
 
 # Create custom initramfs
 # TODO: Remove when we switch to dhendrix kernel for good.
@@ -161,7 +163,9 @@ SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{type}=="1", KERNEL=="wlan*"
 EOF
 
 # Setup bootchart. Due to dependencies, this adds about 180MB!
-apt-get --yes --force-yes install bootchart
+apt-get --yes --force-yes --no-install-recommends install bootchart
+# TODO: Replace this with pybootchartgui, or remove it entirely.
+apt-get --yes --force-yes --no-install-recommends install bootchart-java
 
 # Install additional packages from a second mirror, if necessary.  This must
 # be done after all packages from the first repository are installed; after
@@ -174,7 +178,8 @@ then
   echo "deb $SERVER2 $SUITE2 main restricted multiverse universe" \
     >> /etc/apt/sources.list
   apt-get update
-  apt-get --yes --force-yes install $COMPONENTS2
+  apt-get --yes --force-yes --no-install-recommends \
+    install $COMPONENTS2
 fi
 
 # List all packages installed so far, since these are what the local
