@@ -73,8 +73,6 @@ then
   export_version_string
   export CHROMEOS_VERSION_NAME="Chrome OS"
   export CHROMEOS_VERSION_TRACK="dev-channel"
-  # CHROMEOS_REVISION must be set in the environment for official builds
-  export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Official Build ${CHROMEOS_REVISION:?})" 
   export CHROMEOS_VERSION_AUSERVER="https://tools.google.com/service/update2"
   export CHROMEOS_VERSION_DEVSERVER=""
 else
@@ -83,7 +81,6 @@ else
   export_version_string
   export CHROMEOS_VERSION_NAME="Chromium OS"
   export CHROMEOS_VERSION_TRACK="developer-build"
-  export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Developer Build - $(date)-$USER)"
   HOSTNAME=$(hostname)
   export CHROMEOS_VERSION_AUSERVER="http://$HOSTNAME:8080/update"
   export CHROMEOS_VERSION_DEVSERVER="http://$HOSTNAME:8080"
@@ -92,4 +89,3 @@ fi
 # Print version info.
 echo "ChromeOS version information:"
 env | grep "^CHROMEOS_VERSION" | sed 's/^/    /'
-

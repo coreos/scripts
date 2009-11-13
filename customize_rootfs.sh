@@ -37,6 +37,16 @@ else
   PASSWORD="gone now"
 fi
 
+# Set CHROMEOS_VERSION_DESCRIPTION here (uses vars set in chromeos_version.sh)
+# Was removed from chromeos_version.sh which can also be run outside of chroot
+# where CHROMEOS_REVISION is set
+if [ ${CHROMEOS_OFFICIAL:-0} = 1 ]
+then
+   export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Official Build ${CHROMEOS_REVISION:?})"
+else
+   export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Developer Build - $(date)-$USER)"
+fi
+
 # Set google-specific version numbers:
 # CHROMEOS_RELEASE_CODENAME is the codename of the release.
 # CHROMEOS_RELEASE_DESCRIPTION is the version displayed by Chrome; see
