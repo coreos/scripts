@@ -25,7 +25,7 @@ NUM_JOBS=`cat /proc/cpuinfo | grep processor | awk '{a++} END {print a}'`
 
 PLATFORM_DIR="$SRC_ROOT/platform"
 
-PLATFORM_DIRS="assets fake_hal init installer login_manager \
+PLATFORM_DIRS="acpi assets fake_hal init installer login_manager \
                memento_softwareupdate pam_google window_manager \
                cros chrome wifi screenlocker cryptohome \
                monitor_reconfig"
