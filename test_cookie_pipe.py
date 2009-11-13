@@ -83,7 +83,8 @@ def Authenticate(email, password):
   return cookies
 
 def WriteToPipe(pipe_path, data):
-  os.remove(pipe_path)
+  if os.path.exists(pipe_path):
+    os.remove(pipe_path)
   os.mkfifo(pipe_path)
   f = open(pipe_path, 'w')
   f.write(data)
