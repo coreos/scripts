@@ -108,18 +108,6 @@ EOF
 apt-get --yes --force-yes --no-install-recommends \
   install "linux-image-${KERNEL_VERSION}"
 
-# Create custom initramfs
-# TODO: Remove when we switch to dhendrix kernel for good.
-if [ $USE_UBUNTU_KERNEL -eq 1 ]
-then
-cat <<EOF >> /etc/initramfs-tools/modules
-intel_agp
-drm
-i915 modeset=1
-EOF
-update-initramfs -u
-fi
-
 # Set timezone symlink
 rm -f /etc/localtime
 ln -s /mnt/stateful_partition/etc/localtime /etc/localtime

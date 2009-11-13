@@ -29,8 +29,6 @@ DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images"      \
   "Directory in which to place image result directories (named by version)"
 DEFINE_string build_root "$DEFAULT_BUILD_ROOT"                \
   "Root of build output"
-DEFINE_boolean use_ubuntu_kernel $FLAGS_FALSE                 \
-  "Use the Ubuntu kernel (rather than our own)?"
 DEFINE_boolean replace $FLAGS_FALSE "Overwrite existing output, if any."
 DEFINE_boolean increment $FLAGS_FALSE \
   "Picks the latest build and increments the minor version by one."
@@ -55,12 +53,6 @@ eval set -- "${FLAGS_ARGV}"
 
 # Die on any errors.
 set -e
-
-USE_UBUNTU_KERNEL=0
-if [ $FLAGS_use_ubuntu_kernel -eq $FLAGS_TRUE ]
-then
-  USE_UBUNTU_KERNEL=1
-fi
 
 # Determine build version
 . "${SCRIPTS_DIR}/chromeos_version.sh"
@@ -143,7 +135,7 @@ mkdir -p "$ROOT_FS_DIR"
 
 # Create root file system disk image to fit on a 1GB memory stick.
 # 1 GB in hard-drive-manufacturer-speak is 10^9, not 2^30.  950MB < 10^9 bytes.
-ROOT_SIZE_BYTES=$((1024 * 1024 * 950)) 
+ROOT_SIZE_BYTES=$((1024 * 1024 * 950))
 dd if=/dev/zero of="$ROOT_FS_IMG" bs=1 count=1 seek=$((ROOT_SIZE_BYTES - 1))
 
 # Format, tune, and mount the rootfs.
@@ -211,7 +203,6 @@ MIRROR2_INSIDE="${FLAGS_mirror2/$GCLIENT_ROOT//trunk}"
 CUST_OPTS="${SETUP_DIR}/customize_opts.sh"
 cat <<EOF > $CUST_OPTS
 SETUP_DIR="$ROOTFS_SETUP_DIR"
-USE_UBUNTU_KERNEL="$USE_UBUNTU_KERNEL"
 KERNEL_VERSION="$KERNEL_VERSION"
 SERVER="$MIRROR_INSIDE"
 SUITE="$FLAGS_suite"
