@@ -27,7 +27,7 @@ PLATFORM_DIR="$SRC_ROOT/platform"
 
 PLATFORM_DIRS="acpi assets fake_hal init installer login_manager \
                memento_softwareupdate pam_google window_manager \
-               cros chrome wifi screenlocker cryptohome \
+               cros chrome screenlocker cryptohome \
                monitor_reconfig"
 
 THIRD_PARTY_DIR="$SRC_ROOT/third_party"
