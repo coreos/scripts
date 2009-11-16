@@ -122,30 +122,6 @@ apt-get --yes --force-yes --no-install-recommends \
 rm -f /etc/localtime
 ln -s /mnt/stateful_partition/etc/localtime /etc/localtime
 
-# The postinst script is called after an AutoUpdate or USB install.
-# the quotes around EOF mean don't evaluate anything inside this HEREDOC.
-# TODO(adlr): set this file up in a package rather than here
-cat <<"EOF" > /usr/sbin/chromeos-postinst
-#!/bin/sh
-
-set -e
-
-# update /boot/extlinux.conf
-INSTALL_ROOT=`dirname "$0"`
-INSTALL_DEV="$1"
-
-# set default label to chromeos-hd
-sed -i 's/^DEFAULT .*/DEFAULT chromeos-hd/' "$INSTALL_ROOT"/boot/extlinux.conf
-sed -i "{ s:HDROOT:$INSTALL_DEV: }" "$INSTALL_ROOT"/boot/extlinux.conf
-
-# NOTE: The stateful partition will not be mounted when this is
-# called at USB-key install time.
-EOF
-chmod 0755 /usr/sbin/chromeos-postinst
-
-ln -s ./usr/sbin/chromeos-postinst /postinst
-
-
 # make a mountpoint for stateful partition
 sudo mkdir -p "$ROOTFS_DIR"/mnt/stateful_partition
 sudo chmod 0755 "$ROOTFS_DIR"/mnt
@@ -386,4 +362,3 @@ cat <<EOF > /etc/resolv.conf
 nameserver 127.0.0.1
 EOF
 chmod a-wx /etc/resolv.conf
-
