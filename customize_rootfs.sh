@@ -94,12 +94,6 @@ EOF
 # Install prod packages
 apt-get update
 apt-get --yes --force-yes install $COMPONENTS
-if [ "$SUITE" = "jaunty" ]
-then
-  # Additional driver modules needed for chromeos-wifi on jaunty.
-  apt-get --yes --force-yes --no-install-recommends \
-    install linux-backports-modules-jaunty
-fi
 
 # Create kernel installation configuration to suppress warnings,
 # install the kernel in /boot, and manage symlinks.
@@ -306,28 +300,12 @@ chmod 0666 "$UDEV_DEVICES"/null  # Fix misconfiguration of /dev/null
 # Since we may mount read-only, our mtab should symlink to /proc
 ln -sf /proc/mounts /etc/mtab
 
-# TODO(tedbo): We don't rely on any upstart provided jobs. When we build
-# our own upstart, stop it from installing jobs and then remove the lines
-# below that remove stuff from /etc/init
-
-# We don't need last-good-boot if it exits
-rm -f /etc/init/last-good-boot.conf
-
-# Don't create all of the virtual consoles
-rm -f /etc/init/tty1.conf
-rm -f /etc/init/tty[3-6].conf
-sed -i '{ s:ACTIVE_CONSOLES=.*:ACTIVE_CONSOLES="/dev/tty2": }' \
-  /etc/default/console-setup
-
-# We don't use the rc.conf that triggers scripts in /etc/rc?.d/
-rm -f /etc/init/rc.conf
-
-# We don't use the rcS or rc-sysinit upstart jobs either.
-rm -f /etc/init/rcS.conf
-rm -f /etc/init/rc-sysinit.conf
-
-# We may want to tell init to connect to dbus in the future, but not now.
-rm -f /etc/init/dbus-reconnect.conf
+# For the most part, we use our own set of Upstart jobs that were installed
+# in /etc/init.chromeos so as not to mingle with jobs installed by various
+# packages. We fix that up now.
+cp /etc/init/tty2.conf /etc/init.chromeos
+rm -rf /etc/init
+mv /etc/init.chromeos /etc/init
 
 # By default, xkb writes computed configuration data to
 # /var/lib/xkb. It can re-use this data to reduce startup
