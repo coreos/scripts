@@ -24,6 +24,7 @@ DEFINE_string from "$DEFAULT_FROM" \
 DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
 DEFINE_integer keep_max 0 "Maximum builds to keep in archive (0=all)"
 DEFINE_string zipname "image.zip" "Name of zip file to create."
+DEFINE_boolean official_build $FLAGS_FALSE "Set CHROMEOS_OFFICIAL=1 for release builds."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -31,6 +32,11 @@ eval set -- "${FLAGS_ARGV}"
 
 # Die on any errors.
 set -e
+
+if [ $FLAGS_official_build -eq $FLAGS_TRUE ]
+then
+   CHROMEOS_OFFICIAL=1
+fi
 
 # Get version information
 . "${SCRIPTS_DIR}/chromeos_version.sh"
