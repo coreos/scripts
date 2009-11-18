@@ -12,7 +12,7 @@
 
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images"
 # Default to the most recent image
-DEFAULT_FROM="${IMAGES_DIR}/`ls -t $IMAGES_DIR | head -1`"
+DEFAULT_FROM="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)"
 
 # Script can be run either inside or outside the chroot.
 if [ $INSIDE_CHROOT -eq 1 ]
