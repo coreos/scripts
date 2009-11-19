@@ -61,15 +61,23 @@ LOOP_DEV=`sudo losetup -f`
 sudo losetup "${LOOP_DEV}" "${FLAGS_image}"
 sudo mount "${LOOP_DEV}" "${ROOT_FS_DIR}"
 
+# Run build steps for modify for test
+sudo mkdir -p "${ROOT_FS_DIR}/modify_build"
+scripts_dir="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
+for script in "${scripts_dir}"/b[0-9][0-9][0-9]*[!$~]; do
+  . ${script}
+done
+
 MOD_SCRIPTS_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
 sudo mkdir -p "${ROOT_FS_DIR}/modify_scripts"
 sudo mount --bind "${MOD_SCRIPTS_ROOT}" "${ROOT_FS_DIR}/modify_scripts"
 
 # Run test setup script inside chroot jail to modify the image
 sudo chroot "${ROOT_FS_DIR}" "/modify_scripts/test_setup.sh"
- 
+
 sudo umount "${ROOT_FS_DIR}/modify_scripts"
 sudo rmdir "${ROOT_FS_DIR}/modify_scripts"
+sudo rm -rf "${ROOT_FS_DIR}/modify_build"
 
 cleanup
 trap - EXIT

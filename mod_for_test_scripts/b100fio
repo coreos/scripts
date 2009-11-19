@@ -1,0 +1,12 @@
+# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# build fio
+pushd "${GCLIENT_ROOT}/src/third_party/fio"
+./make_pkg.sh
+popd
+
+sudo cp "${DEFAULT_BUILD_ROOT}"/x86/local_packages/fio_*.deb \
+    "${ROOT_FS_DIR}/modify_build/"
+

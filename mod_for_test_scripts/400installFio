@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Install fio and libaio1
+dpkg --install /modify_build/libaio1_*.deb
+dpkg --install /modify_build/fio_*.deb
+
