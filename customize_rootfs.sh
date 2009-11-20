@@ -4,7 +4,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Sets up the chromeos distribution from inside a chroot of the root fs.
+# Customizes the root file system of a chromium-based os.
 # NOTE: This script should be called by build_image.sh. Do not run this
 # on your own unless you know what you are doing.
 
@@ -15,9 +15,6 @@ echo "Reading options..."
 cat "$(dirname $0)/customize_opts.sh"
 . "$(dirname $0)/customize_opts.sh"
 
-PACKAGE_LIST_FILE="${SETUP_DIR}/package-list-prod.txt"
-PACKAGE_LIST_FILE2="${SETUP_DIR}/package-list-2.txt"
-COMPONENTS=`cat $PACKAGE_LIST_FILE | grep -v ' *#' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
 FULLNAME="ChromeOS User"
 USERNAME="chronos"
 ADMIN_GROUP="admin"
@@ -85,33 +82,6 @@ echo "%admin ALL=(ALL) ALL" >> /etc/sudoers
 useradd -G "${ADMIN_GROUP},${DEFGROUPS}" -g ${ADMIN_GROUP} -s /bin/bash -m \
   -c "${FULLNAME}" -p ${CRYPTED_PASSWD} ${USERNAME}
 
-# Create apt source.list
-cat <<EOF > /etc/apt/sources.list
-deb file:"$SETUP_DIR" local_packages/
-deb $SERVER $SUITE main restricted multiverse universe
-EOF
-
-# Install prod packages
-apt-get update
-apt-get --yes --force-yes install $COMPONENTS
-
-# Create kernel installation configuration to suppress warnings,
-# install the kernel in /boot, and manage symlinks.
-cat <<EOF > /etc/kernel-img.conf
-link_in_boot = yes
-do_symlinks = yes
-minimal_swap = yes
-clobber_modules = yes
-warn_reboot = no
-do_bootloader = no
-do_initrd = yes
-warn_initrd = no
-EOF
-
-# NB: KERNEL_VERSION comes from customize_opts.sh
-apt-get --yes --force-yes --no-install-recommends \
-  install "linux-image-${KERNEL_VERSION}"
-
 # Set timezone symlink
 rm -f /etc/localtime
 ln -s /mnt/stateful_partition/etc/localtime /etc/localtime
@@ -129,47 +99,6 @@ cat <<EOF >> /etc/udev/rules.d/70-persistent-net.rules
 SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{type}=="1", KERNEL=="eth*", NAME="eth0"
 SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{type}=="1", KERNEL=="wlan*", NAME="wlan0"
 EOF
-
-# Setup bootchart. Due to dependencies, this adds about 180MB!
-apt-get --yes --force-yes --no-install-recommends install bootchart
-# TODO: Replace this with pybootchartgui, or remove it entirely.
-apt-get --yes --force-yes --no-install-recommends install bootchart-java
-
-# Install additional packages from a second mirror, if necessary.  This must
-# be done after all packages from the first repository are installed; after
-# the apt-get update, apt-get and debootstrap will prefer the newest package
-# versions (which are probably on this second mirror).
-if [ -f "$PACKAGE_LIST_FILE2" ]
-then
-  COMPONENTS2=`cat $PACKAGE_LIST_FILE2 | grep -v ' *#' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
-
-  echo "deb $SERVER2 $SUITE2 main restricted multiverse universe" \
-    >> /etc/apt/sources.list
-  apt-get update
-  apt-get --yes --force-yes --no-install-recommends \
-    install $COMPONENTS2
-fi
-
-# List all packages installed so far, since these are what the local
-# repository needs to contain.
-# TODO: better place to put the list.  Must still exist after the chroot
-# is dismounted, so build_image.sh can get it.  That rules out /tmp and
-# $SETUP_DIR (which is under /tmp).
-sudo sh -c "/trunk/src/scripts/list_installed_packages.sh \
-  > /etc/package_list_installed.txt"
-
-# Remove unused packages.
-# TODO: How are these getting on our image, anyway?
-set +e
-dpkg -l | grep pulseaudio | awk '{ print $2 }' | xargs dpkg --purge
-dpkg -l | grep conkeror | awk '{ print $2 }' | xargs dpkg --purge
-# TODO(rspangler): fix uninstall steps which fail at tip
-#dpkg -l | grep xulrunner | awk '{ print $2 }' | xargs dpkg --purge
-set -e
-
-# Clean up other useless stuff created as part of the install process.
-rm -f /var/cache/apt/archives/*.deb
-rm -rf "$SETUP_DIR"
 
 # Fix issue where alsa-base (dependency of alsa-utils) is messing up our sound
 # drivers. The stock modprobe settings worked fine.

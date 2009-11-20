@@ -66,6 +66,7 @@ ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
 MBR_IMG="${OUTPUT_DIR}/mbr.image"
 OUTPUT_IMG="${OUTPUT_DIR}/usb.img"
 
+ROOTFS_PACKAGE_INSTALL_SCRIPT="install_packages.sh"
 ROOTFS_CUSTOMIZE_SCRIPT="customize_rootfs.sh"
 ROOTFS_SETUP_DIR="/tmp/chromeos_setup"
 SETUP_DIR="${ROOT_FS_DIR}/${ROOTFS_SETUP_DIR}"
@@ -179,6 +180,7 @@ sudo mount --bind "$GCLIENT_ROOT" "$ROOT_FS_DIR/trunk"
 # built packages.
 mkdir -p "$SETUP_DIR"
 mkdir -p "${SETUP_DIR}/local_packages"
+cp "${SCRIPTS_DIR}/${ROOTFS_PACKAGE_INSTALL_SCRIPT}" "$SETUP_DIR"
 cp "${SCRIPTS_DIR}/${ROOTFS_CUSTOMIZE_SCRIPT}" "$SETUP_DIR"
 cp "$FLAGS_pkglist" "${SETUP_DIR}/package-list-prod.txt"
 cp "${FLAGS_build_root}/x86/local_packages"/* "${SETUP_DIR}/local_packages"
@@ -212,8 +214,15 @@ EOF
 # ...and all CHROMEOS_ vars
 set | grep "^CHROMEOS_" >> $CUST_OPTS
 
-# Run the setup script
+# Run the package install script
+sudo chroot "$ROOT_FS_DIR" \
+  "${ROOTFS_SETUP_DIR}/${ROOTFS_PACKAGE_INSTALL_SCRIPT}"
+
+# Run the script to customize the resulting root file system.
 sudo chroot "$ROOT_FS_DIR" "${ROOTFS_SETUP_DIR}/${ROOTFS_CUSTOMIZE_SCRIPT}"
+
+# No longer need the setup directory in the rootfs.
+rm -rf "$SETUP_DIR"
 
 # Move package lists from the image into the output dir
 sudo mv "$ROOT_FS_DIR"/etc/package_list_*.txt "$OUTPUT_DIR"
