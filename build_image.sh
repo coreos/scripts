@@ -66,8 +66,11 @@ ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
 MBR_IMG="${OUTPUT_DIR}/mbr.image"
 OUTPUT_IMG="${OUTPUT_DIR}/usb.img"
 
+# These paths are relative to SCRIPTS_DIR.
 ROOTFS_PACKAGE_INSTALL_SCRIPT="install_packages.sh"
 ROOTFS_CUSTOMIZE_SCRIPT="customize_rootfs.sh"
+
+ROOTFS_STATIC_DATA="${SRC_ROOT}/rootfs_static_data"
 ROOTFS_SETUP_DIR="/tmp/chromeos_setup"
 SETUP_DIR="${ROOT_FS_DIR}/${ROOTFS_SETUP_DIR}"
 
@@ -182,6 +185,7 @@ mkdir -p "$SETUP_DIR"
 mkdir -p "${SETUP_DIR}/local_packages"
 cp "${SCRIPTS_DIR}/${ROOTFS_PACKAGE_INSTALL_SCRIPT}" "$SETUP_DIR"
 cp "${SCRIPTS_DIR}/${ROOTFS_CUSTOMIZE_SCRIPT}" "$SETUP_DIR"
+cp -r "$ROOTFS_STATIC_DATA" "$SETUP_DIR"
 cp "$FLAGS_pkglist" "${SETUP_DIR}/package-list-prod.txt"
 cp "${FLAGS_build_root}/x86/local_packages"/* "${SETUP_DIR}/local_packages"
 

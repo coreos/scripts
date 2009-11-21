@@ -10,20 +10,25 @@
 
 set -e
 
+SETUP_DIR=$(dirname $0)
+
 # Read options from the config file created by build_image.sh.
 echo "Reading options..."
-cat "$(dirname $0)/customize_opts.sh"
-. "$(dirname $0)/customize_opts.sh"
+cat "${SETUP_DIR}/customize_opts.sh"
+. "${SETUP_DIR}/customize_opts.sh"
 
-FULLNAME="ChromeOS User"
+if [ ${CHROMEOS_OFFICIAL:-0} = 1 ]; then
+  FULLNAME="Google Chrome OS User"
+else
+  FULLNAME="Chromium OS User"
+fi
 USERNAME="chronos"
 ADMIN_GROUP="admin"
 DEFGROUPS="adm,dialout,cdrom,floppy,audio,dip,video"
 ADMIN_USERNAME="chronosdev"
 
 CRYPTED_PASSWD_FILE="/trunk/src/scripts/shared_user_passwd.txt"
-if [ -f $CRYPTED_PASSWD_FILE ]
-then
+if [ -f $CRYPTED_PASSWD_FILE ]; then
   echo "Using password from $CRYPTED_PASSWD_FILE"
   CRYPTED_PASSWD=$(cat $CRYPTED_PASSWD_FILE)
 else
@@ -37,8 +42,7 @@ fi
 # Set CHROMEOS_VERSION_DESCRIPTION here (uses vars set in chromeos_version.sh)
 # Was removed from chromeos_version.sh which can also be run outside of chroot
 # where CHROMEOS_REVISION is set
-if [ ${CHROMEOS_OFFICIAL:-0} = 1 ]
-then
+if [ ${CHROMEOS_OFFICIAL:-0} = 1 ]; then
    export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Official Build ${CHROMEOS_REVISION:?})"
 else
    export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Developer Build - $(date)-$USER)"
@@ -64,13 +68,6 @@ CHROMEOS_AUSERVER=$CHROMEOS_VERSION_AUSERVER
 CHROMEOS_DEVSERVER=$CHROMEOS_VERSION_DEVSERVER
 EOF
 
-# Set the default X11 cursor theme to inherit our cursors.
-mkdir -p /usr/share/icons/default
-cat <<EOF > /usr/share/icons/default/index.theme
-[Icon Theme]
-Inherits=chromeos-cursors
-EOF
-
 # Turn user metrics logging on for official builds only.
 if [ ${CHROMEOS_OFFICIAL:-0} -eq 1 ]; then
   touch /etc/send_metrics
@@ -91,93 +88,24 @@ sudo mkdir -p "$ROOTFS_DIR"/mnt/stateful_partition
 sudo chmod 0755 "$ROOTFS_DIR"/mnt
 sudo chmod 0755 "$ROOTFS_DIR"/mnt/stateful_partition
 
-# If we don't create generic udev rules, then udev will try to save the
-# history of various devices (i.e. always associate a given device and MAC
-# address with the same wlan number). As we use a keyfob across different
-# machines the ethN and wlanN keep changing.
-cat <<EOF >> /etc/udev/rules.d/70-persistent-net.rules
-SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{type}=="1", KERNEL=="eth*", NAME="eth0"
-SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{type}=="1", KERNEL=="wlan*", NAME="wlan0"
-EOF
+# Copy everything from the rootfs_static_data directory to the corresponding
+# place on the filesystem.  Note that this step has to occur after we've
+# installed all of the packages but before we remove the setup dir.
+chmod -R a+rX "${SETUP_DIR}/rootfs_static_data/."
+cp -r "${SETUP_DIR}/rootfs_static_data/common/." /
+# TODO: Copy additional target-platform-specific subdirectories.
 
 # Fix issue where alsa-base (dependency of alsa-utils) is messing up our sound
 # drivers. The stock modprobe settings worked fine.
 # TODO: Revisit when we have decided on how sound will work on chromeos.
 rm /etc/modprobe.d/alsa-base.conf
 
-# -- Remove unneeded fonts and set default gtk font --
+# Remove unneeded fonts.
 UNNEEDED_FONTS_TYPES=$(ls -d /usr/share/fonts/* | grep -v truetype)
 UNNEEDED_TRUETYPE_FONTS=$(ls -d /usr/share/fonts/truetype/* | grep -v ttf-droid)
-for i in $UNNEEDED_FONTS_TYPES $UNNEEDED_TRUETYPE_FONTS
-do
+for i in $UNNEEDED_FONTS_TYPES $UNNEEDED_TRUETYPE_FONTS; do
   rm -rf "$i"
 done
-# set default gtk font:
-cat <<EOF > /etc/gtk-2.0/gtkrc
-gtk-font-name="DroidSans 8"
-EOF
-
-# -- Some boot performance customizations --
-
-# Setup our xorg.conf. This allows us to avoid HAL overhead.
-# TODO: Per-device xorg.conf rather than in this script.
-cat <<EOF > /etc/X11/xorg.conf
-Section "ServerFlags"
-    Option "AutoAddDevices" "false"
-    Option "DontZap" "false"
-EndSection
-
-Section "InputDevice"
-    Identifier "Keyboard1"
-    Driver     "kbd"
-    Option     "AutoRepeat" "250 30"
-    Option     "XkbRules"   "xorg"
-    Option     "XkbModel"   "pc104"
-    Option     "CoreKeyboard"
-EndSection
-
-Section "InputDevice"
-    Identifier "Mouse1"
-    Driver     "synaptics"
-    Option     "SendCoreEvents" "true"
-    Option     "Protocol" "auto-dev"
-    Option     "SHMConfig" "on"
-    Option     "CorePointer"
-    Option     "MinSpeed" "0.2"
-    Option     "MaxSpeed" "0.5"
-    Option     "AccelFactor" "0.002"
-    Option     "HorizScrollDelta" "100"
-    Option     "VertScrollDelta" "100"
-    Option     "HorizEdgeScroll" "0"
-    Option     "VertEdgeScroll" "1"
-    Option     "TapButton1" "1"
-    Option     "TapButton2" "2"
-    Option     "MaxTapTime" "180"
-    Option     "FingerLow" "24"
-    Option     "FingerHigh" "50"
-EndSection
-
-# Everything after this point was added to include support for USB as a
-# secondary mouse device.
-Section "InputDevice"
-  Identifier "USBMouse"
-  Driver "mouse"
-  Option "Device" "/dev/input/mice" # multiplexed HID mouse input device
-  Option "Protocol" "IMPS/2"
-  Option "ZAxisMapping" "4 5" # support a wheel as buttons 4 and 5
-  Option "Emulate3Buttons" "true"  # just in case it is a 2 button
-EndSection
-
-# Defines a non-default server layout which pulls in the USB Mouse as a
-# secondary input device.
-Section "ServerLayout"
-  Identifier "DefaultLayout"
-  # Screen "DefaultScreen"
-  InputDevice "Mouse1" "CorePointer"
-  InputDevice "USBMouse" "AlwaysCore"
-  InputDevice "Keyboard1" "CoreKeyboard"
-EndSection
-EOF
 
 # The udev daemon takes a long time to start up and settle so we defer it until
 # after X11 has been started. In order to be able to mount the root file system
