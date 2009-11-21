@@ -10,8 +10,9 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-# Script must be run outside the chroot
+# Script must be run outside the chroot and as a regular user.
 assert_outside_chroot
+assert_not_root_user
 
 # Define command line flags
 # See http://code.google.com/p/shflags/wiki/Documentation10x

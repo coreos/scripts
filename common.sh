@@ -171,6 +171,13 @@ function assert_outside_chroot {
   fi
 }
 
+function assert_not_root_user {
+  if [ `id -u` = 0 ]; then
+    echo "This script must be run as a non-root user."
+    exit 1
+  fi
+}
+
 # Install a package if it's not already installed
 function install_if_missing {
   # Positional parameters from calling script.  :? means "fail if unset".
