@@ -274,7 +274,7 @@ sudo sfdisk -H64 -S32 -uS -f "$MBR_IMG" <<EOF
 ;
 EOF
 
-OUTSIDE_OUTPUT_DIR="~/chromeos/src/build/images/${IMAGE_SUBDIR}"
+OUTSIDE_OUTPUT_DIR="${EXTERNAL_TRUNK_PATH}/src/build/images/${IMAGE_SUBDIR}"
 echo "Done.  Image created in ${OUTPUT_DIR}"
 echo "To copy to USB keyfob, outside the chroot, do something like:"
 echo "  ./image_to_usb.sh --from=${OUTSIDE_OUTPUT_DIR} --to=/dev/sdb"

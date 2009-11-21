@@ -103,7 +103,7 @@ setup_env
 
 if [ $FLAGS_revision -eq $FLAGS_TRUE ]
 then
-  # Get the subversion revision to pass into the chroot.  
+  # Get the subversion revision to pass into the chroot.
   #
   # This must be determined outside the chroot because (1) there is no
   # svn/git inside the chroot, and (2) if there were it would likely be
@@ -125,10 +125,12 @@ then
   REVISION="CHROMEOS_REVISION=$REVISION"
 fi
 
-# Run command or interactive shell
-sudo chroot "$FLAGS_chroot" sudo -i -u $USER $REVISION "$@"
+# Run command or interactive shell.  Also include the non-chrooted path to
+# the source trunk for scripts that may need to print it (e.g.
+# build_image.sh).
+sudo chroot "$FLAGS_chroot" sudo -i -u $USER $REVISION \
+  EXTERNAL_TRUNK_PATH="${FLAGS_trunk}" "$@"
 
 # Remove trap and explicitly unmount
 trap - EXIT
 teardown_env
-
