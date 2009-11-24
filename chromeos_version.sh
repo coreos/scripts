@@ -17,7 +17,7 @@ export_release_version() {
   # Major/minor versions.  
   # Primarily for product marketing.
   export CHROMEOS_VERSION_MAJOR=0
-  export CHROMEOS_VERSION_MINOR=4
+  export CHROMEOS_VERSION_MINOR=5
 
   # Branch number.
   # Increment by 1 in a new release branch.
