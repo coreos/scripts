@@ -12,6 +12,7 @@
 assert_inside_chroot
 
 # Flags
+DEFINE_boolean stable $FLAGS_FALSE "Build with stable version of browser."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -35,6 +36,12 @@ THIRD_PARTY_PACKAGES="connman e2fsprogs/files gflags gtest \
                       ply-image slim/src synaptics \
                       wpa_supplicant xscreensaver/xscreensaver-5.08 \
                       xserver-xorg-core xserver-xorg-video-intel"
+
+if [ $FLAGS_stable -eq $FLAGS_TRUE ]
+then
+  # Passed to copy_chrome_zip.sh to get stable version of the browser
+  export GET_STABLE_CHROME=1
+fi
 
 # Build third_party packages first, since packages and libs depend on them.
 for i in $THIRD_PARTY_PACKAGES
