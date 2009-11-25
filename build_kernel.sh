@@ -19,19 +19,19 @@ SRC_ROOT=$(dirname $(readlink -f $(dirname "$0")))
 . "${SRC_ROOT}/third_party/shflags/files/src/shflags"
 
 KERNEL_DIR="$SRC_ROOT/third_party/kernel"
-KCONFIG="${KERNEL_DIR}/files/chromeos/config/chromeos-intel-menlow"
+DEFAULT_KCONFIG="${KERNEL_DIR}/files/chromeos/config/chromeos-intel-menlow"
 
 # Flags
 DEFAULT_BUILD_ROOT=${BUILD_ROOT:-"${SRC_ROOT}/build"}
-DEFINE_string config "${KCONFIG}"                                      \
-  "The kernel configuration file to use. See src/platform/kernel/config/*"
+DEFINE_string config "${DEFAULT_KCONFIG}"                              \
+  "The kernel configuration file to use."
 DEFINE_integer revision 002                                            \
   "The package revision to use"
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/x86/local_packages"   \
   "Directory in which to place the resulting .deb package"
 DEFINE_string build_root "$DEFAULT_BUILD_ROOT"                         \
   "Root of build output"
-FLAGS_HELP="Usage: $0 [flags] <deb_patch1> <deb_patch2> ..."
+FLAGS_HELP="Usage: $0 [flags]"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -44,11 +44,6 @@ set -e
 # an ARCH placeholder with the proper architecture rather than assuming x86.
 mkdir -p "$FLAGS_output_root"
 
-# Use remaining arguments passed into the script as patch names. These are
-# for non-chromeos debian-style patches. The chromeos patches will be applied
-# manually below.
-PATCHES="$*"
-
 # Get kernel package configuration from repo.
 # TODO: Find a workaround for needing sudo for this. Maybe create a symlink
 # to /tmp/kernel-pkg.conf when setting up the chroot env?
@@ -57,6 +52,10 @@ sudo cp "$KERNEL_DIR"/package/kernel-pkg.conf /etc/kernel-pkg.conf
 # Parse kernel config file for target architecture information. This is needed
 # to determine the full package name and also to setup the environment for
 # kernel build scripts which use "uname -m" to autodetect architecture.
+KCONFIG="$FLAGS_config"
+if [ ! -f "$KCONFIG" ]; then
+    KCONFIG="$KERNEL_DIR"/files/chromeos/config/"$KCONFIG"
+fi
 if [ -n $(grep 'CONFIG_X86=y' "$KCONFIG") ]
 then
     ARCH="i386"
@@ -104,42 +103,21 @@ rm -rf "$SRCDIR"
 mkdir -p "$SRCDIR"
 cd "$SRCDIR"
 
-# Get kernel sources and patches.
-if [ -d ${KERNEL_DIR}/linux-${VER_MME} ]; then
+# Get kernel sources
 # TODO(msb): uncomment once git is available in the chroot
 #   git clone "${KERNEL_DIR}"/linux_${VER_MME}
-    cp -a "${KERNEL_DIR}"/linux-${VER_MME} .
-else
-    # old way...
-# TODO: find a better source for the kernel source.  Old versions of karmic
-# aren't hosted on archive.ubuntu.com
-#apt-get source linux-source-$MAJOR.$MINOR.$EXTRA
-# Name directory to what the patches expect
-    mkdir linux-${VER_MME}
-    cp -a "${KERNEL_DIR}"/files/* linux-${VER_MME}
-
-    if [ ! -z $PATCHES ]
-    then
-        # TODO: Get rid of sudo if possible. Maybe the non-chromeos kernel
-	# patches will be infrequent enough that we can make them part of
-	# the chroot env?
-        sudo apt-get install $PATCHES
-    fi
-
-    # TODO: Remove a config option which references a non-existent directory in
-    # ubuntu kernel sources.
-    sed -i '/gfs/ d' linux-$VER_MME/ubuntu/Makefile
-fi
+mkdir linux-${VER_MME}
+cd "linux-$VER_MME"
+cp -a "${KERNEL_DIR}"/files/* .
 
 # Move kernel config to kernel source tree and rename to .config so that
 # it can be used for "make oldconfig" by make-kpkg.
-cp "$KCONFIG" "linux-${VER_MME}/.config"
-cd "linux-$VER_MME"
+cp "$KCONFIG" .config
 
 # Remove stale packages. make-kpkg will dump the package in the parent
 # directory. From there, it will be moved to the output directory.
 rm -f "../${PACKAGE}"
-rm -f "${FLAGS_output_root}/${PACKAGE}"
+rm -f "${FLAGS_output_root}"/linux-image-*.deb
 
 # Speed up compilation by running parallel jobs.
 if [ ! -e "/proc/cpuinfo" ]
@@ -151,11 +129,6 @@ else
     CONCURRENCY_LEVEL=$(($(cat /proc/cpuinfo | grep "processor" | wc -l) * 2))
 fi
 
-# The patch listing will be added into make-kpkg with --added-patches flag.
-# We need to change the formatting so they are a comma-separated values list
-# rather than whitespace separated.
-PATCHES_CSV=$(echo $PATCHES | sed -e 's/ \{1,\}/,/g' | sed -e 's/,$//')
-
 # Build the kernel and make package. "setarch" is used so that scripts which
 # detect architecture (like the "oldconfig" rule in kernel Makefile) don't get
 # confused when cross-compiling.
@@ -166,13 +139,11 @@ MAKEFLAGS="CONCURRENCY_LEVEL=$CONCURRENCY_LEVEL" \
           --arch="$ARCH" \
           --rootcmd fakeroot \
           --config oldconfig \
-          --initrd --bzImage kernel_image \
-          --added-patches "$PATCHES_CSV"
+          --initrd --bzImage kernel_image
 
 # make-kpkg dumps the newly created package in the parent directory
 if [ -e "../${PACKAGE}" ]
 then
-    rm -f "${FLAGS_output_root}"/linux-image-*.deb
     mv "../${PACKAGE}" "${FLAGS_output_root}"
     echo "Kernel build successful, check ${FLAGS_output_root}/${PACKAGE}"
 else
