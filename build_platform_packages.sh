@@ -33,6 +33,7 @@ PLATFORM_DIRS="acpi assets fake_hal init installer login_manager \
 
 THIRD_PARTY_DIR="$SRC_ROOT/third_party"
 THIRD_PARTY_PACKAGES="connman e2fsprogs/files gflags gtest \
+                      ibus ibus-chewing ibus-anthy \
                       ply-image slim/src synaptics \
                       wpa_supplicant xscreensaver/xscreensaver-5.08 \
                       xserver-xorg-core xserver-xorg-video-intel"
