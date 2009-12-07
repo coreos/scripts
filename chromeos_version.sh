@@ -75,8 +75,18 @@ then
   export CHROMEOS_VERSION_TRACK="dev-channel"
   export CHROMEOS_VERSION_AUSERVER="https://tools.google.com/service/update2"
   export CHROMEOS_VERSION_DEVSERVER=""
+elif [ "$USER" = "chrome-bot" ]
+then
+  # Continuous builder
+  export_release_version
+  export_version_string
+  export CHROMEOS_VERSION_NAME="Chromium OS"
+  export CHROMEOS_VERSION_TRACK="buildbot-build"
+  HOSTNAME=$(hostname)
+  export CHROMEOS_VERSION_AUSERVER="http://$HOSTNAME:8080/update"
+  export CHROMEOS_VERSION_DEVSERVER="http://$HOSTNAME:8080"
 else
-  # Continuous builds and developer hand-builds
+  # Developer hand-builds
   export_developer_version
   export_version_string
   export CHROMEOS_VERSION_NAME="Chromium OS"
