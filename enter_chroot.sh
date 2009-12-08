@@ -20,10 +20,11 @@ DEFINE_string chroot "$DEFAULT_CHROOT_DIR" \
   "The destination dir for the chroot environment." "d"
 DEFINE_string trunk "$GCLIENT_ROOT" \
   "The source trunk to bind mount within the chroot." "s"
+DEFINE_string build_number "" \
+  "The build-bot build number (when called by buildbot only)." "b"
 
 DEFINE_boolean mount $FLAGS_FALSE "Only set up mounts."
 DEFINE_boolean unmount $FLAGS_FALSE "Only tear down mounts."
-DEFINE_boolean revision $FLAGS_FALSE "Pass subversion revision into chroot."
 
 # More useful help
 FLAGS_HELP="USAGE: $0 [flags] [VAR=value] [-- \"command\"]
@@ -101,29 +102,29 @@ fi
 trap teardown_env EXIT
 setup_env
 
-if [ $FLAGS_revision -eq $FLAGS_TRUE ]
+# Get the git revision to pass into the chroot.
+#
+# This must be determined outside the chroot because (1) there is no
+# git inside the chroot, and (2) if there were it would likely be
+# the wrong version, which would mess up the .git directories.
+#
+# Note that this fixes $CHROMEOS_REVISION at the time the chroot is
+# entered.  That's ok for the main use case of automated builds,
+# which pass each command line into a separate call to enter_chroot
+# so always have up-to-date info.  For developer builds, there isn't
+# really a single revision anyway, since the developer may have
+# hand-sync'd some subdirs and edited files in others.
+# Use git:8 chars of sha1
+REVISION=$(git rev-parse HEAD)
+ORIGIN_REVISION=$(git rev-parse origin/HEAD)
+if [ "$REVISION" != "$ORIGIN_REVISION" ]
 then
-  # Get the subversion revision to pass into the chroot.
-  #
-  # This must be determined outside the chroot because (1) there is no
-  # svn/git inside the chroot, and (2) if there were it would likely be
-  # the wrong version, which would mess up the .svn/.git directories.
-  #
-  # Note that this fixes $CHROMEOS_REVISION at the time the chroot is
-  # entered.  That's ok for the main use case of automated builds,
-  # which pass each command line into a separate call to enter_chroot
-  # so always have up-to-date info.  For developer builds, there isn't
-  # really a single revision anyway, since the developer may have
-  # hand-sync'd some subdirs and edited files in others.
-  REVISION="$(svn info 2>&- | grep "Revision: " | awk '{print $2}')"
-  if [ -z "$REVISION" ]
-  then
-     # Use git:8 chars of sha1
-     REVISION=$(git rev-parse HEAD)
-     REVISION="${REVISION:8}"
-  fi
-  REVISION="CHROMEOS_REVISION=$REVISION"
+  # Mark dirty tree with "**"
+    REVISION="${REVISION:0:8}**"
+else
+  REVISION="${REVISION:0:8}"
 fi
+REVISION="CHROMEOS_REVISION=$REVISION BUILDBOT_BUILD=$FLAGS_build_number"
 
 # Run command or interactive shell.  Also include the non-chrooted path to
 # the source trunk for scripts that may need to print it (e.g.

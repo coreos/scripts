@@ -216,7 +216,7 @@ SERVER2="$MIRROR2_INSIDE"
 SUITE2="$FLAGS_suite2"
 EOF
 # ...and all CHROMEOS_ vars
-set | grep "^CHROMEOS_" >> $CUST_OPTS
+set | egrep "^CHROMEOS_|^BUILDBOT_" >> $CUST_OPTS
 
 # Run the package install script
 sudo chroot "$ROOT_FS_DIR" \

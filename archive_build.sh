@@ -25,6 +25,8 @@ DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
 DEFINE_integer keep_max 0 "Maximum builds to keep in archive (0=all)"
 DEFINE_string zipname "image.zip" "Name of zip file to create."
 DEFINE_boolean official_build $FLAGS_FALSE "Set CHROMEOS_OFFICIAL=1 for release builds."
+DEFINE_string build_number "" \
+  "The build-bot build number (when called by buildbot only)." "b"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -41,18 +43,14 @@ fi
 # Get version information
 . "${SCRIPTS_DIR}/chromeos_version.sh"
 
-# Get subversion or git revision
-REVISION=$(svn info 2>&-| grep "Revision: " | awk '{print $2}')
-if [ -z "$REVISION" ]
-then
-   # Use git:8 chars of sha1
-   REVISION=$(git rev-parse HEAD)
-   REVISION=${REVISION:8}
-fi
+# Get git hash
+# Use git:8 chars of sha1
+REVISION=$(git rev-parse HEAD)
+REVISION=${REVISION:0:8}
 
 # Use the version number plus revision as the last change.  (Need both, since
 # trunk builds multiple times with the same version string.)
-LAST_CHANGE="${CHROMEOS_VERSION_STRING}-r${REVISION}"
+LAST_CHANGE="${CHROMEOS_VERSION_STRING}-r${REVISION}-b${FLAGS_build_number}"
 
 # The Chromium buildbot scripts only create a clickable link to the archive
 # if an output line of the form "last change: XXX" exists
