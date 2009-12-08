@@ -10,7 +10,9 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-DEFINE_string image "rootfs.image"    \
+IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images"
+DEFAULT_IMAGE="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)/rootfs.image"
+DEFINE_string image "$DEFAULT_IMAGE"    \
   "Location of the rootfs raw image file"
 
 # Parse command line
@@ -60,6 +62,8 @@ mkdir -p "${ROOT_FS_DIR}"
 LOOP_DEV=`sudo losetup -f`
 sudo losetup "${LOOP_DEV}" "${FLAGS_image}"
 sudo mount "${LOOP_DEV}" "${ROOT_FS_DIR}"
+
+echo "Modifying image ${FLAGS_image} for test..."
 
 # Run build steps for modify for test
 sudo mkdir -p "${ROOT_FS_DIR}/modify_build"
