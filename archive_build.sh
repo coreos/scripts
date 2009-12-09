@@ -50,7 +50,11 @@ REVISION=${REVISION:0:8}
 
 # Use the version number plus revision as the last change.  (Need both, since
 # trunk builds multiple times with the same version string.)
-LAST_CHANGE="${CHROMEOS_VERSION_STRING}-r${REVISION}-b${FLAGS_build_number}"
+LAST_CHANGE="${CHROMEOS_VERSION_STRING}-r${REVISION}"
+if [ -n "$FLAGS_build_number" ]
+then
+   LAST_CHANGE="$LAST_CHANGE-b${FLAGS_build_number}"
+fi
 
 # The Chromium buildbot scripts only create a clickable link to the archive
 # if an output line of the form "last change: XXX" exists

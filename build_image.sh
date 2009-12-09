@@ -208,6 +208,7 @@ MIRROR2_INSIDE="${FLAGS_mirror2/$GCLIENT_ROOT//trunk}"
 # Write options for customize script into the chroot
 CUST_OPTS="${SETUP_DIR}/customize_opts.sh"
 cat <<EOF > $CUST_OPTS
+REAL_USER=$USER
 SETUP_DIR="$ROOTFS_SETUP_DIR"
 KERNEL_VERSION="$KERNEL_VERSION"
 SERVER="$MIRROR_INSIDE"
