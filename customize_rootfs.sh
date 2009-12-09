@@ -44,8 +44,12 @@ fi
 # where CHROMEOS_REVISION is set
 if [ ${CHROMEOS_OFFICIAL:-0} = 1 ]; then
    export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Official Build ${CHROMEOS_REVISION:?})"
+elif [ "$USER" = "chrome-bot" ]
+then
+   export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Continuous Build ${CHROMEOS_REVISION:?} - Builder: ${BUILDBOT_BUILD:-"N/A"})"
 else
-   export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Developer Build - $(date)-$USER)"
+   # Use the $USER passthru via $CHROMEOS_RELEASE_CODENAME
+   export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Developer Build ${CHROMEOS_REVISION:?} - $(date) - $CHROMEOS_RELEASE_CODENAME)"
 fi
 
 # Set google-specific version numbers:
