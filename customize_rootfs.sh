@@ -45,13 +45,13 @@ fi
 # We have to set (in build_image.sh) and use REAL_USER due to many nested 
 # chroots which lose $USER state.
 if [ ${CHROMEOS_OFFICIAL:-0} = 1 ]; then
-   export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Official Build ${CHROMEOS_REVISION:?})"
+  export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Official Build ${CHROMEOS_REVISION:?})"
 elif [ "$REAL_USER" = "chrome-bot" ]
 then
-   export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Continuous Build ${CHROMEOS_REVISION:?} - Builder: ${BUILDBOT_BUILD:-"N/A"})"
+  export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Continuous Build ${CHROMEOS_REVISION:?} - Builder: ${BUILDBOT_BUILD:-"N/A"})"
 else
-   # Use the $USER passthru via $CHROMEOS_RELEASE_CODENAME
-   export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Developer Build ${CHROMEOS_REVISION:?} - $(date) - $CHROMEOS_RELEASE_CODENAME)"
+  # Use the $USER passthru via $CHROMEOS_RELEASE_CODENAME
+  export CHROMEOS_VERSION_DESCRIPTION="${CHROMEOS_VERSION_STRING} (Developer Build ${CHROMEOS_REVISION:?} - $(date) - $CHROMEOS_RELEASE_CODENAME)"
 fi
 
 # Set google-specific version numbers:
@@ -115,7 +115,7 @@ done
 
 # The udev daemon takes a long time to start up and settle so we defer it until
 # after X11 has been started. In order to be able to mount the root file system
-# and start X we pre-propulate some devices. These are copied into /dev by the
+# and start X we pre-populate some devices. These are copied into /dev by the
 # chromeos_startup script.
 UDEV_DEVICES=/lib/udev/devices
 mkdir "$UDEV_DEVICES"/dri
