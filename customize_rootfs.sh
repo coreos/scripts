@@ -113,7 +113,7 @@ done
 
 # The udev daemon takes a long time to start up and settle so we defer it until
 # after X11 has been started. In order to be able to mount the root file system
-# and start X we pre-propulate some devices. These are copied into /dev by the
+# and start X we pre-populate some devices. These are copied into /dev by the
 # chromeos_startup script.
 UDEV_DEVICES=/lib/udev/devices
 mkdir "$UDEV_DEVICES"/dri
