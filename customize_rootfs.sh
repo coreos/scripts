@@ -107,11 +107,7 @@ cp -r "${SETUP_DIR}/rootfs_static_data/common/." /
 rm /etc/modprobe.d/alsa-base.conf
 
 # Remove unneeded fonts.
-UNNEEDED_FONTS_TYPES=$(ls -d /usr/share/fonts/* | grep -v truetype)
-UNNEEDED_TRUETYPE_FONTS=$(ls -d /usr/share/fonts/truetype/* | grep -v ttf-droid)
-for i in $UNNEEDED_FONTS_TYPES $UNNEEDED_TRUETYPE_FONTS; do
-  rm -rf "$i"
-done
+rm -rf /usr/share/fonts/X11
 
 # The udev daemon takes a long time to start up and settle so we defer it until
 # after X11 has been started. In order to be able to mount the root file system
