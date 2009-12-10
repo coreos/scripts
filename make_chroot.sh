@@ -182,6 +182,11 @@ in_chroot apt-get update
 bash_chroot "export DEBIAN_FRONTEND=noninteractive LANG=C && \
   apt-get --yes --force-yes install $COMPONENTS"
 
+echo "Installing chromiumos-build tool..."
+bash_chroot "cd $CHROOT_TRUNK_DIR/tools/chromiumos-build && \
+  debuild -us -uc && sudo dpkg -i ../*.deb"
+
+
 # Clean up the chroot mounts
 trap - EXIT
 cleanup
