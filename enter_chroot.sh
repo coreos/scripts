@@ -23,6 +23,7 @@ DEFINE_string trunk "$GCLIENT_ROOT" \
 DEFINE_string build_number "" \
   "The build-bot build number (when called by buildbot only)." "b"
 
+DEFINE_boolean official_build $FLAGS_FALSE "Set CHROMEOS_OFFICIAL=1 for release builds."
 DEFINE_boolean mount $FLAGS_FALSE "Only set up mounts."
 DEFINE_boolean unmount $FLAGS_FALSE "Only tear down mounts."
 
@@ -47,6 +48,11 @@ Otherwise, provides an interactive shell.
 # Parse command line flags
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
+
+if [ $FLAGS_official_build -eq $FLAGS_TRUE ]
+then
+   CHROMEOS_OFFICIAL=1
+fi
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
 # so will die prematurely if 'set -e' is specified before now.
@@ -111,25 +117,29 @@ setup_env
 # Note that this fixes $CHROMEOS_REVISION at the time the chroot is
 # entered.  That's ok for the main use case of automated builds,
 # which pass each command line into a separate call to enter_chroot
-# so always have up-to-date info.  For developer builds, there isn't
-# really a single revision anyway, since the developer may have
+# so always have up-to-date info.  For developer builds, there may not
+# be a single revision, since the developer may have
 # hand-sync'd some subdirs and edited files in others.
+# In that case, check against origin/HEAD and mark** revision.
 # Use git:8 chars of sha1
 REVISION=$(git rev-parse HEAD)
 ORIGIN_REVISION=$(git rev-parse origin/HEAD)
-if [ "$REVISION" != "$ORIGIN_REVISION" ]
+# Do not check for clean revision on official builds.  They are coming directly
+# from a branch rev and cannot compare to origin/HEAD.
+if [ $FLAGS_official_build != $FLAGS_TRUE ] && \
+   [ "$REVISION" != "$ORIGIN_REVISION" ]
 then
   # Mark dirty tree with "**"
-    REVISION="${REVISION:0:8}**"
+  REVISION="${REVISION:0:8}**"
 else
   REVISION="${REVISION:0:8}"
 fi
-REVISION="CHROMEOS_REVISION=$REVISION BUILDBOT_BUILD=$FLAGS_build_number"
+CHROOT_PASSTHRU="CHROMEOS_REVISION=$REVISION BUILDBOT_BUILD=$FLAGS_build_number CHROMEOS_OFFICIAL=$CHROMEOS_OFFICIAL"
 
 # Run command or interactive shell.  Also include the non-chrooted path to
 # the source trunk for scripts that may need to print it (e.g.
 # build_image.sh).
-sudo chroot "$FLAGS_chroot" sudo -i -u $USER $REVISION \
+sudo chroot "$FLAGS_chroot" sudo -i -u $USER $CHROOT_PASSTHRU \
   EXTERNAL_TRUNK_PATH="${FLAGS_trunk}" "$@"
 
 # Remove trap and explicitly unmount
