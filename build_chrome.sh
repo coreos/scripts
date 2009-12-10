@@ -66,9 +66,10 @@ ln -s $BUILD_DIR/$FLAGS_mode $CHROME_LINUX_DIR
 echo Zipping $CHROME_LINUX_DIR to $OUTPUT_ZIP
 cd $BUILD_DIR
 rm -f $OUTPUT_ZIP
-zip -r9 $OUTPUT_ZIP chrome-chromeos -i "chrome-chromeos/chrome*" \
+zip -r1 $OUTPUT_ZIP chrome-chromeos -i "chrome-chromeos/chrome*" \
   "chrome-chromeos/libffmpegsumo.so" "chrome-chromeos/xdg-settings" \
   "chrome-chromeos/locales/*" "chrome-chromeos/resources/*" \
-  "chrome-chromeos/*.png" -x "*.d"
+  "chrome-chromeos/*.png" "chrome-chromeos/session" \
+  "chrome-chromeos/emit-login-prompt-ready" -x "*.d"
 cp -f $OUTPUT_ZIP $OUTPUT_DIR
 echo Done.
