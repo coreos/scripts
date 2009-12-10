@@ -11,4 +11,4 @@ KEYS_DIR=ssh_keys
 ROOT_AUTHKEYS=/root/.ssh/authorized_keys
 
 mkdir -p /root/.ssh
-cat ${KEYS_DIR}/* >> ${ROOT_AUTHKEYS}      
+cat ${KEYS_DIR}/* >> ${ROOT_AUTHKEYS}
