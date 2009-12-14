@@ -32,7 +32,7 @@ PLATFORM_DIRS="acpi assets fake_hal init installer login_manager \
                monitor_reconfig microbenchmark minijail metrics_collection"
 
 THIRD_PARTY_DIR="$SRC_ROOT/third_party"
-THIRD_PARTY_PACKAGES="connman e2fsprogs/files gflags gtest \
+THIRD_PARTY_PACKAGES="connman e2fsprogs/files gflags google-breakpad gtest \
                       ibus ibus-chewing ibus-anthy \
                       ply-image slim/src synaptics \
                       wpa_supplicant xscreensaver/xscreensaver-5.08 \
