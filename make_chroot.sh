@@ -27,6 +27,8 @@ DEFAULT_PKGLIST="$SRC_ROOT/package_repo/package-list-dev.txt"
 # See http://code.google.com/p/shflags/wiki/Documentation10x
 DEFINE_string suite "$DEFAULT_DEV_SUITE" "Repository suite to base image on."
 DEFINE_string mirror "$DEFAULT_DEV_MIRROR" "Local repository mirror to use."
+DEFINE_string mirror2 "" "Additional repository mirror to use (URL only)."
+DEFINE_string suite2 "" "Repository suite for additional mirror."
 DEFINE_string chroot "$DEFAULT_CHROOT_DIR" \
   "Destination dir for the chroot environment."
 DEFINE_string pkglist "$DEFAULT_PKGLIST" \
@@ -133,6 +135,12 @@ bash_chroot "echo $USER ALL=NOPASSWD: ALL >> /etc/sudoers"
 MIRROR_INSIDE="${FLAGS_mirror/$GCLIENT_ROOT/$CHROOT_TRUNK_DIR}"
 bash_chroot "echo deb $MIRROR_INSIDE $FLAGS_suite \
   main restricted multiverse universe > /etc/apt/sources.list"
+# Additional repo? Note: Not mounted inside - must use URL
+if [ -n "$FLAGS_mirror2" ]; then
+  bash_chroot "echo deb $FLAGS_mirror2 $FLAGS_suite2 \
+    main restricted multiverse universe >> /etc/apt/sources.list"
+fi
+
 # TODO: enable sources when needed.  Currently, kernel source is checked in
 # and all other sources are pulled via DEPS files.
 #bash_chroot "echo deb-src $MIRROR_INSIDE $FLAGS_suite \

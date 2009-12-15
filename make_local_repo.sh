@@ -19,6 +19,7 @@ DEFAULT_IMG_PKGLIST="$SRC_ROOT/package_repo/repo_list_image.txt"
 # Command line options
 DEFINE_string suite "$DEFAULT_EXT_SUITE" "Ubuntu suite to pull packages from."
 DEFINE_string mirror "$DEFAULT_EXT_MIRROR" "Ubuntu repository mirror to use."
+DEFINE_string mirror2 "" "Optional Chromium repository mirror to use."
 DEFINE_string dest "$DEFAULT_DEST" "Destination directory for repository."
 DEFINE_string devlist "$DEFAULT_DEV_PKGLIST" \
   "File listing packages to use for development."
@@ -162,19 +163,22 @@ function update_suite {
 
   # Add packages to the suite
   echo "Downloading packages..."
-  for DEB in `grep -v '^#' < $PKGLIST | awk '{print $1}'`
+  grep -v '^#' < $PKGLIST | while read DEB DEB_VER DEB_PRIO DEB_SECTION DEB_PATH
   do
+    [ -z "$DEB" ] && continue
     echo "Adding $DEB..."
 
-    DEB_PRIO=`cat $PKGLIST | grep '^'$DEB' ' | awk '{print $3}'`
-    DEB_SECTION=`cat $PKGLIST | grep '^'$DEB' ' | awk '{print $4}'`
-    DEB_PATH=`cat $PKGLIST | grep '^'$DEB' ' | awk '{print $5}'`
-    DEB_FILE="$DEB_CACHE_DIR/"`basename $DEB_PATH`
+    DEB_FILE=$DEB_CACHE_DIR/${DEB_PATH##*/}
 
     # Download the package if necessary
-    if [ ! -e "$CHROOT/$DEB_FILE" ]
+    if [ ! -s "$CHROOT/$DEB_FILE" ]
     then
-      in_chroot wget --no-verbose "$FLAGS_mirror/${DEB_PATH}" -O "$DEB_FILE"
+      if [ -n "FLAGS_mirror2" ]; then
+        in_chroot wget --no-verbose "$FLAGS_mirror/${DEB_PATH}" -O "$DEB_FILE" || \
+        in_chroot wget --no-verbose "$FLAGS_mirror2/${DEB_PATH}" -O "$DEB_FILE"
+      else
+        in_chroot wget --no-verbose "$FLAGS_mirror/${DEB_PATH}" -O "$DEB_FILE"
+      fi
     fi
 
     # Copy the file into the target suite with the correct priority
