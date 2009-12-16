@@ -21,23 +21,17 @@ SRC_ROOT=$(dirname $(readlink -f $(dirname "$0")))
 KERNEL_DIR="$SRC_ROOT/third_party/kernel"
 DEFAULT_KCONFIG="${KERNEL_DIR}/files/chromeos/config/chromeos-intel-menlow"
 
-CROSS_COMPILE_FLAG=""
-VERBOSE_FLAG=""
-
 # Flags
 DEFAULT_BUILD_ROOT=${BUILD_ROOT:-"${SRC_ROOT}/build"}
 DEFINE_string config "${DEFAULT_KCONFIG}"                              \
   "The kernel configuration file to use."
 DEFINE_integer revision 002                                            \
   "The package revision to use"
-DEFINE_string output_root ""   \
+DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/x86/local_packages"   \
   "Directory in which to place the resulting .deb package"
 DEFINE_string build_root "$DEFAULT_BUILD_ROOT"                         \
   "Root of build output"
-DEFINE_string cross_compile "" \
-  "Prefix for cross compile build tools"
-DEFINE_boolean verbose $FLAGS_FALSE "Print debugging information in addtion to normal processing."
-FLAGS_HELP="Usage: $0 [flags]" 
+FLAGS_HELP="Usage: $0 [flags]"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -45,6 +39,10 @@ eval set -- "${FLAGS_ARGV}"
 
 # Die on any errors.
 set -e
+
+# TODO: We detect the ARCH below. We can sed the FLAGS_output_root to replace
+# an ARCH placeholder with the proper architecture rather than assuming x86.
+mkdir -p "$FLAGS_output_root"
 
 # Get kernel package configuration from repo.
 # TODO: Find a workaround for needing sudo for this. Maybe create a symlink
@@ -54,32 +52,22 @@ sudo cp "$KERNEL_DIR"/package/kernel-pkg.conf /etc/kernel-pkg.conf
 # Parse kernel config file for target architecture information. This is needed
 # to determine the full package name and also to setup the environment for
 # kernel build scripts which use "uname -m" to autodetect architecture.
-KCONFIG=`readlink -f "$FLAGS_config"`
+KCONFIG="$FLAGS_config"
 if [ ! -f "$KCONFIG" ]; then
     KCONFIG="$KERNEL_DIR"/files/chromeos/config/"$KCONFIG"
 fi
-if [  $(grep 'CONFIG_X86=y' "$KCONFIG") ]
+if [ -n $(grep 'CONFIG_X86=y' "$KCONFIG") ]
 then
     ARCH="i386"
-elif [ $(grep 'CONFIG_X86_64=y' "$KCONFIG") ]
+elif [ -n $(grep 'CONFIG_X86_64=y' "$KCONFIG") ]
 then
     ARCH="x86_64"
-elif [ $(grep 'CONFIG_ARM=y' "$KCONFIG") ]
+elif [ -n $(grep 'CONFIG_ARM=y' "$KCONFIG") ]
 then
-    ARCH="armel"
-    KPKG_ARCH=arm
+    ARCH="arm"
 else
     exit 1
 fi
-
-if [ ! $FLAGS_output_root ]
-then
-    FLAGS_output_root="${DEFAULT_BUILD_ROOT}/${ARCH}/local_packages" 
-fi
-
-# TODO: We detect the ARCH below. We can sed the FLAGS_output_root to replace
-# an ARCH placeholder with the proper architecture rather than assuming x86.
-mkdir -p "$FLAGS_output_root"
 
 # Parse the config file for a line with "version" in it (in the header)
 # and remove any leading text before the major number of the kernel version
@@ -141,38 +129,12 @@ else
     CONCURRENCY_LEVEL=$(($(cat /proc/cpuinfo | grep "processor" | wc -l) * 2))
 fi
 
-# Setup the cross-compilation environment, if necessary, using the cross_compile
-# Flag from the command line
-if [ $FLAGS_cross_compile ]
-then
-    CROSS_COMPILE_FLAG="--cross-compile $FLAGS_cross_compile"
-fi
-
-if [ $FLAGS_verbose -eq $FLAGS_TRUE ]
-then
-    VERBOSE_FLAG="--verbose"
-fi
-
 # Build the kernel and make package. "setarch" is used so that scripts which
 # detect architecture (like the "oldconfig" rule in kernel Makefile) don't get
 # confused when cross-compiling.
 make-kpkg clean
-
-# Setarch does not support arm, so if we are compiling for arm we need to 
-# make sure that uname -m will return the appropriate architeture. 
-if [ ! -n "$(setarch $ARCH ls)" ]
-then
-    alias uname="echo $ARCH"
-    SETARCH=""
-else
-    SETARCH="setarch $ARCH"
-fi
-
 MAKEFLAGS="CONCURRENCY_LEVEL=$CONCURRENCY_LEVEL" \
-          $SETARCH \
-          make-kpkg \
-          $VERBOSE_FLAG \
-          $CROSS_COMPILE_FLAG \
+          setarch $ARCH make-kpkg \
           --append-to-version="-$CHROMEOS_TAG" --revision="$FLAGS_revision" \
           --arch="$ARCH" \
           --rootcmd fakeroot \
