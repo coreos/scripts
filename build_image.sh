@@ -184,7 +184,6 @@ sudo mount --bind "$GCLIENT_ROOT" "$ROOT_FS_DIR/trunk"
 mkdir -p "$SETUP_DIR"
 mkdir -p "${SETUP_DIR}/local_packages"
 cp "${SCRIPTS_DIR}/${ROOTFS_PACKAGE_INSTALL_SCRIPT}" "$SETUP_DIR"
-cp "${SCRIPTS_DIR}/${ROOTFS_CUSTOMIZE_SCRIPT}" "$SETUP_DIR"
 cp -r "$ROOTFS_STATIC_DATA" "$SETUP_DIR"
 cp "$FLAGS_pkglist" "${SETUP_DIR}/package-list-prod.txt"
 cp "${FLAGS_build_root}/x86/local_packages"/* "${SETUP_DIR}/local_packages"
@@ -224,7 +223,7 @@ sudo chroot "$ROOT_FS_DIR" \
   "${ROOTFS_SETUP_DIR}/${ROOTFS_PACKAGE_INSTALL_SCRIPT}"
 
 # Run the script to customize the resulting root file system.
-sudo chroot "$ROOT_FS_DIR" "${ROOTFS_SETUP_DIR}/${ROOTFS_CUSTOMIZE_SCRIPT}"
+"${SCRIPTS_DIR}/${ROOTFS_CUSTOMIZE_SCRIPT}" --root="${ROOT_FS_DIR}"
 
 # No longer need the setup directory in the rootfs.
 rm -rf "$SETUP_DIR"
