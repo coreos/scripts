@@ -48,8 +48,8 @@ apt-get --yes --force-yes --no-install-recommends \
 
 # Setup bootchart. Due to dependencies, this adds about 180MB!
 apt-get --yes --force-yes --no-install-recommends install bootchart
-# TODO: Replace this with pybootchartgui, or remove it entirely.
-apt-get --yes --force-yes --no-install-recommends install bootchart-java
+# TODO: add pybootchartgui to create pretty picture.
+
 
 # Install additional packages from a second mirror, if necessary.  This must
 # be done after all packages from the first repository are installed; after

@@ -114,7 +114,8 @@ mkdir -p "$FLAGS_chroot"
 # Run debootstrap to create the base chroot environment
 echo "Running debootstrap..."
 echo "You may need to enter password for sudo now..."
-sudo debootstrap --arch=i386 "$FLAGS_suite" "$FLAGS_chroot" "$FLAGS_mirror"
+sudo debootstrap --arch=i386 --exclude=rsyslog,ubuntu-minimal \
+  "$FLAGS_suite" "$FLAGS_chroot" "$FLAGS_mirror"
 echo "Done running debootstrap."
 
 # Set up necessary mounts
