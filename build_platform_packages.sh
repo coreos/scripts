@@ -30,7 +30,7 @@ PLATFORM_DIRS="acpi assets fake_hal init installer login_manager \
                memento_softwareupdate pam_google window_manager \
                cros chrome screenlocker cryptohome \
                monitor_reconfig microbenchmark minijail metrics_collection \
-               theme metrics_daemon
+               theme metrics_daemon"
 
 THIRD_PARTY_DIR="$SRC_ROOT/third_party"
 THIRD_PARTY_PACKAGES="connman e2fsprogs/files \
