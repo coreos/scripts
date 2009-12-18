@@ -70,6 +70,6 @@ zip -r1 $OUTPUT_ZIP chrome-chromeos -i "chrome-chromeos/chrome*" \
   "chrome-chromeos/libffmpegsumo.so" "chrome-chromeos/xdg-settings" \
   "chrome-chromeos/locales/*" "chrome-chromeos/resources/*" \
   "chrome-chromeos/*.png" "chrome-chromeos/session" \
-  "chrome-chromeos/emit-login-prompt-ready" -x "*.d"
+  "chrome-chromeos/emit_login_prompt_ready" -x "*.d"
 cp -f $OUTPUT_ZIP $OUTPUT_DIR
 echo Done.
