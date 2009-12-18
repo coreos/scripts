@@ -15,4 +15,4 @@ $SCRIPTS_DIR/build_platform_packages.sh
 $SCRIPTS_DIR/build_tests.sh
 $SCRIPTS_DIR/build_kernel.sh
 $SCRIPTS_DIR/run_tests.sh
-$SCRIPTS_DIR/build_image.sh 
+$SCRIPTS_DIR/build_image.sh --replace
