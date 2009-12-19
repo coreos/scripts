@@ -46,10 +46,11 @@ EOF
 apt-get --yes --force-yes --no-install-recommends \
   install "linux-image-${KERNEL_VERSION}"
 
-# Setup bootchart. Due to dependencies, this adds about 180MB!
+# Setup bootchart.
+# TODO: Move this and other developer oriented "components" into an optional
+# package-list-prod-dev.txt (ideally with a better name).
 apt-get --yes --force-yes --no-install-recommends install bootchart
-# TODO: add pybootchartgui to create pretty picture.
-
+apt-get --yes --force-yes --no-install-recommends install pybootchartgui
 
 # Install additional packages from a second mirror, if necessary.  This must
 # be done after all packages from the first repository are installed; after
