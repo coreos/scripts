@@ -60,23 +60,28 @@ else
 fi
 
 # Set up a default user and add to sudo and the required groups.
-USERNAME="chronos"
+ADD_USER="chronos"
+ADD_GROUPS="audio video"
 SHELL="/bin/sh"
 if [[ -x "${ROOT_FS_DIR}/bin/bash" ]] ; then
   SHELL="/bin/bash"
 fi
-echo "${USERNAME}:x:1000:1000:${FULLNAME}:/home/${USERNAME}/:${SHELL}" | \
+echo "${ADD_USER}:x:1000:1000:${FULLNAME}:/home/${ADD_USER}/:${SHELL}" | \
   sudo dd of="${ROOT_FS_DIR}/etc/passwd" conv=notrunc oflag=append
-echo "${USERNAME}:${CRYPTED_PASSWD}:14500:0:99999::::" | \
+echo "${ADD_USER}:${CRYPTED_PASSWD}:14500:0:99999::::" | \
   sudo dd of="${ROOT_FS_DIR}/etc/shadow" conv=notrunc oflag=append
-echo "${USERNAME}:x:1000:" | \
+echo "${ADD_USER}:x:1000:" | \
   sudo dd of="${ROOT_FS_DIR}/etc/group" conv=notrunc oflag=append
-# TODO: Add USERNAME to adm,dialout,cdrom,floppy,audio,dip,video groups?
-sudo mkdir -p "${ROOT_FS_DIR}/home/${USERNAME}"
-sudo chown 1000.1000 "${ROOT_FS_DIR}/home/${USERNAME}"
+for i in $ADD_GROUPS; do
+  sudo sed -i "s/^\($i:x:[0-9]*:.*\)/\1,${ADD_USER}/g" \
+    "${ROOT_FS_DIR}"/etc/group
+done
+
+sudo mkdir -p "${ROOT_FS_DIR}/home/${ADD_USER}"
+sudo chown 1000.1000 "${ROOT_FS_DIR}/home/${ADD_USER}"
 cat <<EOF | sudo dd of="${ROOT_FS_DIR}/etc/sudoers" conv=notrunc oflag=append
 %adm ALL=(ALL) ALL
-$USERNAME ALL=(ALL) ALL
+$ADD_USER ALL=(ALL) ALL
 EOF
 sudo chmod 0440 "${ROOT_FS_DIR}/etc/sudoers"
 
