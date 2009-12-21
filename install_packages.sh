@@ -50,7 +50,6 @@ apt-get --yes --force-yes --no-install-recommends \
 # TODO: Move this and other developer oriented "components" into an optional
 # package-list-prod-dev.txt (ideally with a better name).
 apt-get --yes --force-yes --no-install-recommends install bootchart
-apt-get --yes --force-yes --no-install-recommends install pybootchartgui
 
 # Install additional packages from a second mirror, if necessary.  This must
 # be done after all packages from the first repository are installed; after
