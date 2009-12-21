@@ -12,7 +12,7 @@
 
 # The number of jobs to pass to tools that can run in parallel (such as make
 # and dpkg-buildpackage
-NUM_JOBS=`cat /proc/cpuinfo | grep processor | awk '{a++} END {print a}'`
+NUM_JOBS=`grep -c "^processor" /proc/cpuinfo`
 
 # Store location of the calling script.
 TOP_SCRIPT_DIR="${TOP_SCRIPT_DIR:-$(dirname $0)}"

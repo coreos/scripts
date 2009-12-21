@@ -22,7 +22,7 @@ eval set -- "${FLAGS_ARGV}"
 set -e
 
 # Number of jobs for scons calls.
-NUM_JOBS=`cat /proc/cpuinfo | grep processor | awk '{a++} END {print a}'`
+NUM_JOBS=`grep -c "^processor" /proc/cpuinfo`
 
 PLATFORM_DIR="$SRC_ROOT/platform"
 

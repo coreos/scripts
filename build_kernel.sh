@@ -126,7 +126,7 @@ then
     CONCURRENCY_LEVEL=2
 else
     # speed up compilation by running #cpus * 2 simultaneous jobs
-    CONCURRENCY_LEVEL=$(($(cat /proc/cpuinfo | grep "processor" | wc -l) * 2))
+    CONCURRENCY_LEVEL=$(($(grep -c "^processor" /proc/cpuinfo) * 2))
 fi
 
 # Build the kernel and make package. "setarch" is used so that scripts which

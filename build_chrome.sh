@@ -20,7 +20,7 @@ DEFAULT_CHROME_DIR="${CHROMEOS_CHROME_DIR:-/home/$USER/chrome}"
 
 # The number of jobs to pass to tools that can run in parallel (such as make
 # and dpkg-buildpackage
-NUM_JOBS=`cat /proc/cpuinfo | grep processor | awk '{a++} END {print a}'`
+NUM_JOBS=`grep -c "^processor" /proc/cpuinfo`
 
 # Flags
 DEFINE_string chrome_dir "$DEFAULT_CHROME_DIR" \
