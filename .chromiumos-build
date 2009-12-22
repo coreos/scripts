@@ -1,0 +1,5 @@
+[Options]
+# ../third_party/xscreensaver is a bit of a wart here, necessitated by odd
+# directory layout.
+builddirs: ../build/%(architecture)s/local_packages .. ../platform ../third_party ../third_party/xscreensaver
+destdir: ../build/%(architecture)s/local_packages
