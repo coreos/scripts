@@ -73,6 +73,8 @@ else
   export CHROMEOS_VERSION_TRACK="developer-build"
   export CHROMEOS_VERSION_AUSERVER="http://$HOSTNAME:8080/update"
   export CHROMEOS_VERSION_DEVSERVER="http://$HOSTNAME:8080"
+  # Overwrite CHROMEOS_VERSION_PATCH with a date string for use by auto-updater
+  export CHROMEOS_VERSION_PATCH=$(date +%Y%m%d%H%M)
 fi
 
 # Version string. Not indentied to appease bash.
