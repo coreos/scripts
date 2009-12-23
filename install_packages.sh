@@ -93,7 +93,8 @@ apt-config -c="$APT_CONFIG" dump > "${ROOT_FS_DIR}/../apt.conf.dump"
 # Install prod packages
 COMPONENTS=`cat $FLAGS_package_list | grep -v ' *#' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
 sudo apt-get -c="$APT_CONFIG" update
-sudo apt-get -c="$APT_CONFIG" --yes --force-yes install $COMPONENTS
+sudo apt-get -c="$APT_CONFIG" --yes --force-yes --no-install-recommends \
+  install $COMPONENTS
 
 # Create kernel installation configuration to suppress warnings,
 # install the kernel in /boot, and manage symlinks.

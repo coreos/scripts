@@ -148,7 +148,7 @@ sudo rm -rf "$TMP_STATIC"
 # Fix issue where alsa-base (dependency of alsa-utils) is messing up our sound
 # drivers. The stock modprobe settings worked fine.
 # TODO: Revisit when we have decided on how sound will work on chromeos.
-sudo rm "${ROOT_FS_DIR}/etc/modprobe.d/alsa-base.conf"
+! sudo rm "${ROOT_FS_DIR}/etc/modprobe.d/alsa-base.conf"
 
 # Remove unneeded fonts.
 sudo rm -rf "${ROOT_FS_DIR}/usr/share/fonts/X11"
