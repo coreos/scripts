@@ -1,37 +1,103 @@
-#!/bin/sh
+#!/bin/bash
 
 # Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Sets up the chromium-based os from inside a chroot of the root fs.
+# Script to install packages into the target root file system.
+#
 # NOTE: This script should be called by build_image.sh. Do not run this
 # on your own unless you know what you are doing.
 
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+. "$(dirname "$0")/common.sh"
+
+# Script must be run inside the chroot
+assert_inside_chroot
+
+# Flags
+DEFINE_string target "x86" \
+  "The target architecture to build for. One of { x86, arm }."
+DEFINE_string root ""      \
+  "The root file system to install packages in."
+DEFINE_string output_dir "" \
+  "The location of the output directory to use."
+DEFINE_string package_list "" \
+  "The package list file to use."
+DEFINE_string setup_dir "/tmp" \
+  "The staging directory to use."
+DEFINE_string server "" \
+  "The package server to use."
+DEFINE_string suite "" \
+  "The package suite to use."
+DEFINE_string kernel_version "" \
+  "The kernel version to use."
+
+# Parse command line
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Die on any errors.
 set -e
 
-# Read options from the config file created by build_image.sh.
-echo "Reading options..."
-cat "$(dirname $0)/customize_opts.sh"
-. "$(dirname $0)/customize_opts.sh"
-
-PACKAGE_LIST_FILE="${SETUP_DIR}/package-list-prod.txt"
-PACKAGE_LIST_FILE2="${SETUP_DIR}/package-list-2.txt"
-COMPONENTS=`cat $PACKAGE_LIST_FILE | grep -v ' *#' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
+ROOT_FS_DIR="$FLAGS_root"
+if [[ -z "$ROOT_FS_DIR" ]]; then
+  echo "Error: --root is required."
+  exit 1
+fi
+if [[ ! -d "$ROOT_FS_DIR" ]]; then
+  echo "Error: Root FS does not exist? ($ROOT_FS_DIR)"
+  exit 1
+fi
 
 # Create the temporary apt source.list used to install packages.
-cat <<EOF > /etc/apt/sources.list
-deb file:"$SETUP_DIR" local_packages/
-deb $SERVER $SUITE main restricted multiverse universe
+APT_SOURCE="${ROOT_FS_DIR}/../sources.list"
+cat <<EOF > "$APT_SOURCE"
+deb file:"$FLAGS_setup_dir" local_packages/
+deb $FLAGS_server $FLAGS_suite main restricted multiverse universe
 EOF
 
+# Cache directory for APT to use.
+APT_CACHE_DIR="${FLAGS_output_dir}/tmp/cache/"
+mkdir -p "${APT_CACHE_DIR}/archives/partial"
+
+# Create the apt configuration file. See "man apt.conf"
+APT_CONFIG="${ROOT_FS_DIR}/../apt.conf"
+cat <<EOF > "$APT_CONFIG"
+Dir
+{
+  Cache "$APT_CACHE_DIR";  # TODO: Empty string to disable?
+  Cache {
+    archives "${APT_CACHE_DIR}/archives"; # TODO: Why do we need this?
+  };
+  Etc
+  {
+    sourcelist "$APT_SOURCE"
+  };
+  State "${ROOT_FS_DIR}/var/lib/apt/";
+  State
+  {
+    status "${ROOT_FS_DIR}/var/lib/dpkg/status";
+  };
+};
+DPkg
+{
+  options {"--root=${ROOT_FS_DIR}";};
+};
+EOF
+
+# TODO: Full audit of the apt conf dump to make sure things are ok.
+apt-config -c="$APT_CONFIG" dump > "${ROOT_FS_DIR}/../apt.conf.dump"
+
 # Install prod packages
-apt-get update
-apt-get --yes --force-yes install $COMPONENTS
+COMPONENTS=`cat $FLAGS_package_list | grep -v ' *#' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
+sudo apt-get -c="$APT_CONFIG" update
+sudo apt-get -c="$APT_CONFIG" --yes --force-yes install $COMPONENTS
 
 # Create kernel installation configuration to suppress warnings,
 # install the kernel in /boot, and manage symlinks.
-cat <<EOF > /etc/kernel-img.conf
+cat <<EOF | sudo dd of="${ROOT_FS_DIR}/etc/kernel-img.conf"
 link_in_boot = yes
 do_symlinks = yes
 minimal_swap = yes
@@ -42,41 +108,23 @@ do_initrd = yes
 warn_initrd = no
 EOF
 
-# NB: KERNEL_VERSION comes from customize_opts.sh
-apt-get --yes --force-yes --no-install-recommends \
-  install "linux-image-${KERNEL_VERSION}"
+# Install the kernel.
+sudo apt-get -c="$APT_CONFIG" --yes --force-yes --no-install-recommends \
+  install "linux-image-${FLAGS_kernel_version}"
 
 # Setup bootchart.
 # TODO: Move this and other developer oriented "components" into an optional
 # package-list-prod-dev.txt (ideally with a better name).
-apt-get --yes --force-yes --no-install-recommends install bootchart
+sudo apt-get -c="$APT_CONFIG" --yes --force-yes --no-install-recommends \
+  install bootchart
 
-# Install additional packages from a second mirror, if necessary.  This must
-# be done after all packages from the first repository are installed; after
-# the apt-get update, apt-get and debootstrap will prefer the newest package
-# versions (which are probably on this second mirror).
-if [ -f "$PACKAGE_LIST_FILE2" ]
-then
-  COMPONENTS2=`cat $PACKAGE_LIST_FILE2 | grep -v ' *#' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
-
-  echo "deb $SERVER2 $SUITE2 main restricted multiverse universe" \
-    >> /etc/apt/sources.list
-  apt-get update
-  apt-get --yes --force-yes --no-install-recommends \
-    install $COMPONENTS2
-fi
+# Clean up the apt cache.
+# TODO: The cache was populated by debootstrap, not these installs. Remove
+# this line when we can get debootstrap to stop doing this.
+sudo rm -f "${ROOT_FS_DIR}"/var/cache/apt/archives/*.deb
 
 # List all packages installed so far, since these are what the local
 # repository needs to contain.
-# TODO: better place to put the list.  Must still exist after the chroot
-# is dismounted, so build_image.sh can get it.  That rules out /tmp and
-# $SETUP_DIR (which is under /tmp).
-sudo sh -c "/trunk/src/scripts/list_installed_packages.sh \
-  > /etc/package_list_installed.txt"
-
-# Clean up other useless stuff created as part of the install process.
-rm -f /var/cache/apt/archives/*.deb
-
-# List all packages still installed post-pruning
-sudo sh -c "/trunk/src/scripts/list_installed_packages.sh \
-  > /etc/package_list_pruned.txt"
+# TODO: Replace with list_installed_packages.sh when it is fixed up.
+dpkg --root="${ROOT_FS_DIR}" -l > \
+  "${FLAGS_output_dir}/package_list_installed.txt"
