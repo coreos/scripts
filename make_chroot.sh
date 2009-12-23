@@ -193,7 +193,9 @@ bash_chroot "export DEBIAN_FRONTEND=noninteractive LANG=C && \
 
 echo "Installing chromiumos-build tool..."
 bash_chroot "cd $CHROOT_TRUNK_DIR/tools/chromiumos-build && \
-  debuild -us -uc && sudo dpkg -i ../*.deb"
+  debuild -us -uc && \
+  sudo dpkg -i ../chromiumos-build_*.deb && \
+  rm ../chromiumos-build_*.{dsc,tar.gz,deb,build,changes}"
 
 
 # Clean up the chroot mounts
