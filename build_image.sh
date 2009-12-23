@@ -17,8 +17,8 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-# Script must be run inside the chroot
 assert_inside_chroot
+assert_not_root_user
 
 DEFAULT_PKGLIST="${SRC_ROOT}/package_repo/package-list-prod.txt"
 

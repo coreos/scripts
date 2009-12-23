@@ -8,8 +8,8 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-# Script must be run inside the chroot
 assert_inside_chroot
+assert_not_root_user
 
 # Flags
 DEFINE_boolean stable $FLAGS_FALSE "Build with stable version of browser."
