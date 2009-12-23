@@ -52,7 +52,7 @@ if [[ ! -d "$ROOT_FS_DIR" ]]; then
 fi
 
 # Create the temporary apt source.list used to install packages.
-APT_SOURCE="${ROOT_FS_DIR}/../sources.list"
+APT_SOURCE="${FLAGS_output_dir}/sources.list"
 cat <<EOF > "$APT_SOURCE"
 deb file:"$FLAGS_setup_dir" local_packages/
 deb $FLAGS_server $FLAGS_suite main restricted multiverse universe
@@ -63,17 +63,29 @@ APT_CACHE_DIR="${FLAGS_output_dir}/tmp/cache/"
 mkdir -p "${APT_CACHE_DIR}/archives/partial"
 
 # Create the apt configuration file. See "man apt.conf"
-APT_CONFIG="${ROOT_FS_DIR}/../apt.conf"
+APT_PARTS="${FLAGS_output_dir}/apt.conf.d"
+mkdir -p "$APT_PARTS"  # An empty apt.conf.d to avoid other configs.
+export APT_CONFIG="${FLAGS_output_dir}/apt.conf"
 cat <<EOF > "$APT_CONFIG"
+APT
+{
+  Install-Recommends "0";
+  Install-Suggests "0";
+  Get
+  {
+    Assume-Yes "1";
+  };
+};
 Dir
 {
-  Cache "$APT_CACHE_DIR";  # TODO: Empty string to disable?
+  Cache "$APT_CACHE_DIR";
   Cache {
-    archives "${APT_CACHE_DIR}/archives"; # TODO: Why do we need this?
+    archives "${APT_CACHE_DIR}/archives";
   };
   Etc
   {
-    sourcelist "$APT_SOURCE"
+    sourcelist "$APT_SOURCE";
+    parts "$APT_PARTS";
   };
   State "${ROOT_FS_DIR}/var/lib/apt/";
   State
@@ -88,12 +100,12 @@ DPkg
 EOF
 
 # TODO: Full audit of the apt conf dump to make sure things are ok.
-apt-config -c="$APT_CONFIG" dump > "${ROOT_FS_DIR}/../apt.conf.dump"
+apt-config dump > "${FLAGS_output_dir}/apt.conf.dump"
 
 # Install prod packages
 COMPONENTS=`cat $FLAGS_package_list | grep -v ' *#' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
-sudo apt-get -c="$APT_CONFIG" update
-sudo apt-get -c="$APT_CONFIG" --yes --force-yes --no-install-recommends \
+sudo APT_CONFIG="$APT_CONFIG" apt-get update
+sudo APT_CONFIG="$APT_CONFIG" apt-get --force-yes \
   install $COMPONENTS
 
 # Create kernel installation configuration to suppress warnings,
@@ -110,13 +122,13 @@ warn_initrd = no
 EOF
 
 # Install the kernel.
-sudo apt-get -c="$APT_CONFIG" --yes --force-yes --no-install-recommends \
+sudo APT_CONFIG="$APT_CONFIG" apt-get --force-yes \
   install "linux-image-${FLAGS_kernel_version}"
 
 # Setup bootchart.
 # TODO: Move this and other developer oriented "components" into an optional
 # package-list-prod-dev.txt (ideally with a better name).
-sudo apt-get -c="$APT_CONFIG" --yes --force-yes --no-install-recommends \
+sudo APT_CONFIG="$APT_CONFIG" apt-get --force-yes \
   install bootchart
 
 # Clean up the apt cache.
