@@ -8,6 +8,9 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
+assert_inside_chroot
+assert_not_root_user
+
 # Flags
 
 # Parse command line

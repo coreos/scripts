@@ -17,8 +17,8 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-# Script must be run inside the chroot
 assert_inside_chroot
+assert_not_root_user
 
 DEFAULT_PKGLIST="${SRC_ROOT}/package_repo/package-list-prod.txt"
 
@@ -37,11 +37,6 @@ DEFINE_string mirror "$DEFAULT_IMG_MIRROR" "Repository mirror to use."
 DEFINE_string suite "$DEFAULT_IMG_SUITE" "Repository suite to base image on."
 DEFINE_string pkglist "$DEFAULT_PKGLIST" \
   "Name of file listing packages to install from repository."
-
-DEFINE_string mirror2 "$DEFAULT_EXT_MIRROR" "Additional mirror to use."
-DEFINE_string suite2 "$DEFAULT_EXT_SUITE" "Suite to use in additional mirror."
-DEFINE_string pkglist2 "" \
-  "Name of file listing packages to install from additional mirror."
 
 KERNEL_DEB_PATH=$(find "${FLAGS_build_root}/x86/local_packages" -name "linux-image-*.deb")
 KERNEL_DEB=$(basename "${KERNEL_DEB_PATH}" .deb | sed -e 's/linux-image-//' -e 's/_.*//')
@@ -65,14 +60,7 @@ ROOT_FS_DIR="${OUTPUT_DIR}/rootfs"
 ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
 MBR_IMG="${OUTPUT_DIR}/mbr.image"
 OUTPUT_IMG="${OUTPUT_DIR}/usb.img"
-
-# These paths are relative to SCRIPTS_DIR.
-ROOTFS_PACKAGE_INSTALL_SCRIPT="install_packages.sh"
-ROOTFS_CUSTOMIZE_SCRIPT="customize_rootfs.sh"
-
-ROOTFS_STATIC_DATA="${SRC_ROOT}/rootfs_static_data"
-ROOTFS_SETUP_DIR="/tmp/chromeos_setup"
-SETUP_DIR="${ROOT_FS_DIR}/${ROOTFS_SETUP_DIR}"
+SETUP_DIR="${OUTPUT_DIR}/tmp"
 
 LOOP_DEV=
 
@@ -111,7 +99,6 @@ cleanup_rootfs_mounts() {
 
   sudo umount "${ROOT_FS_DIR}/proc"
   sudo umount "${ROOT_FS_DIR}/sys"
-  sudo umount "${ROOT_FS_DIR}/trunk"
 }
 
 cleanup_rootfs_loop() {
@@ -138,8 +125,8 @@ trap cleanup EXIT
 mkdir -p "$ROOT_FS_DIR"
 
 # Create root file system disk image to fit on a 1GB memory stick.
-# 1 GB in hard-drive-manufacturer-speak is 10^9, not 2^30.  950MB < 10^9 bytes.
-ROOT_SIZE_BYTES=$((1024 * 1024 * 950))
+# 1 GB in hard-drive-manufacturer-speak is 10^9, not 2^30.  700MB < 10^9 bytes.
+ROOT_SIZE_BYTES=$((1024 * 1024 * 700))
 dd if=/dev/zero of="$ROOT_FS_IMG" bs=1 count=1 seek=$((ROOT_SIZE_BYTES - 1))
 
 # Format, tune, and mount the rootfs.
@@ -163,6 +150,7 @@ then
 fi
 
 # Bootstrap the base debian file system
+# TODO: Switch to --variant=minbase
 sudo debootstrap --arch=i386 $FLAGS_suite "$ROOT_FS_DIR" "${FLAGS_mirror}"
 
 # -- Customize the root file system --
@@ -174,24 +162,11 @@ sudo mount -t proc proc "${ROOT_FS_DIR}/proc"
 sudo mount -t sysfs sysfs "${ROOT_FS_DIR}/sys" # TODO: Do we need sysfs?
 sudo cp /etc/hosts "${ROOT_FS_DIR}/etc"
 
-# Set up bind mount for trunk, so we can get to package repository
-# TODO: also use this instead of SETUP_DIR for other things below?
-sudo mkdir -p "$ROOT_FS_DIR/trunk"
-sudo mount --bind "$GCLIENT_ROOT" "$ROOT_FS_DIR/trunk"
-
 # Create setup directory and copy over scripts, config files, and locally
 # built packages.
 mkdir -p "$SETUP_DIR"
 mkdir -p "${SETUP_DIR}/local_packages"
-cp "${SCRIPTS_DIR}/${ROOTFS_PACKAGE_INSTALL_SCRIPT}" "$SETUP_DIR"
-cp -r "$ROOTFS_STATIC_DATA" "$SETUP_DIR"
-cp "$FLAGS_pkglist" "${SETUP_DIR}/package-list-prod.txt"
 cp "${FLAGS_build_root}/x86/local_packages"/* "${SETUP_DIR}/local_packages"
-
-if [ -n "$FLAGS_pkglist2" ]
-then
-  cp "$FLAGS_pkglist2" "${SETUP_DIR}/package-list-2.txt"
-fi
 
 # Set up repository for local packages to install in the rootfs via apt-get.
 cd "$SETUP_DIR"
@@ -199,37 +174,18 @@ dpkg-scanpackages local_packages/ /dev/null | \
    gzip > local_packages/Packages.gz
 cd -
 
-# File-type mirrors have a different path when bind-mounted inside the chroot
-# ${FOO/bar/baz} replaces bar with baz when evaluating $FOO.
-MIRROR_INSIDE="${FLAGS_mirror/$GCLIENT_ROOT//trunk}"
-MIRROR2_INSIDE="${FLAGS_mirror2/$GCLIENT_ROOT//trunk}"
-
-# Write options for customize script into the chroot
-CUST_OPTS="${SETUP_DIR}/customize_opts.sh"
-cat <<EOF > $CUST_OPTS
-REAL_USER=$USER
-SETUP_DIR="$ROOTFS_SETUP_DIR"
-KERNEL_VERSION="$KERNEL_VERSION"
-SERVER="$MIRROR_INSIDE"
-SUITE="$FLAGS_suite"
-SERVER2="$MIRROR2_INSIDE"
-SUITE2="$FLAGS_suite2"
-EOF
-# ...and all CHROMEOS_ vars
-set | egrep "^CHROMEOS_|^BUILDBOT_" >> $CUST_OPTS
-
 # Run the package install script
-sudo chroot "$ROOT_FS_DIR" \
-  "${ROOTFS_SETUP_DIR}/${ROOTFS_PACKAGE_INSTALL_SCRIPT}"
+"${SCRIPTS_DIR}/install_packages.sh"  \
+  --root="$ROOT_FS_DIR"               \
+  --output_dir="${OUTPUT_DIR}"        \
+  --setup_dir="${SETUP_DIR}"          \
+  --package_list="$FLAGS_pkglist"     \
+  --server="$FLAGS_mirror"            \
+  --suite="$FLAGS_suite"              \
+  --kernel_version="$KERNEL_VERSION"
 
 # Run the script to customize the resulting root file system.
-"${SCRIPTS_DIR}/${ROOTFS_CUSTOMIZE_SCRIPT}" --root="${ROOT_FS_DIR}"
-
-# No longer need the setup directory in the rootfs.
-rm -rf "$SETUP_DIR"
-
-# Move package lists from the image into the output dir
-sudo mv "$ROOT_FS_DIR"/etc/package_list_*.txt "$OUTPUT_DIR"
+"${SCRIPTS_DIR}/customize_rootfs.sh" --root="${ROOT_FS_DIR}"
 
 # Unmount mounts within the rootfs so it is ready to be imaged.
 cleanup_rootfs_mounts

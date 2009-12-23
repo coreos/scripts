@@ -8,8 +8,8 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-# Script must be run inside the chroot
 assert_inside_chroot
+assert_not_root_user
 
 # Flags
 DEFINE_boolean stable $FLAGS_FALSE "Build with stable version of browser."
@@ -35,7 +35,7 @@ PLATFORM_DIRS="acpi assets fake_hal init installer login_manager \
 THIRD_PARTY_DIR="$SRC_ROOT/third_party"
 THIRD_PARTY_PACKAGES="connman e2fsprogs/files \
                       gflags google-breakpad gpt gtest \
-                      ibus ibus-chewing ibus-anthy \
+                      ibus ibus-chewing ibus-anthy ibus-hangul ibus-m17n \
                       ply-image slim/src synaptics \
                       wpa_supplicant xscreensaver/xscreensaver-5.08 \
                       xserver-xorg-core xserver-xorg-video-intel"
