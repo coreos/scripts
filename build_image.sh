@@ -38,10 +38,6 @@ DEFINE_string suite "$DEFAULT_IMG_SUITE" "Repository suite to base image on."
 DEFINE_string pkglist "$DEFAULT_PKGLIST" \
   "Name of file listing packages to install from repository."
 
-KERNEL_DEB_PATH=$(find "${FLAGS_build_root}/x86/local_packages" -name "linux-image-*.deb")
-KERNEL_DEB=$(basename "${KERNEL_DEB_PATH}" .deb | sed -e 's/linux-image-//' -e 's/_.*//')
-KERNEL_VERSION=${KERNEL_VERSION:-${KERNEL_DEB}}
-
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -60,7 +56,6 @@ ROOT_FS_DIR="${OUTPUT_DIR}/rootfs"
 ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
 MBR_IMG="${OUTPUT_DIR}/mbr.image"
 OUTPUT_IMG="${OUTPUT_DIR}/usb.img"
-SETUP_DIR="${OUTPUT_DIR}/tmp"
 
 LOOP_DEV=
 
@@ -81,37 +76,16 @@ fi
 # create the output directory
 mkdir -p "$OUTPUT_DIR"
 
-# Make sure anything mounted in the rootfs is cleaned up ok on exit.
-cleanup_rootfs_mounts() {
-  # Occasionally there are some daemons left hanging around that have our
-  # root image file system open. We do a best effort attempt to kill them.
-  PIDS=`sudo lsof -t "$ROOT_FS_DIR" | sort | uniq`
-  for pid in $PIDS
-  do
-    local cmdline=`cat /proc/$pid/cmdline`
-    echo "Killing process that has open file on our rootfs: $cmdline"
-    ! sudo kill $pid  # Preceded by ! to disable ERR trap.
-  done
-
-  # Sometimes the volatile directory is left mounted and sometimes it is not,
-  # so we precede by '!' to disable the ERR trap.
-  ! sudo umount "$ROOT_FS_DIR"/lib/modules/2.6.*/volatile/
-
-  sudo umount "${ROOT_FS_DIR}/proc"
-  sudo umount "${ROOT_FS_DIR}/sys"
-}
-
 cleanup_rootfs_loop() {
   sudo umount "$LOOP_DEV"
   sleep 1  # in case $LOOP_DEV is in use
   sudo losetup -d "$LOOP_DEV"
+  LOOP_DEV=""
 }
 
 cleanup() {
   # Disable die on error.
   set +e
-
-  cleanup_rootfs_mounts
   if [ -n "$LOOP_DEV" ]
   then
     cleanup_rootfs_loop
@@ -142,53 +116,17 @@ sudo mkfs.ext3 "$LOOP_DEV"
 sudo tune2fs -L "$DISK_LABEL" -U "$UUID" -c 0 -i 0 "$LOOP_DEV"
 sudo mount "$LOOP_DEV" "$ROOT_FS_DIR"
 
-# Add debootstrap link for the suite, if it doesn't exist.
-if [ ! -e "/usr/share/debootstrap/scripts/$FLAGS_suite" ]
-then
-  sudo ln -s /usr/share/debootstrap/scripts/jaunty \
-    "/usr/share/debootstrap/scripts/$FLAGS_suite"
-fi
+# -- Install packages and customize root file system. --
 
-# Bootstrap the base debian file system
-# TODO: Switch to --variant=minbase
-sudo debootstrap --arch=i386 $FLAGS_suite "$ROOT_FS_DIR" "${FLAGS_mirror}"
-
-# -- Customize the root file system --
-
-# Set up mounts for working within the chroot. We copy some basic
-# network information from the host so that the chroot can access
-# repositories on the network as needed.
-sudo mount -t proc proc "${ROOT_FS_DIR}/proc"
-sudo mount -t sysfs sysfs "${ROOT_FS_DIR}/sys" # TODO: Do we need sysfs?
-sudo cp /etc/hosts "${ROOT_FS_DIR}/etc"
-
-# Create setup directory and copy over scripts, config files, and locally
-# built packages.
-mkdir -p "$SETUP_DIR"
-mkdir -p "${SETUP_DIR}/local_packages"
-cp "${FLAGS_build_root}/x86/local_packages"/* "${SETUP_DIR}/local_packages"
-
-# Set up repository for local packages to install in the rootfs via apt-get.
-cd "$SETUP_DIR"
-dpkg-scanpackages local_packages/ /dev/null | \
-   gzip > local_packages/Packages.gz
-cd -
-
-# Run the package install script
 "${SCRIPTS_DIR}/install_packages.sh"  \
+  --build_root="${FLAGS_build_root}"  \
   --root="$ROOT_FS_DIR"               \
   --output_dir="${OUTPUT_DIR}"        \
-  --setup_dir="${SETUP_DIR}"          \
   --package_list="$FLAGS_pkglist"     \
   --server="$FLAGS_mirror"            \
-  --suite="$FLAGS_suite"              \
-  --kernel_version="$KERNEL_VERSION"
+  --suite="$FLAGS_suite"
 
-# Run the script to customize the resulting root file system.
 "${SCRIPTS_DIR}/customize_rootfs.sh" --root="${ROOT_FS_DIR}"
-
-# Unmount mounts within the rootfs so it is ready to be imaged.
-cleanup_rootfs_mounts
 
 # -- Turn root file system into bootable image --
 
