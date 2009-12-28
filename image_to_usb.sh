@@ -55,6 +55,18 @@ then
   # Output to a block device (i.e., a real USB key), so need sudo dd
   echo "Copying USB image ${FLAGS_from} to device ${FLAGS_to}..."
 
+  # Warn if it looks like they supplied a partition as the destination.
+  if echo $FLAGS_to | grep -q '[0-9]$'; then
+    drive=$(echo $FLAGS_to | sed -re 's/[0-9]+$//')
+    if [ -b "$drive" ]; then
+      echo
+      echo "NOTE: It looks like you may have supplied a partition as the "
+      echo "destination.  This script needs to write to the drive's device "
+      echo "node instead (i.e. ${drive} rather than ${FLAGS_to})."
+      echo
+    fi
+  fi
+
   # Make sure this is really what the user wants, before nuking the device
   if [ $FLAGS_yes -ne $FLAGS_TRUE ]
   then
