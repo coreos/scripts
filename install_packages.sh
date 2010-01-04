@@ -191,6 +191,8 @@ sudo APT_CONFIG="$APT_CONFIG" apt-get --force-yes \
 # TODO: The cache was populated by debootstrap, not these installs. Remove
 # this line when we can get debootstrap to stop doing this.
 sudo rm -f "${ROOT_FS_DIR}"/var/cache/apt/archives/*.deb
+# Need to rm read-only created lock files in order for archiving step to work
+sudo rm -rf "$APT_CACHE_DIR"
 
 # List all packages installed so far, since these are what the local
 # repository needs to contain.
