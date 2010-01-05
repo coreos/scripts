@@ -33,7 +33,7 @@ PLATFORM_DIRS="acpi assets fake_hal init installer login_manager \
                theme metrics_daemon"
 
 THIRD_PARTY_DIR="$SRC_ROOT/third_party"
-THIRD_PARTY_PACKAGES="connman e2fsprogs/files \
+THIRD_PARTY_PACKAGES="e2fsprogs/files flimflam \
                       gflags google-breakpad gpt gtest \
                       ibus ibus-chewing ibus-anthy ibus-hangul ibus-m17n \
                       ply-image slim/src synaptics \
