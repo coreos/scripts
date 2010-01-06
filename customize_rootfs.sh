@@ -84,6 +84,10 @@ cat <<EOF | sudo dd of="${ROOT_FS_DIR}/etc/sudoers" conv=notrunc oflag=append
 $ADD_USER ALL=(ALL) ALL
 EOF
 sudo chmod 0440 "${ROOT_FS_DIR}/etc/sudoers"
+echo "# Allow chronos user to renice processes so that chrome will adjust tab priorities" | \
+  sudo dd of="${ROOT_FS_DIR}/etc/security/limits.conf" conv=notrunc oflag=append
+echo "chronos hard nice 0" | \
+  sudo dd of="${ROOT_FS_DIR}/etc/security/limits.conf" conv=notrunc oflag=append
 
 # Set CHROMEOS_VERSION_DESCRIPTION here (uses vars set in chromeos_version.sh)
 # Was removed from chromeos_version.sh which can also be run outside of chroot
