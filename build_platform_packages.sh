@@ -26,14 +26,14 @@ NUM_JOBS=`grep -c "^processor" /proc/cpuinfo`
 
 PLATFORM_DIR="$SRC_ROOT/platform"
 
-PLATFORM_DIRS="acpi assets fake_hal init installer login_manager \
+PLATFORM_DIRS="acpi assets dh-chromeos fake_hal init installer login_manager \
                memento_softwareupdate pam_google window_manager \
                cros chrome screenlocker cryptohome \
                monitor_reconfig microbenchmark minijail metrics_collection \
                theme metrics_daemon"
 
 THIRD_PARTY_DIR="$SRC_ROOT/third_party"
-THIRD_PARTY_PACKAGES="connman e2fsprogs/files \
+THIRD_PARTY_PACKAGES="e2fsprogs/files flimflam \
                       gflags google-breakpad gpt gtest \
                       ibus ibus-chewing ibus-anthy ibus-hangul ibus-m17n \
                       ply-image slim/src synaptics \
