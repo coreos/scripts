@@ -140,7 +140,7 @@ CHROOT_PASSTHRU="CHROMEOS_REVISION=$REVISION BUILDBOT_BUILD=$FLAGS_build_number 
 # the source trunk for scripts that may need to print it (e.g.
 # build_image.sh).
 sudo chroot "$FLAGS_chroot" sudo -i -u $USER $CHROOT_PASSTHRU \
-  EXTERNAL_TRUNK_PATH="${FLAGS_trunk}" "$@"
+  EXTERNAL_TRUNK_PATH="${FLAGS_trunk}" LANG=C "$@"
 
 # Remove trap and explicitly unmount
 trap - EXIT

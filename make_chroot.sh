@@ -166,9 +166,6 @@ sudo mount --bind "$GCLIENT_ROOT" "${FLAGS_chroot}$CHROOT_TRUNK_DIR"
 
 # Niceties for interactive logins ('enter_chroot.sh'); these are ignored
 # when specifying a command to enter_chroot.sh.
-# Warn less when apt-get installing packqages
-echo "export LANG=C" >> "$FLAGS_chroot/home/$USER/.bashrc"
-chmod a+x "$FLAGS_chroot/home/$USER/.bashrc"
 # Automatically change to scripts directory
 echo "cd trunk/src/scripts" >> "$FLAGS_chroot/home/$USER/.profile"
 
