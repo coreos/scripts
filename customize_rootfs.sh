@@ -242,6 +242,10 @@ sudo ln -s /var/cache "${ROOT_FS_DIR}/var/lib/xkb"
 sudo rm -rf "${ROOT_FS_DIR}/var/lib/DeviceKit-disks"
 sudo ln -s /var/tmp "${ROOT_FS_DIR}/var/lib/DeviceKit-disks"
 
+# dbus-uuidgen writes machine-id to /var/lib/dbus.
+sudo rm -f "${ROOT_FS_DIR}/var/lib/dbus/machine-id"
+sudo ln -s /var/cache/machine-id "${ROOT_FS_DIR}/var/lib/dbus/machine-id"
+
 # Remove pam-mount's default entry in common-auth and common-session
 sudo sed -i 's/^\(.*pam_mount.so.*\)/#\1/g' "${ROOT_FS_DIR}"/etc/pam.d/common-*
 
