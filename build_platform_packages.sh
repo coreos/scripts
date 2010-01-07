@@ -58,13 +58,13 @@ done
 # Build base lib next, since packages depend on it.
 echo "Building base library..."
 cd "$THIRD_PARTY_DIR/chrome"
-scons -j$NUM_JOBS
+./make_pkg.sh
 cd -
 
 #Build common lib next.
 echo "Building common library..."
 cd "$SRC_ROOT/common"
-scons -j$NUM_JOBS
+./make_pkg.sh
 cd -
 
 # Build platform packages
