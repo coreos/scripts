@@ -77,7 +77,6 @@ cleanup_rootfs_mounts() {
   ! sudo umount "$ROOT_FS_DIR"/lib/modules/2.6.*/volatile/ > /dev/null 2>&1
 
   sudo umount "${ROOT_FS_DIR}/proc"
-  sudo umount "${ROOT_FS_DIR}/sys"
 }
 
 # Create setup directory and copy over scripts, config files, and locally
@@ -167,8 +166,16 @@ else
   REPO="${GCLIENT_ROOT}/repo/var/cache/make_local_repo"
 
   # The set of required packages before apt can take over.
-  # TODO: Trim this as much as possible. It is *very* picky, so be careful.
-  PACKAGES="base-files base-passwd bash bsdutils coreutils dash debconf debconf-i18n debianutils diff dpkg e2fslibs e2fsprogs findutils gcc-4.4-base grep gzip hostname initscripts insserv libacl1 libattr1 libblkid1 libc-bin libc6 libcomerr2 libdb4.7 libdbus-1-3 libgcc1 liblocale-gettext-perl libncurses5 libpam-modules libpam-runtime libpam0g libselinux1 libsepol1 libslang2 libss2 libssl0.9.8 libstdc++6 libtext-charwidth-perl libtext-iconv-perl libtext-wrapi18n-perl libudev0 libuuid1 locales login lsb-base lzma makedev mawk mount mountall ncurses-base ncurses-bin passwd perl-base procps python-minimal python2.6-minimal sed sysv-rc sysvinit-utils tar tzdata upstart util-linux zlib1g apt"
+  PACKAGES="debconf libacl1 libattr1 libc6 libgcc1 libselinux1"
+
+  # Set of packages that we need to install early so that other packages
+  # maintainer scripts can still basically run.
+  #
+  # login  - So that groupadd will work
+  # base-passwd/passwd - So that chmod and useradd/groupadd will work
+  # bash - So that scripts can run
+  # libpam-runtim/libuuid1 - Not exactly sure why
+  EXTRA_PACKAGES="base-files base-passwd bash libpam-runtime libuuid1 login passwd"
 
   # Prep the rootfs to work with dpgk and apt
   sudo mkdir -p "${ROOT_FS_DIR}/var/lib/dpkg/info"
@@ -179,12 +186,12 @@ else
     "${ROOT_FS_DIR}/var/lib/dpkg/updates"
 
   i=0
-  for p in $PACKAGES; do
+  for p in $PACKAGES $EXTRA_PACKAGES; do
     set +e
-    PKG=$(ls "${REPO}"/${p}*_i386.deb)
+    PKG=$(ls "${REPO}"/${p}_*_i386.deb)
     set -e
     if [ -z "$PKG" ]; then
-      PKG=$(ls "${REPO}"/${p}*_all.deb)
+      PKG=$(ls "${REPO}"/${p}_*_all.deb)
     fi
     echo "Installing package: $PKG [$i]"
     sudo "${SCRIPTS_DIR}"/dpkg_no_scripts.sh \
@@ -192,10 +199,10 @@ else
     i=$((i + 1))
   done
 
+  # ----- MAINTAINER SCRIPT FIXUPS -----
+
   # TODO: Remove when we stop having maintainer scripts altogether.
   sudo cp -a /dev/* "${ROOT_FS_DIR}/dev"
-
-  # ----- MAINTAINER SCRIPT FIXUPS -----
 
   # base-passwd
   sudo cp "${ROOT_FS_DIR}/usr/share/base-passwd/passwd.master" \
@@ -219,6 +226,9 @@ else
 
   # base-files?
   sudo touch "${ROOT_FS_DIR}/etc/fstab"
+
+  # sysv-rc needs this
+  sudo mkdir -p "${ROOT_FS_DIR}/etc/init.d"
 fi  # EXPERIMENTAL_NO_DEBOOTSTRAP
 
 
@@ -228,18 +238,16 @@ fi  # EXPERIMENTAL_NO_DEBOOTSTRAP
 # TODO: All of this rootfs mount stuff can be removed as soon as we stop
 # running the maintainer scripts on install.
 sudo mount -t proc proc "${ROOT_FS_DIR}/proc"
-sudo mount -t sysfs sysfs "${ROOT_FS_DIR}/sys" # TODO: Do we need sysfs?
 sudo cp /etc/hosts "${ROOT_FS_DIR}/etc"
 trap cleanup_rootfs_mounts EXIT
 
-# Make sure that apt is ready to work.
+# Make sure that apt is ready to work. We use --fix-broken to trigger apt
+# to install additional critical packages. If there are any of these, we
+# disable the maintainer scripts so they install ok.
 sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive apt-get update
-
-# TODO: We found that apt-get install --fix-broken is needed. It removes some
-# -dev packages and we need to allow it to run maintainer scripts for now.
-TMP_FORCE_DPKG="-o=Dir::Bin::dpkg=/usr/bin/dpkg"
+TMP_FORCE_NO_SCRIPTS="-o=Dir::Bin::dpkg=${SCRIPTS_DIR}/dpkg_no_scripts.sh"
 sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
-  apt-get $TMP_FORCE_DPKG --force-yes -f install
+  apt-get $TMP_FORCE_NO_SCRIPTS --force-yes --fix-broken install
 
 # Install prod packages
 COMPONENTS=`cat $FLAGS_package_list | grep -v ' *#' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
