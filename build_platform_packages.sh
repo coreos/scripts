@@ -26,7 +26,7 @@ NUM_JOBS=`grep -c "^processor" /proc/cpuinfo`
 
 PLATFORM_DIR="$SRC_ROOT/platform"
 
-PLATFORM_DIRS="acpi assets dh-chromeos fake_hal init installer login_manager \
+PLATFORM_DIRS="acpi assets fake_hal init installer login_manager \
                memento_softwareupdate pam_google window_manager \
                cros chrome screenlocker cryptohome \
                monitor_reconfig microbenchmark minijail metrics_collection \
@@ -45,6 +45,12 @@ then
   # Passed to copy_chrome_zip.sh to get stable version of the browser
   export GET_STABLE_CHROME=1
 fi
+
+# Build dh-chromeos really first. Some of third_party needs it.
+echo "Building package dh-chromeos..."
+cd "$PLATFORM_DIR/dh-chromeos"
+./make_pkg.sh
+cd -
 
 # Build third_party packages first, since packages and libs depend on them.
 for i in $THIRD_PARTY_PACKAGES
