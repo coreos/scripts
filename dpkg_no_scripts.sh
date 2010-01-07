@@ -26,12 +26,17 @@ DEFINE_string status_fd "" \
   "The file descriptor to report status on; ignored."
 DEFINE_boolean unpack $FLAGS_FALSE "Is the action 'unpack'?"
 DEFINE_boolean configure $FLAGS_FALSE "Is the action 'configure'?"
+DEFINE_boolean remove $FLAGS_FALSE "Is the action 'remove'?"
 DEFINE_boolean auto_deconfigure $FLAGS_FALSE "Ignored"
+DEFINE_boolean force_depends $FLAGS_FALSE "Ignored"
+DEFINE_boolean force_remove_essential $FLAGS_FALSE "Ignored"
 
 # Fix up the command line and parse with shflags.
 FIXED_FLAGS="$@"
 FIXED_FLAGS=${FIXED_FLAGS/status-fd/status_fd}
 FIXED_FLAGS=${FIXED_FLAGS/auto-deconfigure/auto_deconfigure}
+FIXED_FLAGS=${FIXED_FLAGS/force-depends/force_depends}
+FIXED_FLAGS=${FIXED_FLAGS/force-remove-essential/force_remove_essential}
 FLAGS $FIXED_FLAGS || exit 1
 eval set -- "${FLAGS_ARGV}"
 
@@ -40,6 +45,11 @@ set -e
 
 if [ $FLAGS_configure -eq $FLAGS_TRUE ]; then
   # We ignore configure requests.
+  exit 0
+fi
+if [ $FLAGS_remove -eq $FLAGS_TRUE ]; then
+  # We log but ignore remove requests.
+  echo "dpkg_no_scripts, remove: $@"
   exit 0
 fi
 if [ $FLAGS_unpack -ne $FLAGS_TRUE ]; then
@@ -72,6 +82,7 @@ for p in "$@"; do
     for f in $FILES; do
       cp "${TMPDIR}/$f" "${DPKG_INFO}/$PACKAGE.$f"
     done
+    touch "${DPKG_INFO}/$PACKAGE.list"
 
     # Mark the package as installed successfully.
     echo "Status: install ok installed" >> "$DPKG_STATUS"

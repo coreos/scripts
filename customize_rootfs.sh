@@ -245,6 +245,9 @@ sudo ln -s /var/tmp "${ROOT_FS_DIR}/var/lib/DeviceKit-disks"
 # Remove pam-mount's default entry in common-auth and common-session
 sudo sed -i 's/^\(.*pam_mount.so.*\)/#\1/g' "${ROOT_FS_DIR}"/etc/pam.d/common-*
 
+# A nice fake hostname to keep things happy.
+echo "localhost" | sudo dd of="${ROOT_FS_DIR}/etc/hostname"
+
 # Clear the network settings.  This must be done last, since it prevents
 # any subsequent steps from accessing the network.
 cat <<EOF | sudo dd of="${ROOT_FS_DIR}/etc/network/interfaces"

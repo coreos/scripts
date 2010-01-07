@@ -104,6 +104,10 @@ APT_CACHE_DIR="${OUTPUT_DIR}/tmp/cache/"
 mkdir -p "${APT_CACHE_DIR}/archives/partial"
 
 # Create the apt configuration file. See "man apt.conf"
+NO_MAINTAINER_SCRIPTS=""
+if [ -n "$EXPERIMENTAL_NO_MAINTAINER_SCRIPTS" ]; then
+  NO_MAINTAINER_SCRIPTS="Bin { dpkg \"${SCRIPTS_DIR}/dpkg_no_scripts.sh\"; };"
+fi
 APT_PARTS="${OUTPUT_DIR}/apt.conf.d"
 mkdir -p "$APT_PARTS"  # An empty apt.conf.d to avoid other configs.
 export APT_CONFIG="${OUTPUT_DIR}/apt.conf"
@@ -119,6 +123,7 @@ APT
 };
 Dir
 {
+  $NO_MAINTAINER_SCRIPTS
   Cache "$APT_CACHE_DIR";
   Cache {
     archives "${APT_CACHE_DIR}/archives";
@@ -150,9 +155,72 @@ then
     "/usr/share/debootstrap/scripts/$FLAGS_suite"
 fi
 
-# Bootstrap the base debian file system
-# TODO: Switch to --variant=minbase
-sudo debootstrap --arch=i386 $FLAGS_suite "$ROOT_FS_DIR" "${FLAGS_server}"
+if [ -z "$EXPERIMENTAL_NO_DEBOOTSTRAP" -a \
+     -z "$EXPERIMENTAL_NO_MAINTAINER_SCRIPTS" ]; then
+  # Use debootstrap, which runs maintainer scripts.
+  sudo debootstrap --arch=i386 $FLAGS_suite "$ROOT_FS_DIR" "${FLAGS_server}"
+else
+  # A hack-in-progress that does our own debootstrap equivalent and skips
+  # maintainer scripts.
+
+  # TODO: Replace with a pointer to lool's repo or maybe apt-get --download-only?
+  REPO="${GCLIENT_ROOT}/repo/var/cache/make_local_repo"
+
+  # The set of required packages before apt can take over.
+  # TODO: Trim this as much as possible. It is *very* picky, so be careful.
+  PACKAGES="base-files base-passwd bash bsdutils coreutils dash debconf debconf-i18n debianutils diff dpkg e2fslibs e2fsprogs findutils gcc-4.4-base grep gzip hostname initscripts insserv libacl1 libattr1 libblkid1 libc-bin libc6 libcomerr2 libdb4.7 libdbus-1-3 libgcc1 liblocale-gettext-perl libncurses5 libpam-modules libpam-runtime libpam0g libselinux1 libsepol1 libslang2 libss2 libssl0.9.8 libstdc++6 libtext-charwidth-perl libtext-iconv-perl libtext-wrapi18n-perl libudev0 libuuid1 locales login lsb-base lzma makedev mawk mount mountall ncurses-base ncurses-bin passwd perl-base procps python-minimal python2.6-minimal sed sysv-rc sysvinit-utils tar tzdata upstart util-linux zlib1g apt"
+
+  # Prep the rootfs to work with dpgk and apt
+  sudo mkdir -p "${ROOT_FS_DIR}/var/lib/dpkg/info"
+  sudo touch "${ROOT_FS_DIR}/var/lib/dpkg/available"   \
+    "${ROOT_FS_DIR}/var/lib/dpkg/diversions"           \
+    "${ROOT_FS_DIR}/var/lib/dpkg/status"
+  sudo mkdir -p "${ROOT_FS_DIR}/var/lib/apt/lists/partial"  \
+    "${ROOT_FS_DIR}/var/lib/dpkg/updates"
+
+  i=0
+  for p in $PACKAGES; do
+    set +e
+    PKG=$(ls "${REPO}"/${p}*_i386.deb)
+    set -e
+    if [ -z "$PKG" ]; then
+      PKG=$(ls "${REPO}"/${p}*_all.deb)
+    fi
+    echo "Installing package: $PKG [$i]"
+    sudo "${SCRIPTS_DIR}"/dpkg_no_scripts.sh \
+      --root="$ROOT_FS_DIR" --unpack "$PKG"
+    i=$((i + 1))
+  done
+
+  # TODO: Remove when we stop having maintainer scripts altogether.
+  sudo cp -a /dev/* "${ROOT_FS_DIR}/dev"
+
+  # ----- MAINTAINER SCRIPT FIXUPS -----
+
+  # base-passwd
+  sudo cp "${ROOT_FS_DIR}/usr/share/base-passwd/passwd.master" \
+    "${ROOT_FS_DIR}/etc/passwd"
+  sudo cp "${ROOT_FS_DIR}/usr/share/base-passwd/group.master" \
+    "${ROOT_FS_DIR}/etc/group"
+
+  # libpam-runtime
+  # The postinst script calls pam-auth-update, which is a perl script that
+  # expects to run within the targetfs. Until we fix this, we just copy
+  # from the build chroot.
+  sudo cp -a /etc/pam.d/common-* \
+    /etc/pam.d/login             \
+    /etc/pam.d/newusers          \
+    /etc/pam.d/su                \
+    /etc/pam.d/sudo              \
+    "${ROOT_FS_DIR}/etc/pam.d/"
+
+  # mawk
+  sudo ln -s mawk "${ROOT_FS_DIR}/usr/bin/awk"
+
+  # base-files?
+  sudo touch "${ROOT_FS_DIR}/etc/fstab"
+fi  # EXPERIMENTAL_NO_DEBOOTSTRAP
+
 
 # Set up mounts for working within the rootfs. We copy some basic
 # network information from the host so that maintainer scripts can
@@ -164,11 +232,19 @@ sudo mount -t sysfs sysfs "${ROOT_FS_DIR}/sys" # TODO: Do we need sysfs?
 sudo cp /etc/hosts "${ROOT_FS_DIR}/etc"
 trap cleanup_rootfs_mounts EXIT
 
+# Make sure that apt is ready to work.
+sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive apt-get update
+
+# TODO: We found that apt-get install --fix-broken is needed. It removes some
+# -dev packages and we need to allow it to run maintainer scripts for now.
+TMP_FORCE_DPKG="-o=Dir::Bin::dpkg=/usr/bin/dpkg"
+sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
+  apt-get $TMP_FORCE_DPKG --force-yes -f install
+
 # Install prod packages
 COMPONENTS=`cat $FLAGS_package_list | grep -v ' *#' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
-sudo APT_CONFIG="$APT_CONFIG" apt-get update
-sudo APT_CONFIG="$APT_CONFIG" apt-get --force-yes \
-  install $COMPONENTS
+sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
+  apt-get --force-yes install $COMPONENTS
 
 # Create kernel installation configuration to suppress warnings,
 # install the kernel in /boot, and manage symlinks.
@@ -184,8 +260,8 @@ warn_initrd = no
 EOF
 
 # Install the kernel.
-sudo APT_CONFIG="$APT_CONFIG" apt-get --force-yes \
-  install "linux-image-${KERNEL_VERSION}"
+sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
+  apt-get --force-yes install "linux-image-${KERNEL_VERSION}"
 
 # Clean up the apt cache.
 # TODO: The cache was populated by debootstrap, not these installs. Remove
