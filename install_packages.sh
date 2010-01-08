@@ -79,13 +79,10 @@ cleanup_rootfs_mounts() {
   sudo umount "${ROOT_FS_DIR}/proc"
 }
 
-# Create setup directory and copy over scripts, config files, and locally
-# built packages.
+# Set up repository for locally built packages; these take highest precedence.
 mkdir -p "${SETUP_DIR}/local_packages"
 cp "${FLAGS_build_root}/${FLAGS_target}/local_packages"/* \
   "${SETUP_DIR}/local_packages"
-
-# Set up repository for local packages to install in the rootfs via apt-get.
 cd "$SETUP_DIR"
 dpkg-scanpackages local_packages/ /dev/null | \
    gzip > local_packages/Packages.gz
@@ -98,8 +95,9 @@ deb file:"$SETUP_DIR" local_packages/
 deb $FLAGS_server $FLAGS_suite main restricted multiverse universe
 EOF
 
-# Cache directory for APT to use.
-APT_CACHE_DIR="${OUTPUT_DIR}/tmp/cache/"
+# Cache directory for APT to use. This cache is re-used across builds. We
+# rely on the cache to reduce traffic to the hosted repositories.
+APT_CACHE_DIR="${FLAGS_build_root}/apt_cache-${FLAGS_target}/"
 mkdir -p "${APT_CACHE_DIR}/archives/partial"
 
 # Create the apt configuration file. See "man apt.conf"
@@ -118,6 +116,7 @@ APT
   Get
   {
     Assume-Yes "1";
+    AllowUnauthenticated "1";
   };
 };
 Dir
@@ -158,12 +157,12 @@ if [ -z "$EXPERIMENTAL_NO_DEBOOTSTRAP" -a \
      -z "$EXPERIMENTAL_NO_MAINTAINER_SCRIPTS" ]; then
   # Use debootstrap, which runs maintainer scripts.
   sudo debootstrap --arch=i386 $FLAGS_suite "$ROOT_FS_DIR" "${FLAGS_server}"
+  sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive apt-get update
 else
-  # A hack-in-progress that does our own debootstrap equivalent and skips
-  # maintainer scripts.
-
-  # TODO: Replace with a pointer to lool's repo or maybe apt-get --download-only?
-  REPO="${GCLIENT_ROOT}/repo/var/cache/make_local_repo"
+  # We do a rough equivalent to debootstrap that installs the minimal
+  # packages needed to be able to run apt to install the rest. We don't
+  # use debootstrap since it is geared toward having a second stage that
+  # needs to run package maintainer scripts. This is also simpler.
 
   # The set of required packages before apt can take over.
   PACKAGES="debconf libacl1 libattr1 libc6 libgcc1 libselinux1"
@@ -185,6 +184,12 @@ else
   sudo mkdir -p "${ROOT_FS_DIR}/var/lib/apt/lists/partial"  \
     "${ROOT_FS_DIR}/var/lib/dpkg/updates"
 
+  # Download the initial packages into the apt cache if necessary.
+  REPO="${APT_CACHE_DIR}/archives"
+  sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive apt-get update
+  sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
+    apt-get --download-only install $PACKAGES $EXTRA_PACKAGES
+
   i=0
   for p in $PACKAGES $EXTRA_PACKAGES; do
     set +e
@@ -198,6 +203,13 @@ else
       --root="$ROOT_FS_DIR" --unpack "$PKG"
     i=$((i + 1))
   done
+
+  # Make sure that apt is ready to work. We use --fix-broken to trigger apt
+  # to install additional critical packages. If there are any of these, we
+  # disable the maintainer scripts so they install ok.
+  TMP_FORCE_NO_SCRIPTS="-o=Dir::Bin::dpkg=${SCRIPTS_DIR}/dpkg_no_scripts.sh"
+  sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
+    apt-get $TMP_FORCE_NO_SCRIPTS --force-yes --fix-broken install
 
   # ----- MAINTAINER SCRIPT FIXUPS -----
 
@@ -231,7 +243,6 @@ else
   sudo mkdir -p "${ROOT_FS_DIR}/etc/init.d"
 fi  # EXPERIMENTAL_NO_DEBOOTSTRAP
 
-
 # Set up mounts for working within the rootfs. We copy some basic
 # network information from the host so that maintainer scripts can
 # access the network as needed.
@@ -240,14 +251,6 @@ fi  # EXPERIMENTAL_NO_DEBOOTSTRAP
 sudo mount -t proc proc "${ROOT_FS_DIR}/proc"
 sudo cp /etc/hosts "${ROOT_FS_DIR}/etc"
 trap cleanup_rootfs_mounts EXIT
-
-# Make sure that apt is ready to work. We use --fix-broken to trigger apt
-# to install additional critical packages. If there are any of these, we
-# disable the maintainer scripts so they install ok.
-sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive apt-get update
-TMP_FORCE_NO_SCRIPTS="-o=Dir::Bin::dpkg=${SCRIPTS_DIR}/dpkg_no_scripts.sh"
-sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
-  apt-get $TMP_FORCE_NO_SCRIPTS --force-yes --fix-broken install
 
 # Install prod packages
 COMPONENTS=`cat $FLAGS_package_list | grep -v ' *#' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
@@ -270,13 +273,6 @@ EOF
 # Install the kernel.
 sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
   apt-get --force-yes install "linux-image-${KERNEL_VERSION}"
-
-# Clean up the apt cache.
-# TODO: The cache was populated by debootstrap, not these installs. Remove
-# this line when we can get debootstrap to stop doing this.
-sudo rm -f "${ROOT_FS_DIR}"/var/cache/apt/archives/*.deb
-# Need to rm read-only created lock files in order for archiving step to work
-sudo rm -rf "$APT_CACHE_DIR"
 
 # List all packages installed so far, since these are what the local
 # repository needs to contain.
