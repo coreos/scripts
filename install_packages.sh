@@ -174,7 +174,8 @@ else
   # base-passwd/passwd - So that chmod and useradd/groupadd will work
   # bash - So that scripts can run
   # libpam-runtim/libuuid1 - Not exactly sure why
-  EXTRA_PACKAGES="base-files base-passwd bash libpam-runtime libuuid1 login passwd"
+  # sysv-rc - So that we can overwrite invoke-rc.d, update-rc.d
+  EXTRA_PACKAGES="base-files base-passwd bash libpam-runtime libuuid1 login passwd sysv-rc"
 
   # Prep the rootfs to work with dpgk and apt
   sudo mkdir -p "${ROOT_FS_DIR}/var/lib/dpkg/info"
@@ -215,6 +216,16 @@ else
 
   # TODO: Remove when we stop having maintainer scripts altogether.
   sudo cp -a /dev/* "${ROOT_FS_DIR}/dev"
+  sudo cp -a /etc/resolv.conf "${ROOT_FS_DIR}/etc/resolv.conf"
+  sudo ln -sf /bin/true "${ROOT_FS_DIR}/usr/sbin/invoke-rc.d"
+  sudo ln -sf /bin/true "${ROOT_FS_DIR}/usr/sbin/update-rc.d"
+
+  # base-files
+  # TODO: Careful audit of the postinst; this isn't all that is there.
+  sudo cp -a "${ROOT_FS_DIR}/usr/share/base-files/networks"  \
+    "${ROOT_FS_DIR}/usr/share/base-files/nsswitch.conf"      \
+    "${ROOT_FS_DIR}/usr/share/base-files/profile"            \
+    "${ROOT_FS_DIR}/etc/"
 
   # base-passwd
   sudo cp "${ROOT_FS_DIR}/usr/share/base-passwd/passwd.master" \
