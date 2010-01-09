@@ -30,7 +30,7 @@ DEFINE_string build_root "$DEFAULT_BUILD_ROOT"                \
   "Root of build output"
 DEFINE_string package_list "$DEFAULT_PKGLIST" \
   "The package list file to use."
-DEFINE_string server "$DEFAULT_IMG_MIRROR" \
+DEFINE_string server "$DEFAULT_EXT_MIRROR" \
   "The package server to use."
 DEFINE_string suite "$DEFAULT_IMG_SUITE" \
   "The package suite to use."
@@ -146,113 +146,97 @@ EOF
 # TODO: Full audit of the apt conf dump to make sure things are ok.
 apt-config dump > "${OUTPUT_DIR}/apt.conf.dump"
 
-# Add debootstrap link for the suite, if it doesn't exist.
-if [ ! -e "/usr/share/debootstrap/scripts/$FLAGS_suite" ]
-then
-  sudo ln -s /usr/share/debootstrap/scripts/jaunty \
-    "/usr/share/debootstrap/scripts/$FLAGS_suite"
-fi
+# We do a rough equivalent to debootstrap that installs the minimal
+# packages needed to be able to run apt to install the rest. We don't
+# use debootstrap since it is geared toward having a second stage that
+# needs to run package maintainer scripts. This is also simpler.
 
-if [ -z "$EXPERIMENTAL_NO_DEBOOTSTRAP" -a \
-     -z "$EXPERIMENTAL_NO_MAINTAINER_SCRIPTS" ]; then
-  # Use debootstrap, which runs maintainer scripts.
-  sudo debootstrap --arch=i386 $FLAGS_suite "$ROOT_FS_DIR" "${FLAGS_server}"
-  sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive apt-get update
-else
-  # We do a rough equivalent to debootstrap that installs the minimal
-  # packages needed to be able to run apt to install the rest. We don't
-  # use debootstrap since it is geared toward having a second stage that
-  # needs to run package maintainer scripts. This is also simpler.
+# The set of required packages before apt can take over.
+PACKAGES="debconf libacl1 libattr1 libc6 libgcc1 libselinux1"
 
-  # The set of required packages before apt can take over.
-  PACKAGES="debconf libacl1 libattr1 libc6 libgcc1 libselinux1"
+# Set of packages that we need to install early so that other packages
+# maintainer scripts can still basically run.
+#
+# login  - So that groupadd will work
+# base-passwd/passwd - So that chmod and useradd/groupadd will work
+# bash - So that scripts can run
+# libpam-runtime/libuuid1 - Not exactly sure why
+# sysv-rc - So that we can overwrite invoke-rc.d, update-rc.d
+EXTRA_PACKAGES="base-files base-passwd bash libpam-runtime libuuid1 login passwd sysv-rc"
 
-  # Set of packages that we need to install early so that other packages
-  # maintainer scripts can still basically run.
-  #
-  # login  - So that groupadd will work
-  # base-passwd/passwd - So that chmod and useradd/groupadd will work
-  # bash - So that scripts can run
-  # libpam-runtim/libuuid1 - Not exactly sure why
-  # sysv-rc - So that we can overwrite invoke-rc.d, update-rc.d
-  EXTRA_PACKAGES="base-files base-passwd bash libpam-runtime libuuid1 login passwd sysv-rc"
+# Prep the rootfs to work with dpgk and apt
+sudo mkdir -p "${ROOT_FS_DIR}/var/lib/dpkg/info"
+sudo touch "${ROOT_FS_DIR}/var/lib/dpkg/available"   \
+  "${ROOT_FS_DIR}/var/lib/dpkg/diversions"           \
+  "${ROOT_FS_DIR}/var/lib/dpkg/status"
+sudo mkdir -p "${ROOT_FS_DIR}/var/lib/apt/lists/partial"  \
+  "${ROOT_FS_DIR}/var/lib/dpkg/updates"
 
-  # Prep the rootfs to work with dpgk and apt
-  sudo mkdir -p "${ROOT_FS_DIR}/var/lib/dpkg/info"
-  sudo touch "${ROOT_FS_DIR}/var/lib/dpkg/available"   \
-    "${ROOT_FS_DIR}/var/lib/dpkg/diversions"           \
-    "${ROOT_FS_DIR}/var/lib/dpkg/status"
-  sudo mkdir -p "${ROOT_FS_DIR}/var/lib/apt/lists/partial"  \
-    "${ROOT_FS_DIR}/var/lib/dpkg/updates"
+# Download the initial packages into the apt cache if necessary.
+REPO="${APT_CACHE_DIR}/archives"
+sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive apt-get update
+sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
+  apt-get --download-only install $PACKAGES $EXTRA_PACKAGES
 
-  # Download the initial packages into the apt cache if necessary.
-  REPO="${APT_CACHE_DIR}/archives"
-  sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive apt-get update
-  sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
-    apt-get --download-only install $PACKAGES $EXTRA_PACKAGES
+# Install initial packages directly with dpkg_no_scripts.sh
+for p in $PACKAGES $EXTRA_PACKAGES; do
+  PKG=$(ls "${REPO}"/${p}_*_i386.deb || /bin/true)
+  if [ -z "$PKG" ]; then
+    PKG=$(ls "${REPO}"/${p}_*_all.deb)
+  fi
+  sudo "${SCRIPTS_DIR}"/dpkg_no_scripts.sh \
+    --root="$ROOT_FS_DIR" --unpack "$PKG"
+done
 
-  i=0
-  for p in $PACKAGES $EXTRA_PACKAGES; do
-    set +e
-    PKG=$(ls "${REPO}"/${p}_*_i386.deb)
-    set -e
-    if [ -z "$PKG" ]; then
-      PKG=$(ls "${REPO}"/${p}_*_all.deb)
-    fi
-    echo "Installing package: $PKG [$i]"
-    sudo "${SCRIPTS_DIR}"/dpkg_no_scripts.sh \
-      --root="$ROOT_FS_DIR" --unpack "$PKG"
-    i=$((i + 1))
-  done
+# Make sure that apt is ready to work. We use --fix-broken to trigger apt
+# to install additional critical packages. If there are any of these, we
+# disable the maintainer scripts so they install ok.
+TMP_FORCE_NO_SCRIPTS="-o=Dir::Bin::dpkg=${SCRIPTS_DIR}/dpkg_no_scripts.sh"
+sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
+  apt-get $TMP_FORCE_NO_SCRIPTS --force-yes --fix-broken install
 
-  # Make sure that apt is ready to work. We use --fix-broken to trigger apt
-  # to install additional critical packages. If there are any of these, we
-  # disable the maintainer scripts so they install ok.
-  TMP_FORCE_NO_SCRIPTS="-o=Dir::Bin::dpkg=${SCRIPTS_DIR}/dpkg_no_scripts.sh"
-  sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
-    apt-get $TMP_FORCE_NO_SCRIPTS --force-yes --fix-broken install
+# ----- MAINTAINER SCRIPT FIXUPS -----
 
-  # ----- MAINTAINER SCRIPT FIXUPS -----
+# TODO: Remove when we stop having maintainer scripts altogether.
+sudo cp -a /dev/* "${ROOT_FS_DIR}/dev"
+sudo cp -a /etc/resolv.conf "${ROOT_FS_DIR}/etc/resolv.conf"
+sudo ln -sf /bin/true "${ROOT_FS_DIR}/usr/sbin/invoke-rc.d"
+sudo ln -sf /bin/true "${ROOT_FS_DIR}/usr/sbin/update-rc.d"
 
-  # TODO: Remove when we stop having maintainer scripts altogether.
-  sudo cp -a /dev/* "${ROOT_FS_DIR}/dev"
-  sudo cp -a /etc/resolv.conf "${ROOT_FS_DIR}/etc/resolv.conf"
-  sudo ln -sf /bin/true "${ROOT_FS_DIR}/usr/sbin/invoke-rc.d"
-  sudo ln -sf /bin/true "${ROOT_FS_DIR}/usr/sbin/update-rc.d"
+# base-files
+# TODO: Careful audit of the postinst; this isn't all that is there.
+sudo cp -a "${ROOT_FS_DIR}/usr/share/base-files/networks"  \
+  "${ROOT_FS_DIR}/usr/share/base-files/nsswitch.conf"      \
+  "${ROOT_FS_DIR}/usr/share/base-files/profile"            \
+  "${ROOT_FS_DIR}/etc/"
 
-  # base-files
-  # TODO: Careful audit of the postinst; this isn't all that is there.
-  sudo cp -a "${ROOT_FS_DIR}/usr/share/base-files/networks"  \
-    "${ROOT_FS_DIR}/usr/share/base-files/nsswitch.conf"      \
-    "${ROOT_FS_DIR}/usr/share/base-files/profile"            \
-    "${ROOT_FS_DIR}/etc/"
+# base-passwd
+sudo cp "${ROOT_FS_DIR}/usr/share/base-passwd/passwd.master" \
+  "${ROOT_FS_DIR}/etc/passwd"
+sudo cp "${ROOT_FS_DIR}/usr/share/base-passwd/group.master" \
+  "${ROOT_FS_DIR}/etc/group"
 
-  # base-passwd
-  sudo cp "${ROOT_FS_DIR}/usr/share/base-passwd/passwd.master" \
-    "${ROOT_FS_DIR}/etc/passwd"
-  sudo cp "${ROOT_FS_DIR}/usr/share/base-passwd/group.master" \
-    "${ROOT_FS_DIR}/etc/group"
+# libpam-runtime
+# The postinst script calls pam-auth-update, which is a perl script that
+# expects to run within the targetfs. Until we fix this, we just copy
+# from the build chroot.
+sudo cp -a /etc/pam.d/common-* \
+  /etc/pam.d/login             \
+  /etc/pam.d/newusers          \
+  /etc/pam.d/su                \
+  /etc/pam.d/sudo              \
+  "${ROOT_FS_DIR}/etc/pam.d/"
 
-  # libpam-runtime
-  # The postinst script calls pam-auth-update, which is a perl script that
-  # expects to run within the targetfs. Until we fix this, we just copy
-  # from the build chroot.
-  sudo cp -a /etc/pam.d/common-* \
-    /etc/pam.d/login             \
-    /etc/pam.d/newusers          \
-    /etc/pam.d/su                \
-    /etc/pam.d/sudo              \
-    "${ROOT_FS_DIR}/etc/pam.d/"
+# mawk
+sudo ln -s mawk "${ROOT_FS_DIR}/usr/bin/awk"
 
-  # mawk
-  sudo ln -s mawk "${ROOT_FS_DIR}/usr/bin/awk"
+# base-files?
+sudo touch "${ROOT_FS_DIR}/etc/fstab"
 
-  # base-files?
-  sudo touch "${ROOT_FS_DIR}/etc/fstab"
+# sysv-rc needs this
+sudo mkdir -p "${ROOT_FS_DIR}/etc/init.d"
 
-  # sysv-rc needs this
-  sudo mkdir -p "${ROOT_FS_DIR}/etc/init.d"
-fi  # EXPERIMENTAL_NO_DEBOOTSTRAP
+# ----- END MAINTAINER SCRIPT FIXUPS -----
 
 # Set up mounts for working within the rootfs. We copy some basic
 # network information from the host so that maintainer scripts can

@@ -33,7 +33,7 @@ DEFINE_boolean replace $FLAGS_FALSE "Overwrite existing output, if any."
 DEFINE_boolean increment $FLAGS_FALSE \
   "Picks the latest build and increments the minor version by one."
 
-DEFINE_string mirror "$DEFAULT_IMG_MIRROR" "Repository mirror to use."
+DEFINE_string mirror "$DEFAULT_EXT_MIRROR" "Repository mirror to use."
 DEFINE_string suite "$DEFAULT_IMG_SUITE" "Repository suite to base image on."
 DEFINE_string pkglist "$DEFAULT_PKGLIST" \
   "Name of file listing packages to install from repository."

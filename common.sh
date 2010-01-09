@@ -31,7 +31,7 @@ then
   # Using bash, so we can find ourselves
   GCLIENT_ROOT="$(dirname "$BASH_SOURCE")/../.."
 else
-  # Using dash or sh, we don't know where we are.  $0 refers to the calling 
+  # Using dash or sh, we don't know where we are.  $0 refers to the calling
   # script, not ourselves, so that doesn't help us.
   echo "Unable to determine location for common.sh.  If you are sourcing"
   echo "common.sh from a script run via dash or sh, you must do it in the"
@@ -45,9 +45,9 @@ fi
 
 # Canonicalize the directories for the root dir and the calling script.
 # readlink is part of coreutils and should be present even in a bare chroot.
-# This is better than just using 
+# This is better than just using
 #     FOO = "$(cd $FOO ; pwd)"
-# since that leaves symbolic links intact.  
+# since that leaves symbolic links intact.
 # Note that 'realpath' is equivalent to 'readlink -f'.
 TOP_SCRIPT_DIR=`readlink -f $TOP_SCRIPT_DIR`
 GCLIENT_ROOT=`readlink -f $GCLIENT_ROOT`
@@ -90,7 +90,7 @@ DEFAULT_IMG_SUITE=${CHROMEOS_IMG_SUITE:-"chromeos"}
 # Package repositories (mirrors)
 DEFAULT_EXT_MIRROR=${CHROMEOS_EXT_MIRROR:-"http://build.chromium.org/buildbot/packages"}
 DEFAULT_DEV_MIRROR=${CHROMEOS_DEV_MIRROR:-"file://$GCLIENT_ROOT/repo/apt"}
-DEFAULT_IMG_MIRROR=${CHROMEOS_IMG_MIRROR:-"file:///home/$USER/trunk/repo/apt"}
+DEFAULT_IMG_MIRROR=${CHROMEOS_IMG_MIRROR:-"copy:///home/$USER/trunk/repo/apt"}
 
 # Default location for chroot
 DEFAULT_CHROOT_DIR=${CHROMEOS_CHROOT_DIR:-"$GCLIENT_ROOT/chroot"}
@@ -120,7 +120,7 @@ function make_pkg_common {
   PKG_BASE=${1:?}
   shift
   set +e
-  
+
   # All packages are built in the chroot
   assert_inside_chroot
 
