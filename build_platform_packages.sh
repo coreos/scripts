@@ -37,8 +37,9 @@ THIRD_PARTY_PACKAGES="e2fsprogs/files flimflam \
                       gflags google-breakpad gpt gtest \
                       ibus ibus-chewing ibus-anthy ibus-hangul ibus-m17n \
                       ply-image slim/src synaptics \
-                      wpa_supplicant xscreensaver/xscreensaver-5.08 \
-                      xserver-xorg-core xserver-xorg-video-intel"
+                      upstart/files wpa_supplicant \
+                      xscreensaver/xscreensaver-5.08 xserver-xorg-core \
+                      xserver-xorg-video-intel"
 
 if [ $FLAGS_stable -eq $FLAGS_TRUE ]
 then
