@@ -101,10 +101,6 @@ APT_CACHE_DIR="${FLAGS_build_root}/apt_cache-${FLAGS_target}/"
 mkdir -p "${APT_CACHE_DIR}/archives/partial"
 
 # Create the apt configuration file. See "man apt.conf"
-NO_MAINTAINER_SCRIPTS=""
-if [ -n "$EXPERIMENTAL_NO_MAINTAINER_SCRIPTS" ]; then
-  NO_MAINTAINER_SCRIPTS="Bin { dpkg \"${SCRIPTS_DIR}/dpkg_no_scripts.sh\"; };"
-fi
 APT_PARTS="${OUTPUT_DIR}/apt.conf.d"
 mkdir -p "$APT_PARTS"  # An empty apt.conf.d to avoid other configs.
 export APT_CONFIG="${OUTPUT_DIR}/apt.conf"
@@ -121,7 +117,9 @@ APT
 };
 Dir
 {
-  $NO_MAINTAINER_SCRIPTS
+  Bin {
+    dpkg "${SCRIPTS_DIR}/dpkg_no_scripts.sh";
+  };
   Cache "$APT_CACHE_DIR";
   Cache {
     archives "${APT_CACHE_DIR}/archives";
@@ -185,58 +183,23 @@ for p in $PACKAGES $EXTRA_PACKAGES; do
     PKG=$(ls "${REPO}"/${p}_*_all.deb)
   fi
   sudo "${SCRIPTS_DIR}"/dpkg_no_scripts.sh \
-    --root="$ROOT_FS_DIR" --unpack "$PKG"
+    --root="$ROOT_FS_DIR" --nodpkg_fallback --unpack "$PKG"
+  sudo "${SCRIPTS_DIR}"/dpkg_no_scripts.sh \
+    --root="$ROOT_FS_DIR" --nodpkg_fallback --configure "$p"
 done
 
 # Make sure that apt is ready to work. We use --fix-broken to trigger apt
 # to install additional critical packages. If there are any of these, we
 # disable the maintainer scripts so they install ok.
-TMP_FORCE_NO_SCRIPTS="-o=Dir::Bin::dpkg=${SCRIPTS_DIR}/dpkg_no_scripts.sh"
+TMP_FORCE_NO_SCRIPTS="-o=DPkg::options::=--nodpkg_fallback"
 sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
   apt-get $TMP_FORCE_NO_SCRIPTS --force-yes --fix-broken install
 
-# ----- MAINTAINER SCRIPT FIXUPS -----
-
-# TODO: Remove when we stop having maintainer scripts altogether.
+# TODO: Remove these hacks when we stop having maintainer scripts altogether.
 sudo cp -a /dev/* "${ROOT_FS_DIR}/dev"
 sudo cp -a /etc/resolv.conf "${ROOT_FS_DIR}/etc/resolv.conf"
 sudo ln -sf /bin/true "${ROOT_FS_DIR}/usr/sbin/invoke-rc.d"
 sudo ln -sf /bin/true "${ROOT_FS_DIR}/usr/sbin/update-rc.d"
-
-# base-files
-# TODO: Careful audit of the postinst; this isn't all that is there.
-sudo cp -a "${ROOT_FS_DIR}/usr/share/base-files/networks"  \
-  "${ROOT_FS_DIR}/usr/share/base-files/nsswitch.conf"      \
-  "${ROOT_FS_DIR}/usr/share/base-files/profile"            \
-  "${ROOT_FS_DIR}/etc/"
-
-# base-passwd
-sudo cp "${ROOT_FS_DIR}/usr/share/base-passwd/passwd.master" \
-  "${ROOT_FS_DIR}/etc/passwd"
-sudo cp "${ROOT_FS_DIR}/usr/share/base-passwd/group.master" \
-  "${ROOT_FS_DIR}/etc/group"
-
-# libpam-runtime
-# The postinst script calls pam-auth-update, which is a perl script that
-# expects to run within the targetfs. Until we fix this, we just copy
-# from the build chroot.
-sudo cp -a /etc/pam.d/common-* \
-  /etc/pam.d/login             \
-  /etc/pam.d/newusers          \
-  /etc/pam.d/su                \
-  /etc/pam.d/sudo              \
-  "${ROOT_FS_DIR}/etc/pam.d/"
-
-# mawk
-sudo ln -s mawk "${ROOT_FS_DIR}/usr/bin/awk"
-
-# base-files?
-sudo touch "${ROOT_FS_DIR}/etc/fstab"
-
-# sysv-rc needs this
-sudo mkdir -p "${ROOT_FS_DIR}/etc/init.d"
-
-# ----- END MAINTAINER SCRIPT FIXUPS -----
 
 # Set up mounts for working within the rootfs. We copy some basic
 # network information from the host so that maintainer scripts can
