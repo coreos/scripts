@@ -44,7 +44,7 @@ FLAGS_chrome_dir=`eval readlink -f $FLAGS_chrome_dir`
 # Build Chrome
 echo Building Chrome in mode $FLAGS_mode
 export GYP_GENERATORS="make"
-export GYP_DEFINES="target_arch=ia32 toolkit_views=1"
+export GYP_DEFINES="target_arch=ia32 chromeos=1"
 CHROME_DIR=$FLAGS_chrome_dir
 cd "$CHROME_DIR/src"
 gclient runhooks --force
