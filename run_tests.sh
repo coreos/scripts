@@ -23,10 +23,8 @@ set -ex
 TESTS_DIR="$FLAGS_build_root/x86/tests"
 cd "$TESTS_DIR"
 
-# TODO: standardize test names - should all end in "_test" so we can find 
-# and run them without listing them explicitly.
-./pam_google_unittests
-for i in *_test; do ./${i}; done
+# TODO: standardize test names - should all end in "_test"
+for i in *_test *_tests *_unittests; do ./${i}; done
 
 cd -
 echo "All tests passed."
