@@ -24,8 +24,8 @@ DEFINE_string output_dir "" \
   "The location of the output directory to use [REQUIRED]."
 DEFINE_string root ""      \
   "The root file system to install packages in."
-DEFINE_string target "x86" \
-  "The target architecture to build for. One of { x86, arm }."
+DEFINE_string arch "x86" \
+  "The target architecture to build for. One of { x86, armel }."
 DEFINE_string build_root "$DEFAULT_BUILD_ROOT"                \
   "Root of build output"
 DEFINE_string package_list "$DEFAULT_PKGLIST" \
@@ -42,7 +42,7 @@ eval set -- "${FLAGS_ARGV}"
 # Die on any errors.
 set -e
 
-KERNEL_DEB_PATH=$(find "${FLAGS_build_root}/${FLAGS_target}/local_packages" \
+KERNEL_DEB_PATH=$(find "${FLAGS_build_root}/${FLAGS_arch}/local_packages" \
   -name "linux-image-*.deb")
 KERNEL_DEB=$(basename "${KERNEL_DEB_PATH}" .deb | sed -e 's/linux-image-//' \
   -e 's/_.*//')
@@ -81,7 +81,7 @@ cleanup_rootfs_mounts() {
 
 # Set up repository for locally built packages; these take highest precedence.
 mkdir -p "${SETUP_DIR}/local_packages"
-cp "${FLAGS_build_root}/${FLAGS_target}/local_packages"/* \
+cp "${FLAGS_build_root}/${FLAGS_arch}/local_packages"/* \
   "${SETUP_DIR}/local_packages"
 cd "$SETUP_DIR"
 dpkg-scanpackages local_packages/ /dev/null | \
@@ -97,7 +97,7 @@ EOF
 
 # Cache directory for APT to use. This cache is re-used across builds. We
 # rely on the cache to reduce traffic to the hosted repositories.
-APT_CACHE_DIR="${FLAGS_build_root}/apt_cache-${FLAGS_target}/"
+APT_CACHE_DIR="${FLAGS_build_root}/apt_cache-${FLAGS_arch}/"
 mkdir -p "${APT_CACHE_DIR}/archives/partial"
 
 # Create the apt configuration file. See "man apt.conf"
@@ -177,8 +177,12 @@ sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
   apt-get --download-only install $PACKAGES $EXTRA_PACKAGES
 
 # Install initial packages directly with dpkg_no_scripts.sh
+ARCH="$FLAGS_arch"
+if [ "$ARCH" = "x86" ]; then
+  ARCH="i?86"  # Match i386 | i686
+fi
 for p in $PACKAGES $EXTRA_PACKAGES; do
-  PKG=$(ls "${REPO}"/${p}_*_i386.deb || /bin/true)
+  PKG=$(ls "${REPO}"/${p}_*_$ARCH.deb || /bin/true)
   if [ -z "$PKG" ]; then
     PKG=$(ls "${REPO}"/${p}_*_all.deb)
   fi
