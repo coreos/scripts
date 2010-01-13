@@ -41,27 +41,6 @@ function cleanup {
 
 trap cleanup EXIT
 
-# Copy a local "installation" of autotest into the chroot, to avoid
-# polluting the src dir with tmp files, results, etc.
-# TODO: use rsync to ensure we don't get stuck with an old install.
-if [ 1 != ${FLAGS_force} ] || [ ! -f "${AUTOTEST_CHROOT_DEST}/server/autosrv" ]
-  then 
-    echo -n "Installing Autotest... "
-    sudo mkdir -p "${AUTOTEST_CHROOT_DEST}"
-    sudo cp -rp ${AUTOTEST_SRC}/* ${AUTOTEST_CHROOT_DEST}
-    echo "done."
-  else
-    echo "Autotest found in chroot, skipping copy."
-fi
-
-# Add all third_party and system tests to site_tests.
-for type in client server
-do
-  echo -n "Adding ${type}_tests into autotest's ${type}/site_tests... "
-  sudo cp -rp ${GCLIENT_ROOT}/src/platform/testing/${type}_tests/* \
-    ${AUTOTEST_CHROOT_DEST}/${type}/site_tests/
-done
-
 # If ssh-agent isn't already running, start one (possibly inside the chroot)
 if [ ! -n "${SSH_AGENT_PID}" ]
 then
