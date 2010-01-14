@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Record the original size of the image without modifications from
+# mod_image_for_test.sh, for reporting and monitoring through autotest.
+
+# Record the size, but don't overwrite the file as its existence indicates
+# that this image is not a production image.
+echo "Recording production image size."
+FILE="/root/bytes-rootfs-prod"
+if [[ ! -f "${FILE}"  ]]; then
+  # This will complain it cannot find a valid mtab so keep it quiet.
+  df -B1 / 2>/dev/null | tail -1 | awk '{ print $3 }' > "${FILE}"
+else
+  echo "  Not modifying existing ${FILE}."
+fi
