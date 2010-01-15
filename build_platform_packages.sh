@@ -41,7 +41,7 @@ THIRD_PARTY_PACKAGES="e2fsprogs/files flimflam \
                       gflags google-breakpad gpt gtest gmock \
                       ibus ibus-chewing ibus-anthy ibus-hangul ibus-m17n \
                       ply-image slim/src synaptics \
-                      wpa_supplicant \
+                      upstart/files wpa_supplicant \
                       xscreensaver/xscreensaver-5.08 xserver-xorg-core \
                       xserver-xorg-video-intel"
 
