@@ -35,7 +35,9 @@ AUTOTEST_DEST="/usr/local/autotest"
 echo -n "Installing Autotest... "
 sudo mkdir -p ${AUTOTEST_DEST}
 sudo chmod 777 ${AUTOTEST_DEST}
-cp -rpf ${CHROOT_TRUNK_DIR}/src/third_party/autotest/files/{client,server,tko,utils,global_config.ini,shadow_config.ini} ${AUTOTEST_DEST}
+cd ${CHROOT_TRUNK_DIR}/src/third_party/autotest/files
+cp -fpru {client,conmux,server,tko,utils,global_config.ini,shadow_config.ini} \
+    ${AUTOTEST_DEST}
 
 # Create python package init files for top level test case dirs.
 function touchInitPy() {
