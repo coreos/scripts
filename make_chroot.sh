@@ -45,7 +45,7 @@ eval set -- "${FLAGS_ARGV}"
 # TODO: replace shflags with something less error-prone, or contribute a fix.
 set -e
 
-COMPONENTS=`cat $FLAGS_pkglist | grep -v ' *#' | grep -v '^ *$' | tr '\n' ' '`
+COMPONENTS=`cat $FLAGS_pkglist | sed -e 's/#.*//' | grep -v '^ *$' | tr '\n' ' '`
 FULLNAME="Chrome OS dev user"
 DEFGROUPS="eng,admin,adm,dialout,cdrom,floppy,audio,dip,video"
 PASSWORD=chronos

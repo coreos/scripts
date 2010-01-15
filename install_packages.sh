@@ -215,7 +215,7 @@ sudo cp /etc/hosts "${ROOT_FS_DIR}/etc"
 trap cleanup_rootfs_mounts EXIT
 
 # Install prod packages
-COMPONENTS=`cat $FLAGS_package_list | grep -v ' *#' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
+COMPONENTS=`cat $FLAGS_package_list | sed -e 's/#.*//' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
 sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
   apt-get --force-yes install $COMPONENTS
 
