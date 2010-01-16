@@ -47,19 +47,6 @@ following commands:
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
-# Returns true if the input file is whitelisted.
-#
-# $1 - The file to check
-is_whitelisted() {
-  local file=$1
-  local whitelist="$FLAGS_whitelist"
-  test -f "$whitelist" || return
-
-  local checksum=$(md5sum "$file" | awk '{ print $1 }')
-  local count=$(grep -c "$checksum" "${whitelist}" || /bin/true)
-  test $count -ne 0
-}
-
 # Adds a the file at the given path to the whitelist.
 #
 # $1 - Path to file to add to whitelist.

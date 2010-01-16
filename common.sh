@@ -190,3 +190,17 @@ function install_if_missing {
     sudo apt-get --yes --force-yes install $PKG_NAME
   fi
 }
+
+# Returns true if the input file is whitelisted.
+#
+# $1 - The file to check
+is_whitelisted() {
+  local file=$1  
+  local whitelist="$FLAGS_whitelist"
+  test -f "$whitelist" || (echo "Whitelist file missing ($whitelist)" && exit 1)
+
+  local checksum=$(md5sum "$file" | awk '{ print $1 }')
+  local count=$(sed -e "s/#.*$//" "${whitelist}" | grep -c "$checksum" \
+                || /bin/true)
+  test $count -ne 0
+}

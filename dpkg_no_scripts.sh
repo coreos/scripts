@@ -26,6 +26,8 @@ DEFINE_boolean dpkg_fallback $FLAGS_TRUE \
   "Run normal dpkg if maintainer scripts are not whitelisted."
 DEFINE_string status_fd "" \
   "The file descriptor to report status on; ignored."
+DEFINE_string whitelist "${SRC_ROOT}/package_scripts/package.whitelist" \
+  "The whitelist file to use."
 DEFINE_boolean unpack $FLAGS_FALSE "Is the action 'unpack'?"
 DEFINE_boolean configure $FLAGS_FALSE "Is the action 'configure'?"
 DEFINE_boolean remove $FLAGS_FALSE "Is the action 'remove'?"
@@ -44,19 +46,6 @@ eval set -- "${FLAGS_ARGV}"
 
 # Die on any errors.
 set -e
-
-# Returns true if the input file is whitelisted.
-#
-# $1 - The file to check
-is_whitelisted() {
-  local whitelist="${SRC_ROOT}/package_scripts/package.whitelist"
-  test -f "$whitelist" || return
-
-  local checksum=$(md5sum "$1" | awk '{ print $1 }')
-  local count=$(sed -e "s/#.*$//" "${whitelist}" | grep -c "$checksum" \
-                || /bin/true)
-  test $count -ne 0
-}
 
 # Returns true if either of the two given files exist and are not whitelisted.
 #
@@ -157,7 +146,7 @@ do_unpack() {
     rm -rf "$tmpdir"
 
     # Run our maintainer script for this package if we have one.
-    local chromium_postinst="${SRC_ROOT}/package_scripts/${package}.preinst"
+    local chromium_preinst="${SRC_ROOT}/package_scripts/${package}.preinst"
     if [ -f "$chromium_preinst" ]; then
       echo "Running: ${chromium_preinst}"
       ROOT="$FLAGS_root" SRC_ROOT="$SRC_ROOT" $chromium_preinst
