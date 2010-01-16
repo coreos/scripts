@@ -53,7 +53,8 @@ is_whitelisted() {
   test -f "$whitelist" || return
 
   local checksum=$(md5sum "$1" | awk '{ print $1 }')
-  local count=$(grep -c "$checksum" "${whitelist}" || /bin/true)
+  local count=$(sed -e "s/#.*$//" "${whitelist}" | grep -c "$checksum" \
+                || /bin/true)
   test $count -ne 0
 }
 
