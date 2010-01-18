@@ -20,6 +20,7 @@ DEFINE_string output_file "${DEFAULT_OUTPUT_FILE}" "Test run output" o
 DEFINE_boolean verbose ${FLAGS_FALSE} "Show verbose autoserv output" v
 DEFINE_boolean update_db ${FLAGS_FALSE} "Put results in autotest database" u
 DEFINE_string machine_desc "" "Machine description used in database"
+DEFINE_string build_desc "" "Build description used in database"
 
 function cleanup() {
   if [[ $FLAGS_cleanup -eq ${FLAGS_TRUE} ]]; then
@@ -55,6 +56,26 @@ function is_successful_test() {
 #   None, but prints the string without quotes.
 function remove_quotes() {
   echo "$1" | sed -e "s/^'//; s/'$//"
+}
+
+# Adds attributes to all tests run
+# Arguments:
+#   $1 - results directory
+#   $2 - attribute name (key)
+#   $3 - attribute value (value)
+function add_test_attribute() {
+  local results_dir="$1"
+  local attribute_name="$2"
+  local attribute_value="$3"
+  if [[ -z "$attribute_value" ]]; then
+    return;
+  fi
+
+  for status_file in $(echo "${results_dir}"/*/status); do
+    local keyval_file=$(dirname $status_file)/keyval
+    echo "Updating ${keyval_file}"
+    echo "${attribute_name}=${attribute_value}" >> "${keyval_file}"
+  done
 }
 
 function main() {
@@ -138,8 +159,8 @@ function main() {
     fi
     echo "Running ${type} test ${control_file}"
     local short_name=$(basename $(dirname "${control_file}"))
-    local timestamp=$(date '+%s')
-    local results_dir="${TMP}/${short_name},${FLAGS_machine_desc},${timestamp}"
+    local start_time=$(date '+%s')
+    local results_dir="${TMP}/${short_name},${FLAGS_machine_desc},${start_time}"
     rm -rf "${results_dir}"
     local verbose=""
     if [[ ${FLAGS_verbose} -eq $FLAGS_TRUE ]]; then
@@ -162,9 +183,14 @@ function main() {
         # Leave around output directory if the test failed.
       FLAGS_cleanup=${FLAGS_FALSE}
     fi
+    local end_time=$(date '+%s')
 
     # Update the database with results.
     if [[ ${FLAGS_update_db} -eq ${FLAGS_TRUE} ]]; then
+      add_test_attribute "${results_dir}" machine-desc "${FLAGS_machine_desc}"
+      add_test_attribute "${results_dir}" build-desc "${FLAGS_build_desc}"
+      add_test_attribute "${results_dir}" server-start-time "${start_time}"
+      add_test_attribute "${results_dir}" server-end-time "${end_time}"
       if ! "${parse_cmd}" -o "${results_dir}"; then
         echo "Parse failed." | tee -a "${FLAGS_output_file}"
         FLAGS_cleanup=${FLAGS_FALSE}

@@ -20,7 +20,9 @@ DEFINE_boolean update_known_hosts ${FLAGS_FALSE} \
   "Update your known_hosts with the new remote instance's key"
 
 function kill_all_devservers {
-  ! pkill -f 'python devserver.py'
+  # Using ! here to avoid exiting with set -e is insufficient, so use
+  # || true instead.
+  pkill -f 'python devserver.py' || true
 }
 
 function cleanup {
