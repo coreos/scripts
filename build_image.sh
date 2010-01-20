@@ -120,7 +120,7 @@ sudo mount "$LOOP_DEV" "$ROOT_FS_DIR"
 
 # -- Install packages and customize root file system. --
 PKGLIST="$FLAGS_pkglist"
-if [ $FLAGS_with_dev_pkglist -eq $FLAGS_TRUE ]; then
+if [ $FLAGS_with_dev_pkgs -eq $FLAGS_TRUE ]; then
   PKGLIST="$PKGLIST,${SRC_ROOT}/package_repo/package-list-debug.txt"
 fi
 "${SCRIPTS_DIR}/install_packages.sh"  \
