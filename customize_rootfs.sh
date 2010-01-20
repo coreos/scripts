@@ -161,62 +161,58 @@ sudo rm -rf "${ROOT_FS_DIR}/usr/share/fonts/X11"
 # after X11 has been started. In order to be able to mount the root file system
 # and start X we pre-populate some devices. These are copied into /dev by the
 # chromeos_startup script.
-# TODO: There is no good reason to put this in /lib/udev/devices. Move it.
 # TODO: Hopefully some of this can be taken care of by devtmpfs.
-UDEV_DEVICES="${ROOT_FS_DIR}/lib/udev/devices"
-sudo mkdir -p "$UDEV_DEVICES"/dri
-sudo mkdir -p "$UDEV_DEVICES"/input
-sudo mkdir -p "$UDEV_DEVICES"/pts
-sudo mkdir -p "$UDEV_DEVICES"/shm
-sudo ln -sf /proc/self/fd/0 "$UDEV_DEVICES"/stdin
-sudo ln -sf /proc/self/fd/0 "$UDEV_DEVICES"/stdout
-sudo ln -sf /proc/self/fd/0 "$UDEV_DEVICES"/stderr
-sudo mknod --mode=0600 "$UDEV_DEVICES"/initctl p
-sudo mknod --mode=0660 "$UDEV_DEVICES"/tty0 c 4 0
-sudo mknod --mode=0660 "$UDEV_DEVICES"/tty1 c 4 1
-sudo mknod --mode=0660 "$UDEV_DEVICES"/tty2 c 4 2
-sudo mknod --mode=0666 "$UDEV_DEVICES"/tty  c 5 0
-sudo mknod --mode=0660 "$UDEV_DEVICES"/ttyMSM2 c 252 2
-if [ ! -c "$UDEV_DEVICES"/console ]; then
-  sudo mknod --mode=0600 "$UDEV_DEVICES"/console c 5 1
-fi
-sudo mknod --mode=0666 "$UDEV_DEVICES"/ptmx c 5 2
-sudo mknod --mode=0640 "$UDEV_DEVICES"/mem  c 1 1
-if [ ! -c "$UDEV_DEVICES"/null ]; then
-  sudo mknod --mode=0666 "$UDEV_DEVICES"/null c 1 3
-fi
-sudo mknod --mode=0666 "$UDEV_DEVICES"/zero c 1 5
-sudo mknod --mode=0666 "$UDEV_DEVICES"/random c 1 8
-sudo mknod --mode=0666 "$UDEV_DEVICES"/urandom c 1 9
-sudo mknod --mode=0660 "$UDEV_DEVICES"/sda  b 8 0
-sudo mknod --mode=0660 "$UDEV_DEVICES"/sda1 b 8 1
-sudo mknod --mode=0660 "$UDEV_DEVICES"/sda2 b 8 2
-sudo mknod --mode=0660 "$UDEV_DEVICES"/sda3 b 8 3
-sudo mknod --mode=0660 "$UDEV_DEVICES"/sda4 b 8 4
-sudo mknod --mode=0660 "$UDEV_DEVICES"/sdb  b 8 16
-sudo mknod --mode=0660 "$UDEV_DEVICES"/sdb1 b 8 17
-sudo mknod --mode=0660 "$UDEV_DEVICES"/sdb2 b 8 18
-sudo mknod --mode=0660 "$UDEV_DEVICES"/sdb3 b 8 19
-sudo mknod --mode=0660 "$UDEV_DEVICES"/sdb4 b 8 20
-sudo mknod --mode=0660 "$UDEV_DEVICES"/fb0 c 29 0
-sudo mknod --mode=0660 "$UDEV_DEVICES"/dri/card0 c 226 0
-sudo mknod --mode=0640 "$UDEV_DEVICES"/input/mouse0 c 13 32
-sudo mknod --mode=0640 "$UDEV_DEVICES"/input/mice   c 13 63
-sudo mknod --mode=0640 "$UDEV_DEVICES"/input/event0 c 13 64
-sudo mknod --mode=0640 "$UDEV_DEVICES"/input/event1 c 13 65
-sudo mknod --mode=0640 "$UDEV_DEVICES"/input/event2 c 13 66
-sudo mknod --mode=0640 "$UDEV_DEVICES"/input/event3 c 13 67
-sudo mknod --mode=0640 "$UDEV_DEVICES"/input/event4 c 13 68
-sudo mknod --mode=0640 "$UDEV_DEVICES"/input/event5 c 13 69
-sudo mknod --mode=0640 "$UDEV_DEVICES"/input/event6 c 13 70
-sudo mknod --mode=0640 "$UDEV_DEVICES"/input/event7 c 13 71
-sudo mknod --mode=0640 "$UDEV_DEVICES"/input/event8 c 13 72
-sudo chown root.tty "$UDEV_DEVICES"/tty*
-sudo chown root.kmem "$UDEV_DEVICES"/mem
-sudo chown root.disk "$UDEV_DEVICES"/sda*
-sudo chown root.video "$UDEV_DEVICES"/fb0
-sudo chown root.video "$UDEV_DEVICES"/dri/card0
-sudo chmod 0666 "$UDEV_DEVICES"/null  # Fix misconfiguration of /dev/null
+DEVICES_DIR="${ROOT_FS_DIR}/lib/chromiumos/devices"
+sudo mkdir -p "$DEVICES_DIR"/dri
+sudo mkdir -p "$DEVICES_DIR"/input
+sudo mkdir -p "$DEVICES_DIR"/pts
+sudo mkdir -p "$DEVICES_DIR"/shm
+sudo ln -sf /proc/self/fd "$DEVICES_DIR"/fd
+sudo ln -sf /proc/self/fd/0 "$DEVICES_DIR"/stdin
+sudo ln -sf /proc/self/fd/1 "$DEVICES_DIR"/stdout
+sudo ln -sf /proc/self/fd/2 "$DEVICES_DIR"/stderr
+sudo mknod --mode=0600 "$DEVICES_DIR"/initctl p
+sudo mknod --mode=0640 "$DEVICES_DIR"/mem  c 1 1
+sudo mknod --mode=0666 "$DEVICES_DIR"/null c 1 3
+sudo mknod --mode=0666 "$DEVICES_DIR"/zero c 1 5
+sudo mknod --mode=0666 "$DEVICES_DIR"/random c 1 8
+sudo mknod --mode=0666 "$DEVICES_DIR"/urandom c 1 9
+sudo mknod --mode=0660 "$DEVICES_DIR"/tty0 c 4 0
+sudo mknod --mode=0660 "$DEVICES_DIR"/tty1 c 4 1
+sudo mknod --mode=0660 "$DEVICES_DIR"/tty2 c 4 2
+sudo mknod --mode=0666 "$DEVICES_DIR"/tty  c 5 0
+sudo mknod --mode=0660 "$DEVICES_DIR"/ttyMSM2 c 252 2
+sudo mknod --mode=0600 "$DEVICES_DIR"/console c 5 1
+sudo mknod --mode=0666 "$DEVICES_DIR"/ptmx c 5 2
+sudo mknod --mode=0666 "$DEVICES_DIR"/loop0 b 7 0
+sudo mknod --mode=0660 "$DEVICES_DIR"/sda  b 8 0
+sudo mknod --mode=0660 "$DEVICES_DIR"/sda1 b 8 1
+sudo mknod --mode=0660 "$DEVICES_DIR"/sda2 b 8 2
+sudo mknod --mode=0660 "$DEVICES_DIR"/sda3 b 8 3
+sudo mknod --mode=0660 "$DEVICES_DIR"/sda4 b 8 4
+sudo mknod --mode=0660 "$DEVICES_DIR"/sdb  b 8 16
+sudo mknod --mode=0660 "$DEVICES_DIR"/sdb1 b 8 17
+sudo mknod --mode=0660 "$DEVICES_DIR"/sdb2 b 8 18
+sudo mknod --mode=0660 "$DEVICES_DIR"/sdb3 b 8 19
+sudo mknod --mode=0660 "$DEVICES_DIR"/sdb4 b 8 20
+sudo mknod --mode=0640 "$DEVICES_DIR"/input/mouse0 c 13 32
+sudo mknod --mode=0640 "$DEVICES_DIR"/input/mice   c 13 63
+sudo mknod --mode=0640 "$DEVICES_DIR"/input/event0 c 13 64
+sudo mknod --mode=0640 "$DEVICES_DIR"/input/event1 c 13 65
+sudo mknod --mode=0640 "$DEVICES_DIR"/input/event2 c 13 66
+sudo mknod --mode=0640 "$DEVICES_DIR"/input/event3 c 13 67
+sudo mknod --mode=0640 "$DEVICES_DIR"/input/event4 c 13 68
+sudo mknod --mode=0640 "$DEVICES_DIR"/input/event5 c 13 69
+sudo mknod --mode=0640 "$DEVICES_DIR"/input/event6 c 13 70
+sudo mknod --mode=0640 "$DEVICES_DIR"/input/event7 c 13 71
+sudo mknod --mode=0640 "$DEVICES_DIR"/input/event8 c 13 72
+sudo mknod --mode=0660 "$DEVICES_DIR"/fb0 c 29 0
+sudo mknod --mode=0660 "$DEVICES_DIR"/dri/card0 c 226 0
+sudo chown root.tty "$DEVICES_DIR"/tty*
+sudo chown root.kmem "$DEVICES_DIR"/mem
+sudo chown root.disk "$DEVICES_DIR"/sda*
+sudo chown root.video "$DEVICES_DIR"/fb0
+sudo chown root.video "$DEVICES_DIR"/dri/card0
 
 # Since we may mount read-only, our mtab should symlink to /proc
 sudo ln -sf /proc/mounts "${ROOT_FS_DIR}/etc/mtab"
