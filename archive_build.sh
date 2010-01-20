@@ -76,8 +76,8 @@ if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]
 then
   echo "Modifying image for test"
   cp "${DEFAULT_FROM}/rootfs.image" "${DEFAULT_FROM}/rootfs_test.image"
-  . "${SCRIPTS_DIR}/mod_image_for_test.sh" --image rootfs_test.image
-  cd -
+  "${SCRIPTS_DIR}/mod_image_for_test.sh" --image \
+      "${DEFAULT_FROM}/rootfs_test.image"
 fi
 
 # Zip the build
