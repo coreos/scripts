@@ -27,6 +27,7 @@ DEFINE_string zipname "image.zip" "Name of zip file to create."
 DEFINE_boolean official_build $FLAGS_FALSE "Set CHROMEOS_OFFICIAL=1 for release builds."
 DEFINE_string build_number "" \
   "The build-bot build number (when called by buildbot only)." "b"
+DEFINE_boolean test_mod $FLAGS_TRUE "Modify image for testing purposes"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -69,6 +70,15 @@ echo "archive to file: $ZIPFILE"
 
 rm -rf "$OUTDIR"
 mkdir -p "$OUTDIR"
+
+# Modify image for test if flag set.
+if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]
+then
+  echo "Modifying image for test"
+  cp "${DEFAULT_FROM}/rootfs.image" "${DEFAULT_FROM}/rootfs_test.image"
+  . "${SCRIPTS_DIR}/mod_image_for_test.sh" --image rootfs_test.image
+  cd -
+fi
 
 # Zip the build
 echo "Compressing and archiving build..."
