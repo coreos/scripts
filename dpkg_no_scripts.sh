@@ -98,7 +98,7 @@ do_configure() {
     local chromium_postinst="${SRC_ROOT}/package_scripts/${p}.postinst"
     if [ -f "$chromium_postinst" ]; then
       echo "Running: $chromium_postinst"
-      ROOT="$FLAGS_root" SRC_ROOT="$SRC_ROOT" sh -x $chromium_postinst
+      ROOT="$FLAGS_root" SRC_ROOT="$SRC_ROOT" $chromium_postinst
     fi
   done
 
@@ -136,7 +136,8 @@ do_unpack() {
     for f in $files; do
       cp "${tmpdir}/${f}" "${dpkg_info}/${package}.${f}"
     done
-    touch "${dpkg_info}/${package}.list"  # TODO: Proper .list files.
+    dpkg -c "$p" | sed 's,.* \.\/,/,; s/ -> .*//; s,^/$,/.,; s,/$,,' > \
+        "${dpkg_info}/${package}.list"
 
     # Mark the package as installed successfully.
     echo "Status: install ok installed" >> "$dpkg_status"
