@@ -29,7 +29,7 @@ DEFINE_string arch "x86" \
 DEFINE_string build_root "$DEFAULT_BUILD_ROOT"                \
   "Root of build output"
 DEFINE_string package_list "$DEFAULT_PKGLIST" \
-  "The package list file to use."
+  "Comma separated set of package-list files to use."
 DEFINE_string server "$DEFAULT_EXT_MIRROR" \
   "The package server to use."
 DEFINE_string suite "$DEFAULT_IMG_SUITE" \
@@ -213,10 +213,16 @@ sudo ln -sf /bin/true "${ROOT_FS_DIR}/usr/sbin/update-rc.d"
 sudo mount -t proc proc "${ROOT_FS_DIR}/proc"
 trap cleanup_rootfs_mounts EXIT
 
-# Install prod packages
-COMPONENTS=`cat $FLAGS_package_list | sed -e 's/#.*//' | grep -v '^ *$' | sed '/$/{N;s/\n/ /;}'`
-sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
-  apt-get --force-yes install $COMPONENTS
+# Install packages from the given package-lists
+PACKAGE_LISTS=$(echo "$FLAGS_package_list" | sed -e 's/,/ /g')
+for p in $PACKAGE_LISTS; do
+  COMPONENTS=$(cat "$p" |             \
+    sed -e 's/#.*//' |                \
+    grep -v '^ *$' |                  \
+    sed '/$/{N;s/\n/ /;}')
+  sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
+    apt-get --force-yes install $COMPONENTS
+done
 
 # Create kernel installation configuration to suppress warnings,
 # install the kernel in /boot, and manage symlinks.

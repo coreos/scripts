@@ -37,6 +37,8 @@ DEFINE_string mirror "$DEFAULT_EXT_MIRROR" "Repository mirror to use."
 DEFINE_string suite "$DEFAULT_IMG_SUITE" "Repository suite to base image on."
 DEFINE_string pkglist "$DEFAULT_PKGLIST" \
   "Name of file listing packages to install from repository."
+DEFINE_boolean with_dev_pkgs $FLAGS_TRUE \
+  "Include additional developer-friendly packages in the image."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -117,12 +119,15 @@ sudo tune2fs -L "$DISK_LABEL" -U "$UUID" -c 0 -i 0 "$LOOP_DEV"
 sudo mount "$LOOP_DEV" "$ROOT_FS_DIR"
 
 # -- Install packages and customize root file system. --
-
+PKGLIST="$FLAGS_pkglist"
+if [ $FLAGS_with_dev_pkglist -eq $FLAGS_TRUE ]; then
+  PKGLIST="$PKGLIST,${SRC_ROOT}/package_repo/package-list-debug.txt"
+fi
 "${SCRIPTS_DIR}/install_packages.sh"  \
   --build_root="${FLAGS_build_root}"  \
   --root="$ROOT_FS_DIR"               \
   --output_dir="${OUTPUT_DIR}"        \
-  --package_list="$FLAGS_pkglist"     \
+  --package_list="$PKGLIST"           \
   --server="$FLAGS_mirror"            \
   --suite="$FLAGS_suite"
 
