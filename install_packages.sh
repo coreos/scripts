@@ -211,7 +211,6 @@ sudo ln -sf /bin/true "${ROOT_FS_DIR}/usr/sbin/update-rc.d"
 # TODO: All of this rootfs mount stuff can be removed as soon as we stop
 # running the maintainer scripts on install.
 sudo mount -t proc proc "${ROOT_FS_DIR}/proc"
-sudo cp /etc/hosts "${ROOT_FS_DIR}/etc"
 trap cleanup_rootfs_mounts EXIT
 
 # Install prod packages
