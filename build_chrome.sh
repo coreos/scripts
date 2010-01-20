@@ -48,7 +48,7 @@ export GYP_DEFINES="target_arch=ia32 chromeos=1"
 CHROME_DIR=$FLAGS_chrome_dir
 cd "$CHROME_DIR/src"
 gclient runhooks --force
-make BUILDTYPE=$FLAGS_mode -j$FLAGS_num_jobs -r chrome
+make BUILDTYPE=$FLAGS_mode -j$FLAGS_num_jobs -r chrome candidate_window
 
 # Zip into chrome-chromeos.zip and put in local_assets
 BUILD_DIR="$CHROME_DIR/src/out"
@@ -67,6 +67,7 @@ echo Zipping $CHROME_LINUX_DIR to $OUTPUT_ZIP
 cd $BUILD_DIR
 rm -f $OUTPUT_ZIP
 zip -r1 $OUTPUT_ZIP chrome-chromeos -i "chrome-chromeos/chrome*" \
+  "chrome-chromeos/candidate_window" \
   "chrome-chromeos/libffmpegsumo.so" "chrome-chromeos/xdg-settings" \
   "chrome-chromeos/locales/*" "chrome-chromeos/resources/*" \
   "chrome-chromeos/*.png" "chrome-chromeos/session" \
