@@ -25,10 +25,10 @@ DEFAULT_PKGLIST="$SRC_ROOT/package_repo/package-list-dev.txt"
 
 # Define command line flags
 # See http://code.google.com/p/shflags/wiki/Documentation10x
-DEFINE_string suite "$DEFAULT_DEV_SUITE" "Repository suite to base image on."
-DEFINE_string mirror "$DEFAULT_DEV_MIRROR" "Local repository mirror to use."
-DEFINE_string mirror2 "" "Additional repository mirror to use (URL only)."
-DEFINE_string suite2 "" "Repository suite for additional mirror."
+DEFINE_string suite "$DEFAULT_DEV_SUITE" \
+  "Ubuntu suite to use to create the development chroot."
+DEFINE_string mirror "$DEFAULT_DEV_MIRROR" \
+  "Ubuntu mirror to use to create the development chroot."
 DEFINE_string chroot "$DEFAULT_CHROOT_DIR" \
   "Destination dir for the chroot environment."
 DEFINE_string pkglist "$DEFAULT_PKGLIST" \
@@ -112,7 +112,7 @@ fi
 mkdir -p "$FLAGS_chroot"
 
 # Run debootstrap to create the base chroot environment
-echo "Running debootstrap..."
+echo "Running debootstrap $FLAGS_mirror $FLAGS_suite ..."
 echo "You may need to enter password for sudo now..."
 sudo debootstrap --arch=i386 --exclude=rsyslog,ubuntu-minimal \
   "$FLAGS_suite" "$FLAGS_chroot" "$FLAGS_mirror"
@@ -130,22 +130,19 @@ trap cleanup EXIT
 bash_chroot "echo %admin ALL=\(ALL\) ALL >> /etc/sudoers"
 bash_chroot "echo $USER ALL=NOPASSWD: ALL >> /etc/sudoers"
 
-# Set up apt sources
-# If a local repository is used, it will have a different path when 
-# bind-mounted inside the chroot
-MIRROR_INSIDE="${FLAGS_mirror/$GCLIENT_ROOT/$CHROOT_TRUNK_DIR}"
-bash_chroot "echo deb $MIRROR_INSIDE $FLAGS_suite \
-  main restricted multiverse universe > /etc/apt/sources.list"
-# Additional repo? Note: Not mounted inside - must use URL
-if [ -n "$FLAGS_mirror2" ]; then
-  bash_chroot "echo deb $FLAGS_mirror2 $FLAGS_suite2 \
-    main restricted multiverse universe >> /etc/apt/sources.list"
-fi
+# Set up apt sources.
+# prefer our tools or custom packages
+bash_chroot "echo deb $DEFAULT_CHROMEOS_SERVER/tools chromiumos_dev \
+  main > /etc/apt/sources.list"
+# use specified mirror and suite for the rest of the development chroot
+bash_chroot "echo deb $FLAGS_mirror $FLAGS_suite \
+  main restricted multiverse universe >> /etc/apt/sources.list"
+# NOTE: Add additional repos here, possibly via command-line args.
 
-# TODO: enable sources when needed.  Currently, kernel source is checked in
+# Enable sources for upstream packages. Currently, kernel source is checked in
 # and all other sources are pulled via DEPS files.
-#bash_chroot "echo deb-src $MIRROR_INSIDE $FLAGS_suite \
-#  main restricted multiverse universe >> /etc/apt/sources.list"
+bash_chroot "echo deb-src $FLAGS_mirror $FLAGS_suite \
+  main restricted multiverse universe >> /etc/apt/sources.list"
 
 # Set /etc/debian_chroot so '(chroot)' shows up in shell prompts
 CHROOT_BASE=`basename $FLAGS_chroot`

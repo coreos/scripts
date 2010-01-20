@@ -77,20 +77,18 @@ fi
 # Load shflags
 . "$SRC_ROOT/third_party/shflags/files/src/shflags"
 
-# Mirrors and build suites come in 3 flavors
-#   EXT - external source used to build local package repository
-#   DEV - development chroot, from local package repository
-#   IMG - bootable image, from local package repository
+# Our local mirror
+DEFAULT_CHROMEOS_SERVER=${CHROMEOS_SERVER:-"http://build.chromium.org/mirror"}
 
-# Build suites
-DEFAULT_EXT_SUITE=${CHROMEOS_EXT_SUITE:-"chromeos_dev"}
-DEFAULT_DEV_SUITE=${CHROMEOS_DEV_SUITE:-"chromeos_dev"}
-DEFAULT_IMG_SUITE=${CHROMEOS_IMG_SUITE:-"chromeos"}
+# Upstream mirrors and build suites come in 2 flavors
+#   DEV - development chroot, used to build the chromeos image
+#   IMG - bootable image, to run on actual hardware
 
-# Package repositories (mirrors)
-DEFAULT_EXT_MIRROR=${CHROMEOS_EXT_MIRROR:-"http://build.chromium.org/buildbot/packages"}
-DEFAULT_DEV_MIRROR=${CHROMEOS_DEV_MIRROR:-"file://$GCLIENT_ROOT/repo/apt"}
-DEFAULT_IMG_MIRROR=${CHROMEOS_IMG_MIRROR:-"copy:///home/$USER/trunk/repo/apt"}
+DEFAULT_DEV_MIRROR=${CHROMEOS_DEV_MIRROR:-"${DEFAULT_CHROMEOS_SERVER}/ubuntu"}
+DEFAULT_DEV_SUITE=${CHROMEOS_DEV_SUITE:-"karmic"}
+
+DEFAULT_IMG_MIRROR=${CHROMEOS_IMG_MIRROR:-"${DEFAULT_CHROMEOS_SERVER}/ubuntu"}
+DEFAULT_IMG_SUITE=${CHROMEOS_IMG_SUITE:-"karmic"}
 
 # Default location for chroot
 DEFAULT_CHROOT_DIR=${CHROMEOS_CHROOT_DIR:-"$GCLIENT_ROOT/chroot"}

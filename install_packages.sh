@@ -30,10 +30,10 @@ DEFINE_string build_root "$DEFAULT_BUILD_ROOT"                \
   "Root of build output"
 DEFINE_string package_list "$DEFAULT_PKGLIST" \
   "Comma separated set of package-list files to use."
-DEFINE_string server "$DEFAULT_EXT_MIRROR" \
-  "The package server to use."
+DEFINE_string mirror "$DEFAULT_IMG_MIRROR" \
+  "The upstream package mirror to use."
 DEFINE_string suite "$DEFAULT_IMG_SUITE" \
-  "The package suite to use."
+  "The upstream package suite to use."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -92,7 +92,7 @@ cd -
 APT_SOURCE="${OUTPUT_DIR}/sources.list"
 cat <<EOF > "$APT_SOURCE"
 deb file:"$SETUP_DIR" local_packages/
-deb $FLAGS_server $FLAGS_suite main restricted multiverse universe
+deb $FLAGS_mirror $FLAGS_suite main restricted multiverse universe
 EOF
 
 # Cache directory for APT to use. This cache is re-used across builds. We
@@ -160,7 +160,7 @@ PACKAGES="debconf libacl1 libattr1 libc6 libgcc1 libselinux1"
 # bash - So that scripts can run
 # libpam-runtime/libuuid1 - Not exactly sure why
 # sysv-rc - So that we can overwrite invoke-rc.d, update-rc.d
-EXTRA_PACKAGES="base-files base-passwd bash libpam-runtime libuuid1 login passwd sysv-rc"
+EXTRA_PACKAGES="base-files base-passwd bash libpam-runtime libuuid1 login passwd sysv-rc mawk"
 
 # Prep the rootfs to work with dpgk and apt
 sudo mkdir -p "${ROOT_FS_DIR}/var/lib/dpkg/info"
