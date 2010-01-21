@@ -8,6 +8,11 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
+verbose() {
+  echo "$@"
+  "$@"
+}
+
 assert_inside_chroot
 assert_not_root_user
 
@@ -57,8 +62,7 @@ if [ $FLAGS_new_build -eq $FLAGS_TRUE ]; then
   for PKG in $PLATFORM_DIRS $THIRD_PARTY_PACKAGES; do
     PACKAGES="$PACKAGES ${PKG%/*}"
   done
-  echo chromiumos-build -a "$FLAGS_architecture" --apt-source $PACKAGES
-  chromiumos-build -a "$FLAGS_architecture" --apt-source $PACKAGES
+  verbose chromiumos-build -a "$FLAGS_architecture" --apt-source $PACKAGES
 else
   # Build dh-chromeos really first. Some of third_party needs it.
   echo "Building package dh-chromeos..."
