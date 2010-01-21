@@ -186,9 +186,9 @@ for p in $PACKAGES $EXTRA_PACKAGES; do
   if [ -z "$PKG" ]; then
     PKG=$(ls "${REPO}"/${p}_*_all.deb)
   fi
-  sudo "${SCRIPTS_DIR}"/dpkg_no_scripts.sh \
+  sudo ARCH="$FLAGS_arch" "${SCRIPTS_DIR}"/dpkg_no_scripts.sh \
     --root="$ROOT_FS_DIR" --nodpkg_fallback --unpack "$PKG"
-  sudo "${SCRIPTS_DIR}"/dpkg_no_scripts.sh \
+  sudo ARCH="$FLAGS_arch" "${SCRIPTS_DIR}"/dpkg_no_scripts.sh \
     --root="$ROOT_FS_DIR" --nodpkg_fallback --configure "$p"
 done
 
@@ -196,7 +196,7 @@ done
 # to install additional critical packages. If there are any of these, we
 # disable the maintainer scripts so they install ok.
 TMP_FORCE_NO_SCRIPTS="-o=DPkg::options::=--nodpkg_fallback"
-sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
+sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive ARCH="$FLAGS_arch"\
   apt-get $TMP_FORCE_NO_SCRIPTS --force-yes --fix-broken install
 
 # TODO: Remove these hacks when we stop having maintainer scripts altogether.
@@ -221,7 +221,7 @@ for p in $PACKAGE_LISTS; do
     grep -v '^ *$' |                  \
     sed '/$/{N;s/\n/ /;}')
   sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
-    apt-get --force-yes install $COMPONENTS
+       ARCH="$FLAGS_arch" apt-get --force-yes install $COMPONENTS
 done
 
 # Create kernel installation configuration to suppress warnings,
@@ -238,7 +238,7 @@ warn_initrd = no
 EOF
 
 # Install the kernel.
-sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
+sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive ARCH="$FLAGS_arch"\
   apt-get --force-yes install "linux-image-${KERNEL_VERSION}"
 
 # List all packages installed so far, since these are what the local
