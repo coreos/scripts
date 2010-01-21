@@ -21,10 +21,12 @@ then
   # images.
   DEFAULT_TO="${DEFAULT_FROM}/usb.img"
   DEFAULT_TO_HELP="Destination file for USB image."
+  AUTOTEST_SRC=/usr/local/autotest
 else
   # Outside the chroot, so output to the default device for a usb key.
   DEFAULT_TO="/dev/sdb"
   DEFAULT_TO_HELP="Destination device for USB keyfob."
+  AUTOTEST_SRC=${DEFAULT_CHROOT_DIR}/usr/local/autotest
 fi
 
 # Flags
@@ -32,6 +34,8 @@ DEFINE_string from "$DEFAULT_FROM" \
   "Directory containing rootfs.image and mbr.image"
 DEFINE_string to "$DEFAULT_TO" "$DEFAULT_TO_HELP"
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" "y"
+DEFINE_boolean install_autotest $FLAGS_FALSE \
+  "Whether to install autotest to the stateful partition."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -47,6 +51,29 @@ FLAGS_to=`eval readlink -f $FLAGS_to`
 
 function do_cleanup {
   sudo losetup -d "$LOOP_DEV"
+}
+
+STATEFUL_DIR=${FLAGS_from}/stateful_partition
+mkdir -p "${STATEFUL_DIR}"
+
+function install_autotest {
+  if [ -d ${AUTOTEST_SRC} ]
+  then
+    echo -ne "Install autotest into stateful partition..."
+	  local autotest_client="/home/autotest-client"
+    sudo mkdir -p "${STATEFUL_DIR}${autotest_client}"
+    sudo cp -fpru ${AUTOTEST_SRC}/client/* \
+	    "${STATEFUL_DIR}${autotest_client}"
+    sudo chmod 755 "${STATEFUL_DIR}${autotest_client}"
+    sudo chown -R 1000:1000 "${STATEFUL_DIR}${autotest_client}"
+    echo "Done."
+    sudo umount "${STATEFUL_DIR}"
+  else
+    echo "/usr/local/autotest under ${DEFAULT_CHROOT_DIR} is not installed."
+    echo "Please call make_autotest.sh inside chroot first."
+    sudo umount "${STATEFUL_DIR}"
+    exit -1
+  fi
 }
 
 # Copy MBR and rootfs to output image
@@ -109,6 +136,11 @@ then
   echo "Creating stateful partition..."
   sudo losetup -o 512 "$LOOP_DEV" "$FLAGS_to"
   sudo mkfs.ext3 -F -b 4096 -L C-STATE "$LOOP_DEV" $(( $PART_SIZE / 4096 ))
+  if [ $FLAGS_install_autotest -eq $FLAGS_TRUE ]
+  then
+    sudo mount "${LOOP_DEV}" "${STATEFUL_DIR}"
+    install_autotest
+  fi
   sync
   sudo losetup -d "$LOOP_DEV"
   sync
@@ -129,6 +161,13 @@ else
   dd if=/dev/zero of="${FLAGS_from}/stateful_partition.image" bs=1 count=1 \
       seek=$(($PART_SIZE - 1))
   mkfs.ext3 -F -L C-STATE "${FLAGS_from}/stateful_partition.image"
+
+  if [ $FLAGS_install_autotest -eq $FLAGS_TRUE ]
+  then
+    sudo mount -o loop "${FLAGS_from}/stateful_partition.image" \
+      "${STATEFUL_DIR}"
+    install_autotest
+  fi
 
   # Create a sparse output file
   dd if=/dev/zero of="${FLAGS_to}" bs=1 count=1 \
