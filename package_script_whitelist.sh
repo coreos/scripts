@@ -91,13 +91,18 @@ cat <<EOF > "$path"
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+# $file
+
+set -e
+
 # \$ROOT - The path to the target root file system.
 # \$SRC_ROOT - The path to the source tree.
 
-# $file
-
 # TODO: The equivalent of $file running from outside of the target rootfs
 # that only uses tools from the build machine and not from the target.
+
+exit 1
+
 EOF
   chmod 0750 "$path"
 }
