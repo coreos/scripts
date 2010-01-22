@@ -19,12 +19,12 @@ SRC_ROOT=$(dirname $(readlink -f $(dirname "$0")))
 . "${SRC_ROOT}/third_party/shflags/files/src/shflags"
 
 KERNEL_DIR="$SRC_ROOT/third_party/kernel"
-DEFAULT_KCONFIG="${KERNEL_DIR}/files/chromeos/config/chromeos-intel-menlow"
+DEFAULT_KFLAVOUR="chromeos-intel-menlow"
 
 # Flags
 DEFAULT_BUILD_ROOT=${BUILD_ROOT:-"${SRC_ROOT}/build"}
-DEFINE_string config "${DEFAULT_KCONFIG}"                              \
-  "The kernel configuration file to use."
+DEFINE_string flavour "${DEFAULT_KFLAVOUR}"                              \
+  "The kernel flavour to use."
 DEFINE_integer revision 002                                            \
   "The package revision to use"
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/x86/local_packages"   \
@@ -49,12 +49,19 @@ mkdir -p "$FLAGS_output_root"
 # to /tmp/kernel-pkg.conf when setting up the chroot env?
 sudo cp "$KERNEL_DIR"/package/kernel-pkg.conf /etc/kernel-pkg.conf
 
+#
+# Generate the flavour config file.
+#
+flavour=$FLAGS_flavour
+(cd ${KERNEL_DIR}/files; debian/rules prepare-${flavour})
+
 # Parse kernel config file for target architecture information. This is needed
 # to determine the full package name and also to setup the environment for
 # kernel build scripts which use "uname -m" to autodetect architecture.
-KCONFIG="$FLAGS_config"
+KCONFIG="${KERNEL_DIR}/files/debian/build/build-${flavour}/.config"
 if [ ! -f "$KCONFIG" ]; then
-    KCONFIG="$KERNEL_DIR"/files/chromeos/config/"$KCONFIG"
+    echo Major bummer. Could not find kernel config.
+    exit 1
 fi
 if [ -n $(grep 'CONFIG_X86=y' "$KCONFIG") ]
 then
