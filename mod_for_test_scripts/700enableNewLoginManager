@@ -1,0 +1,9 @@
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Modifies upstart for login manager to use new login manager
+
+sed -i 's?^#exec /sbin/session_manager_setup.sh?exec /sbin/session_manager_setup.sh?' /etc/init/ui.conf 2> /dev/null
+sed -i 's?^expect fork?#expect fork?' /etc/init/ui.conf 2> /dev/null
+sed -i 's?^exec /usr/bin/slim -d?#exec /usr/bin/slim -d?' /etc/init/ui.conf 2> /dev/null
