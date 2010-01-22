@@ -227,13 +227,39 @@ sudo ln -sf /bin/true "${ROOT_FS_DIR}/usr/sbin/update-rc.d"
 sudo mount -t proc proc "${ROOT_FS_DIR}/proc"
 trap cleanup_rootfs_mounts EXIT
 
+filter_pkgs() {
+  pkglist="$1"
+  arch="$2"
+
+  # to read list of package + version skipping empty lines and comments, and
+  # convert "foo 1.2-3" to "foo=1.2-3", use:
+  #pkgs="$(grep '^[^#]' "$pkglist" | cut -d ' ' -f 1-2 | sed 's/ /=/')"
+
+  # read list of "package [optional arch list]" skipping empty lines and
+  # comments
+  grep '^[^#]' "$pkglist" | while read pkg archspec; do
+    case "$archspec" in
+      ""|"[$arch "*|"[$arch]"|*" $arch]")
+        echo "$pkg"
+      ;;
+      *"!$arch "*|*"!$arch]")
+        :
+      ;;
+      "["*"!"*"]")
+        echo "$pkg"
+      ;;
+    esac
+  done
+}
+
 # Install packages from the given package-lists
 PACKAGE_LISTS=$(echo "$FLAGS_package_list" | sed -e 's/,/ /g')
+PKG_LIST_ARCH="$FLAGS_arch"
+if [ "$PKG_LIST_ARCH" = "x86" ]; then
+  PKG_LIST_ARCH="i386"
+fi
 for p in $PACKAGE_LISTS; do
-  COMPONENTS=$(cat "$p" |             \
-    sed -e 's/#.*//' |                \
-    grep -v '^ *$' |                  \
-    sed '/$/{N;s/\n/ /;}')
+  COMPONENTS=$(filter_pkgs "$p" "$PKG_LIST_ARCH")
   sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
        ARCH="$FLAGS_arch" apt-get --force-yes install $COMPONENTS
 done
