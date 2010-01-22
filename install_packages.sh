@@ -34,6 +34,8 @@ DEFINE_string mirror "$DEFAULT_IMG_MIRROR" \
   "The upstream package mirror to use."
 DEFINE_string suite "$DEFAULT_IMG_SUITE" \
   "The upstream package suite to use."
+DEFINE_string mirror2 "" "Additional package mirror to use (URL only)."
+DEFINE_string suite2 "" "Package suite for additional mirror."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -81,7 +83,7 @@ cleanup_rootfs_mounts() {
 
 # Set up repository for locally built packages; these take highest precedence.
 mkdir -p "${SETUP_DIR}/local_packages"
-cp "${FLAGS_build_root}/${FLAGS_arch}/local_packages"/* \
+cp "${FLAGS_build_root}/${FLAGS_arch}/local_packages"/*.deb \
   "${SETUP_DIR}/local_packages"
 cd "$SETUP_DIR"
 dpkg-scanpackages local_packages/ /dev/null | \
@@ -91,14 +93,25 @@ cd -
 # Create the temporary apt source.list used to install packages.
 APT_SOURCE="${OUTPUT_DIR}/sources.list"
 cat <<EOF > "$APT_SOURCE"
-deb file:"$SETUP_DIR" local_packages/
+deb copy:"$SETUP_DIR" local_packages/
 deb $FLAGS_mirror $FLAGS_suite main restricted multiverse universe
 EOF
+if [ -n "$FLAGS_mirror2" ] && [ -n "$FLAGS_suite2" ]; then
+  cat <<EOF >> "$APT_SOURCE"
+deb $FLAGS_mirror2 $FLAGS_suite2 main restricted multiverse universe
+EOF
+fi
 
 # Cache directory for APT to use. This cache is re-used across builds. We
 # rely on the cache to reduce traffic to the hosted repositories.
 APT_CACHE_DIR="${FLAGS_build_root}/apt_cache-${FLAGS_arch}/"
 mkdir -p "${APT_CACHE_DIR}/archives/partial"
+
+if [ "${FLAGS_arch}" = x86 ]; then
+  APT_ARCH=i386
+else
+  APT_ARCH="${FLAGS_arch}"
+fi
 
 # Create the apt configuration file. See "man apt.conf"
 APT_PARTS="${OUTPUT_DIR}/apt.conf.d"
@@ -114,6 +127,7 @@ APT
     Assume-Yes "1";
     AllowUnauthenticated "1";
   };
+  Architecture "${APT_ARCH}";
 };
 Dir
 {

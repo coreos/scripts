@@ -33,8 +33,12 @@ DEFINE_boolean replace $FLAGS_FALSE "Overwrite existing output, if any."
 DEFINE_boolean increment $FLAGS_FALSE \
   "Picks the latest build and increments the minor version by one."
 
+DEFINE_string arch "x86" \
+  "The target architecture to build for. One of { x86, armel }."
 DEFINE_string mirror "$DEFAULT_IMG_MIRROR" "Repository mirror to use."
 DEFINE_string suite "$DEFAULT_IMG_SUITE" "Repository suite to base image on."
+DEFINE_string mirror2 "" "Additional repository mirror to use (URL only)."
+DEFINE_string suite2 "" "Repository suite for additional mirror."
 DEFINE_string pkglist "$DEFAULT_PKGLIST" \
   "Name of file listing packages to install from repository."
 DEFINE_boolean with_dev_pkgs $FLAGS_TRUE \
@@ -128,8 +132,11 @@ fi
   --root="$ROOT_FS_DIR"               \
   --output_dir="${OUTPUT_DIR}"        \
   --package_list="$PKGLIST"           \
+  --arch="$FLAGS_arch"                \
   --mirror="$FLAGS_mirror"            \
-  --suite="$FLAGS_suite"
+  --suite="$FLAGS_suite"              \
+  --mirror2="$FLAGS_mirror2"          \
+  --suite2="$FLAGS_suite2"
 
 "${SCRIPTS_DIR}/customize_rootfs.sh" --root="${ROOT_FS_DIR}"
 
