@@ -29,6 +29,8 @@ DEFINE_string suite "$DEFAULT_DEV_SUITE" \
   "Ubuntu suite to use to create the development chroot."
 DEFINE_string mirror "$DEFAULT_DEV_MIRROR" \
   "Ubuntu mirror to use to create the development chroot."
+DEFINE_string mirror_src "$DEFAULT_DEV_MIRROR" \
+  "Ubuntu mirror to use to apt-get package sources."
 DEFINE_string chroot "$DEFAULT_CHROOT_DIR" \
   "Destination dir for the chroot environment."
 DEFINE_string pkglist "$DEFAULT_PKGLIST" \
@@ -141,7 +143,7 @@ bash_chroot "echo deb $FLAGS_mirror $FLAGS_suite \
 
 # Enable sources for upstream packages. Currently, kernel source is checked in
 # and all other sources are pulled via DEPS files.
-bash_chroot "echo deb-src $FLAGS_mirror $FLAGS_suite \
+bash_chroot "echo deb-src $FLAGS_mirror_src $FLAGS_suite \
   main restricted multiverse universe >> /etc/apt/sources.list"
 
 # Set /etc/debian_chroot so '(chroot)' shows up in shell prompts
