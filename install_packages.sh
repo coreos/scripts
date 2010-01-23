@@ -257,11 +257,17 @@ PACKAGE_LISTS=$(echo "$FLAGS_package_list" | sed -e 's/,/ /g')
 PKG_LIST_ARCH="$FLAGS_arch"
 if [ "$PKG_LIST_ARCH" = "x86" ]; then
   PKG_LIST_ARCH="i386"
+  FORCE_NO_SCRIPTS=""
+else
+  # For armel we forcefully disable all maintainer scripts.
+  # TODO: Remove this when everything is whitelisted for all build variants.
+  FORCE_NO_SCRIPTS="-o=DPkg::options::=--nodpkg_fallback"
 fi
 for p in $PACKAGE_LISTS; do
   COMPONENTS=$(filter_pkgs "$p" "$PKG_LIST_ARCH")
   sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive \
-       ARCH="$FLAGS_arch" apt-get --force-yes install $COMPONENTS
+    ARCH="$FLAGS_arch" \
+    apt-get $FORCE_NO_SCRIPTS --force-yes install $COMPONENTS
 done
 
 # Create kernel installation configuration to suppress warnings,
@@ -278,8 +284,20 @@ warn_initrd = no
 EOF
 
 # Install the kernel.
-sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive ARCH="$FLAGS_arch"\
-  apt-get --force-yes install "linux-image-${KERNEL_VERSION}"
+# TODO: Support for armel kernels.
+if [ "$FLAGS_arch" = "x86" ]; then
+  sudo APT_CONFIG="$APT_CONFIG" DEBIAN_FRONTEND=noninteractive ARCH="$FLAGS_arch"\
+    apt-get --force-yes install "linux-image-${KERNEL_VERSION}"
+fi
+
+# Install optionally present rootfs static data. This can be used to blast
+# custom firmware, kernel modules, etc. onto the image.
+# TODO: Remove this hack at some point.
+LOCAL_ASSETS="${FLAGS_build_root}/${FLAGS_arch}/local_assets"
+OPTIONAL_ROOTFS_DATA="${LOCAL_ASSETS}/rootfs_data.tgz"
+if [ -f "${OPTIONAL_ROOTFS_DATA}" ]; then
+  sudo tar -zxvf "${OPTIONAL_ROOTFS_DATA}" -C "${ROOT_FS_DIR}"
+fi
 
 # List all packages installed so far, since these are what the local
 # repository needs to contain.

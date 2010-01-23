@@ -17,7 +17,7 @@
 assert_inside_chroot
 
 # Flags
-DEFINE_string target "x86" \
+DEFINE_string arch "x86" \
   "The target architecture to build for. One of { x86, arm }."
 DEFINE_string root ""      \
   "The root file system to customize."
@@ -144,7 +144,7 @@ sudo chmod 0755 "$ROOT_FS_DIR"/mnt/stateful_partition
 # installed all of the packages.
 TMP_STATIC=$(mktemp -d)
 sudo cp -r "${SRC_ROOT}/rootfs_static_data/common/." "$TMP_STATIC"
-# TODO: Copy additional target-platform-specific subdirectories.
+# TODO: Copy additional arch-platform-specific subdirectories.
 sudo chmod -R a+rX "$TMP_STATIC/."
 sudo cp -r "$TMP_STATIC/." "$ROOT_FS_DIR"
 sudo rm -rf "$TMP_STATIC"
