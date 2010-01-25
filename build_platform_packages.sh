@@ -60,7 +60,24 @@ if [ $FLAGS_new_build -eq $FLAGS_TRUE ]; then
   # chromiumos-build works out the build order for itself.
   PACKAGES='dh-chromeos libchrome libchromeos'
   for PKG in $PLATFORM_DIRS $THIRD_PARTY_PACKAGES; do
-    PACKAGES="$PACKAGES ${PKG%/*}"
+    # Handle some special-case naming.
+    case $PKG in
+      e2fsprogs/files)
+        PACKAGES="$PACKAGES e4fsprogs-git"
+        ;;
+      ibus-anthy|ibus-chewing|ibus-hangul)
+        # These are difficult to cross-build right now, and we can live
+        # without them temporarily.
+        if [ "$FLAGS_architecture" = i386 ]; then
+          PACKAGES="$PACKAGES ${PKG%/*}"
+        else
+          echo "WARNING: Skipping $PKG on $FLAGS_architecture"
+        fi
+        ;;
+      *)
+        PACKAGES="$PACKAGES ${PKG%/*}"
+        ;;
+    esac
   done
   verbose chromiumos-build -a "$FLAGS_architecture" --apt-source $PACKAGES
 else
