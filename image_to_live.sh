@@ -68,8 +68,6 @@ function prepare_update_metadata {
           /etc/lsb-release; \
         echo 'CHROMEOS_DEVSERVER=http://$HOSTNAME:8080' >> /etc/lsb-release"
   fi
-
-  remote_sh "mount -noro,remount /"
 }
 
 function run_auto_update {

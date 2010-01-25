@@ -200,9 +200,9 @@ function describe_steps() {
   fi
   if [[ -n "${FLAGS_grab_buildbot}" ]]; then
     if [[ "${FLAGS_grab_buildbot}" == "LATEST" ]]; then
-      echo " * Grabbing latest buildbot image under ${FLAGS_buildbot_uri}"
+      echo " * Grab latest buildbot image under ${FLAGS_buildbot_uri}"
     else
-      echo " * Grabbing buildbot image zip at URI ${FLAGS_grab_buildbot}"
+      echo " * Grab buildbot image zip at URI ${FLAGS_grab_buildbot}"
     fi
   fi
   if [[ ${FLAGS_mod_image_for_test} -eq ${FLAGS_TRUE} ]]; then
@@ -326,6 +326,22 @@ EOF
 }
 
 
+function check_rootfs_validity() {
+  echo "Checking rootfs validity"
+  local device=$(sudo losetup -f)
+  local invalid=0
+  sudo losetup "${device}" rootfs.image
+  sudo mount "${device}" rootfs
+  if [[ ! -e rootfs/boot/vmlinuz ]]; then
+    echo "This image has no kernel"
+    invalid=1
+  fi
+  sudo umount rootfs
+  sudo losetup -d "${device}"
+  return ${invalid}
+}
+
+
 # Downloads a buildbot image
 function grab_buildbot() {
   if [[ "${FLAGS_grab_buildbot}" == "LATEST" ]]; then
@@ -342,6 +358,7 @@ function grab_buildbot() {
       -o "${dl_dir}/image.zip"
   cd "${dl_dir}"
   unzip image.zip
+  check_rootfs_validity
   echo "Copying in local_repo/local_packages"
   # TODO(kmixter): Make this architecture indep once buildbot is.
   mv -f local_repo/local_packages/* "${FLAGS_top}/src/build/x86/local_packages"

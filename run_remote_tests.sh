@@ -21,6 +21,8 @@ DEFINE_boolean verbose ${FLAGS_FALSE} "Show verbose autoserv output" v
 DEFINE_boolean update_db ${FLAGS_FALSE} "Put results in autotest database" u
 DEFINE_string machine_desc "" "Machine description used in database"
 DEFINE_string build_desc "" "Build description used in database"
+DEFINE_string results_dir_root "" \
+    "Directory to place individual autoserv results files (default to TMP)"
 
 function cleanup() {
   if [[ $FLAGS_cleanup -eq ${FLAGS_TRUE} ]]; then
@@ -103,6 +105,10 @@ function main() {
   # Set global TMP for remote_access.sh's sake
   TMP=$(mktemp -d /tmp/run_remote_tests.XXXX)
 
+  if [[ -z "${FLAGS_results_dir_root}" ]]; then
+    FLAGS_results_dir_root="${TMP}"
+  fi
+
   rm -f "${FLAGS_output_file}"
 
   trap cleanup EXIT
@@ -110,6 +116,7 @@ function main() {
   cp -r "${SRC_ROOT}/third_party/autotest/files" "${TMP}/autotest"
   
   local control_files_to_run=""
+  local any_failures=0
 
   # Now search for tests which unambiguously include the given identifier
   local search_path=$(echo ${TMP}/autotest/{client,server}/{tests,site_tests})
@@ -119,13 +126,15 @@ function main() {
       egrep "${test_request}")
     if [[ -z "${finds}" ]]; then
       echo "Can not find match for ${test_request}"
-      exit 1
+      any_failures=1
+      continue
     fi
     local matches=$(echo "${finds}" | wc -l)
     if [[ ${matches} -gt 1 ]]; then
       echo "${test_request} is ambiguous:"
       echo "${finds}"
-      exit 1
+      any_failures=1
+      continue
     fi
     for i in $(seq 1 $FLAGS_iterations); do
       control_files_to_run="${control_files_to_run} '${finds}'"
@@ -160,14 +169,20 @@ function main() {
     echo "Running ${type} test ${control_file}"
     local short_name=$(basename $(dirname "${control_file}"))
     local start_time=$(date '+%s')
-    local results_dir="${TMP}/${short_name},${FLAGS_machine_desc},${start_time}"
+    local results_dir_name="${short_name},${FLAGS_machine_desc},${start_time}"
+    local results_dir="${FLAGS_results_dir_root}/${results_dir_name}"
     rm -rf "${results_dir}"
     local verbose=""
     if [[ ${FLAGS_verbose} -eq $FLAGS_TRUE ]]; then
       verbose="--verbose"
     fi
-    ${autoserv} -m "${FLAGS_remote}" "${option}" "${control_file}" \
-      -r "${results_dir}" ${verbose}
+    if ! ${autoserv} -m "${FLAGS_remote}" "${option}" "${control_file}" \
+      -r "${results_dir}" ${verbose}; then
+      echo "Autoserv run of ${control_file} failed." | \
+        tee -a "${FLAGS_output_file}"
+      any_failures=1
+      continue
+    fi
     local test_status="${results_dir}/status"
     local test_result_dir="${results_dir}/${short_name}"
     local keyval_file="${test_result_dir}/results/keyval"
@@ -199,6 +214,8 @@ function main() {
   done
 
   echo "Output stored to ${FLAGS_output_file}"
+
+  return ${any_failures}
 }
 
 main $@
