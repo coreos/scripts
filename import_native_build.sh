@@ -21,7 +21,10 @@ eval set -- "${FLAGS_ARGV}"
 # Die on error
 set -e
 
-cd "${DEFAULT_BUILD_ROOT}/${FLAGS_architecture}/local_packages"
+LOCAL_PKG_DIR="${DEFAULT_BUILD_ROOT}/${FLAGS_architecture}/local_packages"
+
+mkdir -p "${LOCAL_PKG_DIR}"
+cd "${LOCAL_PKG_DIR}"
 
 DEB_BUILD_ARCH="$(dpkg-architecture -qDEB_BUILD_ARCH)"
 
