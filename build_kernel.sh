@@ -19,14 +19,13 @@ SRC_ROOT=$(dirname $(readlink -f $(dirname "$0")))
 . "${SRC_ROOT}/third_party/shflags/files/src/shflags"
 
 KERNEL_DIR="$SRC_ROOT/third_party/kernel"
-DEFAULT_KCONFIG="${KERNEL_DIR}/files/chromeos/config/chromeos-intel-menlow"
+KERNEL_FDIR="$KERNEL_DIR/files"
+DEFAULT_KFLAVOUR="chromeos-intel-menlow"
 
 # Flags
 DEFAULT_BUILD_ROOT=${BUILD_ROOT:-"${SRC_ROOT}/build"}
-DEFINE_string config "${DEFAULT_KCONFIG}"                              \
-  "The kernel configuration file to use."
-DEFINE_integer revision 002                                            \
-  "The package revision to use"
+DEFINE_string flavour "${DEFAULT_KFLAVOUR}"                              \
+  "The kernel flavour to build."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/x86/local_packages"   \
   "Directory in which to place the resulting .deb package"
 DEFINE_string build_root "$DEFAULT_BUILD_ROOT"                         \
@@ -44,17 +43,26 @@ set -e
 # an ARCH placeholder with the proper architecture rather than assuming x86.
 mkdir -p "$FLAGS_output_root"
 
-# Get kernel package configuration from repo.
-# TODO: Find a workaround for needing sudo for this. Maybe create a symlink
-# to /tmp/kernel-pkg.conf when setting up the chroot env?
-sudo cp "$KERNEL_DIR"/package/kernel-pkg.conf /etc/kernel-pkg.conf
+# Set up kernel source tree and prepare to start the compilation.
+# TODO: Decide on proper working directory when building kernels. It should
+# be somewhere under ${BUILD_ROOT}.
+SRCDIR="${FLAGS_build_root}/kernels/kernel-${FLAGS_flavour}"
+rm -rf "$SRCDIR"
+mkdir -p "$SRCDIR"
+cp -a "${KERNEL_FDIR}"/* "$SRCDIR"
+cd "$SRCDIR"
+
+#
+# Build the config file
+#
+fakeroot debian/rules clean prepare-$FLAGS_flavour
 
 # Parse kernel config file for target architecture information. This is needed
-# to determine the full package name and also to setup the environment for
-# kernel build scripts which use "uname -m" to autodetect architecture.
-KCONFIG="$FLAGS_config"
+# to setup the environment for kernel build scripts which use "uname -m" to autodetect architecture.
+KCONFIG="$SRCDIR/debian/build/build-$FLAGS_flavour/.config"
 if [ ! -f "$KCONFIG" ]; then
-    KCONFIG="$KERNEL_DIR"/files/chromeos/config/"$KCONFIG"
+    echo Total bummer. No config file was created.
+    exit 1
 fi
 if [ -n $(grep 'CONFIG_X86=y' "$KCONFIG") ]
 then
@@ -71,77 +79,31 @@ fi
 
 # Parse the config file for a line with "version" in it (in the header)
 # and remove any leading text before the major number of the kernel version
-FULLVERSION=$(sed -e '/version/ !d' -e 's/^[^0-9]*//' $KCONFIG)
+FULLVERSION=$(dpkg-parsechangelog -l$SRCDIR/debian.chrome/changelog|grep "Version:"|sed 's/^Version: //')
 
-# FULLVERSION should have the form "2.6.30-rc1-chromeos-asus-eeepc". In this
-# example MAJOR is 2, MINOR is 6, EXTRA is 30, RELEASE is rc1, LOCAL is
-# asus-eeepc. RC is optional since it only shows up for release candidates.
-MAJOR=$(echo $FULLVERSION | sed -e 's/[^0-9].*//')
-MIDDLE=$(echo $FULLVERSION | sed -e 's/[0-9].//' -e 's/[^0-9].*//')
-MINOR=$(echo $FULLVERSION | sed -e 's/[0-9].//' -e 's/[0-9].//' -e 's/[^0-9].*//')
-EXTRA=$(echo $FULLVERSION | sed -e 's/[0-9].//' -e 's/[0-9].//' -e 's/[0-9]*.//' -e 's/[^0-9].*//')
-if [ ! -z $EXTRA ]; then
-    VER_MME="${MAJOR}.${MIDDLE}.${MINOR}.${EXTRA}"
-else
-    VER_MME="${MAJOR}.${MIDDLE}.${MINOR}"
-fi
+# linux-image-2.6.31-0-chromeos-intel-menlow_2.6.31-0.1_i386.deb
+# FULLVERSION has the form "2.6.3x-ABI-MINOR" where x is {1,2}, ABI and MINOR are an integers.
+#In this example MAJOR is 2.6.31, ABI is 0, MINOR is 1
+MAJOR=$(echo $FULLVERSION | sed -e 's/\(^.*\)-.*$/\1/')
+ABI=$(echo $FULLVERSION | sed 's/^.*-\(.*\)\..*$/\1/')
+MINOR=$(echo $FULLVERSION | sed -e 's/^.*\.\([0-9]*$\)/\1/')
+PACKAGE="linux-image-${MAJOR}-${ABI}-${FLAGS_flavour}_${MAJOR}-${ABI}.${MINOR}_${ARCH}.deb"
 
-LOCAL=$(sed -e '/CONFIG_LOCALVERSION=/ !d' -e 's/.*="-//' -e 's/"//' $KCONFIG)
-RC=$(echo $FULLVERSION | sed -r \
-   "s/${VER_MME}-([^-]*)-*${LOCAL}/\1/")
+echo MAJOR $MAJOR
+echo ABI $ABI
+echo MINOR $MINOR
+echo PACKAGE $PACKAGE
 
-# The tag will be appended by make-kpkg to the extra version and will show up
-# in both the kernel and package names.
-CHROMEOS_TAG="chromeos"
-PACKAGE="linux-image-${VER_MME}-${CHROMEOS_TAG}-${LOCAL}_${FLAGS_revision}_${ARCH}.deb"
 
-# Set up kernel source tree and prepare to start the compilation.
-# TODO: Decide on proper working directory when building kernels. It should
-# be somewhere under ${BUILD_ROOT}.
-SRCDIR="${FLAGS_build_root}/kernels/kernel-${ARCH}-${LOCAL}"
-rm -rf "$SRCDIR"
-mkdir -p "$SRCDIR"
-cd "$SRCDIR"
-
-# Get kernel sources
-# TODO(msb): uncomment once git is available in the chroot
-#   git clone "${KERNEL_DIR}"/linux_${VER_MME}
-mkdir linux-${VER_MME}
-cd "linux-$VER_MME"
-cp -a "${KERNEL_DIR}"/files/* .
-
-# Move kernel config to kernel source tree and rename to .config so that
-# it can be used for "make oldconfig" by make-kpkg.
-cp "$KCONFIG" .config
-
-# Remove stale packages. make-kpkg will dump the package in the parent
+# Remove stale packages. debian/rules will dump the package in the parent
 # directory. From there, it will be moved to the output directory.
 rm -f "../${PACKAGE}"
 rm -f "${FLAGS_output_root}"/linux-image-*.deb
 
-# Speed up compilation by running parallel jobs.
-if [ ! -e "/proc/cpuinfo" ]
-then
-    # default to a reasonable level
-    CONCURRENCY_LEVEL=2
-else
-    # speed up compilation by running #cpus * 2 simultaneous jobs
-    CONCURRENCY_LEVEL=$(($(grep -c "^processor" /proc/cpuinfo) * 2))
-fi
+# Build the kernel package.
+fakeroot debian/rules binary-debs flavours=${FLAGS_flavour}
 
-# Build the kernel and make package. "setarch" is used so that scripts which
-# detect architecture (like the "oldconfig" rule in kernel Makefile) don't get
-# confused when cross-compiling.
-make-kpkg clean
-MAKEFLAGS="CONCURRENCY_LEVEL=$CONCURRENCY_LEVEL" \
-          setarch $ARCH make-kpkg \
-          --append-to-version="-$CHROMEOS_TAG" --revision="$FLAGS_revision" \
-          --arch="$ARCH" \
-          --rootcmd fakeroot \
-          --config oldconfig \
-          --initrd --bzImage kernel_image
-
-# make-kpkg dumps the newly created package in the parent directory
+# debian/rules dumps the newly created package in the parent directory
 if [ -e "../${PACKAGE}" ]
 then
     mv "../${PACKAGE}" "${FLAGS_output_root}"
