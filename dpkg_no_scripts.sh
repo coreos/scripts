@@ -111,6 +111,11 @@ do_unpack() {
   local dpkg_status="$FLAGS_root/var/lib/dpkg/status"
   local dpkg_info="$FLAGS_root/var/lib/dpkg/info/"
 
+  if [ ! -d "$dpkg_info" ]
+  then
+    mkdir -p "$dpkg_info"
+  fi
+
   for p in "$@"; do
     local package=$(dpkg-deb --field "$p" Package)
     local tmpdir=$(mktemp -d)
