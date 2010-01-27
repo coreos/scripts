@@ -47,7 +47,10 @@ eval set -- "${FLAGS_ARGV}"
 # TODO: replace shflags with something less error-prone, or contribute a fix.
 set -e
 
-COMPONENTS=`cat $FLAGS_pkglist | sed -e 's/#.*//' | grep -v '^ *$' | tr '\n' ' '`
+# Add additional components if file exists
+OFFICIAL_COMPONENTS=$SRC_ROOT/package_repo/package-list-official.txt
+[ -f $OFFICIAL_COMPONENTS ] || OFFICIAL_COMPONENTS=
+COMPONENTS=$(cat $FLAGS_pkglist $OFFICIAL_COMPONENTS | sed -e 's/#.*//' | grep -v '^ *$' | tr '\n' ' ')
 FULLNAME="Chrome OS dev user"
 DEFGROUPS="eng,admin,adm,dialout,cdrom,floppy,audio,dip,video"
 PASSWORD=chronos
@@ -136,6 +139,14 @@ bash_chroot "echo $USER ALL=NOPASSWD: ALL >> /etc/sudoers"
 # prefer our tools or custom packages
 bash_chroot "echo deb $DEFAULT_CHROMEOS_SERVER/tools chromiumos_dev \
   main > /etc/apt/sources.list"
+# Add official apt source if file exists
+OFFICIAL_SOURCE_LIST=$SRC_ROOT/package_repo/sources-official.list
+if [ -f $OFFICIAL_SOURCE_LIST ]
+then
+  # Copy the file into the chroot so it's cat'able
+  cp -fp $OFFICIAL_SOURCE_LIST $FLAGS_chroot/tmp
+  bash_chroot "cat /tmp/$(basename $OFFICIAL_SOURCE_LIST) >> /etc/apt/sources.list"
+fi
 # use specified mirror and suite for the rest of the development chroot
 bash_chroot "echo deb $FLAGS_mirror $FLAGS_suite \
   main restricted multiverse universe >> /etc/apt/sources.list"

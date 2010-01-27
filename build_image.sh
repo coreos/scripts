@@ -127,6 +127,10 @@ PKGLIST="$FLAGS_pkglist"
 if [ $FLAGS_with_dev_pkgs -eq $FLAGS_TRUE ]; then
   PKGLIST="$PKGLIST,${SRC_ROOT}/package_repo/package-list-debug.txt"
 fi
+# Add official packages for ChromeOS if the file exists
+if [ -f ${SRC_ROOT}/package_repo/package-list-official.txt ]; then
+  PKGLIST="$PKGLIST,${SRC_ROOT}/package_repo/package-list-official.txt"
+fi
 "${SCRIPTS_DIR}/install_packages.sh"  \
   --build_root="${FLAGS_build_root}"  \
   --root="$ROOT_FS_DIR"               \

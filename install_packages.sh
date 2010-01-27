@@ -101,6 +101,10 @@ if [ -n "$FLAGS_mirror2" ] && [ -n "$FLAGS_suite2" ]; then
 deb $FLAGS_mirror2 $FLAGS_suite2 main restricted multiverse universe
 EOF
 fi
+# Look for official file and use it if it exists
+if [ -f ${SRC_ROOT}/package_repo/sources-official.list ]; then
+  cat ${SRC_ROOT}/package_repo/sources-official.list  >> "$APT_SOURCE"
+fi
 
 # Cache directory for APT to use. This cache is re-used across builds. We
 # rely on the cache to reduce traffic to the hosted repositories.
