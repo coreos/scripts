@@ -9,9 +9,9 @@
 # client tests in the build environment, since client systems under
 # test lack the proper toolchain.
 #
-# The user can enter_chroot later and run autotest against an ssh
-# enabled test client system, or install the compiled client tests
-# directly onto the rootfs image, using mod_image_for_test.
+# The user can later run autotest against an ssh enabled test client system, or
+# install the compiled client tests directly onto the rootfs image, using
+# mod_image_for_test.sh.
 
 . "$(dirname "$0")/common.sh"
 
@@ -56,6 +56,9 @@ function touchInitPy() {
 cd ${AUTOTEST_DEST}
 touchInitPy client/tests client/site_tests
 touch __init__.py
+
+# Export GCLIENT_ROOT so that tests have access to the source and build trees
+export GCLIENT_ROOT
 
 # run the magic test setup script.
 client/bin/autotest client/site_tests/setup/control
