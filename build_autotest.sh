@@ -18,6 +18,11 @@
 # Script must be run inside the chroot
 assert_inside_chroot
 
+DEFAULT_CONTROL=client/site_tests/setup/control
+
+DEFINE_string control "${DEFAULT_CONTROL}" \
+  "Setup control file -- path relative to the destination autotest directory" c
+
 # More useful help
 FLAGS_HELP="usage: $0 [flags]"
 
@@ -32,7 +37,7 @@ AUTOTEST_DEST="/usr/local/autotest"
 
 # Copy a local "installation" of autotest into the chroot, to avoid
 # polluting the src dir with tmp files, results, etc.
-echo -n "Installing Autotest... "
+echo "Installing Autotest..."
 sudo mkdir -p ${AUTOTEST_DEST}
 sudo chmod 777 ${AUTOTEST_DEST}
 cd ${CHROOT_TRUNK_DIR}/src/third_party/autotest/files
@@ -61,4 +66,5 @@ touch __init__.py
 export GCLIENT_ROOT
 
 # run the magic test setup script.
-client/bin/autotest client/site_tests/setup/control
+echo "Building tests using ${FLAGS_control}..."
+client/bin/autotest ${FLAGS_control}
