@@ -5,7 +5,7 @@
 # found in the LICENSE file.
 
 # Script to run client or server tests on a live remote image.
- 
+
 # Load common constants.  This should be the first executable line.
 # The path to common.sh should be relative to your script's location.
 
@@ -22,6 +22,7 @@ DEFINE_boolean update_db ${FLAGS_FALSE} "Put results in autotest database" u
 DEFINE_string machine_desc "" "Machine description used in database"
 DEFINE_string build_desc "" "Build description used in database"
 DEFINE_string chroot_dir "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
+DEFINE_string results_dir_root "" "alternate root results directory"
 
 function cleanup() {
   if [[ $FLAGS_cleanup -eq ${FLAGS_TRUE} ]]; then
@@ -101,7 +102,7 @@ function main() {
   fi
 
   set -e
-  
+
   AUTOTEST_DIR="${DEFAULT_CHROOT_DIR}/usr/local/autotest"
 
   # Set global TMP for remote_access.sh's sake
@@ -144,14 +145,20 @@ function main() {
   echo "Running the following control files: ${control_files_to_run}"
 
   remote_access_init
-  
+
   # Set the default machine description to the machine's IP
   if [[ -z "${FLAGS_machine_desc}" ]]; then
     FLAGS_machine_desc="${FLAGS_remote}"
   fi
 
+  if [[ -z "${FLAGS_results_dir_root}" ]]; then
+    FLAGS_results_dir_root="${TMP}"
+  fi
+
+  mkdir -p "${FLAGS_results_dir_root}"
+
   for control_file in ${control_files_to_run}; do
-    # Assume a line starts with TEST_TYPE = 
+    # Assume a line starts with TEST_TYPE =
     control_file=$(remove_quotes "${control_file}")
     local type=$(egrep '^\s*TEST_TYPE\s*=' "${control_file}" | head -1)
     type=$(python -c "${type}; print TEST_TYPE.lower()")
@@ -167,7 +174,8 @@ function main() {
     echo "Running ${type} test ${control_file}"
     local short_name=$(basename $(dirname "${control_file}"))
     local start_time=$(date '+%s')
-    local results_dir="${TMP}/${short_name},${FLAGS_machine_desc},${start_time}"
+    local results_dir_name="${short_name},${FLAGS_machine_desc},${start_time}"
+    local results_dir="${FLAGS_results_dir_root}/${results_dir_name}"
     rm -rf "${results_dir}"
     local verbose=""
     if [[ ${FLAGS_verbose} -eq $FLAGS_TRUE ]]; then

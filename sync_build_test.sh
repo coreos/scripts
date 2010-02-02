@@ -15,7 +15,7 @@
 #   image in the checkout based on your current directory, or if you
 #   are not in a checkout, based on the top level directory the script
 #   is run from.
-# 
+#
 # sync_build_test.sh --image_to_usb=/dev/sdb -i
 #   same as above but then images USB device /dev/sdb with the image.
 #   Also prompt the user in advance of the steps we'll take to make
@@ -33,7 +33,7 @@
 #
 # sync_build_test.sh --grab_buildbot=LATEST --test Pam --remote=192.168.1.2
 #   grabs the latest build from the buildbot, properly modifies it,
-#   reimages 192.168.1.2, and runs the given test on it.   
+#   reimages 192.168.1.2, and runs the given test on it.
 #
 # Environment variables that may be useful:
 #   BUILDBOT_URI - default value for --buildbot_uri
@@ -62,6 +62,7 @@ buildbot"
 DEFINE_string chronos_passwd "${CHRONOS_PASSWD}" \
     "Use this as the chronos user passwd (defaults to \$CHRONOS_PASSWD)"
 DEFINE_boolean mod_image_for_test ${FLAGS_FALSE} "Modify the image for testing"
+DEFINE_boolean build_autotest ${FLAGS_FALSE} "Build autotest"
 DEFINE_boolean image_to_live ${FLAGS_FALSE} \
     "Put the resulting image on live instance (requires --remote)"
 DEFINE_string remote "" \
@@ -105,6 +106,9 @@ function validate_and_set_param_defaults() {
     # Use the top directory based on where this script runs from
     FLAGS_top=$(dirname $(dirname $(dirname $0)))
   fi
+
+  # Canonicalize any symlinks
+  FLAGS_top=$(readlink -f "${FLAGS_top}")
 
   if [[ -z "${FLAGS_repo}" ]]; then
     if is_google_environment; then
@@ -159,6 +163,10 @@ function validate_and_set_param_defaults() {
     # Override any specified chronos password with the test one
     local test_file=$(dirname $0)"/mod_for_test_scripts/test_account.passwd"
     FLAGS_chronos_passwd=$(head -1 "${test_file}")
+    # Default to building autotests whenever we mod image for test.
+    # TODO(kmixter): Make this more efficient by either doing incremental
+    # building, or only building if the tests we're running needs to be.
+    FLAGS_build_autotest=${FLAGS_TRUE}
   fi
 
   if [[ -n "${FLAGS_image_to_usb}" ]]; then
@@ -215,6 +223,9 @@ function describe_steps() {
     else
       echo " * Set chronos password randomly"
     fi
+  fi
+  if [[ ${FLAGS_build_autotest} -eq ${FLAGS_TRUE} ]]; then
+    echo " * Build autotest"
   fi
   if [[ -n "${FLAGS_image_to_usb}" ]]; then
     echo " * Write the image to USB device ${FLAGS_image_to_usb}"
@@ -458,6 +469,11 @@ function main() {
     chdir_relative src/scripts
     run_phase "Re-imaging live Chromium OS machine ${FLAGS_remote}" \
       ./image_to_live.sh "--remote=${FLAGS_remote}" --update_known_hosts
+  fi
+
+  if [[ ${FLAGS_build_autotest} -eq ${FLAGS_TRUE} ]]; then
+    chdir_relative src/scripts
+    run_phase "Building autotest" ./enter_chroot.sh  "./build_autotest.sh"
   fi
 
   if [[ -n "${FLAGS_test}" ]]; then
