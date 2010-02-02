@@ -25,6 +25,9 @@ function remote_sh_allow_changed_host_key() {
 function set_up_remote_access() {
   if [ -z "$SSH_AGENT_PID" ]; then
     eval $(ssh-agent)
+    OWN_SSH_AGENT=1
+  else
+    OWN_SSH_AGENT=0
   fi
   cp $FLAGS_private_key $TMP_PRIVATE_KEY
   chmod 0400 $TMP_PRIVATE_KEY
@@ -34,6 +37,17 @@ function set_up_remote_access() {
   echo "Initiating first contact with remote host"
   remote_sh "true"
   echo "Connection OK"
+}
+
+function cleanup_remote_access() {
+  # Call this function from the exit trap of the main script.
+  # Iff we started ssh-agent, be nice and clean it up.
+  # Note, only works if called from the main script - no subshells.
+  if [[ 1 -eq ${OWN_SSH_AGENT} ]]
+  then
+    kill ${SSH_AGENT_PID} 2>/dev/null
+    unset SSH_AGENT_PID SSH_AUTH_SOCK
+  fi
 }
 
 function remote_access_init() {

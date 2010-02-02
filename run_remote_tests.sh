@@ -29,11 +29,7 @@ function cleanup() {
   else
     echo "Left temporary files at ${TMP}"
   fi
-  if [[ -n "${SSH_AGENT_PID}" ]]
-  then
-    kill ${SSH_AGENT_PID} 2>/dev/null
-    unset SSH_AGENT_PID SSH_AUTH_SOCK
-  fi
+  cleanup_remote_access
 }
 
 # Returns an error if the test_result_file has text which indicates
