@@ -14,6 +14,7 @@
 # mod_image_for_test.sh.
 
 . "$(dirname "$0")/common.sh"
+. "$(dirname "$0")/autotest_lib.sh"
 
 # Script must be run inside the chroot
 assert_inside_chroot
@@ -37,12 +38,7 @@ AUTOTEST_DEST="/usr/local/autotest"
 
 # Copy a local "installation" of autotest into the chroot, to avoid
 # polluting the src dir with tmp files, results, etc.
-echo "Installing Autotest..."
-sudo mkdir -p ${AUTOTEST_DEST}
-sudo chmod 777 ${AUTOTEST_DEST}
-cd ${CHROOT_TRUNK_DIR}/src/third_party/autotest/files
-cp -fpru {client,conmux,server,tko,utils,global_config.ini,shadow_config.ini} \
-    ${AUTOTEST_DEST}
+update_chroot_autotest "${CHROOT_TRUNK_DIR}/src/third_party/autotest/files"
 
 # Create python package init files for top level test case dirs.
 function touchInitPy() {

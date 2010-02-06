@@ -10,6 +10,7 @@
 # The path to common.sh should be relative to your script's location.
 
 . "$(dirname $0)/common.sh"
+. "$(dirname $0)/autotest_lib.sh"
 . "$(dirname $0)/remote_access.sh"
 
 DEFAULT_OUTPUT_FILE=test-output-$(date '+%Y%m%d.%H%M%S')
@@ -103,7 +104,7 @@ function main() {
 
   set -e
 
-  AUTOTEST_DIR="${DEFAULT_CHROOT_DIR}/usr/local/autotest"
+  local autotest_dir="${DEFAULT_CHROOT_DIR}/usr/local/autotest"
 
   # Set global TMP for remote_access.sh's sake
   TMP=$(mktemp -d /tmp/run_remote_tests.XXXX)
@@ -112,17 +113,18 @@ function main() {
 
   trap cleanup EXIT
 
-  # Check for installed autotest.
-  local autoserv="${AUTOTEST_DIR}/server/autoserv"
-  if [[ ! -f "${autoserv}" ]]; then
-    echo "Cannot find autotest in build dir. Run build_autotest.sh"
-    exit 1
-  fi
+  # Always copy into installed autotest directory.  This way if a user
+  # is just modifying scripts, they take effect without having to wait
+  # for the laborious build_autotest.sh command.
+  local original="${GCLIENT_ROOT}/src/third_party/autotest/files"
+  update_chroot_autotest "${original}"
+
+  local autoserv="${autotest_dir}/server/autoserv"
 
   local control_files_to_run=""
 
   # Now search for tests which unambiguously include the given identifier
-  local search_path=$(echo ${AUTOTEST_DIR}/{client,server}/{tests,site_tests})
+  local search_path=$(echo ${autotest_dir}/{client,server}/{tests,site_tests})
   for test_request in $FLAGS_ARGV; do
     test_request=$(remove_quotes "${test_request}")
     ! finds=$(find ${search_path} -type f -name control | \
