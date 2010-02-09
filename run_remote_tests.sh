@@ -22,7 +22,7 @@ DEFINE_boolean verbose ${FLAGS_FALSE} "Show verbose autoserv output" v
 DEFINE_boolean update_db ${FLAGS_FALSE} "Put results in autotest database" u
 DEFINE_string machine_desc "" "Machine description used in database"
 DEFINE_string build_desc "" "Build description used in database"
-DEFINE_string chroot_dir "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
+DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
 DEFINE_string results_dir_root "" "alternate root results directory"
 
 function cleanup() {
@@ -104,8 +104,6 @@ function main() {
 
   set -e
 
-  local autotest_dir="${DEFAULT_CHROOT_DIR}/usr/local/autotest"
-
   # Set global TMP for remote_access.sh's sake
   TMP=$(mktemp -d /tmp/run_remote_tests.XXXX)
 
@@ -117,7 +115,8 @@ function main() {
   # is just modifying scripts, they take effect without having to wait
   # for the laborious build_autotest.sh command.
   local original="${GCLIENT_ROOT}/src/third_party/autotest/files"
-  update_chroot_autotest "${original}"
+  local autotest_dir="${FLAGS_chroot}/usr/local/autotest"
+  update_chroot_autotest "${original}" "${autotest_dir}"
 
   local autoserv="${autotest_dir}/server/autoserv"
 

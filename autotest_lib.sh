@@ -8,11 +8,12 @@
 # the given source directory.
 # args:
 #   $1 - original source directory
+#   $2 - target directory
 function update_chroot_autotest() {
   local original=$1
-  echo "Updating chroot Autotest from ${original}..."
-  local autotest_dir="${DEFAULT_CHROOT_DIR}/usr/local/autotest"
-  sudo mkdir -p "${autotest_dir}"
-  sudo chmod 777 "${autotest_dir}"
-  cp -fpru ${original}/{client,conmux,server,tko,utils,global_config.ini,shadow_config.ini} ${autotest_dir}
+  local target=$2
+  echo "Updating chroot Autotest from ${original} to ${target}..."
+  sudo mkdir -p "${target}"
+  sudo chmod 777 "${target}"
+  cp -fpru ${original}/{client,conmux,server,tko,utils,global_config.ini,shadow_config.ini} ${target}
 }

@@ -38,7 +38,8 @@ AUTOTEST_DEST="/usr/local/autotest"
 
 # Copy a local "installation" of autotest into the chroot, to avoid
 # polluting the src dir with tmp files, results, etc.
-update_chroot_autotest "${CHROOT_TRUNK_DIR}/src/third_party/autotest/files"
+update_chroot_autotest "${CHROOT_TRUNK_DIR}/src/third_party/autotest/files" \
+  "${AUTOTEST_DEST}"
 
 # Create python package init files for top level test case dirs.
 function touchInitPy() {
