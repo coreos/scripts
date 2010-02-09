@@ -108,6 +108,28 @@ fi
 # Directory locations inside the dev chroot
 CHROOT_TRUNK_DIR="/home/$USER/trunk"
 
+# Check to ensure not running old scripts
+V_REVERSE='[7m'
+V_VIDOFF='[m'
+case "$(basename $0)" in
+  build_image.sh|build_platform_packages.sh|customize_rootfs.sh|make_chroot.sh)
+  echo
+  echo "$V_REVERSE============================================================"
+  echo "===========================  WARNING  ======================"
+  echo "============================================================$V_VIDOFF"
+  echo
+  echo "RUNNING OLD BUILD SYSTEM SCRIPTS. RUN THE PORTAGE-BASED BUILD HERE:"
+  echo "http://www.chromium.org/chromium-os/building-chromium-os/portage-based-build"
+  echo
+  if [ "$USER" != "chrome-bot" ]
+  then
+    read -n1 -p "Press any key to continue using the OLD build system..."
+    echo
+    echo
+  fi
+  ;;
+esac
+
 # -----------------------------------------------------------------------------
 # Functions
 
@@ -193,7 +215,7 @@ function install_if_missing {
 #
 # $1 - The file to check
 is_whitelisted() {
-  local file=$1  
+  local file=$1
   local whitelist="$FLAGS_whitelist"
   test -f "$whitelist" || (echo "Whitelist file missing ($whitelist)" && exit 1)
 
