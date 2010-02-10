@@ -59,33 +59,73 @@ fi
 # TODO: replace shflags with something less error-prone, or contribute a fix.
 set -e
 
+sudo chmod 0777 "$FLAGS_chroot/var/lock"
+
+LOCKFILE="$FLAGS_chroot/var/lock/enter_chroot"
+
 function setup_env {
-  echo "Mounting chroot environment."
+  (
+    flock 200
+    echo $$ >> "$LOCKFILE"
 
-  # Mount only if not already mounted
-  MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/proc")"
-  if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
-  then
-    sudo mount none -t proc "$MOUNTED_PATH"
-  fi
+    echo "Mounting chroot environment."
 
-  MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/dev/pts")"
-  if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
-  then
-    sudo mount none -t devpts "$MOUNTED_PATH"
-  fi
+    # Mount only if not already mounted
+    MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/proc")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
+    then
+      sudo mount none -t proc "$MOUNTED_PATH"
+    fi
 
-  MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}$CHROOT_TRUNK_DIR")"
-  if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
-  then
-    sudo mount --bind "$FLAGS_trunk" "$MOUNTED_PATH"
-  fi
+    MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/dev/pts")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
+    then
+      sudo mount none -t devpts "$MOUNTED_PATH"
+    fi
+
+    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}$CHROOT_TRUNK_DIR")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
+    then
+      sudo mount --bind "$FLAGS_trunk" "$MOUNTED_PATH"
+    fi
+  ) 200>>"$LOCKFILE"
 }
 
 function teardown_env {
-  echo "Unmounting chroot environment."
-  mount | grep "on $(readlink -f "$FLAGS_chroot")" | awk '{print $3}' \
-    | xargs -r -L1 sudo umount
+  # Only teardown if we're the last enter_chroot to die
+
+  (
+    flock 200
+
+    # check each pid in $LOCKFILE to see if it's died unexpectedly
+    TMP_LOCKFILE="$LOCKFILE.tmp"
+
+    echo -n > "$TMP_LOCKFILE"  # Erase/reset temp file
+    cat "$LOCKFILE" | while read PID; do
+      if [ "$PID" = "$$" ]; then
+        # ourself, leave PROC_NAME empty
+        PROC_NAME=""
+      else
+        PROC_NAME=$(ps --pid $PID -o comm=)
+      fi
+
+      if [ ! -z "$PROC_NAME" ]; then
+        # All good, keep going
+        echo "$PID" >> "$TMP_LOCKFILE"
+      fi
+    done
+    # Remove any dups from lock file while installing new one
+    sort -n "$TMP_LOCKFILE" | uniq > "$LOCKFILE"
+
+    if [ -s "$LOCKFILE" ]; then
+      echo "At least one other pid is running in the chroot, so not"
+      echo "tearing down env."
+    else
+      echo "Unmounting chroot environment."
+      mount | grep "on $(readlink -f "$FLAGS_chroot")" | awk '{print $3}' \
+        | xargs -r -L1 sudo umount
+    fi
+  ) 200>>"$LOCKFILE"
 }
 
 if [ $FLAGS_mount -eq $FLAGS_TRUE ]
