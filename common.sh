@@ -224,3 +224,14 @@ is_whitelisted() {
                 || /bin/true)
   test $count -ne 0
 }
+
+V_RED="\e[31m"
+V_YELLOW="\e[33m"
+
+function warn {
+  echo -e "${V_YELLOW}Warning..: $1${V_VIDOFF}"
+}
+
+function error {
+  echo -e "${V_RED}Error....: $1${V_VIDOFF}"
+}
