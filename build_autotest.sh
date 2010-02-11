@@ -24,6 +24,9 @@ DEFAULT_CONTROL=client/site_tests/setup/control
 DEFINE_string control "${DEFAULT_CONTROL}" \
   "Setup control file -- path relative to the destination autotest directory" c
 
+DEFINE_string board "" \
+  "The board for which you are building autotest"
+
 # More useful help
 FLAGS_HELP="usage: $0 [flags]"
 
@@ -34,7 +37,7 @@ set -e
 
 AUTOTEST_SRC="${GCLIENT_ROOT}/src/third_party/autotest/files"
 # Destination in chroot to install autotest.
-AUTOTEST_DEST="/usr/local/autotest"
+AUTOTEST_DEST="/usr/local/autotest/${FLAGS_board}"
 
 # Copy a local "installation" of autotest into the chroot, to avoid
 # polluting the src dir with tmp files, results, etc.

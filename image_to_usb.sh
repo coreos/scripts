@@ -10,29 +10,12 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images"
-# Default to the most recent image
-DEFAULT_FROM="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)"
-
-# Script can be run either inside or outside the chroot.
-if [ $INSIDE_CHROOT -eq 1 ]
-then
-  # Inside the chroot, so output to usb.img in the same dir as the other
-  # images.
-  DEFAULT_TO="${DEFAULT_FROM}/usb.img"
-  DEFAULT_TO_HELP="Destination file for USB image."
-  AUTOTEST_SRC=/usr/local/autotest
-else
-  # Outside the chroot, so output to the default device for a usb key.
-  DEFAULT_TO="/dev/sdb"
-  DEFAULT_TO_HELP="Destination device for USB keyfob."
-  AUTOTEST_SRC=${DEFAULT_CHROOT_DIR}/usr/local/autotest
-fi
 
 # Flags
-DEFINE_string from "$DEFAULT_FROM" \
+DEFINE_string board "" "Board for which the image was built"
+DEFINE_string from "" \
   "Directory containing rootfs.image and mbr.image"
-DEFINE_string to "$DEFAULT_TO" "$DEFAULT_TO_HELP"
+DEFINE_string to "" "$DEFAULT_TO_HELP"
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" "y"
 DEFINE_boolean install_autotest $FLAGS_FALSE \
   "Whether to install autotest to the stateful partition."
@@ -41,8 +24,37 @@ DEFINE_boolean install_autotest $FLAGS_FALSE \
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
+# Inside the chroot, so output to usb.img in the same dir as the other
+# Script can be run either inside or outside the chroot.
+if [ $INSIDE_CHROOT -eq 1 ]
+then
+  AUTOTEST_SRC="/usr/local/autotest/${FLAGS_board}"
+else
+  AUTOTEST_SRC="${DEFAULT_CHROOT_DIR}/usr/local/autotest/${FLAGS_board}"
+fi
+
 # Die on any errors.
 set -e
+
+# If from isn't explicitly set
+if [ -z "$FLAGS_from" ]; then
+  IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
+  FLAGS_from="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)"
+fi
+
+# If to isn't explicitly set
+if [ -z "$FLAGS_to" ]; then
+  # Script can be run either inside or outside the chroot.
+  if [ $INSIDE_CHROOT -eq 1 ]
+  then
+    # Inside the chroot, so output to usb.img in the same dir as the other
+    # images.
+    FLAGS_to="${FLAGS_from}/usb.img"
+  else
+    # Outside the chroot, so output to the default device for a usb key.
+    FLAGS_to="/dev/sdb"
+  fi
+fi
 
 # Convert args to paths.  Need eval to un-quote the string so that shell
 # chars like ~ are processed; just doing FOO=`readlink -f $FOO` won't work.

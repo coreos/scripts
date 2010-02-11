@@ -24,6 +24,7 @@ DEFINE_string machine_desc "" "Machine description used in database"
 DEFINE_string build_desc "" "Build description used in database"
 DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
 DEFINE_string results_dir_root "" "alternate root results directory"
+DEFINE_string board "" "Desired board you are running the test against"
 
 function cleanup() {
   if [[ $FLAGS_cleanup -eq ${FLAGS_TRUE} ]]; then
@@ -115,7 +116,7 @@ function main() {
   # is just modifying scripts, they take effect without having to wait
   # for the laborious build_autotest.sh command.
   local original="${GCLIENT_ROOT}/src/third_party/autotest/files"
-  local autotest_dir="${FLAGS_chroot}/usr/local/autotest"
+  local autotest_dir="${FLAGS_chroot}/usr/local/autotest/${FLAGS_board}"
   update_chroot_autotest "${original}" "${autotest_dir}"
 
   local autoserv="${autotest_dir}/server/autoserv"

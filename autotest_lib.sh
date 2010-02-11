@@ -4,7 +4,7 @@
 #
 # Provides common commands for dealing running/building autotest
 
-# Populates the chroot's /usr/local/autotest directory based on
+# Populates the chroot's /usr/local/autotest/$FLAGS_board directory based on
 # the given source directory.
 # args:
 #   $1 - original source directory
