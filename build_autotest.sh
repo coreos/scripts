@@ -23,6 +23,8 @@ DEFAULT_CONTROL=client/site_tests/setup/control
 
 DEFINE_string control "${DEFAULT_CONTROL}" \
   "Setup control file -- path relative to the destination autotest directory" c
+DEFINE_string board "" \
+  "Board name for the target you are building if using portage build system"
 
 DEFINE_string board "" \
   "The board for which you are building autotest"
@@ -38,6 +40,13 @@ set -e
 AUTOTEST_SRC="${GCLIENT_ROOT}/src/third_party/autotest/files"
 # Destination in chroot to install autotest.
 AUTOTEST_DEST="/usr/local/autotest/${FLAGS_board}"
+
+# If new build system flag passed, use ebuild and exit
+if [ -n "${FLAGS_board}" ]; then
+  sudo GCLIENT_ROOT="${GCLIENT_ROOT}" FLAGS_control=${FLAGS_control} \
+    "emerge-${FLAGS_board}" -a chromeos-base/autotest
+  exit 0
+fi
 
 # Copy a local "installation" of autotest into the chroot, to avoid
 # polluting the src dir with tmp files, results, etc.
