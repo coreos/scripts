@@ -22,6 +22,8 @@ DEFINE_string trunk "$GCLIENT_ROOT" \
   "The source trunk to bind mount within the chroot." "s"
 DEFINE_string build_number "" \
   "The build-bot build number (when called by buildbot only)." "b"
+DEFINE_string chrome_root "" \
+  "The root of your chrome browser source. Should contain a 'src' subdir."
 
 DEFINE_boolean official_build $FLAGS_FALSE "Set CHROMEOS_OFFICIAL=1 for release builds."
 DEFINE_boolean mount $FLAGS_FALSE "Only set up mounts."
@@ -59,6 +61,9 @@ fi
 # TODO: replace shflags with something less error-prone, or contribute a fix.
 set -e
 
+INNER_CHROME_ROOT="/home/$USER/chrome_root"  # inside chroot
+CHROME_ROOT_CONFIG="/var/cache/chrome_root"  # inside chroot
+
 sudo chmod 0777 "$FLAGS_chroot/var/lock"
 
 LOCKFILE="$FLAGS_chroot/var/lock/enter_chroot"
@@ -87,6 +92,26 @@ function setup_env {
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
     then
       sudo mount --bind "$FLAGS_trunk" "$MOUNTED_PATH"
+    fi
+
+    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_CHROME_ROOT}")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
+    then
+      CHROME_ROOT="$FLAGS_chrome_root"
+      if [ -z "$CHROME_ROOT" ]; then
+        ! CHROME_ROOT="$(cat "${FLAGS_chroot}${CHROME_ROOT_CONFIG}" \
+          2>/dev/null)"
+      fi
+      if [[ ( -z "$CHROME_ROOT" ) || ( ! -d "${CHROME_ROOT}/src" ) ]]; then
+        echo "Not mounting chrome source"
+        sudo rm -f "${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
+      else
+        echo "Mounting chrome source at: $INNER_CHROME_ROOT"
+        echo "$CHROME_ROOT" | \
+          sudo dd of="${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
+        mkdir -p "$MOUNTED_PATH"
+        sudo mount --bind "$CHROME_ROOT" "$MOUNTED_PATH"
+      fi
     fi
   ) 200>>"$LOCKFILE"
 }
