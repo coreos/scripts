@@ -19,6 +19,8 @@ DEFINE_string to "" "$DEFAULT_TO_HELP"
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" "y"
 DEFINE_boolean install_autotest $FLAGS_FALSE \
   "Whether to install autotest to the stateful partition."
+DEFINE_boolean copy_kernel $FLAGS_FALSE \
+  "Copy the kernel to the fourth partition."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -158,6 +160,15 @@ then
   sync
 
   trap - EXIT
+
+  if [ $FLAGS_copy_kernel -eq $FLAGS_TRUE ]
+  then
+    echo "Copying Kernel..."
+    "${SCRIPTS_DIR}"/kernel_fetcher.sh \
+      --from "${FLAGS_from}" \
+      --to "${FLAGS_to}" \
+      --offset "$(( ($PART_SIZE * 3) + 512 ))"
+  fi
 
   echo "Copying MBR..."
   sudo "${SCRIPTS_DIR}"/file_copy.py \
