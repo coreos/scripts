@@ -14,7 +14,7 @@
 assert_outside_chroot
 
 # This script defaults Chrome source is in ~/chrome
-# You may override the Chrome source dir via the --chrome_dir option or by 
+# You may override the Chrome source dir via the --chrome_dir option or by
 # setting CHROMEOS_CHROME_DIR (for example, in ./.chromeos_dev)
 DEFAULT_CHROME_DIR="${CHROMEOS_CHROME_DIR:-/home/$USER/chrome}"
 
@@ -24,11 +24,17 @@ NUM_JOBS=`grep -c "^processor" /proc/cpuinfo`
 
 # Flags
 DEFINE_string chrome_dir "$DEFAULT_CHROME_DIR" \
-  "Directory to Chrome source"
+  "Directory to Chrome/Chromium source"
 DEFINE_string mode "Release" \
-  "The mode to build Chrome in (Debug or Release)"
+  "The mode to build Chrome/Chromium in (Debug or Release)"
 DEFINE_string num_jobs "$NUM_JOBS" \
   "The number of jobs to run in parallel"
+DEFINE_boolean runhooks true \
+  "Execute gclient runhooks before build (if norunhooks then chrome and official are ignored)"
+DEFINE_boolean chrome false \
+  "Builds a chrome branded version (requires src-internal)"
+DEFINE_boolean official false \
+  "Builds an official version (additional optimizations)"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -45,9 +51,25 @@ FLAGS_chrome_dir=`eval readlink -f $FLAGS_chrome_dir`
 echo Building Chrome in mode $FLAGS_mode
 export GYP_GENERATORS="make"
 export GYP_DEFINES="target_arch=ia32 chromeos=1"
+
+if [ $FLAGS_chrome -eq $FLAGS_TRUE ]
+then
+  export GYP_DEFINES="${GYP_DEFINES} branding=Chrome ffmpeg_branding=Chrome"
+fi
+
+if [ $FLAGS_official -eq $FLAGS_TRUE ]
+then
+  export GYP_DEFINES="${GYP_DEFINES} buildtype=Official"
+fi
+
 CHROME_DIR=$FLAGS_chrome_dir
 cd "$CHROME_DIR/src"
-gclient runhooks --force
+
+if [ $FLAGS_runhooks -eq $FLAGS_TRUE ]
+then
+  gclient runhooks --force
+fi
+
 make BUILDTYPE=$FLAGS_mode -j$FLAGS_num_jobs -r chrome candidate_window
 
 # Zip into chrome-chromeos.zip and put in local_assets
