@@ -98,7 +98,7 @@ function setup_env {
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_CHROME_ROOT}")"
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
     then
-      CHROME_ROOT="$FLAGS_chrome_root"
+      CHROME_ROOT="$(readlink -f "$FLAGS_chrome_root")"
       if [ -z "$CHROME_ROOT" ]; then
         ! CHROME_ROOT="$(cat "${FLAGS_chroot}${CHROME_ROOT_CONFIG}" \
           2>/dev/null)"
