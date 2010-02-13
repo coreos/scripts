@@ -63,6 +63,7 @@ set -e
 
 INNER_CHROME_ROOT="/home/$USER/chrome_root"  # inside chroot
 CHROME_ROOT_CONFIG="/var/cache/chrome_root"  # inside chroot
+INNER_DEPOT_TOOLS_ROOT="/home/$USER/depot_tools"  # inside chroot
 
 sudo chmod 0777 "$FLAGS_chroot/var/lock"
 
@@ -111,6 +112,17 @@ function setup_env {
           sudo dd of="${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
         mkdir -p "$MOUNTED_PATH"
         sudo mount --bind "$CHROME_ROOT" "$MOUNTED_PATH"
+      fi
+    fi
+
+    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_DEPOT_TOOLS_ROOT}")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
+    then
+      if [ $(which gclient 2>/dev/null) ]; then
+        echo "Mounting depot_tools"
+        DEPOT_TOOLS=$(dirname $(which gclient) )
+        mkdir -p "$MOUNTED_PATH"
+        sudo mount --bind "$DEPOT_TOOLS" "$MOUNTED_PATH"
       fi
     fi
   ) 200>>"$LOCKFILE"
