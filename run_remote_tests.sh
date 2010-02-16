@@ -24,7 +24,6 @@ DEFINE_string machine_desc "" "Machine description used in database"
 DEFINE_string build_desc "" "Build description used in database"
 DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
 DEFINE_string results_dir_root "" "alternate root results directory"
-DEFINE_string board "" "Desired board you are running the test against"
 
 function cleanup() {
   if [[ $FLAGS_cleanup -eq ${FLAGS_TRUE} ]]; then
@@ -96,6 +95,8 @@ function main() {
     exit 1
   fi
 
+  check_board
+
   local parse_cmd="$(dirname $0)/../third_party/autotest/files/tko/parse.py"
 
   if [[ ${FLAGS_update_db} -eq ${FLAGS_TRUE} && ! -x "${parse_cmd}" ]]; then
@@ -116,7 +117,7 @@ function main() {
   # is just modifying scripts, they take effect without having to wait
   # for the laborious build_autotest.sh command.
   local original="${GCLIENT_ROOT}/src/third_party/autotest/files"
-  local autotest_dir="${FLAGS_chroot}/usr/local/autotest/${FLAGS_board}"
+  local autotest_dir="${FLAGS_chroot}/build/${FLAGS_board}/usr/local/autotest"
   update_chroot_autotest "${original}" "${autotest_dir}"
 
   local autoserv="${autotest_dir}/server/autoserv"

@@ -4,6 +4,35 @@
 #
 # Provides common commands for dealing running/building autotest
 
+DEFINE_string board "" "The board for which you are building autotest"
+
+function check_board() {
+  local board_names=""
+  local index=1
+  local found=0
+  for board in ../overlays/overlay-*
+  do
+    board_names[index]=${board:20}
+    index+=1
+    if [ "${FLAGS_board}" == "${board:20}" ]
+    then
+      found=1
+    fi
+  done
+
+  if [ ${found} -eq 0 ]
+  then
+    echo "You are required to specify a supported board from the command line."
+    echo "Supported boards are:"
+    for board in ${board_names[@]}
+    do
+      echo ${board}
+    done
+  exit 0
+  fi
+}
+
+
 # Populates the chroot's /usr/local/autotest/$FLAGS_board directory based on
 # the given source directory.
 # args:

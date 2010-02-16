@@ -12,14 +12,13 @@
 # install the compiled client tests directly onto the rootfs image.
 
 . "$(dirname "$0")/common.sh"
+. "$(dirname $0)/autotest_lib.sh"
 
 # Script must be run inside the chroot
 assert_inside_chroot
 
 DEFAULT_TESTS_LIST="all"
 
-DEFINE_string board "" \
-  "The board for which you are building autotest"
 DEFINE_string build "${DEFAULT_TESTS_LIST}" \
   "a comma seperated list of autotest client tests to be prebuilt." b
 DEFINE_boolean prompt $FLAGS_TRUE "Prompt user when building all tests"
@@ -32,18 +31,7 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 set -e
 
-
-if [ -z ${FLAGS_board} ]
-then
-  echo "You are required to specify a board name from the command line."
-  echo "Supported boards are:"
-  for board in ../overlays/overlay-*
-  do
-    echo ${board:20}
-  done
-  exit 0
-fi
-
+check_board
 
 # build default pre-compile client tests list.
 ALL_TESTS="compilebench,dbench,disktest,ltp,unixbench"
@@ -59,8 +47,8 @@ if [ ${FLAGS_build} == ${DEFAULT_TESTS_LIST} ]
 then
   if [ ${FLAGS_prompt} -eq ${FLAGS_TRUE} ]
   then
-    echo -n "You want to prebuild all client tests and it may take a long time "
-    echo "to finish. "
+    echo -n "You want to pre-build all client tests and it may take a long time"
+    echo " to finish. "
     read -p "Are you sure you want to continue?(N/y)" answer
     answer=${answer:0:1}
     if [ "${answer}" != "Y" ] && [ "${answer}" != "y" ]
