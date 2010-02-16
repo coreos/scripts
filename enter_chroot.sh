@@ -122,7 +122,10 @@ function setup_env {
         echo "Mounting depot_tools"
         DEPOT_TOOLS=$(dirname $(which gclient) )
         mkdir -p "$MOUNTED_PATH"
-        sudo mount --bind "$DEPOT_TOOLS" "$MOUNTED_PATH"
+        if ! sudo mount --bind "$DEPOT_TOOLS" "$MOUNTED_PATH"; then
+          echo "depot_tools failed to mount; perhaps it's on NFS?"
+          echo "This may impact chromium build."
+        fi
       fi
     fi
   ) 200>>"$LOCKFILE"
