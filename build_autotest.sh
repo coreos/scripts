@@ -4,30 +4,24 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# This script makes autotest client tests inside an Ubuntu chroot
-# environment.  The idea is to compile any platform-dependent autotest
-# client tests in the build environment, since client systems under
-# test lack the proper toolchain.
+# This script makes autotest client tests inside a chroot environment.  The idea
+# is to compile any platform-dependent autotest client tests in the build
+# environment, since client systems under test lack the proper toolchain.
 #
 # The user can later run autotest against an ssh enabled test client system, or
-# install the compiled client tests directly onto the rootfs image, using
-# mod_image_for_test.sh.
+# install the compiled client tests directly onto the rootfs image.
 
 . "$(dirname "$0")/common.sh"
-. "$(dirname "$0")/autotest_lib.sh"
+. "$(dirname $0)/autotest_lib.sh"
 
 # Script must be run inside the chroot
 assert_inside_chroot
 
-DEFAULT_CONTROL=client/site_tests/setup/control
+DEFAULT_TESTS_LIST="all"
 
-DEFINE_string control "${DEFAULT_CONTROL}" \
-  "Setup control file -- path relative to the destination autotest directory" c
-DEFINE_string board "" \
-  "Board name for the target you are building if using portage build system"
-
-DEFINE_string board "" \
-  "The board for which you are building autotest"
+DEFINE_string build "${DEFAULT_TESTS_LIST}" \
+  "a comma seperated list of autotest client tests to be prebuilt." b
+DEFINE_boolean prompt $FLAGS_TRUE "Prompt user when building all tests"
 
 # More useful help
 FLAGS_HELP="usage: $0 [flags]"
@@ -37,43 +31,38 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 set -e
 
-AUTOTEST_SRC="${GCLIENT_ROOT}/src/third_party/autotest/files"
-# Destination in chroot to install autotest.
-AUTOTEST_DEST="/usr/local/autotest/${FLAGS_board}"
+check_board
 
-# If new build system flag passed, use ebuild and exit
-if [ -n "${FLAGS_board}" ]; then
-  sudo GCLIENT_ROOT="${GCLIENT_ROOT}" FLAGS_control=${FLAGS_control} \
-    "emerge-${FLAGS_board}" -a chromeos-base/autotest
-  exit 0
+# build default pre-compile client tests list.
+ALL_TESTS="compilebench,dbench,disktest,ltp,unixbench"
+for SITE_TEST in ../third_party/autotest/files/client/site_tests/*
+do
+  if [ -d ${SITE_TEST} ]
+  then
+    ALL_TESTS="${ALL_TESTS},${SITE_TEST:48}"
+  fi
+done
+
+if [ ${FLAGS_build} == ${DEFAULT_TESTS_LIST} ]
+then
+  if [ ${FLAGS_prompt} -eq ${FLAGS_TRUE} ]
+  then
+    echo -n "You want to pre-build all client tests and it may take a long time"
+    echo " to finish. "
+    read -p "Are you sure you want to continue?(N/y)" answer
+    answer=${answer:0:1}
+    if [ "${answer}" != "Y" ] && [ "${answer}" != "y" ]
+    then
+      echo "Use --build to specify tests you like to pre-compile."
+      echo -n "E.g.: ./enter_chroot.sh \"./build_autotest.sh "
+      echo "--build=system_SAT\""
+      exit 0
+    fi
+  fi
+  TEST_LIST=${ALL_TESTS}
+else
+  TEST_LIST=${FLAGS_build}
 fi
 
-# Copy a local "installation" of autotest into the chroot, to avoid
-# polluting the src dir with tmp files, results, etc.
-update_chroot_autotest "${CHROOT_TRUNK_DIR}/src/third_party/autotest/files" \
-  "${AUTOTEST_DEST}"
-
-# Create python package init files for top level test case dirs.
-function touchInitPy() {
-  local dirs=${1}
-  for base_dir in $dirs
-  do
-    local sub_dirs="$(find ${base_dir} -maxdepth 1 -type d)"
-    for sub_dir in ${sub_dirs}
-    do
-      touch ${sub_dir}/__init__.py
-    done
-  touch ${base_dir}/__init__.py
-  done
-}
-
-cd ${AUTOTEST_DEST}
-touchInitPy client/tests client/site_tests
-touch __init__.py
-
-# Export GCLIENT_ROOT so that tests have access to the source and build trees
-export GCLIENT_ROOT
-
-# run the magic test setup script.
-echo "Building tests using ${FLAGS_control}..."
-client/bin/autotest ${FLAGS_control}
+GCLIENT_ROOT="${GCLIENT_ROOT}" TEST_LIST=${TEST_LIST} \
+"emerge-${FLAGS_board}" chromeos-base/autotest
