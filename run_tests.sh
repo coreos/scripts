@@ -11,6 +11,8 @@
 # Flags
 DEFINE_string build_root "$DEFAULT_BUILD_ROOT"                \
   "Root of build output"
+DEFINE_string board ""                \
+  "Target board of which tests were built"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -20,11 +22,21 @@ eval set -- "${FLAGS_ARGV}"
 set -ex
 
 # Run tests
-TESTS_DIR="$FLAGS_build_root/x86/tests"
-cd "$TESTS_DIR"
-
-# TODO: standardize test names - should all end in "_test"
-for i in *_test *_tests *_unittests; do ./${i}; done
-
-cd -
-echo "All tests passed."
+if [ -n "$FLAGS_board" ]
+then
+  TESTS_DIR="/build/${FLAGS_board}/tests"  
+  echo "Not implemented" >&2
+  exit 1
+  
+  # TODO(sosa@chromium.org) - Call autotest job to run tests from TESTS_DIR
+  # using run_remote_tests
+else
+  TESTS_DIR="$FLAGS_build_root/x86/tests"
+  cd "$TESTS_DIR"
+  
+  # TODO: standardize test names - should all end in "_test"
+  for i in *_test *_tests *_unittests; do ! ./${i}; done
+  
+  cd -
+  echo "All tests passed."
+fi
