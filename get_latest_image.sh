@@ -10,7 +10,19 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images"
+DEFINE_string board "" "The name of the board to check for images."
+
+# Parse command line flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Check on the board that they are trying to set up.
+if [ -z "$FLAGS_board" ] ; then
+  echo "Error: --board required."
+  exit 1
+fi
+
+IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
 # Default to the most recent image
 DEFAULT_FROM="${IMAGES_DIR}/`ls -t $IMAGES_DIR | head -1`"
 
