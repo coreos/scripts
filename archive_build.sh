@@ -16,11 +16,12 @@ assert_outside_chroot
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images"
 # Default to the most recent image
 DEFAULT_TO="${GCLIENT_ROOT}/archive"
+DEFAULT_FROM="${IMAGES_DIR}/$DEFAULT_BOARD/$(ls -t1 \
+              $IMAGES_DIR/$DEFAULT_BOARD 2>&-| head -1)"
 
 # Flags
 DEFINE_string board "$DEFAULT_BOARD" \
   "The board to build packages for."
-DEFAULT_FROM="${IMAGES_DIR}/$FLAGS_board/$(ls -t1 $IMAGES_DIR/$FLAGS_board | head -1)"
 DEFINE_string from "$DEFAULT_FROM" \
   "Directory to archive"
 DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
@@ -35,8 +36,21 @@ DEFINE_boolean test_mod $FLAGS_TRUE "Modify image for testing purposes"
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
+# Reset "default" FLAGS_from based on passed-in board if not set on cmd-line
+if [ "$FLAGS_from" = "$DEFAULT_FROM" ]
+then
+   FLAGS_from="${IMAGES_DIR}/$FLAGS_board/$(ls -t1 \
+               $IMAGES_DIR/$FLAGS_board 2>&-| head -1)"
+fi
+
 # Die on any errors.
 set -e
+
+if [ ! -d "$FLAGS_from" ]
+then
+   echo "$FLAGS_from does not exist.  Exiting..."
+   exit 1
+fi
 
 if [ $FLAGS_official_build -eq $FLAGS_TRUE ]
 then
@@ -77,14 +91,14 @@ mkdir -p "$OUTDIR"
 if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]
 then
   echo "Modifying image for test"
-  cp "${DEFAULT_FROM}/rootfs.image" "${DEFAULT_FROM}/rootfs_test.image"
+  cp "${FLAGS_from}/rootfs.image" "${FLAGS_from}/rootfs_test.image"
   "${SCRIPTS_DIR}/mod_image_for_test.sh" --image \
-      "${DEFAULT_FROM}/rootfs_test.image"
+      "${FLAGS_from}/rootfs_test.image"
 fi
 
 # Zip the build
 echo "Compressing and archiving build..."
-cd "$DEFAULT_FROM"
+cd "$FLAGS_from"
 zip -r "$ZIPFILE" *
 cd -
 
