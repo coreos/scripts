@@ -50,8 +50,6 @@ DEFINE_string top "" \
     "Root directory of your checkout (defaults to determining from your cwd)"
 DEFINE_string repo "${CHROMIUMOS_REPO}" "gclient repo for chromiumos"
 DEFINE_boolean sync ${FLAGS_TRUE} "Sync the checkout"
-DEFINE_boolean force_make_local_repo ${FLAGS_FALSE} \
-    "Run make_local_repo indep of sync"
 DEFINE_boolean force_make_chroot ${FLAGS_FALSE} "Run make_chroot indep of sync"
 DEFINE_boolean build ${FLAGS_TRUE} \
     "Build all code (but not necessarily master image)"
@@ -76,7 +74,12 @@ DEFINE_string buildbot_uri "${BUILDBOT_URI}" \
 DEFINE_boolean unittest ${FLAGS_TRUE} "Run unit tests"
 DEFINE_boolean interactive ${FLAGS_FALSE} \
     "Tell user what we plan to do and wait for input to proceed" i
-
+DEFINE_boolean portage ${FLAGS_TRUE} "Use portage-based build"
+DEFINE_string board "x86-generic" "Board setting (portage)"
+DEFINE_string toolchain "i686-pc-linux-gnu" "Toolchain setting (portage)"
+# You can set build_jobs > 1 but then your build may break and you may need
+# to retry.  Setting it to 1 is best for non-interactive sessions.
+DEFINE_integer build_jobs 1 "Concurrent build jobs (portage)"
 
 # Returns a heuristic indicating if we believe this to be a google internal
 # development environment.
@@ -169,6 +172,13 @@ function validate_and_set_param_defaults() {
     FLAGS_build_autotest=${FLAGS_TRUE}
   fi
 
+  if [[ -e "${FLAGS_top}/src/scripts/new_make_env.sh" ]]; then
+    if [[ ${FLAGS_portage} -ne ${FLAGS_TRUE} ]]; then
+      echo "WARNING: It looks like you wanted to pass --portage to "
+      echo "build with the portage method"
+    fi
+  fi
+
   if [[ -n "${FLAGS_image_to_usb}" ]]; then
     local device=${FLAGS_image_to_usb#/dev/}
     if [[ -z "${device}" ]]; then
@@ -186,24 +196,21 @@ function validate_and_set_param_defaults() {
 
 # Prints a description of what we are doing or did
 function describe_steps() {
-  if [[ ${FLAGS_sync} -eq ${FLAGS_true} ]]; then
+  if [[ ${FLAGS_sync} -eq ${FLAGS_TRUE} ]]; then
     echo " * Sync client (gclient sync)"
     if is_google_environment; then
       echo " * Create proper src/scripts/.chromeos_dev"
     fi
   fi
-  if [[ ${FLAGS_force_make_local_repo} -eq ${FLAGS_true} ]]; then
-    echo " * (Re-)create local package repository (make_local_repo.sh)"
-  fi
-  if [[ ${FLAGS_force_make_chroot} -eq ${FLAGS_true} ]]; then
+  if [[ ${FLAGS_force_make_chroot} -eq ${FLAGS_TRUE} ]]; then
     echo " * (Re-)create development chroot (make_chroot.sh)"
   fi
   local set_passwd=${FLAGS_FALSE}
-  if [[ ${FLAGS_build} -eq ${FLAGS_true} ]]; then
+  if [[ ${FLAGS_build} -eq ${FLAGS_TRUE} ]]; then
     echo " * Build image (build_platform_packages.sh, build_kernel.sh)"
     set_passwd=${FLAGS_TRUE}
   fi
-  if [[ ${FLAGS_master} -eq ${FLAGS_true} ]]; then
+  if [[ ${FLAGS_master} -eq ${FLAGS_TRUE} ]]; then
     echo " * Master image (build_image.sh)"
   fi
   if [[ -n "${FLAGS_grab_buildbot}" ]]; then
@@ -315,6 +322,33 @@ function run_phase() {
 }
 
 
+# Runs a phase, similar to run_phase, but runs within the chroot.
+# Arguments:
+#   $1 - phase description
+#   $2.. - command/params to run in chroot
+function run_phase_in_chroot() {
+  local desc="$1"
+  shift
+  run_phase "${desc}" ./enter_chroot.sh -- "$@"
+}
+
+
+# Record start time.
+function set_start_time() {
+  START_TIME=$(date '+%s')
+}
+
+
+# Display duration
+function show_duration() {
+  local current_time=$(date '+%s')
+  local duration=$((${current_time} - ${START_TIME}))
+  local minutes_duration=$((${duration} / 60))
+  local seconds_duration=$((${duration} % 60))
+  printf "Total time: %d:%02ds\n" "${minutes_duration}" "${seconds_duration}"
+}
+
+
 # Runs gclient sync, setting up .chromeos_dev and preparing for
 # local repo setup
 function sync() {
@@ -333,6 +367,10 @@ CHROMEOS_EXT_SUITE="karmic"
 # Assume Chrome is checked out nearby
 CHROMEOS_CHROME_DIR="${base_dir}/chrome"
 EOF
+  fi
+  if [[ ${FLAGS_portage} -eq ${FLAGS_TRUE} ]]; then
+    chdir_relative src/third_party
+    chromiumos-overlay/chromeos/scripts/setup_source_tree.sh
   fi
 }
 
@@ -384,7 +422,6 @@ function grab_buildbot() {
   run_phase "Removing downloaded image" rm -rf "${dl_dir}"
 }
 
-
 function main() {
   assert_outside_chroot
   assert_not_root_user
@@ -405,6 +442,8 @@ function main() {
     interactive
   fi
 
+  set_start_time
+
   if [[ ! -e "${FLAGS_top}" ]]; then
     config_new_checkout
   fi
@@ -414,7 +453,6 @@ function main() {
     # The package repository is now potentially out of date, so
     # reflect that.
     run_phase "Removing existing package repo" sudo rm -rf repo
-    FLAGS_force_make_local_repo=${FLAGS_TRUE}
     FLAGS_force_make_chroot=${FLAGS_TRUE}
   fi
 
@@ -422,23 +460,36 @@ function main() {
     grab_buildbot
   fi
 
-  if [[ ${FLAGS_force_make_local_repo} -eq ${FLAGS_TRUE} ]]; then
-    chdir_relative src/scripts
-    run_phase "Refetching local repo" ./make_local_repo.sh
-  fi
-
   if [[ ${FLAGS_force_make_chroot} -eq ${FLAGS_TRUE} ]]; then
     chdir_relative src/scripts
-    run_phase "Replacing chroot" ./make_chroot.sh --replace
+    if [[ ${FLAGS_portage} -eq ${FLAGS_TRUE} ]]; then
+      run_phase "Replacing chroot" ./new_make_env.sh --replace
+    else
+      run_phase "Replacing chroot" ./make_chroot.sh --replace
+    fi
   fi
 
   if [[ ${FLAGS_build} -eq ${FLAGS_TRUE} ]]; then
     chdir_relative src/scripts
-    run_phase "Building platform packages and kernel" ./enter_chroot.sh \
-        "./build_platform_packages.sh && ./build_kernel.sh"
+    if [[ ${FLAGS_portage} -eq ${FLAGS_TRUE} ]]; then
+      # Only setup board target if the directory does not exist
+      if [[ ! -d "${DEFAULT_CHROOT_DIR}/build/${FLAGS_board}" ]]; then
+        run_phase_in_chroot "Setting up board target" \
+            ./setup_board "--board=${FLAGS_board}" \
+            "--toolchain=${FLAGS_toolchain}"
+      fi
+      run_phase_in_chroot "Building packages" \
+          ./new_build_pkgs.sh "--board=${FLAGS_board}" \
+          "--jobs=${FLAGS_build_jobs}"
+    else
+      run_phase_in_chroot "Building platform packages and kernel" \
+          "./build_platform_packages.sh && ./build_kernel.sh"
+    fi
 
-    if [[ ${FLAGS_build} -eq ${FLAGS_TRUE} ]]; then
-      run_phase "Building and running unit tests" ./enter_chroot.sh \
+    # TODO(kmixter): Enable this once build_tests works, but even
+    # then only do it when not cross compiling.
+    if [[ ${FLAGS_portage} -eq ${FLAGS_FALSE} ]]; then
+      run_phase_in_chroot "Building and running unit tests" \
         "./build_tests.sh && ./run_tests.sh"
     fi
   fi
@@ -446,23 +497,33 @@ function main() {
   if [[ ${FLAGS_master} -eq ${FLAGS_TRUE} ]]; then
     chdir_relative src/scripts
     if [[ -n "${FLAGS_chronos_passwd}" ]]; then
-      describe_phase "Setting default chronos password"
+      run_phase_in_chroot "Setting default chronos password" \
       ./enter_chroot.sh "echo '${FLAGS_chronos_passwd}' | \
-                        ./set_shared_user_password.sh"
+                        ~/trunk/src/scripts/set_shared_user_password.sh"
     fi
-    run_phase "Mastering image" ./enter_chroot.sh "./build_image.sh --replace"
+    if [[ ${FLAGS_portage} -eq ${FLAGS_TRUE} ]]; then
+      run_phase_in_chroot "Mastering image" ./new_build_image.sh \
+          "--board=${FLAGS_board}" --replace
+    else
+      run_phase_in_chroot "Mastering image" ./build_image.sh --replace
+    fi
+  fi
+
+  local board_param=""
+  if [[ ${FLAGS_portage} -eq ${FLAGS_TRUE} ]]; then
+    board_param="--board=${FLAGS_board}"
   fi
 
   if [[ ${FLAGS_mod_image_for_test} -eq ${FLAGS_TRUE} ]]; then
     chdir_relative src/scripts
-    run_phase "Modifying image for test" ./enter_chroot.sh \
-        "./mod_image_for_test.sh"
+    run_phase_in_chroot "Modifying image for test" \
+        "./mod_image_for_test.sh" ${board_param}
   fi
 
   if [[ -n "${FLAGS_image_to_usb}" ]]; then
     chdir_relative src/scripts
     run_phase "Installing image to USB" \
-        ./image_to_usb.sh --yes "--to=${FLAGS_image_to_usb}"
+        ./image_to_usb.sh --yes "--to=${FLAGS_image_to_usb}" ${board_param}
   fi
 
   if [[ ${FLAGS_image_to_live} -eq ${FLAGS_TRUE} ]]; then
@@ -473,7 +534,7 @@ function main() {
 
   if [[ ${FLAGS_build_autotest} -eq ${FLAGS_TRUE} ]]; then
     chdir_relative src/scripts
-    run_phase "Building autotest" ./enter_chroot.sh  "./build_autotest.sh"
+    run_phase_in_chroot "Building autotest" "./build_autotest.sh" ${board_param}
   fi
 
   if [[ -n "${FLAGS_test}" ]]; then
@@ -481,11 +542,13 @@ function main() {
     # We purposefully do not quote FLAGS_test below as we expect it may
     # have multiple parameters
     run_phase "Running tests on Chromium OS machine ${FLAGS_remote}" \
-      ./run_remote_tests.sh --remote="${FLAGS_remote}" ${FLAGS_test}
+      ./run_remote_tests.sh "--remote=${FLAGS_remote}" ${FLAGS_test} \
+      ${board_param}
   fi
 
   echo "Successfully used ${FLAGS_top} to:"
   describe_steps
+  show_duration
 }
 
 
