@@ -1,4 +1,4 @@
-# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -96,6 +96,14 @@ DEFAULT_CHROOT_DIR=${CHROMEOS_CHROOT_DIR:-"$GCLIENT_ROOT/chroot"}
 # All output files from build should go under $DEFAULT_BUILD_ROOT, so that
 # they don't pollute the source directory.
 DEFAULT_BUILD_ROOT=${CHROMEOS_BUILD_ROOT:-"$SRC_ROOT/build"}
+
+# Set up a global ALL_BOARDS value
+ALL_BOARDS=$(cd ../overlays;ls -1d overlay-* 2>&-|sed 's,overlay-,,g')
+# Strip CR
+ALL_BOARDS=$(echo $ALL_BOARDS)
+# Set a default BOARD
+#DEFAULT_BOARD=x86-generic # or...
+DEFAULT_BOARD=$(echo $ALL_BOARDS | awk '{print $NF}')
 
 # Detect whether we're inside a chroot or not
 if [ -e /etc/debian_chroot ]

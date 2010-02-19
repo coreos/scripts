@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,10 +15,12 @@ assert_outside_chroot
 
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images"
 # Default to the most recent image
-DEFAULT_FROM="${IMAGES_DIR}/`ls -t1 $IMAGES_DIR | head -1`"
 DEFAULT_TO="${GCLIENT_ROOT}/archive"
 
 # Flags
+DEFINE_string board "$DEFAULT_BOARD" \
+  "The board to build packages for."
+DEFAULT_FROM="${IMAGES_DIR}/$FLAGS_board/$(ls -t1 $IMAGES_DIR/$FLAGS_board | head -1)"
 DEFINE_string from "$DEFAULT_FROM" \
   "Directory to archive"
 DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
