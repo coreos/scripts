@@ -10,14 +10,21 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images"
+DEFAULT_BOARD=x86-generic
+IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${DEFAULT_BOARD}"
 DEFAULT_IMAGE="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)/rootfs.image"
+
+DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built"
 DEFINE_string image "$DEFAULT_IMAGE"    \
   "Location of the rootfs raw image file"
+DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" "y"
 
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
+
+IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${DEFAULT_BOARD}"
+DEFAULT_IMAGE="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)/rootfs.image"
 
 # Make sure anything mounted in the rootfs is cleaned up ok on exit.
 cleanup_rootfs_mounts() {
@@ -63,7 +70,17 @@ LOOP_DEV=`sudo losetup -f`
 sudo losetup "${LOOP_DEV}" "${FLAGS_image}"
 sudo mount "${LOOP_DEV}" "${ROOT_FS_DIR}"
 
-echo "Modifying image ${FLAGS_image} for test..."
+# Make sure this is really what the user wants, before nuking the device
+if [ $FLAGS_yes -ne $FLAGS_TRUE ]; then
+  read -p "Modifying image ${FLAGS_image} for test; are you sure (y/N)? " SURE
+  SURE="${SURE:0:1}" # Get just the first character
+  if [ "$SURE" != "y" ]; then
+    echo "Ok, better safe than sorry."
+    exit 1
+  fi
+else
+  echo "Modifying image ${FLAGS_image} for test..."
+fi
 
 MOD_SCRIPTS_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
 sudo mkdir -p "${ROOT_FS_DIR}/modify_scripts"
