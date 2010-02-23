@@ -1,22 +1,22 @@
 #!/bin/sh
 
-# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 # ChromeOS version information
 #
-# This file is usually sourced by other build scripts, but can be run 
+# This file is usually sourced by other build scripts, but can be run
 # directly to see what it would do.
 #
-# Version numbering scheme is much like Chrome's, with the addition of 
+# Version numbering scheme is much like Chrome's, with the addition of
 # double-incrementing branch number so trunk is always odd.
 
 HOSTNAME=$(hostname)
 #############################################################################
 # SET VERSION NUMBERS
 #############################################################################
-# Major/minor versions.  
+# Major/minor versions.
 # Primarily for product marketing.
 export CHROMEOS_VERSION_MAJOR=0
 export CHROMEOS_VERSION_MINOR=5
@@ -35,13 +35,12 @@ export CHROMEOS_VERSION_PATCH=0
 
 # Codename of this version.
 export CHROMEOS_VERSION_CODENAME=""
- 
 
 #############################################################################
 # SET VERSION STRINGS
 #############################################################################
-# Official builds must set 
-#   CHROMEOS_OFFICIAL=1 
+# Official builds must set
+#   CHROMEOS_OFFICIAL=1
 # Note that ${FOO:-0} means default-to-0-if-unset; ${FOO:?} means die-if-unset.
 if [ ${CHROMEOS_OFFICIAL:-0} -eq 1 ]
 then
@@ -82,6 +81,12 @@ export CHROMEOS_VERSION_STRING=\
 "${CHROMEOS_VERSION_MAJOR}.${CHROMEOS_VERSION_MINOR}"\
 ".${CHROMEOS_VERSION_BRANCH}.${CHROMEOS_VERSION_PATCH}"
 
+# Set CHROME values (Used for releases) to pass to chromeos-chrome-bin ebuild
+# URL to chrome archive
+export CHROME_BASE=
+# directory containing chrome-chromeos.zip - an svn rev or a full version
+export CHROME_BUILD=
+
 # Print version info.
 echo "ChromeOS version information:"
-env | egrep "^CHROMEOS_VERSION" | sed 's/^/    /'
+env | egrep '^CHROMEOS_VERSION|CHROME_' | sed 's/^/    /'
