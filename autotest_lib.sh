@@ -4,7 +4,12 @@
 #
 # Provides common commands for dealing running/building autotest
 
-DEFINE_string board "" "The board for which you are building autotest"
+. "$(dirname "$0")/common.sh"
+
+get_default_board
+
+DEFINE_string board "$DEFAULT_BOARD" \
+    "The board for which you are building autotest"
 
 function check_board() {
   local board_names=""

@@ -11,7 +11,7 @@
 # The user can later run autotest against an ssh enabled test client system, or
 # install the compiled client tests directly onto the rootfs image.
 
-. "$(dirname "$0")/common.sh"
+# Includes common already
 . "$(dirname $0)/autotest_lib.sh"
 
 # Script must be run inside the chroot

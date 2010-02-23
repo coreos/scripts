@@ -10,21 +10,34 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-DEFAULT_BOARD=x86-generic
-IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${DEFAULT_BOARD}"
-DEFAULT_IMAGE="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)/rootfs.image"
+get_default_board
 
 DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built"
-DEFINE_string image "$DEFAULT_IMAGE"    \
-  "Location of the rootfs raw image file"
+DEFINE_string image "" "Location of the rootfs raw image file"
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" "y"
 
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
-IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${DEFAULT_BOARD}"
-DEFAULT_IMAGE="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)/rootfs.image"
+# No board, no default and no image set then we can't find the image
+if [ -z $FLAGS_IMAGE ] && [ -z $FLAGS_board ] ; then 
+  setup_board_warning
+  echo "*** mod_image_for_test failed.  No board set and no image set"
+  exit 1
+fi
+
+# We have a board name but no image set.  Use image at default location
+if [ -z $FLAGS_image ] ; then
+  IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
+  FLAGS_image="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)/rootfs.image"
+fi
+
+# Abort early if we can't find the image
+if [ ! -f $FLAGS_image ] ; then
+  echo "No image found at $FLAGS_image"
+  exit 1
+fi
 
 # Make sure anything mounted in the rootfs is cleaned up ok on exit.
 cleanup_rootfs_mounts() {

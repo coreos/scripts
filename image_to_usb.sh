@@ -10,9 +10,10 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
+get_default_board
 
 # Flags
-DEFINE_string board "" "Board for which the image was built"
+DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built"
 DEFINE_string from "" \
   "Directory containing rootfs.image and mbr.image"
 DEFINE_string to "" "$DEFAULT_TO_HELP"
@@ -38,10 +39,21 @@ fi
 # Die on any errors.
 set -e
 
-# If from isn't explicitly set
+# No board, no default and no image set then we can't find the image
+if [ -z $FLAGS_from ] && [ -z $FLAGS_board ] ; then 
+  setup_board_warning
+  exit 1
+fi
+
+# We have a board name but no image set.  Use image at default location
 if [ -z "$FLAGS_from" ]; then
   IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
   FLAGS_from="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)"
+fi
+
+if [ ! -d "$FLAGS_from" ] ; then
+  echo "Cannot find image directory $FLAGS_from"
+  exit 1
 fi
 
 # If to isn't explicitly set
