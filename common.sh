@@ -98,7 +98,7 @@ DEFAULT_CHROOT_DIR=${CHROMEOS_CHROOT_DIR:-"$GCLIENT_ROOT/chroot"}
 DEFAULT_BUILD_ROOT=${CHROMEOS_BUILD_ROOT:-"$SRC_ROOT/build"}
 
 # Set up a global ALL_BOARDS value
-ALL_BOARDS=$(cd ../overlays;ls -1d overlay-* 2>&-|sed 's,overlay-,,g')
+ALL_BOARDS=$(cd $SRC_ROOT/overlays;ls -1d overlay-* 2>&-|sed 's,overlay-,,g')
 # Strip CR
 ALL_BOARDS=$(echo $ALL_BOARDS)
 # Set a default BOARD
