@@ -21,7 +21,7 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 # No board, no default and no image set then we can't find the image
-if [ -z $FLAGS_IMAGE ] && [ -z $FLAGS_board ] ; then 
+if [ -z $FLAGS_IMAGE ] && [ -z $FLAGS_board ] ; then
   setup_board_warning
   echo "*** mod_image_for_test failed.  No board set and no image set"
   exit 1
