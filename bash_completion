@@ -65,7 +65,8 @@ complete -o bashdefault -o default -F _board_sysroot \
   build_autotest.sh \
   build_image \
   build_packages \
-  image_to_usb
+  image_to_usb.sh \
+  mod_image_for_test.sh
 
 
 # echo the existing target board overlays
