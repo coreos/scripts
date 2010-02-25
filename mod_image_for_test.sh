@@ -50,6 +50,10 @@ cleanup_rootfs_mounts() {
     echo "Killing process that has open file on our rootfs: $cmdline"
     ! sudo kill $pid  # Preceded by ! to disable ERR trap.
   done
+  if [[ -d "${ROOT_FS_DIR}/modify_scripts" ]]; then
+    echo "Cleaned up modify_scripts mount"
+    ! sudo umount "${ROOT_FS_DIR}/modify_scripts"
+  fi
 }
 
 cleanup_rootfs_loop() {
@@ -97,6 +101,7 @@ fi
 
 MOD_SCRIPTS_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
 sudo mkdir -p "${ROOT_FS_DIR}/modify_scripts"
+
 sudo mount --bind "${MOD_SCRIPTS_ROOT}" "${ROOT_FS_DIR}/modify_scripts"
 
 # Run test setup script inside chroot jail to modify the image
