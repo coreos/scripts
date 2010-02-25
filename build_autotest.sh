@@ -34,7 +34,7 @@ set -e
 check_board
 
 # build default pre-compile client tests list.
-ALL_TESTS="compilebench,dbench,disktest,ltp,unixbench"
+ALL_TESTS="compilebench,dbench,disktest,ltp,netperf2,netpipe,unixbench"
 for SITE_TEST in ../third_party/autotest/files/client/site_tests/*
 do
   if [ -d ${SITE_TEST} ]
