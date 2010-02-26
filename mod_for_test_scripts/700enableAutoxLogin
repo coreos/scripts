@@ -4,9 +4,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# start sshd at os init time.
-echo "Enabling sshd."
-cp -pf sshd.conf /etc/init/sshd.conf
-chmod 644 /etc/init/sshd.conf
-chown 0:0 /etc/init/sshd.conf
-
+# enable autox login by disabling remembering of last username
+echo "Enabling autologin using autox."
+touch "/root/.forget_usernames"

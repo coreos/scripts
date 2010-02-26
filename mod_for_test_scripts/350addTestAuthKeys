@@ -7,6 +7,8 @@
 # Copy public keys to root's homedir for ssh pubkey auth, which
 # is necessary for test automation.
 
+echo "Copying public keys"
+
 KEYS_DIR=ssh_keys
 ROOT_AUTHKEYS=/root/.ssh/authorized_keys
 

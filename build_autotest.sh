@@ -21,7 +21,8 @@ DEFAULT_TESTS_LIST="all"
 
 DEFINE_string build "${DEFAULT_TESTS_LIST}" \
   "a comma seperated list of autotest client tests to be prebuilt." b
-DEFINE_boolean prompt $FLAGS_TRUE "Prompt user when building all tests"
+DEFINE_boolean prompt $FLAGS_TRUE "Prompt user when building all tests."
+DEFINE_boolean autox $FLAGS_TRUE "Build autox along with autotest"
 
 # More useful help
 FLAGS_HELP="usage: $0 [flags]"
@@ -64,5 +65,12 @@ else
   TEST_LIST=${FLAGS_build}
 fi
 
+# Decide whether or not to build autox and set use flag
+if [ $FLAGS_autox -eq "$FLAGS_TRUE" ] ; then
+  USE=
+else
+  USE=-autox
+fi 
+
 GCLIENT_ROOT="${GCLIENT_ROOT}" TEST_LIST=${TEST_LIST} \
-"emerge-${FLAGS_board}" chromeos-base/autotest
+  USE="$USE" "emerge-${FLAGS_board}" chromeos-base/autotest
