@@ -92,7 +92,7 @@ if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]
 then
   echo "Modifying image for test"
   cp "${FLAGS_from}/rootfs.image" "${FLAGS_from}/rootfs_test.image"
-  "${SCRIPTS_DIR}/mod_image_for_test.sh" --board $FLAGS_board --image \
+  "${SCRIPTS_DIR}/mod_image_for_test.sh" --board $FLAGS_board --yes --image \
       "${FLAGS_from}/rootfs_test.image"
 fi
 
