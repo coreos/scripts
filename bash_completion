@@ -5,6 +5,32 @@
 # Add programmable completion to some Chromium OS build scripts
 
 
+# Echo a list of -- flags that the current command accepts. The
+# function assumes that the command supports shflags' --help flag.
+#
+_flags()
+{
+  echo $(command "${COMP_WORDS[0]}" --help 2>&1 | \
+    egrep -o -- --\[^\ \]+: | \
+    sed 's/://; s/--\[no\]\(.\+\)/--\1 --no\1/')
+}
+
+
+# Complete flags, i.e., current words starting with --. Return 1 if
+# the current word doesn't start with --, 0 otherwise.
+#
+_flag_complete()
+{
+  COMPREPLY=()
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  if [[ "${cur}" == --* ]]; then
+    COMPREPLY=( $(compgen -W "$(_flags)" -- ${cur}) )
+    return 0
+  fi
+  return 1
+}
+
+
 # Look for "--arg=foo" or "--arg foo" (where foo can be an empty string) in the
 # word to be completed. If found, echo "--arg=foo".
 #
@@ -42,9 +68,7 @@ _argeq()
 _board_sysroots()
 {
   local builddir=/build
-  if [ ! -d ${builddir} ]; then
-    echo ""
-  else
+  if [ -d ${builddir} ]; then
     echo $(command ls "${builddir}")
   fi
 }
@@ -53,11 +77,12 @@ _board_sysroots()
 #
 _board_sysroot()
 {
+  _flag_complete && return 0
+
   COMPREPLY=()
   local arg=$(_argeq --board)
   if [[ ${arg} == --board=* ]]; then
     COMPREPLY=( $(compgen -W "$(_board_sysroots)" -- ${arg#--board=}) )
-    return 0
   fi
 }
 
@@ -74,9 +99,7 @@ complete -o bashdefault -o default -F _board_sysroot \
 _board_overlays()
 {
   local overlaydir=../overlays
-  if [ ! -d ${overlaydir} ]; then
-    echo ""
-  else
+  if [ -d ${overlaydir} ]; then
     echo $(command ls $overlaydir | grep overlay- | sed s,overlay-,,)
   fi
 }
@@ -85,11 +108,12 @@ _board_overlays()
 #
 _board_overlay()
 {
+  _flag_complete && return 0
+
   COMPREPLY=()
   local arg=$(_argeq --board)
   if [[ ${arg} == --board=* ]]; then
     COMPREPLY=( $(compgen -W "$(_board_overlays)" -- ${arg#--board=}) )
-    return 0
   fi
 }
 
