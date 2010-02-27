@@ -15,15 +15,16 @@
 
 DEFAULT_OUTPUT_FILE=test-output-$(date '+%Y%m%d.%H%M%S')
 
-DEFINE_boolean cleanup ${FLAGS_TRUE} "Clean up temp directory"
-DEFINE_integer iterations 1 "Iterations to run every top level test" i
-DEFINE_string output_file "${DEFAULT_OUTPUT_FILE}" "Test run output" o
-DEFINE_boolean verbose ${FLAGS_FALSE} "Show verbose autoserv output" v
-DEFINE_boolean update_db ${FLAGS_FALSE} "Put results in autotest database" u
-DEFINE_string machine_desc "" "Machine description used in database"
 DEFINE_string build_desc "" "Build description used in database"
 DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
+DEFINE_boolean cleanup ${FLAGS_TRUE} "Clean up temp directory"
+DEFINE_integer iterations 1 "Iterations to run every top level test" i
+DEFINE_string machine_desc "" "Machine description used in database"
+DEFINE_string output_file "${DEFAULT_OUTPUT_FILE}" "Test run output" o
+DEFINE_string prepackaged_autotest "" "Use this prepackaged autotest dir"
 DEFINE_string results_dir_root "" "alternate root results directory"
+DEFINE_boolean update_db ${FLAGS_FALSE} "Put results in autotest database" u
+DEFINE_boolean verbose ${FLAGS_FALSE} "Show verbose autoserv output" v
 
 function cleanup() {
   if [[ $FLAGS_cleanup -eq ${FLAGS_TRUE} ]]; then
@@ -95,15 +96,6 @@ function main() {
     exit 1
   fi
 
-  check_board
-
-  local parse_cmd="$(dirname $0)/../third_party/autotest/files/tko/parse.py"
-
-  if [[ ${FLAGS_update_db} -eq ${FLAGS_TRUE} && ! -x "${parse_cmd}" ]]; then
-    echo "Cannot find parser ${parse_cmd}"
-    exit 1
-  fi
-
   set -e
 
   # Set global TMP for remote_access.sh's sake
@@ -113,12 +105,25 @@ function main() {
 
   trap cleanup EXIT
 
-  # Always copy into installed autotest directory.  This way if a user
-  # is just modifying scripts, they take effect without having to wait
-  # for the laborious build_autotest.sh command.
-  local original="${GCLIENT_ROOT}/src/third_party/autotest/files"
-  local autotest_dir="${FLAGS_chroot}/build/${FLAGS_board}/usr/local/autotest"
-  update_chroot_autotest "${original}" "${autotest_dir}"
+  local autotest_dir=""
+  if [[ -z "${FLAGS_prepackaged_autotest}" ]]; then
+    check_board
+    # Always copy into installed autotest directory.  This way if a user
+    # is just modifying scripts, they take effect without having to wait
+    # for the laborious build_autotest.sh command.
+    local original="${GCLIENT_ROOT}/src/third_party/autotest/files"
+    autotest_dir="${FLAGS_chroot}/build/${FLAGS_board}/usr/local/autotest"
+    update_chroot_autotest "${original}" "${autotest_dir}"
+  else
+    autotest_dir="${FLAGS_prepackaged_autotest}"
+  fi
+
+  local parse_cmd="${autotest_dir}/tko/parse.py"
+
+  if [[ ${FLAGS_update_db} -eq ${FLAGS_TRUE} && ! -x "${parse_cmd}" ]]; then
+    echo "Cannot find parser ${parse_cmd}"
+    exit 1
+  fi
 
   local autoserv="${autotest_dir}/server/autoserv"
 

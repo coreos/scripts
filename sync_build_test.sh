@@ -224,6 +224,9 @@ function describe_steps() {
     fi
     echo " * Build image${withdev}${jobs}"
     set_passwd=${FLAGS_TRUE}
+    if [[ ${FLAGS_build_autotest} -eq ${FLAGS_TRUE} ]]; then
+      echo " * Cross-build autotest client tests (build_autotest)"
+    fi
   fi
   if [[ ${FLAGS_master} -eq ${FLAGS_TRUE} ]]; then
     echo " * Master image (build_image)"
@@ -245,9 +248,6 @@ function describe_steps() {
     else
       echo " * Set chronos password randomly"
     fi
-  fi
-  if [[ ${FLAGS_build_autotest} -eq ${FLAGS_TRUE} ]]; then
-    echo " * Cross-build autotest client tests (build_autotest)"
   fi
   if [[ -n "${FLAGS_image_to_usb}" ]]; then
     echo " * Write the image to USB device ${FLAGS_image_to_usb}"
@@ -492,9 +492,14 @@ function main() {
       run_phase_in_chroot "Setting up board target" \
           ./setup_board "${board_param}"
     fi
+    local build_autotest_param=""
+    if [[ ${FLAGS_build_autotest} -eq ${FLAGS_TRUE} ]]; then
+      build_autotest_param="--withautotest"
+    fi
+
     run_phase_in_chroot "Building packages" \
         ./build_packages "${board_param}" \
-        ${jobs_param} ${withdev_param}
+        ${jobs_param} ${withdev_param} ${build_autotest_param}
 
     # TODO(kmixter): Enable this once build_tests works, but even
     # then only do it when not cross compiling.
@@ -532,12 +537,6 @@ function main() {
     chdir_relative src/scripts
     run_phase "Re-imaging live Chromium OS machine ${FLAGS_remote}" \
       ./image_to_live.sh "--remote=${FLAGS_remote}" --update_known_hosts
-  fi
-
-  if [[ ${FLAGS_build_autotest} -eq ${FLAGS_TRUE} ]]; then
-    chdir_relative src/scripts
-    run_phase_in_chroot "Building autotest" "./build_autotest.sh" \
-      --noprompt "${board_param}"
   fi
 
   if [[ -n "${FLAGS_test}" ]]; then

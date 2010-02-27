@@ -22,6 +22,8 @@ DEFAULT_FROM="${IMAGES_DIR}/$DEFAULT_BOARD/$(ls -t1 \
 # Flags
 DEFINE_string board "$DEFAULT_BOARD" \
   "The board to build packages for."
+DEFINE_string chroot "$DEFAULT_CHROOT_DIR" \
+  "The chroot of the build to archive."
 DEFINE_string from "$DEFAULT_FROM" \
   "Directory to archive"
 DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
@@ -94,6 +96,9 @@ then
   cp "${FLAGS_from}/rootfs.image" "${FLAGS_from}/rootfs_test.image"
   "${SCRIPTS_DIR}/mod_image_for_test.sh" --board $FLAGS_board --yes --image \
       "${FLAGS_from}/rootfs_test.image"
+  cd "${FLAGS_chroot}/build/${FLAGS_board}/usr/local"
+  echo "Archiving autotest build artifacts"
+  tar cjf "${FLAGS_from}/autotest.tar.bz2" autotest
 fi
 
 # Zip the build
