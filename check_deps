@@ -1,0 +1,127 @@
+#!/usr/bin/python
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import os
+import re
+import sys
+
+_SHARED_RE = re.compile(r"Shared library: \[([^\]]+)\]")
+_RPATH_RE = re.compile(r"Library rpath: \[([^\]]+)\]")
+
+
+class CheckDependencies(object):
+  """Check that dependencies for binaries can be found in the specified dir."""
+
+  def __init__(self, root, verbose=False):
+    """Initializer.
+
+    Args:
+      root: The sysroot (e.g. "/")
+      verbose: Print helpful messages.
+    """
+
+    self.root_ = root
+    self.libcache_ = set()
+    self.verbose_ = verbose
+
+    # Insert some default directories into our library cache.
+    # The /usr/lib/nss and /usr/lib/nspr directories are
+    # required for understanding old-style Netscape plugins.
+    self._ReadLibs([
+        "%s/lib" % root,
+        "%s/usr/lib" % root,
+        "%s/usr/lib/nss" % root,
+        "%s/usr/lib/nspr" % root
+    ], self.libcache_)
+
+  def _ReadLibs(self, paths, libcache):
+    for path in paths:
+      if os.path.exists(path):
+        for lib in os.listdir(path):
+          libcache.add(lib)
+
+  def _ReadDependencies(self, binary):
+    """Run readelf -d on BINARY, returning (deps, rpaths)."""
+
+    deps = set()
+    rpaths = set()
+
+    # Read list of dynamic libraries, ignoring error messages that occur
+    # when we look at files that aren't actually libraries
+    f = os.popen("readelf -d '%s' 2>/dev/null" % binary)
+    for line in f:
+
+      # Grab dependencies
+      m = _SHARED_RE.search(line)
+      if m:
+        deps.add(m.group(1))
+
+      # Add RPATHs in our search path
+      m = _RPATH_RE.search(line)
+      if m:
+        for path in m.group(1).split(":"):
+          rpaths.add(os.path.join(self.root_, path[1:]))
+    f.close()
+
+    return (deps, rpaths)
+
+  def CheckDependencies(self, binary):
+    """Check whether the libs for BINARY can be found in our sysroot."""
+
+    good = True
+
+    deps, rpaths = self._ReadDependencies(binary)
+
+    if self.verbose_:
+      for lib in self.libcache_ & deps:
+        print "Found %s" % lib
+
+    for lib in deps - self.libcache_:
+      if lib[0] != "/":
+        for path in rpaths:
+          if os.path.exists(os.path.join(path, lib)):
+            if self.verbose_:
+              print "Found %s" % lib
+            break
+        else:
+          print >>sys.stderr, "Problem with %s: Can't find %s" % (binary, lib)
+          good = False
+      else:
+        full_path = os.path.join(self.root_, lib[1:])
+        if os.path.exists(full_path):
+          if self.verbose_: print "Found %s" % lib
+        else:
+          print >>sys.stderr, "Problem with %s: Can't find %s" % (binary, lib)
+          good = False
+
+    return good
+
+
+def main():
+
+  if len(sys.argv) < 3:
+    print "Usage: %s [-v] sysroot binary [ binary ... ]" % sys.argv[0]
+    sys.exit(1)
+
+  verbose = False
+  if sys.argv[1] == "-v":
+    verbose = True
+    sys.argv = sys.argv[0:1] + sys.argv[2:]
+
+  checker = CheckDependencies(sys.argv[1], verbose)
+  errors = False
+  for binary in sys.argv[2:]:
+    if verbose: print "Checking %s" % binary
+    if not checker.CheckDependencies(binary):
+      errors = True
+
+  if errors:
+    sys.exit(1)
+  else:
+    sys.exit(0)
+
+if __name__ == "__main__":
+  main()
