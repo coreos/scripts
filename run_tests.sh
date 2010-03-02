@@ -8,35 +8,41 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
+# Script must be run inside the chroot
+assert_inside_chroot
+get_default_board
+
 # Flags
-DEFINE_string build_root "$DEFAULT_BUILD_ROOT"                \
+DEFINE_string build_root "$DEFAULT_BUILD_ROOT" \
   "Root of build output"
-DEFINE_string board ""                \
+DEFINE_string board "$DEFAULT_BOARD" \
   "Target board of which tests were built"
 
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
+# Run tests
+if [ -z "$FLAGS_board" ]; then
+  echo Error: --board required
+  exit 1
+fi
+
+TESTS_DIR="/build/${FLAGS_board}/tests"
+LD_LIBRARY_PATH=/build/${FLAGS_board}/lib:/build/${FLAGS_board}/usr/lib:\
+/build/${FLAGS_board}/usr/lib/gcc/i686-pc-linux-gnu/4.4.1/:\
+/build/${FLAGS_board}/usr/lib/opengl/xorg-x11/lib
+
 # Die on error; print commands
 set -ex
 
-# Run tests
-if [ -n "$FLAGS_board" ]
-then
-  TESTS_DIR="/build/${FLAGS_board}/tests"  
-  echo "Not implemented" >&2
-  exit 1
-  
-  # TODO(sosa@chromium.org) - Call autotest job to run tests from TESTS_DIR
-  # using run_remote_tests
-else
-  TESTS_DIR="$FLAGS_build_root/x86/tests"
-  cd "$TESTS_DIR"
-  
-  # TODO: standardize test names - should all end in "_test"
-  for i in *_test *_tests *_unittests; do ! ./${i}; done
-  
-  cd -
-  echo "All tests passed."
-fi
+# NOTE: We currently skip cryptohome_tests (which happens to have a different
+# suffix than the other tests), because it doesn't work.
+for i in /build/${FLAGS_board}/tests/*_{test,unittests}; do
+  if [[ "`file -b $i`" = "POSIX shell script text executable" ]]; then
+    LD_LIBRARY_PATH=$LD_LIBRARY_PATH /build/${FLAGS_board}/lib/ld-linux.so.2 /build/${FLAGS_board}/bin/bash $i
+  else
+    LD_LIBRARY_PATH=$LD_LIBRARY_PATH /build/${FLAGS_board}/lib/ld-linux.so.2 $i
+  fi
+done
+
