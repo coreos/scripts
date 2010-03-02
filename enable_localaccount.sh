@@ -34,3 +34,12 @@ const char kLocalAccount[] = "$1@gmail.com";
 #endif // CHROMEOS_PAM_LOCALACCOUNT_H_
 EOF
 done
+
+# Add CHROMEOS_LOCAL_ACCOUNT var to /etc/make.conf.user
+VAR_NAME=CHROMEOS_LOCAL_ACCOUNT
+if grep -q ${VAR_NAME} /etc/make.conf.user; then
+   regex="s/${VAR_NAME}=.*/${VAR_NAME}=$1@gmail.com/"
+   sudo sed -i -e "${regex}"  /etc/make.conf.user
+else
+   sudo sh -c "echo ""${VAR_NAME}=$1@gmail.com"" >> /etc/make.conf.user"
+fi
