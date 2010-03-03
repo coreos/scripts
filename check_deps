@@ -23,9 +23,9 @@ class CheckDependencies(object):
       verbose: Print helpful messages.
     """
 
-    self.root_ = root
-    self.libcache_ = set()
-    self.verbose_ = verbose
+    self._root = root
+    self._libcache = set()
+    self._verbose = verbose
 
     # Insert some default directories into our library cache.
     # The /usr/lib/nss and /usr/lib/nspr directories are
@@ -35,7 +35,7 @@ class CheckDependencies(object):
         "%s/usr/lib" % root,
         "%s/usr/lib/nss" % root,
         "%s/usr/lib/nspr" % root
-    ], self.libcache_)
+    ], self._libcache)
 
   def _ReadLibs(self, paths, libcache):
     for path in paths:
@@ -63,7 +63,7 @@ class CheckDependencies(object):
       m = _RPATH_RE.search(line)
       if m:
         for path in m.group(1).split(":"):
-          rpaths.add(os.path.join(self.root_, path[1:]))
+          rpaths.add(os.path.join(self._root, path[1:]))
     f.close()
 
     return (deps, rpaths)
@@ -75,24 +75,24 @@ class CheckDependencies(object):
 
     deps, rpaths = self._ReadDependencies(binary)
 
-    if self.verbose_:
-      for lib in self.libcache_ & deps:
+    if self._verbose:
+      for lib in self._libcache & deps:
         print "Found %s" % lib
 
-    for lib in deps - self.libcache_:
+    for lib in deps - self._libcache:
       if lib[0] != "/":
         for path in rpaths:
           if os.path.exists(os.path.join(path, lib)):
-            if self.verbose_:
+            if self._verbose:
               print "Found %s" % lib
             break
         else:
           print >>sys.stderr, "Problem with %s: Can't find %s" % (binary, lib)
           good = False
       else:
-        full_path = os.path.join(self.root_, lib[1:])
+        full_path = os.path.join(self._root, lib[1:])
         if os.path.exists(full_path):
-          if self.verbose_: print "Found %s" % lib
+          if self._verbose: print "Found %s" % lib
         else:
           print >>sys.stderr, "Problem with %s: Can't find %s" % (binary, lib)
           good = False
@@ -101,7 +101,6 @@ class CheckDependencies(object):
 
 
 def main():
-
   if len(sys.argv) < 3:
     print "Usage: %s [-v] sysroot binary [ binary ... ]" % sys.argv[0]
     sys.exit(1)
