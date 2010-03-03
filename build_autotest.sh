@@ -72,5 +72,5 @@ else
   USE=-autox
 fi 
 
-GCLIENT_ROOT="${GCLIENT_ROOT}" TEST_LIST=${TEST_LIST} \
+GCLIENT_ROOT="${GCLIENT_ROOT}" TEST_LIST=${TEST_LIST} FEATURES="-buildpkg" \
   USE="$USE" "emerge-${FLAGS_board}" chromeos-base/autotest
