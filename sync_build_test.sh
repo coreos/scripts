@@ -148,12 +148,16 @@ function validate_and_set_param_defaults() {
     FLAGS_image_to_live=${FLAGS_TRUE}
   fi
 
-  # Grabbing a buildbot build is exclusive with building
+  # Grabbing a buildbot build is exclusive with syncing and building
   if [[ -n "${FLAGS_grab_buildbot}" ]]; then
-    if [[ -z "${FLAGS_buildbot_uri}" ]]; then
-      echo "--grab_buildbot requires --buildbot_uri"
-      exit 1
+    if [[ "${FLAGS_grab_buildbot}" == "LATEST" ]]; then
+      if [[ -z "${FLAGS_buildbot_uri}" ]]; then
+        echo "--grab_buildbot=LATEST requires --buildbot_uri or setting "
+        echo "BUILDBOT_URI"
+        exit 1
+      fi
     fi
+    FLAGS_sync=${FLAGS_FALSE}
     FLAGS_build=${FLAGS_FALSE}
     FLAGS_master=${FLAGS_FALSE}
   fi
@@ -239,7 +243,12 @@ function describe_steps() {
     fi
   fi
   if [[ ${FLAGS_mod_image_for_test} -eq ${FLAGS_TRUE} ]]; then
-    echo " * Make image able to run tests (mod_image_for_test)"
+    if [[ -n "${FLAGS_grab_buildbot}" ]]; then
+      echo " * Use the prebuilt image modded for test (rootfs_test.image)"
+      echo " * Install prebuilt cross-compiled autotests in chroot"
+    else
+      echo " * Make image able to run tests (mod_image_for_test)"
+    fi
     set_passwd=${FLAGS_TRUE}
   fi
   if [[ ${set_passwd} -eq ${FLAGS_TRUE} ]]; then
@@ -322,6 +331,14 @@ function describe_phase() {
 }
 
 
+# Called when there is a failure and we exit early
+function failure() {
+  trap - EXIT
+  describe_phase "Failure during: ${LAST_PHASE}"
+  show_duration
+}
+
+
 # Runs a phase, describing it first, and also updates the sudo timeout
 # afterwards.
 # Arguments:
@@ -330,6 +347,7 @@ function describe_phase() {
 function run_phase() {
   local desc="$1"
   shift
+  LAST_PHASE="${desc}"
   describe_phase "${desc}"
   echo "+ $@"
   "$@"
@@ -419,19 +437,37 @@ function grab_buildbot() {
   cd "${dl_dir}"
   unzip image.zip
   check_rootfs_validity
-  echo "Copying in local_repo/local_packages"
-  # TODO(kmixter): Make this architecture indep once buildbot is.
-  mv -f local_repo/local_packages/* "${FLAGS_top}/src/build/x86/local_packages"
   local image_basename=$(basename $(dirname "${FLAGS_grab_buildbot}"))
-  local image_dir="${FLAGS_top}/src/build/images/${image_basename}"
+  local image_base_dir="${FLAGS_top}/src/build/images/${FLAGS_board}"
+  local image_dir="${image_base_dir}/${image_basename}"
   echo "Copying in build image to ${image_dir}"
   rm -rf "${image_dir}"
   mkdir -p "${image_dir}"
   # Note that if mbr.image does not exist, this image was not successful.
   mv mbr.image rootfs.image "${image_dir}"
+  if [[ ${FLAGS_mod_image_for_test} -eq ${FLAGS_TRUE} ]]; then
+    run_phase "Installing buildbot test modified image" \
+      mv rootfs_test.image "${image_dir}/rootfs.image"
+    FLAGS_mod_image_for_test=${FLAGS_FALSE}
+    if [[ -e "autotest.tgz" || -e "autotest.tar.bz2" ]]; then
+      # pull in autotest
+      local dir="${FLAGS_chroot}/build/${FLAGS_board}/usr/local"
+      local tar_args="xzf"
+      local tar_name="${dl_dir}/autotest.tgz"
+      if [[ -e "autotest.tar.bz2" ]]; then
+        tar_args="xjf"
+        tar_name="${dl_dir}/autotest.tar.bz2"
+      fi
+      sudo rm -rf "${dir}/autotest"
+      cd ${dir}
+      run_phase "Installing buildbot autotest cross-compiled binaries" \
+        sudo tar ${tar_args} "${tar_name}"
+    fi
+  fi
   chdir_relative .
   run_phase "Removing downloaded image" rm -rf "${dl_dir}"
 }
+
 
 function main() {
   assert_outside_chroot
@@ -454,6 +490,7 @@ function main() {
   fi
 
   set_start_time
+  trap failure EXIT
 
   local withdev_param=""
   if [[ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]]; then
@@ -501,11 +538,9 @@ function main() {
         ./build_packages "${board_param}" \
         ${jobs_param} ${withdev_param} ${build_autotest_param}
 
-    # TODO(kmixter): Enable this once build_tests works, but even
-    # then only do it when not cross compiling.
-    if [[ '' ]]; then
-      run_phase_in_chroot "Building and running unit tests" \
-        "./build_tests.sh && ./run_tests.sh"
+    run_phase_in_chroot "Building unit tests" ./build_tests.sh ${board_param}
+    if [[ "${FLAGS_board}" == "x86-generic" ]]; then
+      run_phase_in_chroot "Running unit tests" ./run_tests.sh ${board_param}
     fi
   fi
 
@@ -548,6 +583,7 @@ function main() {
       "${board_param}"
   fi
 
+  trap - EXIT
   echo "Successfully used ${FLAGS_top} to:"
   describe_steps
   show_duration
