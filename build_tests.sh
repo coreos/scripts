@@ -10,36 +10,27 @@
 
 assert_inside_chroot
 assert_not_root_user
+get_default_board
 
 # Flags
 DEFINE_string build_root "$DEFAULT_BUILD_ROOT"                \
   "Root of build output"
-DEFINE_string board "" "Target board for which tests are to be built"
+DEFINE_string board "$DEFAULT_BOARD" \
+  "Target board for which tests are to be built"
 
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
+
+if [ -z "$FLAGS_board" ]; then
+  echo Error: --board required
+  exit 1
+fi
 
 # Die on error; print commands
 set -e
 
 TEST_DIRS="pam_google window_manager cryptohome"
 
-if [ -n "$FLAGS_board" ]
-then  
-  sudo TEST_DIRS="${TEST_DIRS}" \
-    emerge-${FLAGS_board} chromeos-base/chromeos-unittests
-else 
-  PLATFORM_DIR="$SRC_ROOT/platform"  
-  
-  # Build tests
-  for i in ${TEST_DIRS}
-  do
-    echo "building $PLATFORM_DIR/$i"
-    cd "$PLATFORM_DIR/$i"
-    OUT_DIR="${FLAGS_build_root}/x86/tests" ./make_tests.sh
-    cd -
-  done
-
-  echo "All tests built."
-fi
+sudo TEST_DIRS="${TEST_DIRS}" \
+  emerge-${FLAGS_board} chromeos-base/chromeos-unittests
