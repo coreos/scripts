@@ -83,6 +83,21 @@ function add_test_attribute() {
   done
 }
 
+
+# Ask the target what board it is
+function learn_board() {
+  if [[ -n "${FLAGS_board}" ]]; then
+    return
+  fi
+  remote_sh grep CHROMEOS_RELEASE_BOARD /etc/lsb-release
+  FLAGS_board=$(echo "${REMOTE_OUT}" | cut -d= -f2)
+  if [[ -z "${FLAGS_board}" ]]; then
+    check_board
+  fi
+  echo "Target reports board is ${FLAGS_board}"
+}
+
+
 function main() {
   assert_outside_chroot
 
@@ -105,9 +120,11 @@ function main() {
 
   trap cleanup EXIT
 
+  remote_access_init
+
   local autotest_dir=""
   if [[ -z "${FLAGS_prepackaged_autotest}" ]]; then
-    check_board
+    learn_board
     # Always copy into installed autotest directory.  This way if a user
     # is just modifying scripts, they take effect without having to wait
     # for the laborious build_autotest.sh command.
@@ -152,8 +169,6 @@ function main() {
 
   echo "Running the following control files: ${control_files_to_run}"
 
-  remote_access_init
-
   # Set the default machine description to the machine's IP
   if [[ -z "${FLAGS_machine_desc}" ]]; then
     FLAGS_machine_desc="${FLAGS_remote}"
@@ -192,7 +207,7 @@ function main() {
 
     ${autoserv} -m "${FLAGS_remote}" "${option}" "${control_file}" \
       -r "${results_dir}" ${verbose}
-    local test_status="${results_dir}/status"
+    local test_status="${results_dir}/status.log"
     local test_result_dir="${results_dir}/${short_name}"
     local keyval_file="${test_result_dir}/results/keyval"
     if is_successful_test "${test_status}"; then
