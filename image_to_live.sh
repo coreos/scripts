@@ -22,10 +22,11 @@ DEFINE_boolean update_known_hosts ${FLAGS_FALSE} \
 function kill_all_devservers {
   # Using ! here to avoid exiting with set -e is insufficient, so use
   # || true instead.
-  pkill -f 'python devserver.py' || true
+  pkill -fx ".*devserver\.py" || true
 }
 
 function cleanup {
+  echo "Killing dev server."
   kill_all_devservers
   rm -rf "${TMP}"
 }
@@ -37,7 +38,6 @@ function remote_reboot_sh {
 
 function start_dev_server {
   kill_all_devservers
-  sudo -v
   ./enter_chroot.sh "cd ../platform/dev; ./start-devserver.sh>/dev/null 2>&1" &
   echo -n "Waiting on devserver to start"
   until netstat -anp 2>&1 | grep 8080 > /dev/null; do
@@ -111,7 +111,7 @@ function run_auto_update {
     # Sleep for a while so that ssh handling doesn't slow down the install
     sleep 2
   done
-  
+
   return ${update_error}
 }
 
@@ -123,7 +123,7 @@ function remote_reboot {
 
   while true; do
     REMOTE_OUT=""
-    # This may fail while the machine is done so generate output and a 
+    # This may fail while the machine is down so generate output and a
     # boolean result to distinguish between down/timeout and real failure
     ! remote_sh_allow_changed_host_key \
       "echo 0; [ -e /tmp/awaiting_reboot ] && echo '1'; true"
@@ -186,7 +186,7 @@ function main() {
   remote_sh "grep ^CHROMEOS_RELEASE_DESCRIPTION= /etc/lsb-release"
   local release_description=$(echo $REMOTE_OUT | cut -d '=' -f 2)
   echo "Update was successful and rebooted to $release_description"
-  
+
   return 0
 }
 
