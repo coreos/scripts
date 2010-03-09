@@ -459,9 +459,12 @@ function grab_buildbot() {
         tar_name="${dl_dir}/autotest.tar.bz2"
       fi
       sudo rm -rf "${dir}/autotest"
-      cd ${dir}
+      # Expand in temp directory as current user, then move it as
+      # root to keep local user ownership
+      run_phase "Unpacking buildbot autotest cross-compiled binaries" \
+        tar ${tar_args} "${tar_name}"
       run_phase "Installing buildbot autotest cross-compiled binaries" \
-        sudo tar ${tar_args} "${tar_name}"
+        sudo mv autotest ${dir}
     fi
   fi
   chdir_relative .
