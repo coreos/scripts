@@ -71,5 +71,6 @@ USE=
 [ $FLAGS_autox -eq "$FLAGS_FALSE" ] && USE="${USE} -autox"
 [ $FLAGS_buildcheck -eq "$FLAGS_TRUE" ] && USE="${USE} buildcheck"
 
-GCLIENT_ROOT="${GCLIENT_ROOT}" TEST_LIST=${TEST_LIST} FEATURES="-buildpkg" \
-  USE="$USE" "emerge-${FLAGS_board}" chromeos-base/autotest
+GCLIENT_ROOT="${GCLIENT_ROOT}" TEST_LIST=${TEST_LIST} \
+  FEATURES="${FEATURES} -buildpkg" USE="$USE" "emerge-${FLAGS_board}" \
+  chromeos-base/autotest
