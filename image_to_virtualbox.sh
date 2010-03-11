@@ -41,23 +41,5 @@ for EXTERNAL_tools in qemu-img VBoxManage; do
   fi
 done
 
-# Make two sparse files. One for an empty partition, another for
-# stateful partition.
-PART_SIZE=$(stat -c%s "${FLAGS_from}/rootfs.image")
-dd if=/dev/zero of="${FLAGS_from}/empty.image" bs=1 count=1 \
-    seek=$(( $PART_SIZE - 1 ))
-dd if=/dev/zero of="${FLAGS_from}/state.image" bs=1 count=1 \
-    seek=$(( $PART_SIZE - 1 ))
-mkfs.ext3 -F -L C-STATE "${FLAGS_from}/state.image"
-
-# Copy MBR and rootfs to output image
-qemu-img convert -f raw \
-  "${FLAGS_from}/mbr.image" "${FLAGS_from}/state.image" \
-  "${FLAGS_from}/empty.image" "${FLAGS_from}/rootfs.image" \
-  -O raw "${TEMP_IMAGE}"
-VBoxManage convertdd "${TEMP_IMAGE}" "${FLAGS_to}"
-
-rm -f "${FLAGS_from}/empty.image" "${FLAGS_from}/state.image" "${TEMP_IMAGE}"
-
-echo "Done. Created VirtualBox image ${FLAGS_to}"
-
+$(dirname "$0")/image_to_vmware.sh --format=virtualbox --from=$FLAGS_from \
+  --to=$(dirname "$FLAGS_to") --vbox_disk=$(basename "$FLAGS_to")
