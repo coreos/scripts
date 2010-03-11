@@ -79,6 +79,29 @@ FLAGS_to=`eval readlink -f ${FLAGS_to}`
 
 # Uses this rootfs image as the source image to copy
 ROOTFS_IMAGE="${FLAGS_from}/rootfs.image"
+PART_SIZE=$(stat -c%s "${ROOTFS_IMAGE}")  # Bytes
+
+# Setup stateful partition variables
+STATEFUL_IMG="${FLAGS_from}/stateful_partition.image"
+STATEFUL_DIR="${FLAGS_from}/stateful_partition"
+
+# TODO(sosa@chromium.org) - Remove legacy support.
+if [ ! -f "${STATEFUL_IMG}" ] ; then
+  echo "WARNING!  Stateful partition not found.  Creating clean stateful"
+  STATEFUL_LOOP_DEV=$(sudo losetup -f)
+  if [ -z "${STATEFUL_LOOP_DEV}" ] ; then
+    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
+    exit 1
+  fi
+  set -x
+  dd if=/dev/zero of="${STATEFUL_IMG}" bs=1 count=1 \
+      seek=$(( (${PART_SIZE} - 1) ))
+  set +x
+  sudo losetup "$STATEFUL_LOOP_DEV" "$STATEFUL_IMG"
+  sudo mkfs.ext3 "$STATEFUL_LOOP_DEV"
+  sudo tune2fs -L "C-STATE" -c 0 -i 0 "$STATEFUL_LOOP_DEV"
+  sudo losetup -d "${STATEFUL_LOOP_DEV}"
+fi
 
 # Modifies image for test if requested
 if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
@@ -96,12 +119,18 @@ function do_cleanup {
   sudo losetup -d "${LOOP_DEV}"
 }
 
-STATEFUL_DIR=${FLAGS_from}/stateful_partition
-mkdir -p "${STATEFUL_DIR}"
-
 function install_autotest {
   if [ -d ${AUTOTEST_SRC} ]
   then
+    local stateful_loop_dev=$(sudo losetup -f)
+    if [ -z "${stateful_loop_dev}" ]
+    then
+      echo "No free loop device. Free up a loop device or reboot. exiting."
+      exit 1
+    fi
+    
+    sudo mount "${stateful_loop_dev}" "${STATEFUL_DIR}"
+
     echo -ne "Install autotest into stateful partition..."
 	  local autotest_client="/home/autotest-client"
     sudo mkdir -p "${STATEFUL_DIR}${autotest_client}"
@@ -109,8 +138,9 @@ function install_autotest {
 	    "${STATEFUL_DIR}${autotest_client}"
     sudo chmod 755 "${STATEFUL_DIR}${autotest_client}"
     sudo chown -R 1000:1000 "${STATEFUL_DIR}${autotest_client}"
-    echo "Done."
-    sudo umount "${STATEFUL_DIR}"
+    
+    sudo umount ${STATEFUL_DIR}
+    sudo losetup -d "${stateful_loop_dev}"    
   else
     echo "/usr/local/autotest under ${DEFAULT_CHROOT_DIR} is not installed."
     echo "Please call make_autotest.sh inside chroot first."
@@ -157,37 +187,23 @@ then
     ! sudo umount "$i"
   done
   sleep 3
-
-  PART_SIZE=$(stat -c%s "${ROOTFS_IMAGE}")  # Bytes
-
-  echo "Copying root fs..."
-  sudo "${SCRIPTS_DIR}"/file_copy.py \
-    if="${ROOTFS_IMAGE}" \
-    of="${FLAGS_to}" bs=4M \
-    seek_bytes=$(( (${PART_SIZE} * 2) + 512 ))
-
-  # Set up loop device
-  LOOP_DEV=$(sudo losetup -f)
-  if [ -z "${LOOP_DEV}" ]
-  then
-    echo "No free loop device. Free up a loop device or reboot. exiting."
-    exit 1
-  fi
-
-  trap do_cleanup EXIT
-
-  echo "Creating stateful partition..."
-  sudo losetup -o 512 "${LOOP_DEV}" "${FLAGS_to}"
-  sudo mkfs.ext3 -F -b 4096 -L C-STATE "${LOOP_DEV}" $(( ${PART_SIZE} / 4096 ))
-  if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ]
-  then
-    sudo mount "${LOOP_DEV}" "${STATEFUL_DIR}"
+ 
+  if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ] ; then
     install_autotest
   fi
-  sync
-  sudo losetup -d "${LOOP_DEV}"
-  sync
+ 
+  # Write stateful partition to first partition. 
+  echo "Copying stateful partition ..."
+  sudo "${SCRIPTS_DIR}"/file_copy.py \
+      if="${STATEFUL_IMG}" of="${FLAGS_to}" bs=4M \
+      seek_bytes=512
 
+  # Write root fs to third partition.
+  echo "Copying root fs partition ..."
+  sudo "${SCRIPTS_DIR}"/file_copy.py \
+      if="${ROOTFS_IMAGE}" of="${FLAGS_to}" bs=4M \
+      seek_bytes=$(( (${PART_SIZE} * 2) + 512 ))
+  
   trap - EXIT
 
   if [ ${FLAGS_copy_kernel} -eq ${FLAGS_TRUE} ]
@@ -209,15 +225,7 @@ else
 
   PART_SIZE=$(stat -c%s "${ROOTFS_IMAGE}")
 
-  echo "Creating empty stateful partition"
-  dd if=/dev/zero of="${FLAGS_from}/stateful_partition.image" bs=1 count=1 \
-      seek=$((${PART_SIZE} - 1))
-  mkfs.ext3 -F -L C-STATE "${FLAGS_from}/stateful_partition.image"
-
-  if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ]
-  then
-    sudo mount -o loop "${FLAGS_from}/stateful_partition.image" \
-      "${STATEFUL_DIR}"
+  if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ] ; then
     install_autotest
   fi
 

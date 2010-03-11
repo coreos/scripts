@@ -86,10 +86,10 @@ def main(argv):
       bytes_copied += bytes_written
     buf = os.read(if_fd, arg_bs)
   
-  t2 = time.time()
-
   os.close(if_fd)
   os.close(of_fd)
+
+  t2 = time.time()
   
   # print timing info
   print >> sys.stderr, 'copy %d bytes took %0.3f s' % (bytes_copied, t2 - t1)
