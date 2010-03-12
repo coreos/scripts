@@ -23,7 +23,7 @@ DEFINE_string build "${DEFAULT_TESTS_LIST}" \
   "a comma seperated list of autotest client tests to be prebuilt." b
 DEFINE_boolean prompt $FLAGS_TRUE "Prompt user when building all tests."
 DEFINE_boolean autox $FLAGS_TRUE "Build autox along with autotest"
-DEFINE_boolean buildcheck $FLAGS_FALSE "Fail if tests fail to build"
+DEFINE_boolean buildcheck $FLAGS_TRUE "Fail if tests fail to build"
 
 # More useful help
 FLAGS_HELP="usage: $0 [flags]"
