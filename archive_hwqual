@@ -1,0 +1,90 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Script to take an archived build result and prepare a hwqual release.
+
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+. "$(dirname "$0")/common.sh"
+
+# Flags
+DEFINE_string from "" "Directory with build archive (zipname)"
+DEFINE_string to "" "Directory to receive packaged hwqual"
+DEFINE_string zipname "image.zip" "Name of zip file to create."
+DEFINE_string output_tag "chromeos-hwqual" "Name used in tar"
+
+TMP=$(mktemp -d "/tmp/image.XXXX")
+
+function cleanup() {
+  rm -rf "${TMP}"
+}
+
+function main() {
+  assert_outside_chroot
+  assert_not_root_user
+
+  # Parse command line
+  FLAGS "$@" || exit 1
+  eval set -- "${FLAGS_ARGV}"
+  set -e
+
+  if [[ -z "${FLAGS_from}" ]]; then
+    echo "Please specify --from directory"
+    exit 1
+  fi
+
+  FLAGS_from=$(readlink -f "${FLAGS_from}")
+
+  if [[ -z "${FLAGS_to}" ]]; then
+    FLAGS_to="${FLAGS_from}"
+  fi
+
+  local script_dir=$(dirname "$0")
+
+  script_dir=$(readlink -f "${script_dir}")
+
+  trap cleanup EXIT
+
+  cd "${TMP}"
+
+  echo "Extracting build artifacts..."
+  unzip "${FLAGS_from}/${FLAGS_zipname}"
+  mkdir -p image
+  mkdir -p "tarball/${FLAGS_output_tag}"
+
+  echo "Extracting autotest from build artifacts..."
+  tar --bzip2 -xf autotest.tar.bz2
+  mv rootfs_test.image image/rootfs.image
+  mv mbr.image image
+
+  echo "Formatting rootfs as a USB image..."
+  "${script_dir}/image_to_usb.sh" --from=image \
+    --to="tarball/${FLAGS_output_tag}/chromeos-hwqual-usb.img"
+
+  echo "Inserting documentation and autotest to tarball..."
+  ln -s \
+    "${FLAGS_output_tag}/autotest/client/site_tests/suite_HWQual/README.txt" \
+    tarball
+  ln -s autotest/client/site_tests/suite_HWQual/manual \
+    "tarball/${FLAGS_output_tag}"
+  cp "${script_dir}/mod_for_test_scripts/ssh_keys/testing_rsa" \
+    "tarball/${FLAGS_output_tag}"
+  chmod 0400 "tarball/${FLAGS_output_tag}/testing_rsa"
+  mv autotest "tarball/${FLAGS_output_tag}"
+
+  echo "Creating ${FLAGS_to}/${FLAGS_output_tag}.tar.bz2..."
+  mkdir -p "${FLAGS_to}"
+  cd tarball
+  tar --bzip2 -cf "${FLAGS_to}/${FLAGS_output_tag}.tar.bz2" .
+
+  trap - EXIT
+  cleanup
+
+  echo "Done."
+  cd "${script_dir}"
+}
+
+main "$@"

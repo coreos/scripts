@@ -114,6 +114,14 @@ echo "$LAST_CHANGE" > "${FLAGS_to}/LATEST"
 chmod 644 "$ZIPFILE" "${FLAGS_to}/LATEST"
 chmod 755 "$OUTDIR"
 
+if [ $FLAGS_official_build -eq $FLAGS_TRUE ]
+then
+  echo "Creating hwqual archive"
+  HWQUAL_NAME="chromeos-hwqual-${FLAGS_board}-${CHROMEOS_VERSION_STRING}"
+  "${SCRIPTS_DIR}/archive_hwqual" --from "${OUTDIR}" \
+    --output_tag "${HWQUAL_NAME}"
+fi
+
 # Purge old builds if necessary
 if [ $FLAGS_keep_max -gt 0 ]
 then
