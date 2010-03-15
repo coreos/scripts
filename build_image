@@ -37,7 +37,7 @@ DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean statefuldev $FLAGS_FALSE \
   "Install development packages on stateful partition -- still experimental"
-DEFINE_boolean withtest $FLAGS_TRUE \
+DEFINE_boolean withtest $FLAGS_FALSE \
   "Include packages required for testing and prepare image for testing"
 
 # Parse command line.
