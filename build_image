@@ -37,6 +37,8 @@ DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean statefuldev $FLAGS_FALSE \
   "Install development packages on stateful partition -- still experimental"
+DEFINE_boolean withtest $FLAGS_TRUE \
+  "Include packages required for testing and prepare image for testing"
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -271,32 +273,42 @@ fi
 sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
   --root="$ROOT_FS_DIR" --root-deps=rdeps \
   --usepkgonly chromeos $EMERGE_JOBS
-if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ; then
-  # Determine the root dir for development packages
-  ROOT_DIR="$ROOT_FS_DIR"
-  [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] && ROOT_DIR="$ROOT_FS_DIR/usr/local" 
-  
-  sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
-      --root="$ROOT_DIR" --root-deps=rdeps \
-      --usepkgonly chromeos-dev $EMERGE_JOBS
- 
-  if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
-    # Fix symlinks so they work on live system.
-    for path in bin include lib libexec sbin share; do
-      sudo unlink $DEV_IMAGE_ROOT/usr/$path
-      sudo ln -s /usr/local/$path $DEV_IMAGE_ROOT/usr/$path
-    done
 
-    # Fix exceptions.
-    sudo unlink "$DEV_IMAGE_ROOT/usr/lib64"
-    sudo unlink "$DEV_IMAGE_ROOT/usr/local"
-    
-    sudo ln -s "/usr/local/lib" "$DEV_IMAGE_ROOT/usr/lib64"
-    sudo ln -s "/usr/local" "$DEV_IMAGE_ROOT/usr/local"
-  fi 
+# Determine the root dir for development packages.
+ROOT_DEV_DIR="$ROOT_FS_DIR"
+[ $FLAGS_statefuldev -eq $FLAGS_TRUE ] && ROOT_DEV_DIR="$ROOT_FS_DIR/usr/local"
+
+# Install development packages.
+if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ; then
+  sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
+      --root="$ROOT_DEV_DIR" --root-deps=rdeps \
+      --usepkgonly chromeos-dev $EMERGE_JOBS
 
   # The ldd tool is a useful shell script but lives in glibc; just copy it.
-  sudo cp -a "$(which ldd)" "${ROOT_FS_DIR}/usr/bin"
+  sudo cp -a "$(which ldd)" "${ROOT_DEV_DIR}/usr/bin"
+fi
+
+# Install packages required for testing.
+if [[ $FLAGS_withtest -eq $FLAGS_TRUE ]] ; then
+  sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
+      --root="$ROOT_DEV_DIR" --root-deps=rdeps \
+      --usepkgonly chromeos-test $EMERGE_JOBS
+fi
+
+# Clean up links setup for stateful install of extra packages. 
+if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
+  # Fix symlinks so they work on live system.
+  for path in bin include lib libexec sbin share; do
+    sudo unlink $DEV_IMAGE_ROOT/usr/$path
+    sudo ln -s /usr/local/$path $DEV_IMAGE_ROOT/usr/$path
+  done
+
+  # Fix exceptions.
+  sudo unlink "$DEV_IMAGE_ROOT/usr/lib64"
+  sudo unlink "$DEV_IMAGE_ROOT/usr/local"
+
+  sudo ln -s "/usr/local/lib" "$DEV_IMAGE_ROOT/usr/lib64"
+  sudo ln -s "/usr/local" "$DEV_IMAGE_ROOT/usr/local" 
 fi
 
 # Perform any customizations on the root file system that are needed.
