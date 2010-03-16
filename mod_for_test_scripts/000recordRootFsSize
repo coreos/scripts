@@ -10,7 +10,7 @@
 # Record the size, but don't overwrite the file as its existence indicates
 # that this image is not a production image.
 echo "Recording production image size."
-FILE="/root/bytes-rootfs-prod"
+FILE="${ROOT_FS_DIR}/root/bytes-rootfs-prod"
 if [[ ! -f "${FILE}"  ]]; then
   # This will complain it cannot find a valid mtab so keep it quiet.
   df -B1 / 2>/dev/null | tail -1 | awk '{ print $3 }' > "${FILE}"

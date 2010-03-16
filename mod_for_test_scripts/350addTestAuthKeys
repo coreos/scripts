@@ -9,8 +9,8 @@
 
 echo "Copying public keys"
 
-KEYS_DIR=ssh_keys
-ROOT_AUTHKEYS=/root/.ssh/authorized_keys
-
-mkdir -p /root/.ssh
+KEYS_DIR=${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts/ssh_keys
+mkdir -p ${ROOT_FS_DIR}/root/.ssh
+ROOT_AUTHKEYS=${ROOT_FS_DIR}/root/.ssh/authorized_keys
 cat ${KEYS_DIR}/*.pub >> ${ROOT_AUTHKEYS}
+

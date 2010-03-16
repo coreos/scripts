@@ -6,4 +6,5 @@
 
 # enable autox login by disabling remembering of last username
 echo "Enabling autologin using autox."
-touch "/root/.forget_usernames"
+touch "${ROOT_FS_DIR}/root/.forget_usernames"
+
