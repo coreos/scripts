@@ -308,7 +308,10 @@ if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
   sudo unlink "$DEV_IMAGE_ROOT/usr/local"
 
   sudo ln -s "/usr/local/lib" "$DEV_IMAGE_ROOT/usr/lib64"
-  sudo ln -s "/usr/local" "$DEV_IMAGE_ROOT/usr/local" 
+  sudo ln -s "/usr/local" "$DEV_IMAGE_ROOT/usr/local"
+
+  #TODO(sosa@chromium.org) - /usr/bin/xterm symlink not created in stateful.
+  sudo ln -sf "/usr/local/bin/aterm" "/usr/bin/xterm" 
 fi
 
 # Perform any customizations on the root file system that are needed.
