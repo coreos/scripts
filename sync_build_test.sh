@@ -180,11 +180,8 @@ function validate_and_set_param_defaults() {
 
   if [[ ${FLAGS_mod_image_for_test} -eq ${FLAGS_TRUE} ]]; then
     # Override any specified chronos password with the test one
-    local test_file=$(dirname $0)"/mod_for_test_scripts/test_account.passwd"
-    FLAGS_chronos_passwd=$(head -1 "${test_file}")
+    FLAGS_chronos_passwd="test0000"
     # Default to building autotests whenever we mod image for test.
-    # TODO(kmixter): Make this more efficient by either doing incremental
-    # building, or only building if the tests we're running needs to be.
     FLAGS_build_autotest=${FLAGS_TRUE}
     # If you're modding for test, you also want developer packages.
     FLAGS_withdev=${FLAGS_TRUE}
