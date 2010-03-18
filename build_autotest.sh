@@ -37,13 +37,29 @@ check_board
 
 # build default pre-compile client tests list.
 ALL_TESTS="compilebench,dbench,disktest,ltp,netperf2,unixbench"
-for SITE_TEST in ../third_party/autotest/files/client/site_tests/*
+CLIENT_TEST_PATH="../third_party/autotest/files/client/site_tests"
+for SITE_TEST in ${CLIENT_TEST_PATH}/*
 do
   if [ -d ${SITE_TEST} ]
   then
-    ALL_TESTS="${ALL_TESTS},${SITE_TEST:48}"
+    ALL_TESTS="${ALL_TESTS},${SITE_TEST##${CLIENT_TEST_PATH}/}"
   fi
 done
+
+# Load the overlay specific blacklist and remove any matching tests.
+PRIMARY_BOARD_OVERLAY="${SRC_ROOT}/overlays/overlay-${FLAGS_board}"
+BLACKLIST_FILE="${PRIMARY_BOARD_OVERLAY}/autotest-blacklist"
+if [ -r "${BLACKLIST_FILE}" ]
+then
+  BLACKLISTED_TESTS=$(cat ${BLACKLIST_FILE})
+
+  for TEST in ${BLACKLISTED_TESTS}
+  do
+    ALL_TESTS=${ALL_TESTS/#${TEST},/}     # match first test (test,...)
+    ALL_TESTS=${ALL_TESTS/,${TEST},/,}    # match middle tests (...,test,...)
+    ALL_TESTS=${ALL_TESTS/%,${TEST}/}     # match last test (...,test)
+  done
+fi
 
 if [ ${FLAGS_build} == ${DEFAULT_TESTS_LIST} ]
 then
