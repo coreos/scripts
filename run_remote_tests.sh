@@ -17,7 +17,7 @@ DEFAULT_OUTPUT_FILE=test-output-$(date '+%Y%m%d.%H%M%S')
 
 DEFINE_string build_desc "" "Build description used in database"
 DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
-DEFINE_boolean cleanup ${FLAGS_TRUE} "Clean up temp directory"
+DEFINE_boolean cleanup ${FLAGS_FALSE} "Clean up temp directory"
 DEFINE_integer iterations 1 "Iterations to run every top level test" i
 DEFINE_string machine_desc "" "Machine description used in database"
 DEFINE_string output_file "${DEFAULT_OUTPUT_FILE}" "Test run output" o
@@ -150,7 +150,7 @@ function main() {
   local search_path=$(echo ${autotest_dir}/{client,server}/{tests,site_tests})
   for test_request in $FLAGS_ARGV; do
     test_request=$(remove_quotes "${test_request}")
-    ! finds=$(find ${search_path} -type f -name control | \
+    ! finds=$(find ${search_path} -type f -name control\* | \
       egrep "${test_request}")
     if [[ -z "${finds}" ]]; then
       echo "Can not find match for ${test_request}"
