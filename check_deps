@@ -34,7 +34,8 @@ class CheckDependencies(object):
         "%s/lib" % root,
         "%s/usr/lib" % root,
         "%s/usr/lib/nss" % root,
-        "%s/usr/lib/nspr" % root
+        "%s/usr/lib/nspr" % root,
+        "%s/opt/google/o3d/lib" % root
     ], self._libcache)
 
   def _ReadLibs(self, paths, libcache):
