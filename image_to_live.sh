@@ -38,7 +38,7 @@ function remote_reboot_sh {
 
 function start_dev_server {
   kill_all_devservers
-  ./enter_chroot.sh "cd ../platform/dev; ./start-devserver.sh>/dev/null 2>&1" &
+  ./enter_chroot.sh "./start_devserver > /dev/null 2>&1" &
   echo -n "Waiting on devserver to start"
   until netstat -anp 2>&1 | grep 8080 > /dev/null; do
     sleep .5
