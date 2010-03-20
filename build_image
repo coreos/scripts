@@ -379,7 +379,7 @@ if [[ "$ARCH" = "arm" ]]; then
     "$MKIMAGE" -A "${ARCH}" -O linux  -T script -a 0 -e 0 -n "COS boot" \
                -d ${MBR_SCRIPT} ${MBR_SCRIPT_UIMG}
     dd bs=1 count=`stat --printf="%s" ${MBR_SCRIPT_UIMG}` \
-       if="$MBR_SCRIPT_UIMG" of="$MBR_IMG"
+       if="$MBR_SCRIPT_UIMG" of="$MBR_IMG" conv=notrunc
     hexdump -v -C "$MBR_IMG"
   else
     echo "Error: u-boot mkimage not found or not executable."
