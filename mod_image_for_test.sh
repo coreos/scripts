@@ -13,7 +13,10 @@
 get_default_board
 
 DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built"
+DEFINE_string qualdb "/tmp/run_remote_tests.*" \
+    "Location of qualified component file"
 DEFINE_string image "" "Location of the rootfs raw image file"
+DEFINE_boolean manuf $FLAGS_FALSE "Modify the image for manufacturing testing"
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" "y"
 
 # Parse command line
@@ -99,6 +102,33 @@ MOD_SCRIPTS_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
 # Run test setup script inside chroot jail to modify the image
 sudo GCLIENT_ROOT=${GCLIENT_ROOT} ROOT_FS_DIR=${ROOT_FS_DIR} \
     "${MOD_SCRIPTS_ROOT}/test_setup.sh"
+
+# Run manufacturing test setup
+if [ ${FLAGS_manuf} -eq ${FLAGS_TRUE} ]; then
+  echo "Modifying image ${FLAGS_image} for manufacturing test..."
+
+  # Try to use the sytem component file in the most recent autotest result
+  FLAGS_qualdb=$(ls -dt ${FLAGS_qualdb} 2>&-| head -1)
+
+  # Try to append the full path to the file if FLAGS_qualdb is a directory
+  if [ ! -z ${FLAGS_qualdb} ] && [ -d ${FLAGS_qualdb} ]; then
+    # TODO(waihong): Handle multiple results to deliver to multiple images
+    FLAGS_qualdb="${FLAGS_qualdb}/platform_Components,*"
+    FLAGS_qualdb=$(ls -dt ${FLAGS_qualdb} 2>&-| head -1)
+    FLAGS_qualdb="${FLAGS_qualdb}/platform_Components/results/system_components"
+  fi
+
+  if [ ! -z ${FLAGS_qualdb} ] && [ -f ${FLAGS_qualdb} ]; then
+    # Copy the qualified component file to the image
+    echo "Copying ${FLAGS_qualdb} to the image."
+    sudo mkdir -p ${ROOT_FS_DIR}/usr/local/manufacturing
+    sudo cp -f ${FLAGS_qualdb} \
+      ${ROOT_FS_DIR}/usr/local/manufacturing/qualified_components
+  else
+    echo "No qualified component file found at: ${FLAGS_qualdb}"
+    exit 1
+  fi
+fi
 
 cleanup
 trap - EXIT
