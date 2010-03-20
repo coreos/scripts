@@ -150,7 +150,7 @@ function main() {
   local search_path=$(echo ${autotest_dir}/{client,server}/{tests,site_tests})
   for test_request in $FLAGS_ARGV; do
     test_request=$(remove_quotes "${test_request}")
-    ! finds=$(find ${search_path} -type f -name control\* | \
+    ! finds=$(find ${search_path} -maxdepth 2 -type f -name control\* | \
       egrep "${test_request}")
     if [[ -z "${finds}" ]]; then
       echo "Can not find match for ${test_request}"
