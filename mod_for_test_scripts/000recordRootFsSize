@@ -13,7 +13,7 @@ echo "Recording production image size."
 FILE="${ROOT_FS_DIR}/root/bytes-rootfs-prod"
 if [[ ! -f "${FILE}"  ]]; then
   # This will complain it cannot find a valid mtab so keep it quiet.
-  df -B1 / 2>/dev/null | tail -1 | awk '{ print $3 }' > "${FILE}"
+  df -B1 -P 2>/dev/null | grep ${ROOT_FS_DIR} | awk '{ print $3 }' > "${FILE}"
 else
   echo "  Not modifying existing ${FILE}."
 fi
