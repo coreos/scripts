@@ -9,7 +9,7 @@
 COMMON_SH="$(dirname "$0")/common.sh"
 . "$COMMON_SH"
 
-# Script must be run inside the chroot.
-assert_inside_chroot
+# Script must be run inside the chroot if not in 'always serve' mode.
+[[ $1 != "-a" && assert_inside_chroot ]]
 
-cd ${GCLIENT_ROOT}/src/platform/dev && python devserver.py
+cd ${GCLIENT_ROOT}/src/platform/dev && python devserver.py $*
