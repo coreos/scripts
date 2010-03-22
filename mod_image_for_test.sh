@@ -113,9 +113,9 @@ if [ ${FLAGS_manuf} -eq ${FLAGS_TRUE} ]; then
   # Try to append the full path to the file if FLAGS_qualdb is a directory
   if [ ! -z ${FLAGS_qualdb} ] && [ -d ${FLAGS_qualdb} ]; then
     # TODO(waihong): Handle multiple results to deliver to multiple images
-    FLAGS_qualdb="${FLAGS_qualdb}/platform_Components,*"
+    FLAGS_qualdb="${FLAGS_qualdb}/hardware_Components,*"
     FLAGS_qualdb=$(ls -dt ${FLAGS_qualdb} 2>&-| head -1)
-    FLAGS_qualdb="${FLAGS_qualdb}/platform_Components/results/system_components"
+    FLAGS_qualdb="${FLAGS_qualdb}/hardware_Components/results/system_components"
   fi
 
   if [ ! -z ${FLAGS_qualdb} ] && [ -f ${FLAGS_qualdb} ]; then
