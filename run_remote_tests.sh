@@ -13,24 +13,45 @@
 . "$(dirname $0)/autotest_lib.sh"
 . "$(dirname $0)/remote_access.sh"
 
-DEFAULT_OUTPUT_FILE=test-output-$(date '+%Y%m%d.%H%M%S')
-
-DEFINE_string build_desc "" "Build description used in database"
 DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
 DEFINE_boolean cleanup ${FLAGS_FALSE} "Clean up temp directory"
 DEFINE_integer iterations 1 "Iterations to run every top level test" i
-DEFINE_string machine_desc "" "Machine description used in database"
-DEFINE_string output_file "${DEFAULT_OUTPUT_FILE}" "Test run output" o
 DEFINE_string prepackaged_autotest "" "Use this prepackaged autotest dir"
 DEFINE_string results_dir_root "" "alternate root results directory"
-DEFINE_boolean update_db ${FLAGS_FALSE} "Put results in autotest database" u
 DEFINE_boolean verbose ${FLAGS_FALSE} "Show verbose autoserv output" v
+
+# Check if our stdout is a tty
+function is_a_tty() {
+  local stdout=$(readlink /proc/$$/fd/1)
+  [[ "${stdout#/dev/tty}" != "${stdout}" ]] && return 0
+  [[ "${stdout#/dev/pts}" != "${stdout}" ]] && return 0
+  return 1
+}
+
+# Writes out text in specified color if stdout is a tty
+# Arguments:
+#   $1 - color
+#   $2 - text to color
+#   $3 - text following colored text (default colored)
+# Returns:
+#   None
+function echo_color() {
+  local color=0
+  [[ "$1" == "red" ]] && color=31
+  [[ "$1" == "green" ]] && color=32
+  [[ "$1" == "yellow" ]] && color=33
+  if is_a_tty; then
+    echo -e "\033[1;${color}m$2\033[0m$3"
+  else
+    echo "$2$3"
+  fi
+}
 
 function cleanup() {
   if [[ $FLAGS_cleanup -eq ${FLAGS_TRUE} ]]; then
     rm -rf "${TMP}"
   else
-    echo "Left temporary files at ${TMP}"
+    echo ">>> Details stored under ${TMP}"
   fi
   cleanup_remote_access
 }
@@ -99,15 +120,13 @@ function learn_board() {
 
 
 function main() {
-  assert_outside_chroot
-
   cd $(dirname "$0")
 
   FLAGS "$@" || exit 1
 
   if [[ -z "${FLAGS_ARGV}" ]]; then
-    echo "Please specify tests to run, like:"
-    echo "  $0 --remote=MyMachine SystemBootPerf"
+    echo "Please specify tests to run.  For example:"
+    echo "  $0 --remote=MyMachine BootPerfServer"
     exit 1
   fi
 
@@ -115,8 +134,6 @@ function main() {
 
   # Set global TMP for remote_access.sh's sake
   TMP=$(mktemp -d /tmp/run_remote_tests.XXXX)
-
-  rm -f "${FLAGS_output_file}"
 
   trap cleanup EXIT
 
@@ -129,17 +146,13 @@ function main() {
     # is just modifying scripts, they take effect without having to wait
     # for the laborious build_autotest.sh command.
     local original="${GCLIENT_ROOT}/src/third_party/autotest/files"
-    autotest_dir="${FLAGS_chroot}/build/${FLAGS_board}/usr/local/autotest"
+    autotest_dir="/build/${FLAGS_board}/usr/local/autotest"
+    if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
+      autotest_dir="${FLAGS_chroot}/${autotest_dir}"
+    fi
     update_chroot_autotest "${original}" "${autotest_dir}"
   else
     autotest_dir="${FLAGS_prepackaged_autotest}"
-  fi
-
-  local parse_cmd="${autotest_dir}/tko/parse.py"
-
-  if [[ ${FLAGS_update_db} -eq ${FLAGS_TRUE} && ! -x "${parse_cmd}" ]]; then
-    echo "Cannot find parser ${parse_cmd}"
-    exit 1
   fi
 
   local autoserv="${autotest_dir}/server/autoserv"
@@ -153,13 +166,22 @@ function main() {
     ! finds=$(find ${search_path} -maxdepth 2 -type f -name control\* | \
       egrep "${test_request}")
     if [[ -z "${finds}" ]]; then
-      echo "Can not find match for ${test_request}"
+      echo_color "red" ">>> Cannot find match for \"${test_request}\""
+      FLAGS_cleanup=${FLAGS_TRUE}
       exit 1
     fi
     local matches=$(echo "${finds}" | wc -l)
     if [[ ${matches} -gt 1 ]]; then
-      echo "${test_request} is ambiguous:"
-      echo "${finds}"
+      echo ""
+      echo_color "red" \
+        ">>> \"${test_request}\" is ambiguous.  These control file paths match:"
+      for FIND in ${finds}; do
+        echo_color "red" " * " "${FIND}"
+      done
+      echo ""
+      echo ">>> Disambiguate by copy-and-pasting the whole path above" \
+           "instead of passing \"${test_request}\"."
+      FLAGS_cleanup=${FLAGS_TRUE}
       exit 1
     fi
     for i in $(seq 1 $FLAGS_iterations); do
@@ -167,12 +189,11 @@ function main() {
     done
   done
 
-  echo "Running the following control files: ${control_files_to_run}"
-
-  # Set the default machine description to the machine's IP
-  if [[ -z "${FLAGS_machine_desc}" ]]; then
-    FLAGS_machine_desc="${FLAGS_remote}"
-  fi
+  echo ""
+  echo_color "yellow" ">>> Running the following control files:"
+  for CONTROL_FILE in ${control_files_to_run}; do
+    echo_color "yellow" " * " "${CONTROL_FILE}"
+  done
 
   if [[ -z "${FLAGS_results_dir_root}" ]]; then
     FLAGS_results_dir_root="${TMP}"
@@ -183,21 +204,26 @@ function main() {
   for control_file in ${control_files_to_run}; do
     # Assume a line starts with TEST_TYPE =
     control_file=$(remove_quotes "${control_file}")
-    local type=$(egrep '^\s*TEST_TYPE\s*=' "${control_file}" | head -1)
+    local type=$(egrep '^[[:space:]]*TEST_TYPE[[:space:]]*=' "${control_file}" \
+      | head -1)
+    if [[ -z "${type}" ]]; then
+      echo_color "red" ">>> Unable to find TEST_TYPE line in ${control_file}"
+      exit 1
+    fi
     type=$(python -c "${type}; print TEST_TYPE.lower()")
     local option
     if [ "${type}" == "client" ]; then
       option="-c"
     elif [ "${type}" == "server" ]; then
-     option="-s"
+      option="-s"
     else
-      echo "Unknown type of test (${type}) in ${control_file}"
+      echo_color "red" ">>> Unknown type of test (${type}) in ${control_file}"
       exit 1
     fi
-    echo "Running ${type} test ${control_file}"
+    echo ""
+    echo_color "yellow" ">>> Running ${type} test " ${control_file}
     local short_name=$(basename $(dirname "${control_file}"))
-    local start_time=$(date '+%s')
-    local results_dir_name="${short_name},${FLAGS_machine_desc},${start_time}"
+    local results_dir_name="${short_name}"
     local results_dir="${FLAGS_results_dir_root}/${results_dir_name}"
     rm -rf "${results_dir}"
     local verbose=""
@@ -210,34 +236,19 @@ function main() {
     local test_status="${results_dir}/status.log"
     local test_result_dir="${results_dir}/${short_name}"
     local keyval_file="${test_result_dir}/results/keyval"
+    echo ""
     if is_successful_test "${test_status}"; then
-      echo "${control_file} succeeded." | tee -a "${FLAGS_output_file}"
+      echo_color "green" ">>> SUCCESS: ${control_file}"
       if [[ -f "${keyval_file}" ]]; then
-        echo "Keyval was:" | tee -a "${FLAGS_output_file}"
-        cat "${keyval_file}" | tee -a "${FLAGS_output_file}"
+        echo ">>> Keyval was:"
+        cat "${keyval_file}"
       fi
     else
-      echo "${control_file} failed:" | tee -a "${FLAGS_output_file}"
-      cat "${test_status}" | tee -a "${FLAGS_output_file}"
-        # Leave around output directory if the test failed.
-      FLAGS_cleanup=${FLAGS_FALSE}
+      echo_color "red" ">>> FAILED: ${control_file}"
+      cat "${test_status}"
     fi
     local end_time=$(date '+%s')
-
-    # Update the database with results.
-    if [[ ${FLAGS_update_db} -eq ${FLAGS_TRUE} ]]; then
-      add_test_attribute "${results_dir}" machine-desc "${FLAGS_machine_desc}"
-      add_test_attribute "${results_dir}" build-desc "${FLAGS_build_desc}"
-      add_test_attribute "${results_dir}" server-start-time "${start_time}"
-      add_test_attribute "${results_dir}" server-end-time "${end_time}"
-      if ! "${parse_cmd}" -o "${results_dir}"; then
-        echo "Parse failed." | tee -a "${FLAGS_output_file}"
-        FLAGS_cleanup=${FLAGS_FALSE}
-      fi
-    fi
   done
-
-  echo "Output stored to ${FLAGS_output_file}"
 }
 
 main $@
