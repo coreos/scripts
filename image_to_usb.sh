@@ -24,6 +24,8 @@ DEFINE_boolean copy_kernel ${FLAGS_FALSE} \
   "Copy the kernel to the fourth partition."
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
   "Uses test image if available, otherwise creates one as rootfs_test.image."
+DEFINE_string build_root "/build" \
+  "The root location for board sysroots."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -33,10 +35,11 @@ eval set -- "${FLAGS_ARGV}"
 # Script can be run either inside or outside the chroot.
 if [ ${INSIDE_CHROOT} -eq 1 ]
 then
-  AUTOTEST_SRC="/usr/local/autotest/${FLAGS_board}"
+  SYSROOT="${FLAGS_build_root}/${FLAGS_board}"
 else
-  AUTOTEST_SRC="${DEFAULT_CHROOT_DIR}/usr/local/autotest/${FLAGS_board}"
+  SYSROOT="${DEFAULT_CHROOT_DIR}${FLAGS_build_root}/${FLAGS_board}"
 fi
+AUTOTEST_SRC="${SYSROOT}/usr/local/autotest"
 
 # Die on any errors.
 set -e
@@ -97,10 +100,12 @@ if [ ! -f "${STATEFUL_IMG}" ] ; then
   dd if=/dev/zero of="${STATEFUL_IMG}" bs=1 count=1 \
       seek=$(( (${PART_SIZE} - 1) ))
   set +x
+  trap do_cleanup INT TERM EXIT
   sudo losetup "$STATEFUL_LOOP_DEV" "$STATEFUL_IMG"
   sudo mkfs.ext3 "$STATEFUL_LOOP_DEV"
   sudo tune2fs -L "C-STATE" -c 0 -i 0 "$STATEFUL_LOOP_DEV"
   sudo losetup -d "${STATEFUL_LOOP_DEV}"
+  trap - INT TERM EXIT
 fi
 
 # Modifies image for test if requested
@@ -116,10 +121,16 @@ if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
 fi
 
 function do_cleanup {
-  sudo losetup -d "${LOOP_DEV}"
+  echo "Cleaning loopback devices: ${STATEFUL_LOOP_DEV}"
+  if [ "${STATEFUL_LOOP_DEV}" != "" ]; then
+    sudo umount "${STATEFUL_DIR}"
+    sudo losetup -d "${STATEFUL_LOOP_DEV}"
+    echo "Cleaned"
+  fi
 }
 
 function install_autotest {
+  echo "Detecting autotest at ${AUTOTEST_SRC}"
   if [ -d ${AUTOTEST_SRC} ]
   then
     local stateful_loop_dev=$(sudo losetup -f)
@@ -128,23 +139,26 @@ function install_autotest {
       echo "No free loop device. Free up a loop device or reboot. exiting."
       exit 1
     fi
-    
+    trap do_cleanup INT TERM EXIT
+    STATEFUL_LOOP_DEV=$stateful_loop_dev
+    echo "Mounting ${STATEFUL_DIR} loopback"
+    sudo losetup "${stateful_loop_dev}" "${STATEFUL_DIR}.image"
     sudo mount "${stateful_loop_dev}" "${STATEFUL_DIR}"
 
     echo -ne "Install autotest into stateful partition..."
-	  local autotest_client="/home/autotest-client"
+    local autotest_client="/home/autotest-client"
     sudo mkdir -p "${STATEFUL_DIR}${autotest_client}"
     sudo cp -fpru ${AUTOTEST_SRC}/client/* \
-	    "${STATEFUL_DIR}${autotest_client}"
+        "${STATEFUL_DIR}${autotest_client}"
     sudo chmod 755 "${STATEFUL_DIR}${autotest_client}"
     sudo chown -R 1000:1000 "${STATEFUL_DIR}${autotest_client}"
-    
+
     sudo umount ${STATEFUL_DIR}
-    sudo losetup -d "${stateful_loop_dev}"    
+    sudo losetup -d "${stateful_loop_dev}"
+    trap - INT TERM EXIT
   else
     echo "/usr/local/autotest under ${DEFAULT_CHROOT_DIR} is not installed."
     echo "Please call make_autotest.sh inside chroot first."
-    sudo umount "${STATEFUL_DIR}"
     exit -1
   fi
 }
@@ -187,11 +201,11 @@ then
     ! sudo umount "$i"
   done
   sleep 3
- 
+
   if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ] ; then
     install_autotest
   fi
- 
+
   # Write stateful partition to first partition. 
   echo "Copying stateful partition ..."
   sudo "${SCRIPTS_DIR}"/file_copy.py \
@@ -203,7 +217,7 @@ then
   sudo "${SCRIPTS_DIR}"/file_copy.py \
       if="${ROOTFS_IMAGE}" of="${FLAGS_to}" bs=4M \
       seek_bytes=$(( (${PART_SIZE} * 2) + 512 ))
-  
+
   trap - EXIT
 
   if [ ${FLAGS_copy_kernel} -eq ${FLAGS_TRUE} ]
