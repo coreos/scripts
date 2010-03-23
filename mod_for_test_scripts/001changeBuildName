@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Changes the description of the image for test builds so that developers
+# can tell immediately if they have a test build vs. a developer build.
+
+echo "Modifying Release Description for Test."
+FILE="${ROOT_FS_DIR}/etc/lsb-release"
+sed -i 's/Developer/Test/' $FILE
