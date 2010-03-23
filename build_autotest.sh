@@ -24,6 +24,7 @@ DEFINE_string build "${DEFAULT_TESTS_LIST}" \
 DEFINE_boolean prompt $FLAGS_TRUE "Prompt user when building all tests."
 DEFINE_boolean autox $FLAGS_TRUE "Build autox along with autotest"
 DEFINE_boolean buildcheck $FLAGS_TRUE "Fail if tests fail to build"
+DEFINE_integer jobs -1 "How many packages to build in parallel at maximum."
 
 # More useful help
 FLAGS_HELP="usage: $0 [flags]"
@@ -34,6 +35,10 @@ eval set -- "${FLAGS_ARGV}"
 set -e
 
 check_board
+
+if [[ "${FLAGS_jobs}" -ne -1 ]]; then
+  EMERGE_JOBS="--jobs=${FLAGS_jobs}"
+fi
 
 # build default pre-compile client tests list.
 ALL_TESTS="compilebench,dbench,disktest,ltp,netperf2,unixbench"
@@ -89,4 +94,4 @@ USE=
 
 GCLIENT_ROOT="${GCLIENT_ROOT}" TEST_LIST=${TEST_LIST} \
   FEATURES="${FEATURES} -buildpkg" USE="$USE" "emerge-${FLAGS_board}" \
-  chromeos-base/autotest
+  chromeos-base/autotest ${EMERGE_JOBS}
