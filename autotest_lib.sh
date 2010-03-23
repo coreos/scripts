@@ -17,7 +17,7 @@ function check_board() {
   local found=0
   for overlay_path in "${SRC_ROOT}"/overlays/overlay-*
   do
-    local overlay="$(basename \"${overlay_path}\")"
+    local overlay=$(basename "${overlay_path}")
     local board="${overlay#overlay-}"
     board_names[index]="${board}"
     index+=1
