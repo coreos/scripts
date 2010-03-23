@@ -134,6 +134,10 @@ function setup_env {
 function teardown_env {
   # Only teardown if we're the last enter_chroot to die
 
+  # We should not return with an error if cleanup has an error.  Cleanup is
+  # best effort only.
+  set +e
+
   (
     flock 200
 
