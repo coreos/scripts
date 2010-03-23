@@ -78,25 +78,28 @@ function setup_env {
 
     # Mount only if not already mounted
     MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/proc")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
     then
-      sudo mount none -t proc "$MOUNTED_PATH"
+      sudo mount none -t proc "$MOUNTED_PATH" || \
+          die "Could not mount $MOUNTED_PATH"
     fi
 
     MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/dev/pts")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
     then
-      sudo mount none -t devpts "$MOUNTED_PATH"
+      sudo mount none -t devpts "$MOUNTED_PATH" || \
+          die "Could not mount $MOUNTED_PATH"
     fi
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}$CHROOT_TRUNK_DIR")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
     then
-      sudo mount --bind "$FLAGS_trunk" "$MOUNTED_PATH"
+      sudo mount --bind "$FLAGS_trunk" "$MOUNTED_PATH" || \
+          die "Could not mount $MOUNTED_PATH"
     fi
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_CHROME_ROOT}")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
     then
       ! CHROME_ROOT="$(readlink -f "$FLAGS_chrome_root")"
       if [ -z "$CHROME_ROOT" ]; then
@@ -111,12 +114,13 @@ function setup_env {
         echo "$CHROME_ROOT" | \
           sudo dd of="${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
         mkdir -p "$MOUNTED_PATH"
-        sudo mount --bind "$CHROME_ROOT" "$MOUNTED_PATH"
+        sudo mount --bind "$CHROME_ROOT" "$MOUNTED_PATH" || \
+          die "Could not mount $MOUNTED_PATH"
       fi
     fi
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_DEPOT_TOOLS_ROOT}")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH")" ]
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
     then
       if [ $(which gclient 2>/dev/null) ]; then
         echo "Mounting depot_tools"
@@ -128,16 +132,11 @@ function setup_env {
         fi
       fi
     fi
-  ) 200>>"$LOCKFILE"
+  ) 200>>"$LOCKFILE" || die "setup_env failed"
 }
 
 function teardown_env {
   # Only teardown if we're the last enter_chroot to die
-
-  # We should not return with an error if cleanup has an error.  Cleanup is
-  # best effort only.
-  set +e
-
   (
     flock 200
 
@@ -165,11 +164,13 @@ function teardown_env {
       echo "At least one other pid is running in the chroot, so not"
       echo "tearing down env."
     else
+      MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
       echo "Unmounting chroot environment."
-      mount | grep "on $(readlink -f "$FLAGS_chroot")" | awk '{print $3}' \
-        | xargs -r -L1 sudo umount
+      for i in $(mount | grep -F "on $MOUNTED_PATH/" | awk '{print $3}'); do
+        sudo umount "$i" || die "Failed to umount $i"
+      done
     fi
-  ) 200>>"$LOCKFILE"
+  ) 200>>"$LOCKFILE" || die "teardown_env failed"
 }
 
 if [ $FLAGS_mount -eq $FLAGS_TRUE ]

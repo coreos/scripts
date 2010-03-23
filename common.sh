@@ -288,3 +288,8 @@ function warn {
 function error {
   echo -e "${V_RED}Error....: $1${V_VIDOFF}"
 }
+
+function die {
+  error "$1"
+  exit 1
+}
