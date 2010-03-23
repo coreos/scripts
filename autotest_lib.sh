@@ -15,11 +15,13 @@ function check_board() {
   local board_names=""
   local index=1
   local found=0
-  for board in ../overlays/overlay-*
+  for overlay_path in "${SRC_ROOT}"/overlays/overlay-*
   do
-    board_names[index]=${board:20}
+    local overlay="$(basename \"${overlay_path}\")"
+    local board="${overlay#overlay-}"
+    board_names[index]="${board}"
     index+=1
-    if [ "${FLAGS_board}" == "${board:20}" ]
+    if [ "${FLAGS_board}" == "${board}" ]
     then
       found=1
     fi
