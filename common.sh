@@ -255,6 +255,29 @@ is_whitelisted() {
   test $count -ne 0
 }
 
+# Check that all arguments are flags; that is, there are no remaining arguments
+# after parsing from shflags.  Allow (with a warning) a single empty-string
+# argument.
+#
+# TODO: fix buildbot so that it doesn't pass the empty-string parameter,
+# then change this function.
+#
+# Usage: check_flags_only_and_allow_null_arg "$@" && set --
+function check_flags_only_and_allow_null_arg {
+  do_shift=1
+  if [[ $# == 1 && -z "$@" ]]; then
+    echo "$0: warning: ignoring null argument" >&2
+    shift
+    do_shift=0
+  fi
+  if [[ $# -gt 0 ]]; then
+    echo "error: invalid arguments: \"$@\"" >&2
+    flags_help
+    exit 1
+  fi
+  return $do_shift
+}
+
 V_RED="\e[31m"
 V_YELLOW="\e[33m"
 
