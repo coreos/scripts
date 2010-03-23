@@ -64,8 +64,8 @@ function cleanup() {
 #   None
 function is_successful_test() {
   local file="$1"
-  # To be successful, must not have FAIL or BAD in the file.
-  if egrep -q "(BAD|FAIL)" "${file}"; then
+  # To be successful, must not have BAD, ERROR or FAIL in the file.
+  if egrep -q "(BAD|ERROR|FAIL)" "${file}"; then
     return 1
   fi
   # To be successful, must have GOOD in the file.
