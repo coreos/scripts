@@ -94,5 +94,6 @@ USE=
 [ $FLAGS_buildcheck -eq "$FLAGS_TRUE" ] && USE="${USE} buildcheck"
 
 GCLIENT_ROOT="${GCLIENT_ROOT}" TEST_LIST=${TEST_LIST} \
-  FEATURES="${FEATURES} -buildpkg" USE="$USE" "emerge-${FLAGS_board}" \
+  FEATURES="${FEATURES} -buildpkg -collision-protect" \
+  USE="$USE" "emerge-${FLAGS_board}" \
   chromeos-base/autotest ${EMERGE_JOBS}
