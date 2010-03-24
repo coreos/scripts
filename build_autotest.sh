@@ -52,7 +52,8 @@ do
 done
 
 # Load the overlay specific blacklist and remove any matching tests.
-PRIMARY_BOARD_OVERLAY="${SRC_ROOT}/overlays/overlay-${FLAGS_board}"
+BOARD_BASENAME=$(echo "${FLAGS_board}" |cut -d '_' -f 1)
+PRIMARY_BOARD_OVERLAY="${SRC_ROOT}/overlays/overlay-${BOARD_BASENAME}"
 BLACKLIST_FILE="${PRIMARY_BOARD_OVERLAY}/autotest-blacklist"
 if [ -r "${BLACKLIST_FILE}" ]
 then

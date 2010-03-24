@@ -15,13 +15,14 @@ function check_board() {
   local board_names=""
   local index=1
   local found=0
+  local board_basename=$(echo "${FLAGS_board}" |cut -d '_' -f 1)
   for overlay_path in "${SRC_ROOT}"/overlays/overlay-*
   do
     local overlay=$(basename "${overlay_path}")
     local board="${overlay#overlay-}"
     board_names[index]="${board}"
     index+=1
-    if [ "${FLAGS_board}" == "${board}" ]
+    if [ "${board_basename}" == "${board}" ]
     then
       found=1
     fi
