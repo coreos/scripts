@@ -96,4 +96,5 @@ USE=
 GCLIENT_ROOT="${GCLIENT_ROOT}" TEST_LIST=${TEST_LIST} \
   FEATURES="${FEATURES} -buildpkg -collision-protect" \
   USE="$USE" "emerge-${FLAGS_board}" \
-  chromeos-base/autotest ${EMERGE_JOBS}
+  chromeos-base/autotest ${EMERGE_JOBS} \
+  || die "build_autotest failed."
