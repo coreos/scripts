@@ -280,13 +280,15 @@ function check_flags_only_and_allow_null_arg {
 
 V_RED="\e[31m"
 V_YELLOW="\e[33m"
+V_BOLD_RED="\e[1;31m"
+V_BOLD_YELLOW="\e[1;33m"
 
 function warn {
-  echo -e "${V_YELLOW}Warning..: $1${V_VIDOFF}"
+  echo -e "${V_BOLD_YELLOW}WARNING: $1${V_VIDOFF}"
 }
 
 function error {
-  echo -e "${V_RED}Error....: $1${V_VIDOFF}"
+  echo -e    "${V_BOLD_RED}ERROR  : $1${V_VIDOFF}"
 }
 
 function die {
