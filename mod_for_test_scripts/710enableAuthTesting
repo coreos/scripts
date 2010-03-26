@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+echo "Adding mock Google Accounts server certs."
+
+# TODO(cmasone): Generate these on the fly?
+CERT_DIR="${GCLIENT_ROOT}/src/platform/login_manager"
+CERT_NAME="mock_server"
+
+cat "${CERT_DIR}/${CERT_NAME}.key" > "${ROOT_FS_DIR}/etc/${CERT_NAME}.key"
+
+# Sadly, our fake cert HAS to be first in this file.
+TMPFILE=$(mktemp)
+CERT_FILE="${ROOT_FS_DIR}/etc/login_trust_root.pem"
+cat "${CERT_DIR}/${CERT_NAME}.pem" "${CERT_FILE}" > "${TMPFILE}"
+mv -f "${TMPFILE}" "${CERT_FILE}"
