@@ -134,6 +134,7 @@ function install_autotest {
   if [ -d ${AUTOTEST_SRC} ]
   then
     local stateful_loop_dev=$(sudo losetup -f)
+    local stateful_root="${STATEFUL_DIR}/dev_image"
     if [ -z "${stateful_loop_dev}" ]
     then
       echo "No free loop device. Free up a loop device or reboot. exiting."
@@ -144,15 +145,15 @@ function install_autotest {
     echo "Mounting ${STATEFUL_DIR} loopback"
     sudo losetup "${stateful_loop_dev}" "${STATEFUL_DIR}.image"
     sudo mount "${stateful_loop_dev}" "${STATEFUL_DIR}"
-
+    
     echo -ne "Install autotest into stateful partition..."
     local autotest_client="/home/autotest-client"
-    sudo mkdir -p "${STATEFUL_DIR}${autotest_client}"
+    sudo mkdir -p "${stateful_root}/${autotest_client}"
     sudo cp -fpru ${AUTOTEST_SRC}/client/* \
-        "${STATEFUL_DIR}${autotest_client}"
-    sudo chmod 755 "${STATEFUL_DIR}${autotest_client}"
-    sudo chown -R 1000:1000 "${STATEFUL_DIR}${autotest_client}"
-
+	    "${stateful_root}/${autotest_client}"
+    sudo chmod 755 "${stateful_root}/${autotest_client}"
+    sudo chown -R 1000:1000 "${stateful_root}/${autotest_client}"
+    
     sudo umount ${STATEFUL_DIR}
     sudo losetup -d "${stateful_loop_dev}"
     trap - INT TERM EXIT
