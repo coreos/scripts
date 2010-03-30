@@ -70,7 +70,7 @@ OUTPUT_DIR="${FLAGS_output_root}/${FLAGS_board}/${IMAGE_SUBDIR}"
 ROOT_FS_DIR="${OUTPUT_DIR}/rootfs"
 ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
 MBR_IMG="${OUTPUT_DIR}/mbr.image"
-OUTPUT_IMG="${OUTPUT_DIR}/usb.img"
+OUTPUT_IMG="${OUTPUT_DIR}/chromiumos_image.bin"
 
 BOARD="${FLAGS_board}"
 BOARD_ROOT="${FLAGS_build_root}/${BOARD}"
@@ -320,6 +320,11 @@ if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]]; then
   WITH_DEV="--withdev"
 fi
 
+# Extract the kernel from the root filesystem for use by the GPT image. Legacy
+# BIOS will use the kernel in the rootfs (via syslinux), ChromeOS BIOS will use
+# the kernel partition.
+sudo cp -f ${ROOT_FS_DIR}/boot/vmlinuz ${OUTPUT_DIR}/vmlinuz.image
+
 #TODO(sosa@chromium.org) - Does it make sense to leave /usr/local bound here?
 "${SCRIPTS_DIR}/customize_rootfs" \
   --root="$ROOT_FS_DIR" \
@@ -347,44 +352,11 @@ fi
 cleanup_stateful_fs_loop
 cleanup_rootfs_loop
 
-# Create a master boot record.
-# Start with the syslinux master boot record. We need to zero-pad to
-# fill out a 512-byte sector size.
-SYSLINUX_MBR="/usr/share/syslinux/mbr.bin"
-dd if="$SYSLINUX_MBR" of="$MBR_IMG" bs=512 count=1 conv=sync
-# Create a partition table in the MBR.
-NUM_SECTORS=$((`stat --format="%s" "$ROOT_FS_IMG"` / 512))
-KERNEL_SECTORS=8192
-sudo sfdisk -H64 -S32 -uS -f "$MBR_IMG" <<EOF
-,$NUM_SECTORS,L,-,
-,$NUM_SECTORS,S,-,
-,$NUM_SECTORS,L,*,
-,$KERNEL_SECTORS,L,-,
-;
-EOF
-if [[ "$ARCH" = "arm" ]]; then
-  # Write u-boot script into MBR code block that boots 4th partition kernel.
-  KERNEL_OFFSET=`printf "%08x" $(((3 * $NUM_SECTORS) + 1))`
-  KERNEL_SECS_HEX=`printf "%08x" $KERNEL_SECTORS`
-  MBR_SCRIPT="${OUTPUT_DIR}/mbr_script"
-  echo -e "echo\necho ---- ChromeOS Boot ----\necho\n" \
-          "mmc read 1 C0008000 0x$KERNEL_OFFSET 0x$KERNEL_SECS_HEX\n" \
-          "bootm C0008000" > ${MBR_SCRIPT}
-  MKIMAGE="${BOARD_ROOT}/u-boot/mkimage"
-  if [[ -f "$MKIMAGE".gz ]]; then
-    sudo gunzip "$MKIMAGE".gz
-  fi
-  if [[ -x "$MKIMAGE" ]]; then
-    MBR_SCRIPT_UIMG="${MBR_SCRIPT}.uimg"
-    "$MKIMAGE" -A "${ARCH}" -O linux  -T script -a 0 -e 0 -n "COS boot" \
-               -d ${MBR_SCRIPT} ${MBR_SCRIPT_UIMG}
-    dd bs=1 count=`stat --printf="%s" ${MBR_SCRIPT_UIMG}` \
-       if="$MBR_SCRIPT_UIMG" of="$MBR_IMG" conv=notrunc
-    hexdump -v -C "$MBR_IMG"
-  else
-    echo "Error: u-boot mkimage not found or not executable."
-  fi
-fi
+# Create the GPT-formatted image
+${SCRIPTS_DIR}/build_gpt.sh \
+   --arch=${ARCH} --board=${FLAGS_board} --board_root=${BOARD_ROOT} \
+   ${OUTPUT_DIR} ${OUTPUT_IMG}
+
 
 OUTSIDE_OUTPUT_DIR="../build/images/${FLAGS_board}/${IMAGE_SUBDIR}"
 echo "Done.  Image created in ${OUTPUT_DIR}"

@@ -10,6 +10,9 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
+# Load functions and constants for chromeos-install
+. "$(dirname "$0")/chromeos-common.sh"
+
 get_default_board
 
 # Flags
@@ -66,9 +69,10 @@ if [ -z "${FLAGS_to}" ]; then
   # Script can be run either inside or outside the chroot.
   if [ ${INSIDE_CHROOT} -eq 1 ]
   then
-    # Inside the chroot, so output to usb.img in the same dir as the other
-    # images.
-    FLAGS_to="${FLAGS_from}/usb.img"
+    # Inside the chroot, we'll only output to a file, and we probably already
+    # have a valid image. Make the user specify a filename.
+    echo "ERROR: Inside the chroot, you must specify a --to FILE to create."
+    exit 1
   else
     # Outside the chroot, so output to the default device for a usb key.
     FLAGS_to="/dev/sdb"
@@ -80,45 +84,22 @@ fi
 FLAGS_from=`eval readlink -f ${FLAGS_from}`
 FLAGS_to=`eval readlink -f ${FLAGS_to}`
 
-# Uses this rootfs image as the source image to copy
-ROOTFS_IMAGE="${FLAGS_from}/rootfs.image"
-PART_SIZE=$(stat -c%s "${ROOTFS_IMAGE}")  # Bytes
+# Use this image as the source image to copy
+SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
 
-# Setup stateful partition variables
-STATEFUL_IMG="${FLAGS_from}/stateful_partition.image"
-STATEFUL_DIR="${FLAGS_from}/stateful_partition"
-
-# TODO(sosa@chromium.org) - Remove legacy support.
-if [ ! -f "${STATEFUL_IMG}" ] ; then
-  echo "WARNING!  Stateful partition not found.  Creating clean stateful"
-  STATEFUL_LOOP_DEV=$(sudo losetup -f)
-  if [ -z "${STATEFUL_LOOP_DEV}" ] ; then
-    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
-    exit 1
-  fi
-  set -x
-  dd if=/dev/zero of="${STATEFUL_IMG}" bs=1 count=1 \
-      seek=$(( (${PART_SIZE} - 1) ))
-  set +x
-  trap do_cleanup INT TERM EXIT
-  sudo losetup "$STATEFUL_LOOP_DEV" "$STATEFUL_IMG"
-  sudo mkfs.ext3 "$STATEFUL_LOOP_DEV"
-  sudo tune2fs -L "C-STATE" -c 0 -i 0 "$STATEFUL_LOOP_DEV"
-  sudo losetup -d "${STATEFUL_LOOP_DEV}"
-  trap - INT TERM EXIT
-fi
-
-# Modifies image for test if requested
+# If we're asked to modify the image for test, then let's make a copy and
+# modify that instead.
 if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
-  if [ ! -f "${FLAGS_from}/rootfs_test.image" ] ; then
-    echo "Test image not found, creating test image from original ... "
-    cp "${FLAGS_from}/rootfs.image" "${FLAGS_from}/rootfs_test.image"
-    "${SCRIPTS_DIR}/mod_image_for_test.sh" \
-      --image "${FLAGS_from}/rootfs_test.image"
-  fi
-  # Use the test image instead
-  ROOTFS_IMAGE="${FLAGS_from}/rootfs_test.image"
+  # Copy it.
+  echo "Creating test image from original..."
+  cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_test_image.bin"
+  # Use it.
+  SRC_IMAGE="${FLAGS_from}/chromiumos_test_image.bin"
+  # Modify it.
+  "${SCRIPTS_DIR}/mod_image_for_test.sh" --image "${SRC_IMAGE}"
 fi
+
+STATEFUL_DIR="${FLAGS_from}/stateful_partition"
 
 function do_cleanup {
   echo "Cleaning loopback devices: ${STATEFUL_LOOP_DEV}"
@@ -129,26 +110,32 @@ function do_cleanup {
   fi
 }
 
-function install_autotest {
+if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ] ; then
   echo "Detecting autotest at ${AUTOTEST_SRC}"
   if [ -d ${AUTOTEST_SRC} ]
   then
-    local stateful_loop_dev=$(sudo losetup -f)
-    local stateful_root="${STATEFUL_DIR}/dev_image"
+    # Figure out how to loop mount the stateful partition. It's always
+    # partition 1 on the disk image.
+    offset=$(partoffset "${SRC_IMAGE}" 1)
+
+    stateful_loop_dev=$(sudo losetup -f)
     if [ -z "${stateful_loop_dev}" ]
     then
       echo "No free loop device. Free up a loop device or reboot. exiting."
       exit 1
     fi
-    trap do_cleanup INT TERM EXIT
     STATEFUL_LOOP_DEV=$stateful_loop_dev
+    trap do_cleanup INT TERM EXIT
+
     echo "Mounting ${STATEFUL_DIR} loopback"
-    sudo losetup "${stateful_loop_dev}" "${STATEFUL_DIR}.image"
+    sudo losetup -o $(( $offset * 512 )) "${stateful_loop_dev}" "${SRC_IMAGE}"
     sudo mount "${stateful_loop_dev}" "${STATEFUL_DIR}"
-    
-    echo -ne "Install autotest into stateful partition..."
-    local autotest_client="/home/autotest-client"
-    sudo mkdir -p "${stateful_root}/${autotest_client}"
+    stateful_root="${STATEFUL_DIR}/dev_image"
+
+    echo "Install autotest into stateful partition..."
+    autotest_client="/home/autotest-client"
+    sudo mkdir -p "${stateful_root}${autotest_client}"
+
     sudo cp -fpru ${AUTOTEST_SRC}/client/* \
 	    "${stateful_root}/${autotest_client}"
     sudo chmod 755 "${stateful_root}/${autotest_client}"
@@ -162,17 +149,18 @@ function install_autotest {
     echo "Please call make_autotest.sh inside chroot first."
     exit -1
   fi
-}
+fi
 
-# Copy MBR and rootfs to output image
+
+# Let's do it.
 if [ -b "${FLAGS_to}" ]
 then
   # Output to a block device (i.e., a real USB key), so need sudo dd
-  echo "Copying USB image ${FLAGS_from} to device ${FLAGS_to}..."
+  echo "Copying USB image ${SRC_IMAGE} to device ${FLAGS_to}..."
 
   # Warn if it looks like they supplied a partition as the destination.
-  if echo ${FLAGS_to} | grep -q '[0-9]$'; then
-    local drive=$(echo ${FLAGS_to} | sed -re 's/[0-9]+$//')
+  if echo "${FLAGS_to}" | grep -q '[0-9]$'; then
+    local drive=$(echo "${FLAGS_to}" | sed -re 's/[0-9]+$//')
     if [ -b "${drive}" ]; then
       echo
       echo "NOTE: It looks like you may have supplied a partition as the "
@@ -185,8 +173,8 @@ then
   # Make sure this is really what the user wants, before nuking the device
   if [ ${FLAGS_yes} -ne ${FLAGS_TRUE} ]
   then
+    sudo fdisk -l "${FLAGS_to}" 2>/dev/null | grep Disk | head -1
     echo "This will erase all data on this device:"
-    sudo fdisk -l "${FLAGS_to}" | grep Disk | head -1
     read -p "Are you sure (y/N)? " SURE
     SURE="${SURE:0:1}" # Get just the first character
     if [ "${SURE}" != "y" ]
@@ -196,72 +184,30 @@ then
     fi
   fi
 
-  echo "attempting to unmount any mounts on the USB device"
-  for i in "${FLAGS_to}"*
+  echo "Attempting to unmount any mounts on the USB device..."
+  for i in $(mount | grep ^"${FLAGS_to}" | awk '{print $1}')
   do
-    ! sudo umount "$i"
+    sudo umount "$i"
   done
   sleep 3
 
-  if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ] ; then
-    install_autotest
-  fi
+  echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
+  sudo dd if="${SRC_IMAGE}" of="${FLAGS_to}" bs=4M
 
-  # Write stateful partition to first partition. 
-  echo "Copying stateful partition ..."
-  sudo "${SCRIPTS_DIR}"/file_copy.py \
-      if="${STATEFUL_IMG}" of="${FLAGS_to}" bs=4M \
-      seek_bytes=512
-
-  # Write root fs to third partition.
-  echo "Copying root fs partition ..."
-  sudo "${SCRIPTS_DIR}"/file_copy.py \
-      if="${ROOTFS_IMAGE}" of="${FLAGS_to}" bs=4M \
-      seek_bytes=$(( (${PART_SIZE} * 2) + 512 ))
-
-  trap - EXIT
-
-  if [ ${FLAGS_copy_kernel} -eq ${FLAGS_TRUE} ]
-  then
-    echo "Copying Kernel..."
-    "${SCRIPTS_DIR}"/kernel_fetcher.sh \
-      --from "${FLAGS_from}" \
-      --to "${FLAGS_to}" \
-      --offset "$(( (${PART_SIZE} * 3) + 512 ))"
-  fi
-
-  echo "Copying MBR..."
-  sudo "${SCRIPTS_DIR}"/file_copy.py \
-    if="${FLAGS_from}/mbr.image" of="${FLAGS_to}"
-  sync
   echo "Done."
 else
-  # Output to a file, so just cat the source images together
-
-  PART_SIZE=$(stat -c%s "${ROOTFS_IMAGE}")
-
-  if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ] ; then
-    install_autotest
-  fi
-
-  # Create a sparse output file
-  dd if=/dev/zero of="${FLAGS_to}" bs=1 count=1 \
-      seek=$(( (${PART_SIZE} * 2) + 512 - 1))
-
-  echo "Copying USB image to file ${FLAGS_to}..."
-
-  dd if="${FLAGS_from}/mbr.image" of="${FLAGS_to}" conv=notrunc
-  dd if="${FLAGS_from}/stateful_partition.image" of="${FLAGS_to}" seek=1 bs=512 \
-      conv=notrunc
-  cat "${ROOTFS_IMAGE}" >> "${FLAGS_to}"
+  # Output to a file, so just make a copy.
+  echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
+  cp -f "${SRC_IMAGE}" "${FLAGS_to}"
 
   echo "Done.  To copy to USB keyfob, outside the chroot, do something like:"
   echo "   sudo dd if=${FLAGS_to} of=/dev/sdb bs=4M"
   echo "where /dev/sdb is the entire keyfob."
   if [ ${INSIDE_CHROOT} -eq 1 ]
   then
+    example=$(basename "${FLAGS_to}")
     echo "NOTE: Since you are currently inside the chroot, and you'll need to"
     echo "run dd outside the chroot, the path to the USB image will be"
-    echo "different (ex: ~/chromeos/trunk/src/build/images/SOME_DIR/usb.img)."
+    echo "different (ex: ~/chromeos/trunk/src/build/images/SOME_DIR/$example)."
   fi
 fi

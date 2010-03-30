@@ -10,6 +10,9 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
+# Load functions and constants for chromeos-install
+. "$(dirname "$0")/chromeos-common.sh"
+
 get_default_board
 
 DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built"
@@ -24,7 +27,7 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 # No board, no default and no image set then we can't find the image
-if [ -z $FLAGS_IMAGE ] && [ -z $FLAGS_board ] ; then
+if [ -z $FLAGS_image ] && [ -z $FLAGS_board ] ; then
   setup_board_warning
   echo "*** mod_image_for_test failed.  No board set and no image set"
   exit 1
@@ -33,7 +36,8 @@ fi
 # We have a board name but no image set.  Use image at default location
 if [ -z $FLAGS_image ] ; then
   IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
-  FLAGS_image="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)/rootfs.image"
+  FILENAME="chromiumos_test_image.bin"
+  FLAGS_image="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)/${FILENAME}"
 fi
 
 # Abort early if we can't find the image
@@ -51,7 +55,7 @@ cleanup_rootfs_mounts() {
   do
     local cmdline=`cat /proc/$pid/cmdline`
     echo "Killing process that has open file on our rootfs: $cmdline"
-    ! sudo kill $pid  # Preceded by ! to disable ERR trap.
+    sudo kill $pid || /bin/true
   done
 }
 
@@ -76,15 +80,6 @@ cleanup() {
 }
 
 # main process begins here.
-set -e
-trap cleanup EXIT
-
-ROOT_FS_DIR="`dirname ${FLAGS_image}`/rootfs"
-mkdir -p "${ROOT_FS_DIR}"
-
-LOOP_DEV=`sudo losetup -f`
-sudo losetup "${LOOP_DEV}" "${FLAGS_image}"
-sudo mount "${LOOP_DEV}" "${ROOT_FS_DIR}"
 
 # Make sure this is really what the user wants, before nuking the device
 if [ $FLAGS_yes -ne $FLAGS_TRUE ]; then
@@ -98,9 +93,27 @@ else
   echo "Modifying image ${FLAGS_image} for test..."
 fi
 
+set -e
+trap cleanup EXIT
+
+ROOT_FS_DIR=$(dirname "${FLAGS_image}")/rootfs
+mkdir -p "${ROOT_FS_DIR}"
+
+# Figure out how to loop mount the rootfs partition. It should be partition 3
+# on the disk image.
+offset=$(partoffset "${FLAGS_image}" 3)
+
+LOOP_DEV=$(sudo losetup -f)
+if [ -z "$LOOP_DEV" ]; then
+  echo "No free loop device"
+  exit 1
+fi
+sudo losetup -o $(( $offset * 512 )) "${LOOP_DEV}" "${FLAGS_image}"
+sudo mount "${LOOP_DEV}" "${ROOT_FS_DIR}"
+
 MOD_SCRIPTS_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
 # Run test setup script inside chroot jail to modify the image
-sudo GCLIENT_ROOT=${GCLIENT_ROOT} ROOT_FS_DIR=${ROOT_FS_DIR} \
+sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
     "${MOD_SCRIPTS_ROOT}/test_setup.sh"
 
 # Run manufacturing test setup
