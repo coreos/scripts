@@ -4,7 +4,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 #
-
 # Load common constants.  This should be the first executable line.
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
@@ -103,9 +102,16 @@ fi
 # We'll need some code to put in the PMBR, for booting on legacy BIOS. Some ARM
 # systems will use a U-Boot script temporarily, but it goes in the same place.
 if [[ "$ARCH" = "arm" ]]; then
-  # U-Boot script copies the kernel into memory, then boots it.
+  # We need to know the location and size of the kernel so we can create the
+  # U-Boot script to point to it. Let's create one fake GPT first which will
+  # set the appropriate environment variables. Then we can create the correct
+  # script and install it for real. A bit awkward, but this is only temporary.
+  echo "Installing fake GPT first, to calculate locations..."
+  install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG /dev/zero
+
+  # Create the U-Boot script to copy the kernel into memory and boot it.
   KERNEL_OFFSET=$(printf "0x%08x" ${START_KERN_A})
-  KERNEL_SECS_HEX=$(printf "0x%08x" ${NUM_KERN_BLOCKS})
+  KERNEL_SECS_HEX=$(printf "0x%08x" ${NUM_KERN_SECTORS})
   MBR_SCRIPT="${IMAGEDIR}/mbr_script"
   echo -e "echo\necho ---- ChromeOS Boot ----\necho\n" \
           "mmc read 1 C0008000 $KERNEL_OFFSET $KERNEL_SECS_HEX\n" \
