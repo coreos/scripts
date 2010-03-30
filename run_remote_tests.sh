@@ -13,12 +13,15 @@
 . "$(dirname $0)/autotest_lib.sh"
 . "$(dirname $0)/remote_access.sh"
 
+DEFINE_boolean build ${FLAGS_FALSE} "Build tests as well as running them" b
 DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
 DEFINE_boolean cleanup ${FLAGS_FALSE} "Clean up temp directory"
 DEFINE_integer iterations 1 "Iterations to run every top level test" i
 DEFINE_string prepackaged_autotest "" "Use this prepackaged autotest dir"
 DEFINE_string results_dir_root "" "alternate root results directory"
 DEFINE_boolean verbose ${FLAGS_FALSE} "Show verbose autoserv output" v
+
+RAN_ANY_TESTS=${FLAGS_FALSE}
 
 # Check if our stdout is a tty
 function is_a_tty() {
@@ -48,7 +51,8 @@ function echo_color() {
 }
 
 function cleanup() {
-  if [[ $FLAGS_cleanup -eq ${FLAGS_TRUE} ]]; then
+  if [[ $FLAGS_cleanup -eq ${FLAGS_TRUE} ]] || \
+     [[ ${RAN_ANY_TESTS} -eq ${FLAGS_FALSE} ]]; then
     rm -rf "${TMP}"
   else
     echo ">>> Details stored under ${TMP}"
@@ -119,6 +123,27 @@ function learn_board() {
 }
 
 
+# Determine if a control is for a client or server test.  Echos
+# either "server" or "client".
+# Arguments:
+#   $1 - control file path
+function read_test_type() {
+  local control_file=$1
+  # Assume a line starts with TEST_TYPE =
+  local type=$(egrep -m1 \
+               '^[[:space:]]*TEST_TYPE[[:space:]]*=' "${control_file}")
+  if [[ -z "${type}" ]]; then
+    echo_color "red" ">>> Unable to find TEST_TYPE line in ${control_file}"
+    exit 1
+  fi
+  type=$(python -c "${type}; print TEST_TYPE.lower()")
+  if [[ "${type}" != "client" ]] && [[ "${type}" != "server" ]]; then
+    echo_color "red" ">>> Unknown type of test (${type}) in ${control_file}"
+    exit 1
+  fi
+  echo ${type}
+}
+
 function main() {
   cd $(dirname "$0")
 
@@ -167,7 +192,6 @@ function main() {
       -name control \) | egrep -v "~$" | egrep "${test_request}")
     if [[ -z "${finds}" ]]; then
       echo_color "red" ">>> Cannot find match for \"${test_request}\""
-      FLAGS_cleanup=${FLAGS_TRUE}
       exit 1
     fi
     local matches=$(echo "${finds}" | wc -l)
@@ -181,7 +205,6 @@ function main() {
       echo ""
       echo ">>> Disambiguate by copy-and-pasting the whole path above" \
            "instead of passing \"${test_request}\"."
-      FLAGS_cleanup=${FLAGS_TRUE}
       exit 1
     fi
     for i in $(seq 1 $FLAGS_iterations); do
@@ -190,6 +213,12 @@ function main() {
   done
 
   echo ""
+
+  if [[ -z "${control_files_to_run}" ]]; then
+    echo_color "red" ">>> Found no control files"
+    exit 1
+  fi
+
   echo_color "yellow" ">>> Running the following control files:"
   for CONTROL_FILE in ${control_files_to_run}; do
     echo_color "yellow" " * " "${CONTROL_FILE}"
@@ -201,24 +230,48 @@ function main() {
 
   mkdir -p "${FLAGS_results_dir_root}"
 
+  if [[ ${FLAGS_build} -eq ${FLAGS_TRUE} ]]; then
+    # Create a list of files to build based on all the client tests
+    # the user has specified.  If they have specified at least one
+    # that is a server test, offer to build all client tests since
+    # it's quite hard to know what client tests a server test might
+    # use.
+    local build_param=""
+    for control_file in ${control_files_to_run}; do
+      control_file=$(remove_quotes "${control_file}")
+      local type=$(read_test_type "${control_file}")
+      if [[ "${type}" == "server" ]]; then
+        build_param=""
+        break
+      fi
+      if [[ -n "${build_param}" ]]; then
+        build_param="${build_param},"
+      fi
+      local simple_path=$(basename $(dirname $control_file))
+      build_param="${build_param}${simple_path}"
+    done
+    local enter_chroot=""
+    if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
+      enter_chroot="./enter_chroot.sh --"
+    fi
+    if [[ -n "${build_param}" ]]; then
+      build_param="--build=${build_param}"
+    fi
+    echo ""
+    echo_color "yellow" ">>> Building " \
+      "./build_autotest.sh --board=${FLAGS_board} ${build_param}"
+    ${enter_chroot} ./build_autotest.sh --board=${FLAGS_board} ${build_param}
+  fi
+
   for control_file in ${control_files_to_run}; do
     # Assume a line starts with TEST_TYPE =
     control_file=$(remove_quotes "${control_file}")
-    local type=$(egrep '^[[:space:]]*TEST_TYPE[[:space:]]*=' "${control_file}" \
-      | head -1)
-    if [[ -z "${type}" ]]; then
-      echo_color "red" ">>> Unable to find TEST_TYPE line in ${control_file}"
-      exit 1
-    fi
-    type=$(python -c "${type}; print TEST_TYPE.lower()")
+    local type=$(read_test_type "${control_file}")
     local option
-    if [ "${type}" == "client" ]; then
+    if [[ "${type}" == "client" ]]; then
       option="-c"
-    elif [ "${type}" == "server" ]; then
-      option="-s"
     else
-      echo_color "red" ">>> Unknown type of test (${type}) in ${control_file}"
-      exit 1
+      option="-s"
     fi
     echo ""
     echo_color "yellow" ">>> Running ${type} test " ${control_file}
@@ -231,6 +284,7 @@ function main() {
       verbose="--verbose"
     fi
 
+    RAN_ANY_TESTS=${FLAGS_TRUE}
     ${autoserv} -m "${FLAGS_remote}" "${option}" "${control_file}" \
       -r "${results_dir}" ${verbose}
     local test_status="${results_dir}/status.log"
