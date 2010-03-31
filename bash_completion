@@ -73,17 +73,23 @@ _board_sysroots()
   fi
 }
 
+_complete_board_sysroot_flag()
+{
+  COMPREPLY=()
+  local arg=$(_argeq --board)
+  if [[ ${arg} == --board=* ]]; then
+    COMPREPLY=( $(compgen -W "$(_board_sysroots)" -- ${arg#--board=}) )
+    return 0
+  fi
+  return 1
+}
+
 # Completion for --board= argument for existing board sysroots
 #
 _board_sysroot()
 {
   _flag_complete && return 0
-
-  COMPREPLY=()
-  local arg=$(_argeq --board)
-  if [[ ${arg} == --board=* ]]; then
-    COMPREPLY=( $(compgen -W "$(_board_sysroots)" -- ${arg#--board=}) )
-  fi
+  _complete_board_flag && return 0
 }
 
 complete -o bashdefault -o default -F _board_sysroot \
@@ -119,6 +125,33 @@ _board_overlay()
 
 complete -o bashdefault -o default -F _board_overlay setup_board
 
+# Completion for -c and -s argument for autotest script
+_ls_autotest() {
+  local autotest_dir=../third_party/autotest/files
+  ls --color=never -dBFH ${autotest_dir}/$1* 2>/dev/null |\
+    sed s/"..\/third_party\/autotest\/files\/"//g
+}
+
+_autotest_complete()
+{
+  _flag_complete && return 0
+
+  local arg=$(_argeq -c)
+  if [[ ${arg} == -c=* ]]; then
+    COMPREPLY=($(compgen -W "$(_ls_autotest ${arg#-c=})"))
+    return 0
+  fi
+
+  arg=$(_argeq -s)
+  if [[ ${arg} == -s=* ]]; then
+    COMPREPLY=($(compgen -W "$(_ls_autotest ${arg#-s=})"))
+    return 0
+  fi
+
+  _complete_board_sysroot_flag && return 0
+}
+
+complete -o bashdefault -o default -o nospace -F _autotest_complete autotest
 
 ###  Local Variables:
 ###  mode: shell-script

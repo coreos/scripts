@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# This script is a shell wrapper of autotest.py inside a chroot environment.
+# Note you should/could not directly call autotest.py within the same directory.
+
+. "$(dirname $0)/common.sh"
+
+# Script must be run inside the chroot
+assert_inside_chroot
+
+SSH_KEY=$(dirname $0)/mod_for_test_scripts/ssh_keys/testing_rsa
+chmod 400 ${SSH_KEY}
+export GCLIENT_ROOT
+python $(dirname $0)/autotest.py $@ || die "autotest failed."
+
