@@ -93,9 +93,11 @@ mkdir -p "$OUTDIR"
 if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]
 then
   echo "Modifying image for test"
-  cp "${FLAGS_from}/rootfs.image" "${FLAGS_from}/rootfs_test.image"
+  SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
+  cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_test_image.bin"
+  SRC_IMAGE="${FLAGS_from}/chromiumos_test_image.bin"
   "${SCRIPTS_DIR}/mod_image_for_test.sh" --board $FLAGS_board --yes --image \
-      "${FLAGS_from}/rootfs_test.image"
+      "${SRC_IMAGE}"
   cd "${FLAGS_chroot}/build/${FLAGS_board}/usr/local"
   echo "Archiving autotest build artifacts"
   tar cjf "${FLAGS_from}/autotest.tar.bz2" autotest
