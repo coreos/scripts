@@ -48,7 +48,7 @@ AUTOTEST_SRC="${SYSROOT}/usr/local/autotest"
 set -e
 
 # No board, no default and no image set then we can't find the image
-if [ -z ${FLAGS_from} ] && [ -z ${FLAGS_board} ] ; then 
+if [ -z ${FLAGS_from} ] && [ -z ${FLAGS_board} ] ; then
   setup_board_warning
   exit 1
 fi
@@ -90,13 +90,16 @@ SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
 # If we're asked to modify the image for test, then let's make a copy and
 # modify that instead.
 if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
-  # Copy it.
-  echo "Creating test image from original..."
-  cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_test_image.bin"
+  if [ ! -f "${FLAGS_from}/chromiumos_test_image.bin" ] ; then
+    # Copy it.
+    echo "Creating test image from original..."
+    cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_test_image.bin"
+    # Modify it.
+    "${SCRIPTS_DIR}/mod_image_for_test.sh" --image \
+      "${FLAGS_from}/chromiumos_test_image.bin"
+  fi
   # Use it.
   SRC_IMAGE="${FLAGS_from}/chromiumos_test_image.bin"
-  # Modify it.
-  "${SCRIPTS_DIR}/mod_image_for_test.sh" --image "${SRC_IMAGE}"
 fi
 
 STATEFUL_DIR="${FLAGS_from}/stateful_partition"
@@ -139,10 +142,10 @@ if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ] ; then
     sudo mkdir -p "${stateful_root}${autotest_client}"
 
     sudo cp -fpru ${AUTOTEST_SRC}/client/* \
-	    "${stateful_root}/${autotest_client}"
+      "${stateful_root}/${autotest_client}"
     sudo chmod 755 "${stateful_root}/${autotest_client}"
     sudo chown -R 1000:1000 "${stateful_root}/${autotest_client}"
-    
+
     sudo umount ${STATEFUL_DIR}
     sudo losetup -d "${stateful_loop_dev}"
     trap - INT TERM EXIT
