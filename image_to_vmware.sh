@@ -29,6 +29,8 @@ DEFINE_string from "$DEFAULT_FROM" \
   "Directory containing rootfs.image and mbr.image"
 DEFINE_string to "$DEFAULT_TO" \
   "Destination folder for VM output file(s)"
+DEFINE_string state_image "" \
+  "Stateful partition image (defaults to creating new statful partition)"
 DEFINE_string format "vmware" \
   "Output format, either vmware or virtualbox"
   
@@ -60,40 +62,46 @@ fi
 FLAGS_from=`eval readlink -f $FLAGS_from`
 FLAGS_to=`eval readlink -f $FLAGS_to`
 
-# Make sure we have the gpt tool
-if [ -z "$GPT" ]; then
-  echo Unable to find gpt
-  exit 1
-fi
+# Split apart the partitions and make some new ones
+TEMP_DIR=$(mktemp -d)
+(cd "$TEMP_DIR" &&
+  "${FLAGS_from}/unpack_partitions.sh" "${FLAGS_from}/chromiumos_image.bin")
 
-# Fix bootloader config.
-TEMP_IMG=$(mktemp)
+# Fix the kernel command line
+TEMP_ROOTFS="$TEMP_DIR"/part_3
+TEMP_STATE="$TEMP_DIR"/part_1
+if [ -n "${FLAGS_state_image}" ]; then
+  TEMP_STATE="${FLAGS_state_image}"
+fi
+TEMP_KERN="$TEMP_DIR"/part_2
+TEMP_PMBR="$TEMP_DIR"/pmbr
+dd if="${FLAGS_from}/chromiumos_image.bin" of="$TEMP_PMBR" bs=512 count=1
+
 TEMP_MNT=$(mktemp -d)
-
-LOOP_DEV=$(sudo losetup -f)
-if [ -z "$LOOP_DEV" ]; then
-  echo "No free loop device"
-  exit 1
-fi
-
-# Get rootfs offset
-OFFSET=$(( $(partoffset "${FLAGS_from}/chromiumos_image.bin" 3) * 512 )) # bytes
-
-echo Copying to temp file
-cp "${FLAGS_from}/chromiumos_image.bin" "$TEMP_IMG"
-
 cleanup() {
-  sudo umount "$TEMP_MNT" || true
-  sudo losetup -d "$LOOP_DEV"
+  sudo umount -d "$TEMP_MNT"
+  rmdir "$TEMP_MNT"
 }
 trap cleanup INT TERM EXIT
-sudo losetup -o $OFFSET "$LOOP_DEV" "$TEMP_IMG"
 mkdir -p "$TEMP_MNT"
-sudo mount "$LOOP_DEV" "$TEMP_MNT"
+sudo mount -o loop "$TEMP_ROOTFS" "$TEMP_MNT"
 sudo "$TEMP_MNT"/postinst /dev/sda3
 trap - INT TERM EXIT
 cleanup
-rmdir "$TEMP_MNT"
+
+# Make 3 GiB output image
+TEMP_IMG=$(mktemp)
+# TOOD(adlr): pick a size that will for sure accomodate the partitions
+sudo dd if=/dev/zero of="${TEMP_IMG}" bs=1 count=1 \
+  seek=$((3 * 1024 * 1024 * 1024 - 1))
+
+# Set up the partition table
+install_gpt "$TEMP_IMG" "$TEMP_ROOTFS" "$TEMP_KERN" "$TEMP_STATE" \
+  "$TEMP_PMBR" true
+# Copy into the partition parts of the file
+dd if="$TEMP_ROOTFS" of="$TEMP_IMG" conv=notrunc bs=512 seek="$START_ROOTFS_A"
+dd if="$TEMP_STATE"  of="$TEMP_IMG" conv=notrunc bs=512 seek="$START_STATEFUL"
+dd if="$TEMP_KERN"   of="$TEMP_IMG" conv=notrunc bs=512 seek="$START_KERN_A"
 
 echo Creating final image
 # Convert image to output format
@@ -109,7 +117,10 @@ else
   exit 1
 fi
 
-rm -f "$TEMP_IMG" "${VBOX_TEMP_IMAGE}"
+rm -rf "$TEMP_DIR" "${VBOX_TEMP_IMAGE}" "$TEMP_IMG" 
+if [ -z "$FLAGS_state_image" ]; then
+  rm -f "$STATE_IMAGE"
+fi
 
 echo "Created image ${FLAGS_to}"
 
