@@ -89,7 +89,7 @@ _complete_board_sysroot_flag()
 _board_sysroot()
 {
   _flag_complete && return 0
-  _complete_board_flag && return 0
+  _complete_board_sysroot_flag && return 0
 }
 
 complete -o bashdefault -o default -F _board_sysroot \
