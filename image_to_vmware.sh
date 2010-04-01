@@ -10,6 +10,7 @@
 # Load common constants.  This should be the first executable line.
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
+. "$(dirname "$0")/chromeos-common.sh"
 
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images"
 # Default to the most recent image
@@ -59,45 +60,56 @@ fi
 FLAGS_from=`eval readlink -f $FLAGS_from`
 FLAGS_to=`eval readlink -f $FLAGS_to`
 
-# Make two sparse files. One for an empty partition, another for
-# stateful partition.
-PART_SIZE=$(stat -c%s "${FLAGS_from}/rootfs.image")
-dd if=/dev/zero of="${FLAGS_from}/empty.image" bs=1 count=1 \
-    seek=$(( $PART_SIZE - 1 ))
-dd if=/dev/zero of="${FLAGS_from}/state.image" bs=1 count=1 \
-    seek=$(( $PART_SIZE - 1 ))
-mkfs.ext3 -F -L C-STATE "${FLAGS_from}/state.image"
+# Make sure we have the gpt tool
+if [ -z "$GPT" ]; then
+  echo Unable to find gpt
+  exit 1
+fi
 
 # Fix bootloader config.
 TEMP_IMG=$(mktemp)
 TEMP_MNT=$(mktemp -d)
-cp "${FLAGS_from}/rootfs.image" "$TEMP_IMG"
+
+LOOP_DEV=$(sudo losetup -f)
+if [ -z "$LOOP_DEV" ]; then
+  echo "No free loop device"
+  exit 1
+fi
+
+# Get rootfs offset
+OFFSET=$(( $(partoffset "${FLAGS_from}/chromiumos_image.bin" 3) * 512 )) # bytes
+
+echo Copying to temp file
+cp "${FLAGS_from}/chromiumos_image.bin" "$TEMP_IMG"
+
+cleanup() {
+  sudo umount "$TEMP_MNT" || true
+  sudo losetup -d "$LOOP_DEV"
+}
+trap cleanup INT TERM EXIT
+sudo losetup -o $OFFSET "$LOOP_DEV" "$TEMP_IMG"
 mkdir -p "$TEMP_MNT"
-sudo mount -o loop "$TEMP_IMG" "$TEMP_MNT"
+sudo mount "$LOOP_DEV" "$TEMP_MNT"
 sudo "$TEMP_MNT"/postinst /dev/sda3
-sudo umount "$TEMP_MNT"
+trap - INT TERM EXIT
+cleanup
 rmdir "$TEMP_MNT"
 
+echo Creating final image
+# Convert image to output format
 if [ "$FLAGS_format" = "virtualbox" ]; then
-  # Copy MBR and rootfs to output image
-  qemu-img convert -f raw \
-    "${FLAGS_from}/mbr.image" "${FLAGS_from}/state.image" \
-    "${FLAGS_from}/empty.image" "$TEMP_IMG" \
+  qemu-img convert -f raw $TEMP_IMG \
     -O raw "${VBOX_TEMP_IMAGE}"
   VBoxManage convertdd "${VBOX_TEMP_IMAGE}" "${FLAGS_to}/${FLAGS_vbox_disk}"
 elif [ "$FLAGS_format" = "vmware" ]; then
-  # Copy MBR and rootfs to output image
-  qemu-img convert -f raw \
-    "${FLAGS_from}/mbr.image" "${FLAGS_from}/state.image" \
-    "${FLAGS_from}/empty.image" "$TEMP_IMG" \
+  qemu-img convert -f raw $TEMP_IMG \
     -O vmdk "${FLAGS_to}/${FLAGS_vmdk}"
 else
   echo invalid format: "$FLAGS_format"
   exit 1
 fi
 
-rm -f "${FLAGS_from}/empty.image" "${FLAGS_from}/state.image" \
-  "$TEMP_IMG" "${VBOX_TEMP_IMAGE}"
+rm -f "$TEMP_IMG" "${VBOX_TEMP_IMAGE}"
 
 echo "Created image ${FLAGS_to}"
 
