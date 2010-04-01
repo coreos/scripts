@@ -36,7 +36,7 @@ fi
 # We have a board name but no image set.  Use image at default location
 if [ -z $FLAGS_image ] ; then
   IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
-  FILENAME="chromiumos_test_image.bin"
+  FILENAME="chromiumos_image.bin"
   FLAGS_image="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)/${FILENAME}"
 fi
 
