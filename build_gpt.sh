@@ -144,15 +144,22 @@ install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG $PMBRCODE
 # Emit helpful scripts for testers, etc.
 ${SCRIPTS_DIR}/emit_gpt_scripts.sh "${OUTDEV}" "${IMAGEDIR}"
 
+sudo=
+if [ ! -w "$OUTDEV" ] ; then
+  # use sudo when writing to a block device.
+  sudo=sudo
+fi
+
 # Now populate the partitions.
 echo "Copying stateful partition..."
-dd if=${STATEFUL_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_STATEFUL}
+$sudo dd if=${STATEFUL_IMG} of=${OUTDEV} conv=notrunc bs=512 \
+    seek=${START_STATEFUL}
 
 echo "Copying kernel..."
-dd if=${KERNEL_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_KERN_A}
-  
+$sudo dd if=${KERNEL_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_KERN_A}
+
 echo "Copying rootfs..."
-dd if=${ROOTFS_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_ROOTFS_A}
+$sudo dd if=${ROOTFS_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_ROOTFS_A}
 
 # Clean up temporary files.
 if [[ -n "${MBR_IMG:-}" ]]; then

@@ -84,6 +84,13 @@ function setup_env {
           die "Could not mount $MOUNTED_PATH"
     fi
 
+    MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/sys")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
+    then
+      sudo mount none -t sysfs "$MOUNTED_PATH" || \
+          die "Could not mount $MOUNTED_PATH"
+    fi
+
     MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/dev/pts")"
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
     then

@@ -37,6 +37,8 @@ DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean statefuldev $FLAGS_FALSE \
   "Install development packages on stateful partition -- still experimental"
+DEFINE_string to "" \
+  "The target image file or device"
 DEFINE_boolean withtest $FLAGS_FALSE \
   "Include packages required for testing and prepare image for testing"
 
@@ -69,7 +71,7 @@ IMAGE_SUBDIR="${CHROMEOS_VERSION_STRING}-a${FLAGS_build_attempt}"
 OUTPUT_DIR="${FLAGS_output_root}/${FLAGS_board}/${IMAGE_SUBDIR}"
 ROOT_FS_DIR="${OUTPUT_DIR}/rootfs"
 ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
-OUTPUT_IMG="${OUTPUT_DIR}/chromiumos_image.bin"
+OUTPUT_IMG=${FLAGS_to:-${OUTPUT_DIR}/chromiumos_image.bin}
 
 BOARD="${FLAGS_board}"
 BOARD_ROOT="${FLAGS_build_root}/${BOARD}"
