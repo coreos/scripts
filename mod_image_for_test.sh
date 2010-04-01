@@ -75,6 +75,8 @@ cleanup() {
     cleanup_rootfs_loop
   fi
 
+  rmdir "${ROOT_FS_DIR}"
+
   # Turn die on error back on.
   set -e
 }
@@ -94,10 +96,11 @@ else
 fi
 
 set -e
-trap cleanup EXIT
 
 ROOT_FS_DIR=$(dirname "${FLAGS_image}")/rootfs
 mkdir -p "${ROOT_FS_DIR}"
+
+trap cleanup EXIT
 
 # Figure out how to loop mount the rootfs partition. It should be partition 3
 # on the disk image.

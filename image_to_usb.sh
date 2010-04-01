@@ -18,7 +18,7 @@ get_default_board
 # Flags
 DEFINE_string board "${DEFAULT_BOARD}" "Board for which the image was built"
 DEFINE_string from "" \
-  "Directory containing rootfs.image and mbr.image"
+  "Directory containing chromiumos_image.bin"
 DEFINE_string to "" "${DEFAULT_TO_HELP}"
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts" "y"
 DEFINE_boolean install_autotest ${FLAGS_FALSE} \
@@ -26,7 +26,7 @@ DEFINE_boolean install_autotest ${FLAGS_FALSE} \
 DEFINE_boolean copy_kernel ${FLAGS_FALSE} \
   "Copy the kernel to the fourth partition."
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
-  "Uses test image if available, otherwise creates one as rootfs_test.image."
+  "Copies normal image to chromiumos_test_image.bin, modifies it for test."
 DEFINE_string build_root "/build" \
   "The root location for board sysroots."
 
@@ -100,12 +100,14 @@ if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
 fi
 
 STATEFUL_DIR="${FLAGS_from}/stateful_partition"
+mkdir -p "${STATEFUL_DIR}"
 
 function do_cleanup {
   echo "Cleaning loopback devices: ${STATEFUL_LOOP_DEV}"
   if [ "${STATEFUL_LOOP_DEV}" != "" ]; then
     sudo umount "${STATEFUL_DIR}"
     sudo losetup -d "${STATEFUL_LOOP_DEV}"
+    rmdir "${STATEFUL_DIR}"
     echo "Cleaned"
   fi
 }
@@ -144,6 +146,7 @@ if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ] ; then
     sudo umount ${STATEFUL_DIR}
     sudo losetup -d "${stateful_loop_dev}"
     trap - INT TERM EXIT
+    rmdir "${STATEFUL_DIR}"
   else
     echo "/usr/local/autotest under ${DEFAULT_CHROOT_DIR} is not installed."
     echo "Please call make_autotest.sh inside chroot first."

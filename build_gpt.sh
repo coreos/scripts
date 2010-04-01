@@ -130,6 +130,7 @@ if [[ "$ARCH" = "arm" ]]; then
     hexdump -v -C "$MBR_IMG"
   else
     echo "Error: u-boot mkimage not found or not executable."
+    exit 1
   fi
   PMBRCODE=${MBR_IMG}
 else
@@ -139,6 +140,9 @@ fi
 # Create the GPT. This has the side-effect of setting some global vars
 # describing the partition table entries (see the comments in the source).
 install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG $PMBRCODE
+
+# Emit helpful scripts for testers, etc.
+${SCRIPTS_DIR}/emit_gpt_scripts.sh "${OUTDEV}" "${IMAGEDIR}"
 
 # Now populate the partitions.
 echo "Copying stateful partition..."
@@ -150,3 +154,7 @@ dd if=${KERNEL_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_KERN_A}
 echo "Copying rootfs..."
 dd if=${ROOTFS_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_ROOTFS_A}
 
+# Clean up temporary files.
+if [[ -n "${MBR_IMG:-}" ]]; then
+  rm "${MBR_IMG}"
+fi
