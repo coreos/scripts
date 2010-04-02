@@ -160,7 +160,7 @@ function setup_env {
             sudo cp -fu "${KERNEL_MODULES_ROOT}/kernel/fs/fuse/fuse.ko" \
               "${INNER_MOD_PATH}/kernel/fs/fuse"
           else
-            echo "Warning:  Fuse device found but no modules for running kernel
+            echo "Warning:  Fuse device found but no modules for running kernel"
             echo "gmergefs will not work"
           fi
         fi        
