@@ -25,7 +25,8 @@ DEFINE_string build_number "" \
 DEFINE_string chrome_root "" \
   "The root of your chrome browser source. Should contain a 'src' subdir."
 
-DEFINE_boolean official_build $FLAGS_FALSE "Set CHROMEOS_OFFICIAL=1 for release builds."
+DEFINE_boolean official_build $FLAGS_FALSE \
+  "Set CHROMEOS_OFFICIAL=1 for release builds."
 DEFINE_boolean mount $FLAGS_FALSE "Only set up mounts."
 DEFINE_boolean unmount $FLAGS_FALSE "Only tear down mounts."
 
@@ -64,6 +65,8 @@ set -e
 INNER_CHROME_ROOT="/home/$USER/chrome_root"  # inside chroot
 CHROME_ROOT_CONFIG="/var/cache/chrome_root"  # inside chroot
 INNER_DEPOT_TOOLS_ROOT="/home/$USER/depot_tools"  # inside chroot
+KERNEL_MODULES_ROOT="/lib/modules/$( uname -r )" # inside and outside chroot
+FUSE_DEVICE="/dev/fuse"
 
 sudo chmod 0777 "$FLAGS_chroot/var/lock"
 
@@ -138,7 +141,29 @@ function setup_env {
           echo "This may impact chromium build."
         fi
       fi
-    fi
+    fi    
+        
+    # Mount fuse device from host machine into chroot and copy over
+    # corresponding kernel modules.
+    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${FUSE_DEVICE}")"
+    if [ -z "$(mount | grep -F "on ${MOUNTED_PATH} ")" ]
+    then
+      if [ -c "${FUSE_DEVICE}" ] ; then
+        echo "Mounting fuse device"      
+        sudo touch "${MOUNTED_PATH}"
+        sudo mount --bind "${FUSE_DEVICE}" "${MOUNTED_PATH}"               
+        INNER_MOD_PATH="$(readlink -f "${FLAGS_chroot}${KERNEL_MODULES_ROOT}")"    
+        if [ ! -f "${INNER_MOD_PATH}/modules.dep" ] ; then
+          sudo mkdir -p "${INNER_MOD_PATH}/kernel/fs/fuse"
+          sudo cp -fu "${KERNEL_MODULES_ROOT}/modules.dep" "${INNER_MOD_PATH}"
+          sudo cp -fu "${KERNEL_MODULES_ROOT}/kernel/fs/fuse/fuse.ko" \
+            "${INNER_MOD_PATH}/kernel/fs/fuse"
+        fi        
+      else
+        echo "Warning:  Fuse device not found.  gmergefs will not work"
+      fi
+    fi                    
+        
   ) 200>>"$LOCKFILE" || die "setup_env failed"
 }
 

@@ -79,15 +79,6 @@ function is_successful_test() {
   return 0
 }
 
-# Removes single quotes around parameter
-# Arguments:
-#   $1 - string which optionally has surrounding quotes
-# Returns:
-#   None, but prints the string without quotes.
-function remove_quotes() {
-  echo "$1" | sed -e "s/^'//; s/'$//"
-}
-
 # Adds attributes to all tests run
 # Arguments:
 #   $1 - results directory

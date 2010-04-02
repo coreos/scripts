@@ -116,6 +116,13 @@ fi
 # Directory locations inside the dev chroot
 CHROOT_TRUNK_DIR="/home/$USER/trunk"
 
+# Install make for portage ebuilds.  Used by build_image and gmergefs.
+DEFAULT_INSTALL_MASK="/usr/include/ /usr/man /usr/share/man /usr/share/doc \
+  /usr/share/gtk-doc /usr/share/gtk-2.0 /usr/lib/gtk-2.0/include \
+  /usr/share/info /usr/share/aclocal /usr/lib/gcc /usr/lib/pkgconfig \
+  /usr/share/pkgconfig /usr/share/gettext /usr/share/readline /etc/runlevels \
+  /usr/share/openrc /lib/rc *.a *.la"
+
 # Check to ensure not running old scripts
 V_REVERSE='[7m'
 V_VIDOFF='[m'
@@ -294,4 +301,25 @@ function error {
 function die {
   error "$1"
   exit 1
+}
+
+# Retry an emerge command according to $FLAGS_retries
+# The $EMERGE_JOBS flags will only be added the first time the command is run
+function eretry () {
+  $* $EMERGE_JOBS && return 0
+  local i=
+  for i in $(seq $FLAGS_retries); do
+    echo Retrying $*
+    $* && return 0
+  done
+  return 1
+}
+
+# Removes single quotes around parameter
+# Arguments:
+#   $1 - string which optionally has surrounding quotes
+# Returns:
+#   None, but prints the string without quotes.
+function remove_quotes() {
+  echo "$1" | sed -e "s/^'//; s/'$//"
 }
