@@ -146,8 +146,8 @@ function setup_env {
     # Mount fuse device from host machine into chroot and copy over
     # corresponding kernel modules.
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${FUSE_DEVICE}")"
-    if [ -z "$(mount | grep -F "on ${MOUNTED_PATH} ")" ]
-    then
+    if [ -z "$(mount | grep -F "on ${MOUNTED_PATH} ")" ] && \
+      [ -c "${FUSE_DEVICE}" ] ; then
       if [ -c "${FUSE_DEVICE}" ] ; then
         echo "Mounting fuse device"      
         sudo touch "${MOUNTED_PATH}"
