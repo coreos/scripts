@@ -165,7 +165,7 @@ fi
 
 # Create root file system disk image to fit on a 1GB memory stick.
 # 1 GB in hard-drive-manufacturer-speak is 10^9, not 2^30.  950MB < 10^9 bytes.
-ROOT_SIZE_BYTES=$((1024 * 1024 * 640))
+ROOT_SIZE_BYTES=$((1024 * 1024 * 720))
 dd if=/dev/zero of="$ROOT_FS_IMG" bs=1 count=1 seek=$((ROOT_SIZE_BYTES - 1))
 sudo losetup "$LOOP_DEV" "$ROOT_FS_IMG"
 sudo mkfs.ext3 "$LOOP_DEV"
