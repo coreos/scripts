@@ -65,7 +65,6 @@ set -e
 INNER_CHROME_ROOT="/home/$USER/chrome_root"  # inside chroot
 CHROME_ROOT_CONFIG="/var/cache/chrome_root"  # inside chroot
 INNER_DEPOT_TOOLS_ROOT="/home/$USER/depot_tools"  # inside chroot
-KERNEL_MODULES_ROOT="/lib/modules/$( uname -r )" # inside and outside chroot
 FUSE_DEVICE="/dev/fuse"
 
 sudo chmod 0777 "$FLAGS_chroot/var/lock"
@@ -141,34 +140,20 @@ function setup_env {
           echo "This may impact chromium build."
         fi
       fi
-    fi    
-        
+    fi
+
     # Mount fuse device from host machine into chroot and copy over
     # corresponding kernel modules.
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${FUSE_DEVICE}")"
     if [ -z "$(mount | grep -F "on ${MOUNTED_PATH} ")" ] && \
       [ -c "${FUSE_DEVICE}" ] ; then
-      if [ -c "${FUSE_DEVICE}" ] ; then
-        echo "Mounting fuse device"      
-        sudo touch "${MOUNTED_PATH}"
-        sudo mount --bind "${FUSE_DEVICE}" "${MOUNTED_PATH}"               
-        INNER_MOD_PATH="$(readlink -f "${FLAGS_chroot}${KERNEL_MODULES_ROOT}")"    
-        if [ ! -f "${INNER_MOD_PATH}/modules.dep" ] ; then
-          sudo mkdir -p "${INNER_MOD_PATH}/kernel/fs/fuse"
-          sudo cp -fu "${KERNEL_MODULES_ROOT}/modules.dep" "${INNER_MOD_PATH}"
-          if [ -f "${KERNEL_MODULES_ROOT}/kernel/fs/fuse/fuse.ko" ] ; then
-            sudo cp -fu "${KERNEL_MODULES_ROOT}/kernel/fs/fuse/fuse.ko" \
-              "${INNER_MOD_PATH}/kernel/fs/fuse"
-          else
-            echo "Warning:  Fuse device found but no modules for running kernel"
-            echo "gmergefs will not work"
-          fi
-        fi        
-      else
-        echo "Warning:  Fuse device not found.  gmergefs will not work"
-      fi
-    fi                    
-        
+      echo "Attempting to mount fuse device for gmergefs"
+      sudo touch "${MOUNTED_PATH}"
+      sudo mount --bind "${FUSE_DEVICE}" "${MOUNTED_PATH}"
+      sudo modprobe fuse 2> /dev/null ||\
+        echo "-- Note: modprobe fuse failed.  gmergefs will not work"
+    fi
+
   ) 200>>"$LOCKFILE" || die "setup_env failed"
 }
 
