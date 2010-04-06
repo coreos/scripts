@@ -112,8 +112,16 @@ if [[ "$ARCH" = "arm" ]]; then
   # Create the U-Boot script to copy the kernel into memory and boot it.
   KERNEL_OFFSET=$(printf "0x%08x" ${START_KERN_A})
   KERNEL_SECS_HEX=$(printf "0x%08x" ${NUM_KERN_SECTORS})
+
+  BOOTARGS="root=/dev/mmcblk1p3"
+  BOOTARGS="${BOOTARGS} init=/sbin/init"
+  BOOTARGS="${BOOTARGS} console=ttySAC2,115200"
+  BOOTARGS="${BOOTARGS} mem=1024M"
+  BOOTARGS="${BOOTARGS} rootwait"
+
   MBR_SCRIPT="${IMAGEDIR}/mbr_script"
   echo -e "echo\necho ---- ChromeOS Boot ----\necho\n" \
+          "setenv bootargs ${BOOTARGS}\n" \
           "mmc read 1 C0008000 $KERNEL_OFFSET $KERNEL_SECS_HEX\n" \
           "bootm C0008000" > ${MBR_SCRIPT}
   MKIMAGE="${FLAGS_board_root}/u-boot/mkimage"
