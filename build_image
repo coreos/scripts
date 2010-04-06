@@ -56,7 +56,7 @@ if [ -z "$FLAGS_board" ] ; then
 fi
 
 # Sanity check: statefuldev cannot be true if withdev is false.
-if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] && 
+if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] &&
     [ $FLAGS_withdev -eq $FLAGS_FALSE ] ; then
   echo "ERROR: statefuldev flag cannot be set to true without withdev"
   exit 1
@@ -129,6 +129,10 @@ cleanup_stateful_fs_loop() {
   sudo losetup -d "$STATEFUL_LOOP_DEV"
 }
 
+cleanup_esp_loop() {
+  sudo umount "$ESP_DIR"
+}
+
 cleanup() {
   # Disable die on error.
   set +e
@@ -144,6 +148,10 @@ cleanup() {
 
   if [[ -n "$LOOP_DEV" ]]; then
     cleanup_rootfs_loop
+  fi
+
+  if [[ -n "$ESP_DIR" ]]; then
+    cleanup_esp_loop
   fi
 
   # Turn die on error back on.
@@ -250,13 +258,13 @@ if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
   echo "Setting up symlinks for stateful partition install"
   DEV_IMAGE_ROOT="$STATEFUL_DIR/dev_image"
   sudo mkdir -p "$DEV_IMAGE_ROOT/usr"
-  
+
   # Setup symlinks in stateful partition.
   for path in bin include lib libexec sbin share; do
     sudo mkdir "$DEV_IMAGE_ROOT/$path"
     sudo ln -s "$DEV_IMAGE_ROOT/$path" "$DEV_IMAGE_ROOT/usr/$path"
   done
-   
+
   # Setup symlinks that don't conform to above model.
   sudo ln -s "$DEV_IMAGE_ROOT/lib" "$DEV_IMAGE_ROOT/usr/lib64"
   sudo ln -s "$DEV_IMAGE_ROOT" "$DEV_IMAGE_ROOT/usr/local"
@@ -296,7 +304,7 @@ if [[ $FLAGS_withtest -eq $FLAGS_TRUE ]] ; then
       --usepkgonly chromeos-test $EMERGE_JOBS
 fi
 
-# Clean up links setup for stateful install of extra packages. 
+# Clean up links setup for stateful install of extra packages.
 if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
   # Fix symlinks so they work on live system.
   for path in bin include lib libexec sbin share; do
@@ -312,7 +320,7 @@ if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
   sudo ln -s "/usr/local" "$DEV_IMAGE_ROOT/usr/local"
 
   #TODO(sosa@chromium.org) - /usr/bin/xterm symlink not created in stateful.
-  sudo ln -sf "/usr/local/bin/aterm" "/usr/bin/xterm" 
+  sudo ln -sf "/usr/local/bin/aterm" "/usr/bin/xterm"
 fi
 
 # Perform any customizations on the root file system that are needed.
@@ -322,9 +330,33 @@ if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]]; then
 fi
 
 # Extract the kernel from the root filesystem for use by the GPT image. Legacy
-# BIOS will use the kernel in the rootfs (via syslinux), ChromeOS BIOS will use
-# the kernel partition.
+# BIOS will use the kernel in the rootfs (via syslinux), Chrome OS BIOS will
+# use the kernel partition.
 sudo cp -f "${ROOT_FS_DIR}/boot/vmlinuz" "${OUTPUT_DIR}/vmlinuz.image"
+
+# Create EFI System Partition to boot stock EFI BIOS (but not ChromeOS EFI
+# BIOS). We only need this for x86, but it's simpler and safer to keep the disk
+# images the same for both x86 and ARM.
+ESP_IMG=${OUTPUT_DIR}/esp.image
+# NOTE: The size argument for mkfs.vfat is in 1024-byte blocks. We'll hard-code
+# it to 16M for now.
+ESP_BLOCKS=16384
+/usr/sbin/mkfs.vfat -C ${OUTPUT_DIR}/esp.image ${ESP_BLOCKS}
+ESP_DIR=${OUTPUT_DIR}/esp
+mkdir -p ${ESP_DIR}
+sudo mount -o loop ${ESP_IMG} ${ESP_DIR}
+sudo mkdir -p ${ESP_DIR}/efi/boot
+sudo grub-mkimage -p /efi/boot -o ${ESP_DIR}/efi/boot/bootx64.efi \
+  part_gpt fat ext2 normal boot sh chain configfile linux
+sudo cp ${ROOT_FS_DIR}/boot/vmlinuz ${ESP_DIR}/efi/boot/vmlinuz
+cat <<EOF | sudo dd of=${ESP_DIR}/efi/boot/grub.cfg
+set timeout=2
+set default=0
+
+menuentry "32-bit serial" {
+  linux /efi/boot/vmlinuz earlyprintk=serial,ttyS0,115200 i915.modeset=0 console=ttyS0,115200 acpi=off init=/sbin/init boot=local rootwait root=/dev/sda3 ro noresume noswap loglevel=7
+}
+EOF
 
 #TODO(sosa@chromium.org) - Does it make sense to leave /usr/local bound here?
 "${SCRIPTS_DIR}/customize_rootfs" \
@@ -350,6 +382,7 @@ if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
 fi
 
 # Cleanup loop devices.
+cleanup_esp_loop
 cleanup_stateful_fs_loop
 cleanup_rootfs_loop
 
@@ -359,8 +392,9 @@ ${SCRIPTS_DIR}/build_gpt.sh \
    "${OUTPUT_DIR}" "${OUTPUT_IMG}"
 
 # Clean up temporary files.
-rm -f "${ROOT_FS_IMG}" "${STATEFUL_IMG}" "${OUTPUT_DIR}/vmlinuz.image"
-rmdir "${ROOT_FS_DIR}" "${STATEFUL_DIR}"
+rm -f "${ROOT_FS_IMG}" "${STATEFUL_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \
+  "${ESP_IMG}"
+rmdir "${ROOT_FS_DIR}" "${STATEFUL_DIR}" "${ESP_DIR}"
 
 OUTSIDE_OUTPUT_DIR="../build/images/${FLAGS_board}/${IMAGE_SUBDIR}"
 echo "Done.  Image created in ${OUTPUT_DIR}"

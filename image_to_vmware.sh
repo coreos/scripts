@@ -33,7 +33,7 @@ DEFINE_string state_image "" \
   "Stateful partition image (defaults to creating new statful partition)"
 DEFINE_string format "vmware" \
   "Output format, either vmware or virtualbox"
-  
+
 DEFINE_boolean make_vmx ${FLAGS_TRUE} \
   "Create a vmx file for use with vmplayer (vmware only)."
 DEFINE_string vmdk "$DEFAULT_VMDK" \
@@ -57,7 +57,7 @@ if [ "$FLAGS_format" != "vmware" ]; then
   FLAGS_make_vmx=${FLAGS_FALSE}
 fi
 
-# Convert args to paths.  Need eval to un-quote the string so that shell 
+# Convert args to paths.  Need eval to un-quote the string so that shell
 # chars like ~ are processed; just doing FOO=`readlink -f $FOO` won't work.
 FLAGS_from=`eval readlink -f $FLAGS_from`
 FLAGS_to=`eval readlink -f $FLAGS_to`
@@ -68,6 +68,8 @@ TEMP_DIR=$(mktemp -d)
   "${FLAGS_from}/unpack_partitions.sh" "${FLAGS_from}/chromiumos_image.bin")
 
 # Fix the kernel command line
+# FIXME: TEMP_ESP is only partition 4 at the moment. It may change!
+TEMP_ESP="$TEMP_DIR"/part_4
 TEMP_ROOTFS="$TEMP_DIR"/part_3
 TEMP_STATE="$TEMP_DIR"/part_1
 if [ -n "${FLAGS_state_image}" ]; then
@@ -97,11 +99,12 @@ sudo dd if=/dev/zero of="${TEMP_IMG}" bs=1 count=1 \
 
 # Set up the partition table
 install_gpt "$TEMP_IMG" "$TEMP_ROOTFS" "$TEMP_KERN" "$TEMP_STATE" \
-  "$TEMP_PMBR" true
+  "$TEMP_PMBR" "$TEMP_ESP" true
 # Copy into the partition parts of the file
 dd if="$TEMP_ROOTFS" of="$TEMP_IMG" conv=notrunc bs=512 seek="$START_ROOTFS_A"
 dd if="$TEMP_STATE"  of="$TEMP_IMG" conv=notrunc bs=512 seek="$START_STATEFUL"
 dd if="$TEMP_KERN"   of="$TEMP_IMG" conv=notrunc bs=512 seek="$START_KERN_A"
+dd if="$TEMP_ESP"    of="$TEMP_IMG" conv=notrunc bs=512 seek="$START_ESP"
 
 echo Creating final image
 # Convert image to output format
@@ -117,7 +120,7 @@ else
   exit 1
 fi
 
-rm -rf "$TEMP_DIR" "${VBOX_TEMP_IMAGE}" "$TEMP_IMG" 
+rm -rf "$TEMP_DIR" "${VBOX_TEMP_IMAGE}" "$TEMP_IMG"
 if [ -z "$FLAGS_state_image" ]; then
   rm -f "$STATE_IMAGE"
 fi

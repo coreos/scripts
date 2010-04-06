@@ -26,12 +26,12 @@ DEFINE_string board_root "" \
 
 # Usage.
 FLAGS_HELP=$(cat <<EOF
- 
+
 Usage: $(basename $0) [flags] IMAGEDIR OUTDEV
 
 This takes the image components in IMAGEDIR and creates a bootable,
 GPT-formatted image in OUTDEV. OUTDEV can be a file or block device.
- 
+
 EOF
 )
 
@@ -99,6 +99,12 @@ if [[ ! -s ${STATEFUL_IMG} ]]; then
   exit 1
 fi
 
+ESP_IMG="${IMAGEDIR}/esp.image"
+if [[ ! -s ${ESP_IMG} ]]; then
+  error "Can't find ${ESP_IMG}"
+  exit 1
+fi
+
 # We'll need some code to put in the PMBR, for booting on legacy BIOS. Some ARM
 # systems will use a U-Boot script temporarily, but it goes in the same place.
 if [[ "$ARCH" = "arm" ]]; then
@@ -107,7 +113,7 @@ if [[ "$ARCH" = "arm" ]]; then
   # set the appropriate environment variables. Then we can create the correct
   # script and install it for real. A bit awkward, but this is only temporary.
   echo "Installing fake GPT first, to calculate locations..."
-  install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG /dev/zero
+  install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG /dev/zero $ESP_IMG
 
   # Create the U-Boot script to copy the kernel into memory and boot it.
   KERNEL_OFFSET=$(printf "0x%08x" ${START_KERN_A})
@@ -147,7 +153,7 @@ fi
 
 # Create the GPT. This has the side-effect of setting some global vars
 # describing the partition table entries (see the comments in the source).
-install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG $PMBRCODE
+install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG $PMBRCODE $ESP_IMG
 
 # Emit helpful scripts for testers, etc.
 ${SCRIPTS_DIR}/emit_gpt_scripts.sh "${OUTDEV}" "${IMAGEDIR}"
@@ -168,6 +174,9 @@ $sudo dd if=${KERNEL_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_KERN_A}
 
 echo "Copying rootfs..."
 $sudo dd if=${ROOTFS_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_ROOTFS_A}
+
+echo "Copying EFI system partition..."
+dd if=${ESP_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_ESP}
 
 # Clean up temporary files.
 if [[ -n "${MBR_IMG:-}" ]]; then
