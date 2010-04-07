@@ -150,8 +150,10 @@ def build_autotest(options):
   site_tests = '../third_party/autotest/files/client/site_tests'
   for site_test in os.listdir(site_tests):
     test_path = os.path.join(site_tests, site_test)
-    if (os.path.exists(test_path) and os.path.isdir(test_path)
-        and site_test not in blacklist):
+    test_py = os.path.join(test_path, '%s.py' % site_test)
+    if (os.path.exists(test_path) and os.path.isdir(test_path) and
+        os.path.exists(test_py) and os.path.isfile(test_py) and
+        site_test not in blacklist):
       all_tests += ',' + site_test
 
   if 'all' == options.build.lower():
