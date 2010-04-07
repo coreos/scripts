@@ -10,10 +10,12 @@
 # The path to common.sh should be relative to your script's location.
 
 . "$(dirname $0)/common.sh"
-. "$(dirname $0)/autotest_lib.sh"
 . "$(dirname $0)/remote_access.sh"
 
-DEFINE_boolean build ${FLAGS_FALSE} "Build tests as well as running them" b
+get_default_board
+
+DEFINE_string board "$DEFAULT_BOARD" \
+    "The board for which you are building autotest"
 DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
 DEFINE_boolean cleanup ${FLAGS_FALSE} "Clean up temp directory"
 DEFINE_integer iterations 1 "Iterations to run every top level test" i
@@ -149,7 +151,14 @@ function main() {
   set -e
 
   # Set global TMP for remote_access.sh's sake
-  TMP=$(mktemp -d /tmp/run_remote_tests.XXXX)
+  if [[ ${INSIDE_CHROOT} -eq 0 ]]
+  then
+    TMP=$(mktemp -d ${FLAGS_chroot}/tmp/run_remote_tests.XXXX)
+    TMP_INSIDE_CHROOT=$(echo ${TMP#${FLAGS_chroot}})
+  else
+    TMP=$(mktemp -d /tmp/run_remote_tests.XXXX)
+    TMP_INSIDE_CHROOT=${TMP}
+  fi
 
   trap cleanup EXIT
 
@@ -158,25 +167,16 @@ function main() {
   local autotest_dir=""
   if [[ -z "${FLAGS_prepackaged_autotest}" ]]; then
     learn_board
-    # Always copy into installed autotest directory.  This way if a user
-    # is just modifying scripts, they take effect without having to wait
-    # for the laborious build_autotest.sh command.
-    local original="${GCLIENT_ROOT}/src/third_party/autotest/files"
-    autotest_dir="/build/${FLAGS_board}/usr/local/autotest"
-    if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
-      autotest_dir="${FLAGS_chroot}/${autotest_dir}"
-    fi
-    update_chroot_autotest "${original}" "${autotest_dir}"
+    autotest_dir="${GCLIENT_ROOT}/src/third_party/autotest/files"
   else
     autotest_dir="${FLAGS_prepackaged_autotest}"
   fi
 
-  local autoserv="${autotest_dir}/server/autoserv"
-
   local control_files_to_run=""
 
   # Now search for tests which unambiguously include the given identifier
-  local search_path=$(echo ${autotest_dir}/{client,server}/{tests,site_tests})
+  local search_path=$(echo {client,server}/{tests,site_tests})
+  pushd ${autotest_dir} > /dev/null
   for test_request in $FLAGS_ARGV; do
     test_request=$(remove_quotes "${test_request}")
     ! finds=$(find ${search_path} -maxdepth 2 -type f \( -name control.\* -or \
@@ -202,6 +202,7 @@ function main() {
       control_files_to_run="${control_files_to_run} '${finds}'"
     done
   done
+  popd > /dev/null
 
   echo ""
 
@@ -216,48 +217,15 @@ function main() {
   done
 
   if [[ -z "${FLAGS_results_dir_root}" ]]; then
-    FLAGS_results_dir_root="${TMP}"
+    FLAGS_results_dir_root="${TMP_INSIDE_CHROOT}"
   fi
 
   mkdir -p "${FLAGS_results_dir_root}"
 
-  if [[ ${FLAGS_build} -eq ${FLAGS_TRUE} ]]; then
-    # Create a list of files to build based on all the client tests
-    # the user has specified.  If they have specified at least one
-    # that is a server test, offer to build all client tests since
-    # it's quite hard to know what client tests a server test might
-    # use.
-    local build_param=""
-    for control_file in ${control_files_to_run}; do
-      control_file=$(remove_quotes "${control_file}")
-      local type=$(read_test_type "${control_file}")
-      if [[ "${type}" == "server" ]]; then
-        build_param=""
-        break
-      fi
-      if [[ -n "${build_param}" ]]; then
-        build_param="${build_param},"
-      fi
-      local simple_path=$(basename $(dirname $control_file))
-      build_param="${build_param}${simple_path}"
-    done
-    local enter_chroot=""
-    if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
-      enter_chroot="./enter_chroot.sh --"
-    fi
-    if [[ -n "${build_param}" ]]; then
-      build_param="--build=${build_param}"
-    fi
-    echo ""
-    echo_color "yellow" ">>> Building " \
-      "./build_autotest.sh --board=${FLAGS_board} ${build_param}"
-    ${enter_chroot} ./build_autotest.sh --board=${FLAGS_board} ${build_param}
-  fi
-
   for control_file in ${control_files_to_run}; do
     # Assume a line starts with TEST_TYPE =
     control_file=$(remove_quotes "${control_file}")
-    local type=$(read_test_type "${control_file}")
+    local type=$(read_test_type "${autotest_dir}/${control_file}")
     local option
     if [[ "${type}" == "client" ]]; then
       option="-c"
@@ -268,7 +236,7 @@ function main() {
     echo_color "yellow" ">>> Running ${type} test " ${control_file}
     local short_name=$(basename $(dirname "${control_file}"))
     local results_dir_name="${short_name}"
-    local results_dir="${FLAGS_results_dir_root}/${results_dir_name}"
+    local results_dir="${TMP_INSIDE_CHROOT}/${results_dir_name}"
     rm -rf "${results_dir}"
     local verbose=""
     if [[ ${FLAGS_verbose} -eq $FLAGS_TRUE ]]; then
@@ -276,8 +244,18 @@ function main() {
     fi
 
     RAN_ANY_TESTS=${FLAGS_TRUE}
-    ${autoserv} -m "${FLAGS_remote}" "${option}" "${control_file}" \
-      -r "${results_dir}" ${verbose}
+
+    local enter_chroot=""
+    local autotest="${GCLIENT_ROOT}/src/scripts/autotest"
+    if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
+      enter_chroot="./enter_chroot.sh --"
+      autotest="./autotest"
+    fi
+
+    ${enter_chroot} ${autotest} --board "${FLAGS_board}" -m "${FLAGS_remote}" \
+      "${option}" "${control_file}" -r "${results_dir}" ${verbose}
+
+    results_dir="${TMP}/${results_dir_name}"
     local test_status="${results_dir}/status.log"
     local test_result_dir="${results_dir}/${short_name}"
     local keyval_file="${test_result_dir}/results/keyval"

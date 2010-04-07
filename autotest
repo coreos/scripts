@@ -99,7 +99,7 @@ def parse_args_and_help():
       print
       print 'Options inherited from autoserv:'
       run([AUTOSERV, '--help'])
-    sys.exit(-1)
+    sys.exit(0)
   return options, args
 
 
