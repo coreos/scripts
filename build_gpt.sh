@@ -176,7 +176,7 @@ echo "Copying rootfs..."
 $sudo dd if=${ROOTFS_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_ROOTFS_A}
 
 echo "Copying EFI system partition..."
-dd if=${ESP_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_ESP}
+$sudo dd if=${ESP_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_ESP}
 
 # Clean up temporary files.
 if [[ -n "${MBR_IMG:-}" ]]; then
