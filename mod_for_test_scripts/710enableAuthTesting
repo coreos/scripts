@@ -15,5 +15,7 @@ cat "${CERT_DIR}/${CERT_NAME}.key" > "${ROOT_FS_DIR}/etc/${CERT_NAME}.key"
 # Sadly, our fake cert HAS to be first in this file.
 TMPFILE=$(mktemp)
 CERT_FILE="${ROOT_FS_DIR}/etc/login_trust_root.pem"
+PERMS=$(stat --printf="%a" "${CERT_FILE}")
 cat "${CERT_DIR}/${CERT_NAME}.pem" "${CERT_FILE}" > "${TMPFILE}"
 mv -f "${TMPFILE}" "${CERT_FILE}"
+chmod "${PERMS}" "${CERT_FILE}"
