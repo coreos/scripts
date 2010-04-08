@@ -360,17 +360,6 @@ menuentry "32-bit serial" {
 }
 EOF
 
-"${SCRIPTS_DIR}/customize_rootfs" \
-  --root="$ROOT_FS_DIR" \
-  --target="$ARCH" \
-  --board="$BOARD" \
-  $WITH_DEV
-
-# Check that the image has been correctly created.
-"${SCRIPTS_DIR}/test_image" \
-  --root="$ROOT_FS_DIR" \
-  --target="$ARCH"
-
 # Enable dev mode on the target system and re-run ldconfig
 # for rootfs's ld.so.cache
 if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
@@ -384,6 +373,17 @@ if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
   #TODO(sosa@chromium.org) - /usr/bin/xterm symlink not created in stateful.
   sudo ln -sf "/usr/local/bin/aterm" "/usr/bin/xterm"
 fi
+
+"${SCRIPTS_DIR}/customize_rootfs" \
+  --root="$ROOT_FS_DIR" \
+  --target="$ARCH" \
+  --board="$BOARD" \
+  $WITH_DEV
+
+# Check that the image has been correctly created.
+"${SCRIPTS_DIR}/test_image" \
+  --root="$ROOT_FS_DIR" \
+  --target="$ARCH"
 
 # Clean up symlinks so they work on a running target rooted at "/".
 # Here development packages are rooted at /usr/local.  However, do not

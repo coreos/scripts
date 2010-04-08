@@ -32,6 +32,7 @@ class CheckDependencies(object):
     # required for understanding old-style Netscape plugins.
     self._ReadLibs([
         "%s/lib" % root,
+        "%s/usr/local/lib" % root,
         "%s/usr/lib" % root,
         "%s/usr/lib/nss" % root,
         "%s/usr/lib/nspr" % root,
