@@ -41,6 +41,8 @@ DEFINE_string to "" \
   "The target image file or device"
 DEFINE_boolean withtest $FLAGS_FALSE \
   "Include packages required for testing and prepare image for testing"
+DEFINE_string factory_server $FLAGS_FALSE \
+  "Build a factory install image pointing to given server."
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -318,6 +320,12 @@ if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ; then
   sudo cp -a "$(which ldd)" "${ROOT_DEV_DIR}/usr/bin"
 fi
 
+if [ -n "$FLAGS_factory_server" ]; then
+  sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
+      --root="$ROOT_DEV_DIR" --root-deps=rdeps \
+      --usepkgonly chromeos-factoryinstall $EMERGE_JOBS
+fi
+
 # Install packages required for testing.
 if [[ $FLAGS_withtest -eq $FLAGS_TRUE ]] ; then
   sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
@@ -326,9 +334,14 @@ if [[ $FLAGS_withtest -eq $FLAGS_TRUE ]] ; then
 fi
 
 # Perform any customizations on the root file system that are needed.
-WITH_DEV=""
-if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]]; then
-  WITH_DEV="--withdev"
+EXTRA_CUSTOMIZE_ROOTFS_FLAGS=""
+if [ $FLAGS_withdev -eq $FLAGS_TRUE ]; then
+  EXTRA_CUSTOMIZE_ROOTFS_FLAGS="--withdev"
+fi
+if [ -n "$FLAGS_factory_server" ]; then
+# Indentation off b/c of long line
+EXTRA_CUSTOMIZE_ROOTFS_FLAGS="$EXTRA_CUSTOMIZE_ROOTFS_FLAGS"\
+" --factory_server=$FLAGS_factory_server"
 fi
 
 # Extract the kernel from the root filesystem for use by the GPT image. Legacy
@@ -378,7 +391,7 @@ fi
   --root="$ROOT_FS_DIR" \
   --target="$ARCH" \
   --board="$BOARD" \
-  $WITH_DEV
+  $EXTRA_CUSTOMIZE_ROOTFS_FLAGS
 
 # Check that the image has been correctly created.
 "${SCRIPTS_DIR}/test_image" \
