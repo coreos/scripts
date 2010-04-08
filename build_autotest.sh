@@ -11,6 +11,9 @@
 # The user can later run autotest against an ssh enabled test client system, or
 # install the compiled client tests directly onto the rootfs image.
 
-# Includes common already
-./autotest --build=all $@
+. "$(dirname "$0")/common.sh"
+
+get_default_board
+
+./autotest --build=all --board="${DEFAULT_BOARD}" $@
 
