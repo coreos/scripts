@@ -58,14 +58,20 @@ parser.allow_interspersed_args = True
 DEFAULT_BOARD = os.environ.get('DEFAULT_BOARD', '')
 
 parser.add_option('--autox', dest='autox', action='store_true',
-                  help='Build autox along with autotest.')
+                  default=True,
+                  help='Build autox along with autotest [default].')
+parser.add_option('--noautox', dest='autox', action='store_false',
+                  help='Don\'t build autox along with autotest.')
 parser.add_option('--board', dest='board', action='store',
                   default=DEFAULT_BOARD,
                   help='The board for which you are building autotest.')
 parser.add_option('--build', dest='build', action='store',
                   help='Only prebuild client tests, do not run tests.')
 parser.add_option('--buildcheck', dest='buildcheck', action='store_true',
-                  help='Fail if tests fail to build.')
+                  default=True,
+                  help='Fail if tests fail to build [default].')
+parser.add_option('--nobuildcheck', dest='buildcheck', action='store_false',
+                  help='Ignore test build failures.')
 parser.add_option('--jobs', dest='jobs', action='store', type=int,
                   default=-1,
                   help='How many packages to build in parallel at maximum.')
@@ -214,4 +220,3 @@ def main():
 
 if __name__ == '__main__':
   main()
-
