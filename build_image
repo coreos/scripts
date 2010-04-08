@@ -36,7 +36,7 @@ DEFINE_boolean installmask $FLAGS_TRUE \
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean statefuldev $FLAGS_FALSE \
-  "Install development packages on stateful partition -- still experimental"
+  "Install development packages on stateful partition rather than the rootfs"
 DEFINE_string to "" \
   "The target image file or device"
 DEFINE_boolean withtest $FLAGS_FALSE \
@@ -55,13 +55,6 @@ if [ -z "$FLAGS_board" ] ; then
   exit 1
 fi
 
-# Sanity check: statefuldev cannot be true if withdev is false.
-if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] &&
-    [ $FLAGS_withdev -eq $FLAGS_FALSE ] ; then
-  echo "ERROR: statefuldev flag cannot be set to true without withdev"
-  exit 1
-fi
-
 # Determine build version.
 . "${SCRIPTS_DIR}/chromeos_version.sh"
 
@@ -77,6 +70,7 @@ BOARD="${FLAGS_board}"
 BOARD_ROOT="${FLAGS_build_root}/${BOARD}"
 
 LOOP_DEV=
+STATEFUL_LOOP_DEV=
 
 # What cross-build are we targeting?
 . "${BOARD_ROOT}/etc/make.conf.board_setup"
@@ -119,12 +113,14 @@ mkdir -p "$OUTPUT_DIR"
 
 cleanup_rootfs_loop() {
   sudo umount "$LOOP_DEV"
-  sleep 1  # in case $LOOP_DEV is in use (TODO: Try umount -l?).
+  sleep 1  # in case $LOOP_DEV is in use.
   sudo losetup -d "$LOOP_DEV"
 }
 
 cleanup_stateful_fs_loop() {
-  sudo umount "$STATEFUL_LOOP_DEV"
+  sudo umount "${ROOT_FS_DIR}/usr/local"
+  sudo umount "${ROOT_FS_DIR}/var"
+  sudo umount "${STATEFUL_DIR}"
   sleep 1  # follows from cleanup_root_fs_loop.
   sudo losetup -d "$STATEFUL_LOOP_DEV"
 }
@@ -136,11 +132,6 @@ cleanup_esp_loop() {
 cleanup() {
   # Disable die on error.
   set +e
-
-  # Unmount stateful partition from usr/local if bound.
-  if [ -s "$ROOT_FS_DIR/usr/local/bin" ] ; then
-    sudo umount $ROOT_FS_DIR/usr/local
-  fi
 
   if [[ -n "$STATEFUL_LOOP_DEV" ]]; then
     cleanup_stateful_fs_loop
@@ -156,6 +147,39 @@ cleanup() {
 
   # Turn die on error back on.
   set -e
+}
+
+# ${DEV_IMAGE_ROOT} specifies the location of where developer packages will
+# be installed on the stateful dir.  On a Chromium OS system, this will
+# translate to /usr/local
+DEV_IMAGE_ROOT=
+
+# Sets up symlinks for the stateful partition based on the root specified by
+# ${1} and var directory specified by ${2}.
+setup_symlinks_on_root() {
+  echo "Setting up symlinks on the stateful partition rooted at ${1} with"\
+    "var directory located at ${2}"
+
+  for path in usr local; do
+    if [ -h "${DEV_IMAGE_ROOT}/${path}" ] ; then
+      sudo unlink "${DEV_IMAGE_ROOT}/${path}"
+    elif [ -e "${DEV_IMAGE_ROOT}/${path}" ] ; then
+      echo "*** ERROR: ${DEV_IMAGE_ROOT}/${path} should be a symlink if exists"
+      return 1
+    fi
+    sudo ln -s ${1} "${DEV_IMAGE_ROOT}/${path}"
+  done
+
+  # Setup var.  Var is on the stateful partition at /var for both non-developer
+  # builds and developer builds.
+  if [ -h "${DEV_IMAGE_ROOT}/var" ] ; then
+    sudo unlink "${DEV_IMAGE_ROOT}/var"
+  elif [ -e "${DEV_IMAGE_ROOT}/var" ] ; then
+    echo "*** ERROR: ${DEV_IMAGE_ROOT}/var should be a symlink if it exists"
+    return 1
+  fi
+
+  sudo ln -s "${2}" "${DEV_IMAGE_ROOT}/var"
 }
 
 trap cleanup EXIT
@@ -201,6 +225,9 @@ sudo tune2fs -L "C-STATE" -U "$UUID" -c 0 -i 0 \
 # Mount the stateful partition.
 mkdir -p "$STATEFUL_DIR"
 sudo mount "$STATEFUL_LOOP_DEV" "$STATEFUL_DIR"
+
+# Set dev image root now that we have mounted the stateful partition we created
+DEV_IMAGE_ROOT="$STATEFUL_DIR/dev_image"
 
 # Turn root file system into bootable image.
 if [[ "$ARCH" = "x86" ]]; then
@@ -253,27 +280,21 @@ if [[ $FLAGS_jobs -ne -1 ]]; then
   EMERGE_JOBS="--jobs=$FLAGS_jobs"
 fi
 
-if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
-  # Creating stateful partition.
-  echo "Setting up symlinks for stateful partition install"
-  DEV_IMAGE_ROOT="$STATEFUL_DIR/dev_image"
-  sudo mkdir -p "$DEV_IMAGE_ROOT/usr"
+# Prepare stateful partition with some pre-created directories
+sudo mkdir -p "${DEV_IMAGE_ROOT}"
+sudo mkdir -p "${STATEFUL_DIR}/var"
 
-  # Setup symlinks in stateful partition.
-  for path in bin include lib libexec sbin share; do
-    sudo mkdir "$DEV_IMAGE_ROOT/$path"
-    sudo ln -s "$DEV_IMAGE_ROOT/$path" "$DEV_IMAGE_ROOT/usr/$path"
-  done
+# Create symlinks so that /usr/local/usr based directories are symlinked to
+# /usr/local/ directories e.g. /usr/local/usr/bin -> /usr/local/bin, etc.
+setup_symlinks_on_root "${DEV_IMAGE_ROOT}" "${STATEFUL_DIR}/var"
 
-  # Setup symlinks that don't conform to above model.
-  sudo ln -s "$DEV_IMAGE_ROOT/lib" "$DEV_IMAGE_ROOT/usr/lib64"
-  sudo ln -s "$DEV_IMAGE_ROOT" "$DEV_IMAGE_ROOT/usr/local"
-
-  # Bind to rootfs.
-  echo "Binding stateful partition to rootfs's /usr/local"
-  sudo mkdir -p "$ROOT_FS_DIR/usr/local"
-  sudo mount -n --bind "$DEV_IMAGE_ROOT" "$ROOT_FS_DIR/usr/local"
-fi
+# Perform binding rather than symlinking because directories must exist
+# on rootfs so that we can bind at run-time since rootfs is read-only
+echo "Binding directories from stateful partition onto the rootfs"
+sudo mkdir -p "${ROOT_FS_DIR}/usr/local"
+sudo mount --bind "${DEV_IMAGE_ROOT}" "${ROOT_FS_DIR}/usr/local"
+sudo mkdir -p "${ROOT_FS_DIR}/var"
+sudo mount --bind "${STATEFUL_DIR}/var" "${ROOT_FS_DIR}/var"
 
 # We "emerge --root=$ROOT_FS_DIR --root-deps=rdeps --usepkgonly" all of the
 # runtime packages for chrome os. This builds up a chrome os image from binary
@@ -302,25 +323,6 @@ if [[ $FLAGS_withtest -eq $FLAGS_TRUE ]] ; then
   sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
       --root="$ROOT_DEV_DIR" --root-deps=rdeps \
       --usepkgonly chromeos-test $EMERGE_JOBS
-fi
-
-# Clean up links setup for stateful install of extra packages.
-if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
-  # Fix symlinks so they work on live system.
-  for path in bin include lib libexec sbin share; do
-    sudo unlink $DEV_IMAGE_ROOT/usr/$path
-    sudo ln -s /usr/local/$path $DEV_IMAGE_ROOT/usr/$path
-  done
-
-  # Fix exceptions.
-  sudo unlink "$DEV_IMAGE_ROOT/usr/lib64"
-  sudo unlink "$DEV_IMAGE_ROOT/usr/local"
-
-  sudo ln -s "/usr/local/lib" "$DEV_IMAGE_ROOT/usr/lib64"
-  sudo ln -s "/usr/local" "$DEV_IMAGE_ROOT/usr/local"
-
-  #TODO(sosa@chromium.org) - /usr/bin/xterm symlink not created in stateful.
-  sudo ln -sf "/usr/local/bin/aterm" "/usr/bin/xterm"
 fi
 
 # Perform any customizations on the root file system that are needed.
@@ -358,7 +360,6 @@ menuentry "32-bit serial" {
 }
 EOF
 
-#TODO(sosa@chromium.org) - Does it make sense to leave /usr/local bound here?
 "${SCRIPTS_DIR}/customize_rootfs" \
   --root="$ROOT_FS_DIR" \
   --target="$ARCH" \
@@ -370,21 +371,27 @@ EOF
   --root="$ROOT_FS_DIR" \
   --target="$ARCH"
 
-# Set dev_mode flag and update library cache.
+# Enable dev mode on the target system and re-run ldconfig
+# for rootfs's ld.so.cache
 if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
+  # Flag will mount /usr/local on target device
+  sudo mkdir -p "$ROOT_FS_DIR/root"
   sudo touch "$ROOT_FS_DIR/root/.dev_mode"
+
+  # Re-run ldconfig to fix /etc/ldconfig.so.cache
   sudo /sbin/ldconfig -r "$ROOT_FS_DIR"
+
+  #TODO(sosa@chromium.org) - /usr/bin/xterm symlink not created in stateful.
+  sudo ln -sf "/usr/local/bin/aterm" "/usr/bin/xterm"
 fi
 
-# Only bound if installing dev to stateful.
-if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
-  sudo umount "$ROOT_FS_DIR/usr/local"
-fi
+# Clean up symlinks so they work on a running target rooted at "/".
+# Here development packages are rooted at /usr/local.  However, do not
+# create /usr/local or /var on host (already exist on target).
+setup_symlinks_on_root "/usr/local" "/var"
 
 # Cleanup loop devices.
-cleanup_esp_loop
-cleanup_stateful_fs_loop
-cleanup_rootfs_loop
+cleanup
 
 # Create the GPT-formatted image
 ${SCRIPTS_DIR}/build_gpt.sh \
