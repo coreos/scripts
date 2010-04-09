@@ -422,8 +422,7 @@ cleanup
 
 # Create the GPT-formatted image
 ${SCRIPTS_DIR}/build_gpt.sh \
-   --arch=${ARCH} --board=${FLAGS_board} --board_root=${BOARD_ROOT} \
-   "${OUTPUT_DIR}" "${OUTPUT_IMG}"
+   --arch=${ARCH} --board=${FLAGS_board} "${OUTPUT_DIR}" "${OUTPUT_IMG}"
 
 # Clean up temporary files.
 rm -f "${ROOT_FS_IMG}" "${STATEFUL_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \

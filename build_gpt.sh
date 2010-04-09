@@ -21,8 +21,6 @@ DEFINE_string arch "" \
   "The target architecture (\"arm\" or \"x86\")."
 DEFINE_string board "$DEFAULT_BOARD" \
   "The board to build an image for."
-DEFINE_string board_root "" \
-  "The build directory, needed to find tools for ARM."
 
 # Usage.
 FLAGS_HELP=$(cat <<EOF
@@ -68,10 +66,6 @@ else
       error "Unable to determine ARCH from toolchain: $CHOST"
       exit 1
   esac
-fi
-
-if [[ -z "$FLAGS_board_root" ]]; then
-  FLAGS_board_root="/build/${FLAGS_board}"
 fi
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
@@ -130,7 +124,7 @@ if [[ "$ARCH" = "arm" ]]; then
           "setenv bootargs ${BOOTARGS}\n" \
           "mmc read 1 C0008000 $KERNEL_OFFSET $KERNEL_SECS_HEX\n" \
           "bootm C0008000" > ${MBR_SCRIPT}
-  MKIMAGE="${FLAGS_board_root}/u-boot/mkimage"
+  MKIMAGE="/usr/bin/mkimage"
   if [[ -f "$MKIMAGE".gz ]]; then
     sudo gunzip "$MKIMAGE".gz
   fi
