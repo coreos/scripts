@@ -10,28 +10,60 @@
 
 set -e
 
-if [ -z "$1" ]
-then
-  echo "usage: $0 path/to/rootfs.image"
+if [ -z "$2" -o -z "$1" ]; then
+  echo "usage: $0 path/to/kernel_partition_img path/to/rootfs_partition_img"
   exit 1
 fi
 
-if [ $(whoami) = "root" ]
-then
+if [ $(whoami) = "root" ]; then
   echo "running $0 as root which is unneccessary"
+fi
+
+KPART="$1"
+ROOT_PART="$2"
+
+KPART_SIZE=$(stat -c%s "$KPART")
+
+# Sanity check size.
+if [ "$KPART_SIZE" -gt $((16 * 1024 * 1024)) ]; then
+  echo "Kernel partition size ($KPART_SIZE bytes) greater than 16 MiB."
+  echo "That's too big."
+  exit 1
 fi
 
 FINAL_OUT_FILE=$(dirname "$1")/update.gz
 UNCOMPRESSED_OUT_FILE="$FINAL_OUT_FILE.uncompressed"
 
-ORIGINAL_LABEL=$(/sbin/e2label "$1")
+# First, write size of kernel partition in big endian as uint64 to out file
+# printf converts it to a number like 00000000003d0900. sed converts it to:
+# \\x00\\x00\\x00\\x00\\x00\\x3d\\x09\\x00, then xargs converts it to binary
+# with echo.
+printf %016x "$KPART_SIZE" | \
+  sed 's/\([0-9a-f][0-9a-f]\)/\\\\x\1/g' | \
+  xargs echo -ne > "$UNCOMPRESSED_OUT_FILE"
 
-# copy original over to the new file
-cp "$1" "$UNCOMPRESSED_OUT_FILE"
+# Next, write kernel partition to the out file
+cat "$KPART" >> "$UNCOMPRESSED_OUT_FILE"
 
-# Fix up the file system label. We prefix with 'A'
+# Sanity check size of output file now
+if [ $(stat -c%s "$UNCOMPRESSED_OUT_FILE") -ne $((8 + $KPART_SIZE)) ]; then
+  echo "Kernel partition changed size during image generation. Aborting."
+  exit 1
+fi
+
+# Copy rootfs aside
+TMP_ROOTFS=$(mktemp)
+cp "$ROOT_PART" "$TMP_ROOTFS"
+ORIGINAL_LABEL=$(/sbin/e2label "$TMP_ROOTFS")
 NEW_LABEL="A${ORIGINAL_LABEL}"
-/sbin/tune2fs -L "$NEW_LABEL" "$UNCOMPRESSED_OUT_FILE"
+/sbin/tune2fs -L "$NEW_LABEL" "$TMP_ROOTFS"
+
+# TODO(adlr): Sign TMP_ROOTFS w/ OS vendor's private key
+
+# Put rootfs into the out file
+cat "$TMP_ROOTFS" >> "$UNCOMPRESSED_OUT_FILE"
+
+rm "$TMP_ROOTFS"
 
 # compress and hash
 CS_AND_RET_CODES=$(gzip -c "$UNCOMPRESSED_OUT_FILE" | \
@@ -43,8 +75,7 @@ set -- $CS_AND_RET_CODES
 CALC_CS="$1"
 shift
 RET_CODES="$@"
-if [ "$RET_CODES" != "$EXPECTED_RET_CODES" ]
-then
+if [ "$RET_CODES" != "$EXPECTED_RET_CODES" ]; then
   echo compression/hash failed. $RET_CODES
   exit 1
 fi
