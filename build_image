@@ -41,7 +41,7 @@ DEFINE_string to "" \
   "The target image file or device"
 DEFINE_boolean withtest $FLAGS_FALSE \
   "Include packages required for testing and prepare image for testing"
-DEFINE_string factory_server $FLAGS_FALSE \
+DEFINE_string factory_server "" \
   "Build a factory install image pointing to given server."
 
 # Parse command line.
