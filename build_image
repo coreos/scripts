@@ -73,6 +73,7 @@ BOARD_ROOT="${FLAGS_build_root}/${BOARD}"
 
 LOOP_DEV=
 STATEFUL_LOOP_DEV=
+ESP_LOOP_DEV=
 
 # What cross-build are we targeting?
 . "${BOARD_ROOT}/etc/make.conf.board_setup"
@@ -129,6 +130,8 @@ cleanup_stateful_fs_loop() {
 
 cleanup_esp_loop() {
   sudo umount "$ESP_DIR"
+  sleep 1
+  sudo losetup -d "$ESP_LOOP_DEV"
 }
 
 cleanup() {
@@ -143,7 +146,7 @@ cleanup() {
     cleanup_rootfs_loop
   fi
 
-  if [[ -n "$ESP_DIR" ]]; then
+  if [[ -n "$ESP_LOOP_DEV" ]]; then
     cleanup_esp_loop
   fi
 
@@ -358,19 +361,30 @@ ESP_IMG=${OUTPUT_DIR}/esp.image
 ESP_BLOCKS=16384
 /usr/sbin/mkfs.vfat -C ${OUTPUT_DIR}/esp.image ${ESP_BLOCKS}
 ESP_DIR=${OUTPUT_DIR}/esp
-mkdir -p ${ESP_DIR}
-sudo mount -o loop ${ESP_IMG} ${ESP_DIR}
-sudo mkdir -p ${ESP_DIR}/efi/boot
-sudo grub-mkimage -p /efi/boot -o ${ESP_DIR}/efi/boot/bootx64.efi \
+ESP_LOOP_DEV=$(sudo losetup -f)
+if [ -z "$ESP_LOOP_DEV" ] ; then
+  echo "No free loop device.  Free up a loop device or reboot.  exiting. "
+  exit 1
+fi
+mkdir -p "${ESP_DIR}"
+sudo losetup "${ESP_LOOP_DEV}" "${ESP_IMG}"
+sudo mount "${ESP_LOOP_DEV}" "${ESP_DIR}"
+sudo mkdir -p "${ESP_DIR}/efi/boot"
+sudo grub-mkimage -p /efi/boot -o "${ESP_DIR}/efi/boot/bootx64.efi" \
   part_gpt fat ext2 normal boot sh chain configfile linux
-sudo cp ${ROOT_FS_DIR}/boot/vmlinuz ${ESP_DIR}/efi/boot/vmlinuz
-cat <<EOF | sudo dd of=${ESP_DIR}/efi/boot/grub.cfg
+sudo cp "${ROOT_FS_DIR}/boot/vmlinuz" "${ESP_DIR}/efi/boot/vmlinuz"
+cat <<EOF | sudo dd of="${ESP_DIR}/efi/boot/grub.cfg"
 set timeout=2
 set default=0
 
-menuentry "32-bit serial" {
+menuentry "serial debug" {
   linux /efi/boot/vmlinuz earlyprintk=serial,ttyS0,115200 i915.modeset=0 console=ttyS0,115200 acpi=off init=/sbin/init boot=local rootwait root=/dev/sda3 ro noresume noswap loglevel=7
 }
+
+menuentry "normal" {
+  linux /efi/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/sda3 ro noresume noswap i915.modeset=1 loglevel=1
+}
+
 EOF
 
 # Enable dev mode on the target system and re-run ldconfig
