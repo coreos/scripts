@@ -96,7 +96,7 @@ if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
     cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_test_image.bin"
     # Modify it.
     "${SCRIPTS_DIR}/mod_image_for_test.sh" --image \
-      "${FLAGS_from}/chromiumos_test_image.bin"
+      "${FLAGS_from}/chromiumos_test_image.bin" --yes
   fi
   # Use it.
   SRC_IMAGE="${FLAGS_from}/chromiumos_test_image.bin"
