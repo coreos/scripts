@@ -13,7 +13,7 @@ def run(cmd):
   return subprocess.call(cmd, stdout=sys.stdout, stderr=sys.stderr)
 
 
-class MyOptionPaser(optparse.OptionParser):
+class MyOptionParser(optparse.OptionParser):
   """Override python's builtin OptionParser to accept any undefined args."""
 
   help = False
@@ -49,10 +49,10 @@ class MyOptionPaser(optparse.OptionParser):
 
   def print_help(self, file=None):
     optparse.OptionParser.print_help(self, file)
-    MyOptionPaser.help = True
+    MyOptionParser.help = True
 
 
-parser = MyOptionPaser()
+parser = MyOptionParser()
 parser.allow_interspersed_args = True
 
 DEFAULT_BOARD = os.environ.get('DEFAULT_BOARD', '')
@@ -95,7 +95,7 @@ def parse_args_and_help():
   if not args and not options.build:
     parser.print_help()
 
-  if MyOptionPaser.help:
+  if MyOptionParser.help:
     if options.build:
       print
       print 'Options inherited from autotest_client, which is used in build',

@@ -248,7 +248,7 @@ function main() {
     local enter_chroot=""
     local autotest="${GCLIENT_ROOT}/src/scripts/autotest"
     if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
-      enter_chroot="./enter_chroot.sh --"
+      enter_chroot="./enter_chroot.sh --chroot ${FLAGS_chroot} --"
       autotest="./autotest"
     fi
 
