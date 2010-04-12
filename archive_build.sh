@@ -116,7 +116,7 @@ echo "$LAST_CHANGE" > "${FLAGS_to}/LATEST"
 chmod 644 "$ZIPFILE" "${FLAGS_to}/LATEST"
 chmod 755 "$OUTDIR"
 
-if [ $FLAGS_official_build -eq $FLAGS_TRUE ]
+if [ $FLAGS_test_mod -eq $FLAGS_TRUE -a $FLAGS_official_build -eq $FLAGS_TRUE ]
 then
   echo "Creating hwqual archive"
   HWQUAL_NAME="chromeos-hwqual-${FLAGS_board}-${CHROMEOS_VERSION_STRING}"
