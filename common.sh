@@ -149,8 +149,8 @@ esac
 # Functions
 
 function setup_board_warning {
-  echo  
-  echo "$V_REVERSE=================  WARNING  ======================$V_VIDOFF"  
+  echo
+  echo "$V_REVERSE=================  WARNING  ======================$V_VIDOFF"
   echo
   echo "*** No default board detected in " \
     "$GCLIENT_ROOT/src/scripts/.default_board"
@@ -162,8 +162,8 @@ function setup_board_warning {
 
 # Sets the default board variable for calling script
 function get_default_board {
-  DEFAULT_BOARD= 
-  
+  DEFAULT_BOARD=
+
   if [ -f "$GCLIENT_ROOT/src/scripts/.default_board" ] ; then
     DEFAULT_BOARD=`cat "$GCLIENT_ROOT/src/scripts/.default_board"`
   fi
@@ -322,4 +322,18 @@ function eretry () {
 #   None, but prints the string without quotes.
 function remove_quotes() {
   echo "$1" | sed -e "s/^'//; s/'$//"
+}
+
+# Writes stdin to the given file name as root using sudo in overwrite mode.
+#
+# $1 - The output file name.
+function sudo_clobber() {
+  sudo tee "$1" > /dev/null
+}
+
+# Writes stdin to the given file name as root using sudo in append mode.
+#
+# $1 - The output file name.
+function sudo_append() {
+  sudo tee -a "$1" > /dev/null
 }
