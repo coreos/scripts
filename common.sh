@@ -337,3 +337,18 @@ function sudo_clobber() {
 function sudo_append() {
   sudo tee -a "$1" > /dev/null
 }
+
+# Unmounts a directory, if the unmount fails, warn, and then lazily unmount.
+#
+# $1 - The path to unmount.
+function safe_umount {
+  path=${1:?}
+  shift
+
+  if ! sudo umount -d "${path}"; then
+    warn "Failed to unmount ${path}"
+    warn "Doing a lazy unmount"
+
+    sudo umount -d -l "${path}" || die "Failed to lazily unmount ${path}"
+  fi
+}

@@ -189,7 +189,7 @@ function teardown_env {
       MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
       echo "Unmounting chroot environment."
       for i in $(mount | grep -F "on $MOUNTED_PATH/" | awk '{print $3}'); do
-        sudo umount "$i" || die "Failed to umount $i"
+        safe_umount "$i"
       done
     fi
   ) 200>>"$LOCKFILE" || die "teardown_env failed"
