@@ -102,45 +102,7 @@ fi
 # We'll need some code to put in the PMBR, for booting on legacy BIOS. Some ARM
 # systems will use a U-Boot script temporarily, but it goes in the same place.
 if [[ "$ARCH" = "arm" ]]; then
-  # We need to know the location and size of the kernel so we can create the
-  # U-Boot script to point to it. Let's create one fake GPT first which will
-  # set the appropriate environment variables. Then we can create the correct
-  # script and install it for real. A bit awkward, but this is only temporary.
-  echo "Installing fake GPT first, to calculate locations..."
-  install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG /dev/zero $ESP_IMG
-
-  # Create the U-Boot script to copy the kernel into memory and boot it.
-  KERNEL_OFFSET=$(printf "0x%08x" ${START_KERN_A})
-  KERNEL_SECS_HEX=$(printf "0x%08x" ${NUM_KERN_SECTORS})
-
-  BOOTARGS="root=/dev/mmcblk1p3"
-  BOOTARGS="${BOOTARGS} init=/sbin/init"
-  BOOTARGS="${BOOTARGS} console=ttySAC2,115200"
-  BOOTARGS="${BOOTARGS} mem=1024M"
-  BOOTARGS="${BOOTARGS} rootwait"
-
-  MBR_SCRIPT="${IMAGEDIR}/mbr_script"
-  echo -e "echo\necho ---- ChromeOS Boot ----\necho\n" \
-          "setenv bootargs ${BOOTARGS}\n" \
-          "mmc read 1 C0008000 $KERNEL_OFFSET $KERNEL_SECS_HEX\n" \
-          "bootm C0008000" > ${MBR_SCRIPT}
-  MKIMAGE="/usr/bin/mkimage"
-  if [[ -f "$MKIMAGE".gz ]]; then
-    sudo gunzip "$MKIMAGE".gz
-  fi
-  if [[ -x "$MKIMAGE" ]]; then
-    MBR_SCRIPT_UIMG="${MBR_SCRIPT}.uimg"
-    "$MKIMAGE" -A "${ARCH}" -O linux  -T script -a 0 -e 0 -n "COS boot" \
-               -d ${MBR_SCRIPT} ${MBR_SCRIPT_UIMG}
-    MBR_IMG=${IMAGEDIR}/mbr.img
-    dd bs=1 count=`stat --printf="%s" ${MBR_SCRIPT_UIMG}` \
-       if="$MBR_SCRIPT_UIMG" of="$MBR_IMG" conv=notrunc
-    hexdump -v -C "$MBR_IMG"
-  else
-    echo "Error: u-boot mkimage not found or not executable."
-    exit 1
-  fi
-  PMBRCODE=${MBR_IMG}
+  PMBRCODE=/dev/zero
 else
   PMBRCODE=$(readlink -f /usr/share/syslinux/gptmbr.bin)
 fi
@@ -148,6 +110,14 @@ fi
 # Create the GPT. This has the side-effect of setting some global vars
 # describing the partition table entries (see the comments in the source).
 install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG $PMBRCODE $ESP_IMG
+
+if [[ "$ARCH" = "arm" ]]; then
+  # assume /dev/mmcblk1. we could not get this from ${OUTDEV}
+  DEVICE=1
+  MBR_SCRIPT_UIMG=$(make_arm_mbr ${START_KERN_A} ${NUM_KERN_SECTORS} ${DEVICE})
+  sudo dd bs=1 count=`stat --printf="%s" ${MBR_SCRIPT_UIMG}` \
+     if="$MBR_SCRIPT_UIMG" of=${OUTDEV} conv=notrunc
+fi
 
 # Emit helpful scripts for testers, etc.
 ${SCRIPTS_DIR}/emit_gpt_scripts.sh "${OUTDEV}" "${IMAGEDIR}"
