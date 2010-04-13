@@ -117,7 +117,7 @@ fi
 CHROOT_TRUNK_DIR="/home/$USER/trunk"
 
 # Install make for portage ebuilds.  Used by build_image and gmergefs.
-DEFAULT_INSTALL_MASK="/usr/include/ /usr/man /usr/share/man /usr/share/doc \
+DEFAULT_INSTALL_MASK="/usr/include /usr/man /usr/share/man /usr/share/doc \
   /usr/share/gtk-doc /usr/share/gtk-2.0 /usr/lib/gtk-2.0/include \
   /usr/share/info /usr/share/aclocal /usr/lib/gcc /usr/lib/pkgconfig \
   /usr/share/pkgconfig /usr/share/gettext /usr/share/readline /etc/runlevels \
