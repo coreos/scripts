@@ -377,12 +377,12 @@ cat <<EOF | sudo dd of="${ESP_DIR}/efi/boot/grub.cfg"
 set timeout=2
 set default=0
 
-menuentry "serial debug" {
-  linux /efi/boot/vmlinuz earlyprintk=serial,ttyS0,115200 i915.modeset=0 console=ttyS0,115200 acpi=off init=/sbin/init boot=local rootwait root=/dev/sda3 ro noresume noswap loglevel=7
-}
-
 menuentry "normal" {
   linux /efi/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/sda3 ro noresume noswap i915.modeset=1 loglevel=1
+}
+
+menuentry "serial debug" {
+  linux /efi/boot/vmlinuz earlyprintk=serial,ttyS0,115200 console=ttyS0,115200 init=/sbin/init boot=local rootwait root=/dev/sda3 ro noresume noswap i915.modeset=1 loglevel=7
 }
 
 EOF
