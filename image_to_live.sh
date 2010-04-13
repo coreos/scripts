@@ -18,6 +18,8 @@ DEFINE_boolean ignore_hostname ${FLAGS_TRUE} \
   "Ignore existing AU hostname on running instance use this hostname"
 DEFINE_boolean update_known_hosts ${FLAGS_FALSE} \
   "Update your known_hosts with the new remote instance's key"
+DEFINE_boolean verbose ${FLAGS_FALSE} \
+  "Whether to output verbose information for debugging."
 
 function kill_all_devservers {
   # Using ! here to avoid exiting with set -e is insufficient, so use
@@ -38,7 +40,11 @@ function remote_reboot_sh {
 
 function start_dev_server {
   kill_all_devservers
-  ./enter_chroot.sh "./start_devserver > /dev/null 2>&1" &
+  if [ ${FLAGS_verbose} -eq ${FLAGS_FALSE} ]; then
+    ./enter_chroot.sh "./start_devserver > /dev/null 2>&1" &
+  else
+    ./enter_chroot.sh "./start_devserver" &
+  fi
   echo -n "Waiting on devserver to start"
   until netstat -anp 2>&1 | grep 8080 > /dev/null; do
     sleep .5
@@ -169,7 +175,7 @@ function main() {
 
   if ! run_auto_update; then
     echo "Update was not successful."
-    exit
+    exit 1
   fi
 
   remote_reboot
