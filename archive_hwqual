@@ -74,6 +74,7 @@ function main() {
     "tarball/${FLAGS_output_tag}"
   chmod 0400 "tarball/${FLAGS_output_tag}/testing_rsa"
   mv autotest "tarball/${FLAGS_output_tag}"
+  cp "${script_dir}/generate_test_report" "tarball/${FLAGS_output_tag}"
 
   echo "Creating ${FLAGS_to}/${FLAGS_output_tag}.tar.bz2..."
   mkdir -p "${FLAGS_to}"
