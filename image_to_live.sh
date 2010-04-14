@@ -30,6 +30,7 @@ function kill_all_devservers {
 function cleanup {
   echo "Killing dev server."
   kill_all_devservers
+  cleanup_remote_access
   rm -rf "${TMP}"
 }
 
