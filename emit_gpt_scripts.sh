@@ -45,10 +45,10 @@ sort -n -k 3 $TMP | \
   while read start size part x x x label x; do \
     file="part_$part"
     loc="\"\$TARGET\""
-    echo "sudo dd if=$loc of=$file bs=512 skip=$start count=$size" \
+    echo "dd if=$loc of=$file bs=512 skip=$start count=$size" \
       >> "$UNPACK"
     echo \
-      "sudo dd if=$file of=$loc bs=512 seek=$start count=$size conv=notrunc" \
+      "dd if=$file of=$loc bs=512 seek=$start count=$size conv=notrunc" \
       >> "$PACK"
   done
 
