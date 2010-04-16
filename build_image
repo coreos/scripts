@@ -35,8 +35,6 @@ DEFINE_boolean installmask $FLAGS_TRUE \
   "Use INSTALL_MASK to shrink the resulting image."
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
-DEFINE_integer retries -1 \
-  "On image mastering failure, the number of times to retry"
 DEFINE_boolean statefuldev $FLAGS_FALSE \
   "Install development packages on stateful partition rather than the rootfs"
 DEFINE_string to "" \
@@ -285,11 +283,6 @@ fi
 
 if [[ $FLAGS_jobs -ne -1 ]]; then
   EMERGE_JOBS="--jobs=$FLAGS_jobs"
-  if [[ $FLAGS_retries -eq -1 ]]; then
-    # The jobs flag can be flaky. Retry once by default,
-    # without the jobs flag.
-    FLAGS_retries=1
-  fi
 fi
 
 # Prepare stateful partition with some pre-created directories
@@ -312,7 +305,7 @@ sudo mount --bind "${STATEFUL_DIR}/var" "${ROOT_FS_DIR}/var"
 # runtime packages for chrome os. This builds up a chrome os image from binary
 # packages with runtime dependencies only.  We use INSTALL_MASK to trim the
 # image size as much as possible.
-eretry sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
+sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
   --root="$ROOT_FS_DIR" --root-deps=rdeps \
   --usepkgonly chromeos $EMERGE_JOBS
 
@@ -322,7 +315,7 @@ ROOT_DEV_DIR="$ROOT_FS_DIR"
 
 # Install development packages.
 if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ; then
-  eretry sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
+  sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
       --root="$ROOT_DEV_DIR" --root-deps=rdeps \
       --usepkgonly chromeos-dev $EMERGE_JOBS
 
@@ -336,14 +329,14 @@ if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ; then
 fi
 
 if [ -n "$FLAGS_factory_server" ]; then
-  eretry sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
+  sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
       --root="$ROOT_DEV_DIR" --root-deps=rdeps \
       --usepkgonly chromeos-factoryinstall $EMERGE_JOBS
 fi
 
 # Install packages required for testing.
 if [[ $FLAGS_withtest -eq $FLAGS_TRUE ]] ; then
-  eretry sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
+  sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
       --root="$ROOT_DEV_DIR" --root-deps=rdeps \
       --usepkgonly chromeos-test $EMERGE_JOBS
 fi

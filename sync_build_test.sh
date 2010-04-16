@@ -63,6 +63,8 @@ DEFINE_boolean image_to_live ${FLAGS_FALSE} \
     "Put the resulting image on live instance (requires --remote)"
 DEFINE_string image_to_usb "" \
     "Treat this device as USB and put the image on it after build"
+# You can set jobs > 1 but then your build may break and you may need
+# to retry.  Setting it to 1 is best for non-interactive sessions.
 DEFINE_boolean interactive ${FLAGS_FALSE} \
     "Tell user what we plan to do and wait for input to proceed" i
 DEFINE_integer jobs -1 "Concurrent build jobs"
@@ -197,20 +199,8 @@ function validate_and_set_param_defaults() {
       exit 1
     fi
   fi
-
-  if [[ ${FLAGS_jobs} -eq -1 ]]; then
-    FLAGS_jobs=$(cat /proc/cpuinfo | grep -c processor)
-  fi
 }
 
-
-function describe_jobs() {
-  local jobs=" single job (slow but no retries)"
-  if [[ ${FLAGS_jobs} -gt 1 ]]; then
-    jobs=" ${FLAGS_jobs} jobs"
-  fi
-  echo ${jobs}
-}
 
 # Prints a description of what we are doing or did
 function describe_steps() {
@@ -226,19 +216,21 @@ function describe_steps() {
   local set_passwd=${FLAGS_FALSE}
   if [[ ${FLAGS_build} -eq ${FLAGS_TRUE} ]]; then
     local withdev=""
-    local jobs=$(describe_jobs)
+    local jobs=" single job (slow but safe)"
+    if [[ ${FLAGS_jobs} -gt 1 ]]; then
+      jobs=" ${FLAGS_jobs} jobs (may cause build failure)"
+    fi
     if [[ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]]; then
       withdev=" with dev packages"
     fi
-    echo " * Build image${withdev} with ${jobs}"
+    echo " * Build image${withdev}${jobs}"
     set_passwd=${FLAGS_TRUE}
     if [[ ${FLAGS_build_autotest} -eq ${FLAGS_TRUE} ]]; then
       echo " * Cross-build autotest client tests (build_autotest)"
     fi
   fi
   if [[ ${FLAGS_master} -eq ${FLAGS_TRUE} ]]; then
-    local jobs=$(describe_jobs)
-    echo " * Master image (build_image) with ${jobs}"
+    echo " * Master image (build_image)"
   fi
   if [[ -n "${FLAGS_grab_buildbot}" ]]; then
     if [[ "${FLAGS_grab_buildbot}" == "LATEST" ]]; then
