@@ -19,7 +19,7 @@ DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built"
 DEFINE_string qualdb "/tmp/run_remote_tests.*" \
     "Location of qualified component file"
 DEFINE_string image "" "Location of the rootfs raw image file"
-DEFINE_boolean manuf $FLAGS_FALSE "Modify the image for manufacturing testing"
+DEFINE_boolean factory $FLAGS_FALSE "Modify the image for manufacturing testing"
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" "y"
 
 # Parse command line
@@ -120,8 +120,24 @@ sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
     "${MOD_SCRIPTS_ROOT}/test_setup.sh"
 
 # Run manufacturing test setup
-if [ ${FLAGS_manuf} -eq ${FLAGS_TRUE} ]; then
+if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
   echo "Modifying image ${FLAGS_image} for manufacturing test..."
+
+  echo "Disabling ui.conf, don't do chrome startup on boot."
+  sudo mv ${ROOT_FS_DIR}/etc/init/ui.conf \
+      ${ROOT_FS_DIR}/etc/init/ui.conf.disabled
+
+  echo "Applying patch to init scripts"
+  MOD_MFG_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts"
+  pushd ${ROOT_FS_DIR}
+  sudo patch -d ${ROOT_FS_DIR} -p1 < ${MOD_MFG_ROOT}/factory.patch
+  popd
+
+  echo "Modifying Release Description for Factory."
+  FILE="${ROOT_FS_DIR}/etc/lsb-release"
+  sudo sed -i 's/Test/Factory/' $FILE
+
+  echo "Done applying patch."
 
   # Try to use the sytem component file in the most recent autotest result
   FLAGS_qualdb=$(ls -dt ${FLAGS_qualdb} 2>&-| head -1)
@@ -142,7 +158,6 @@ if [ ${FLAGS_manuf} -eq ${FLAGS_TRUE} ]; then
       ${ROOT_FS_DIR}/usr/local/manufacturing/qualified_components
   else
     echo "No qualified component file found at: ${FLAGS_qualdb}"
-    exit 1
   fi
 fi
 

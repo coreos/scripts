@@ -21,6 +21,9 @@ DEFINE_string from "" \
   "Directory containing chromiumos_image.bin"
 DEFINE_string to "" "${DEFAULT_TO_HELP}"
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts" "y"
+DEFINE_boolean force_copy ${FLAGS_FALSE} "Always rebuild test image"
+DEFINE_boolean factory ${FLAGS_FALSE} \
+  "Whether to generate a factory runin image. Implies aututest and test"
 DEFINE_boolean install_autotest ${FLAGS_FALSE} \
   "Whether to install autotest to the stateful partition."
 DEFINE_boolean copy_kernel ${FLAGS_FALSE} \
@@ -33,6 +36,13 @@ DEFINE_string build_root "/build" \
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
+
+# Require autotest for manucaturing image.
+if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
+  echo "Factory image requires --install_autotest and --test_image, setting."
+  FLAGS_install_autotest=${FLAGS_TRUE}
+  FLAGS_test_image=${FLAGS_TRUE}
+fi
 
 # Inside the chroot, so output to usb.img in the same dir as the other
 # Script can be run either inside or outside the chroot.
@@ -84,22 +94,42 @@ fi
 FLAGS_from=`eval readlink -f ${FLAGS_from}`
 FLAGS_to=`eval readlink -f ${FLAGS_to}`
 
+# Done evaluating arguments, lets go!
+echo "Caching sudo authentication"
+sudo -v
+echo "Done"
+
 # Use this image as the source image to copy
 SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
 
 # If we're asked to modify the image for test, then let's make a copy and
 # modify that instead.
 if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
-  if [ ! -f "${FLAGS_from}/chromiumos_test_image.bin" ] ; then
+  if [ ! -f "${FLAGS_from}/chromiumos_test_image.bin" ] || \
+     [ ${FLAGS_force_copy} -eq ${FLAGS_TRUE} ] ; then
     # Copy it.
     echo "Creating test image from original..."
     cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_test_image.bin"
+
+    # Check for manufacturing image.
+    if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
+      FACTORY_ARGS="--factory"
+    fi
+    # Check for yes
+    if [ ${FLAGS_yes} -eq ${FLAGS_TRUE} ] ; then
+      YES="--yes"
+    fi
+
+
     # Modify it.
     "${SCRIPTS_DIR}/mod_image_for_test.sh" --image \
-      "${FLAGS_from}/chromiumos_test_image.bin" --yes
+      "${FLAGS_from}/chromiumos_test_image.bin" ${FACTORY_ARGS} ${YES}
+    echo "Done with mod_image_for_test."
+  else
+    echo "Using cached test image."
   fi
-  # Use it.
   SRC_IMAGE="${FLAGS_from}/chromiumos_test_image.bin"
+  echo "Source test image is: ${SRC_IMAGE}"
 fi
 
 STATEFUL_DIR="${FLAGS_from}/stateful_partition"
@@ -140,6 +170,8 @@ if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ] ; then
     echo "Install autotest into stateful partition..."
     autotest_client="/home/autotest-client"
     sudo mkdir -p "${stateful_root}${autotest_client}"
+    sudo ln -sf /mnt/stateful_partition/dev_image${autotest_client} \
+      ${stateful_root}/autotest
 
     sudo cp -fpru ${AUTOTEST_SRC}/client/* \
       "${stateful_root}/${autotest_client}"
@@ -152,7 +184,7 @@ if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ] ; then
     rmdir "${STATEFUL_DIR}"
   else
     echo "/usr/local/autotest under ${DEFAULT_CHROOT_DIR} is not installed."
-    echo "Please call make_autotest.sh inside chroot first."
+    echo "Please call build_autotest.sh inside chroot first."
     exit -1
   fi
 fi
@@ -166,7 +198,7 @@ then
 
   # Warn if it looks like they supplied a partition as the destination.
   if echo "${FLAGS_to}" | grep -q '[0-9]$'; then
-    local drive=$(echo "${FLAGS_to}" | sed -re 's/[0-9]+$//')
+    drive=$(echo "${FLAGS_to}" | sed -re 's/[0-9]+$//')
     if [ -b "${drive}" ]; then
       echo
       echo "NOTE: It looks like you may have supplied a partition as the "

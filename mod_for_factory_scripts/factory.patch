@@ -1,0 +1,88 @@
+diff -Naur old/etc/init/dump-boot-stats.conf new/etc/init/dump-boot-stats.conf
+--- old/etc/init/dump-boot-stats.conf	2010-04-05 21:33:11.000000000 -0700
++++ new/etc/init/dump-boot-stats.conf	2010-04-05 21:00:48.000000000 -0700
+@@ -7,7 +7,7 @@
+ # when login-prompt-ready is received, grabs the current uptime and
+ # disk stats.  Also sends uptime to metrics client for perf dashboard
+ 
+-start on login-prompt-ready
++start on stopping startup
+ 
+ # This is run-once rather than a service.
+ task
+diff -Naur old/etc/init/factory.conf new/etc/init/factory.conf
+--- old/etc/init/factory.conf	1969-12-31 16:00:00.000000000 -0800
++++ new/etc/init/factory.conf	2010-04-05 20:59:07.000000000 -0700
+@@ -0,0 +1,17 @@
++
++description   "Chrome OS factory startup stub"
++author        "chromium-os-dev@googlegroups.com"
++
++start on stopping autotest
++
++script
++
++cd /usr/local/autotest
++if [ ! -e factory_started ]; then
++  touch factory_started
++  date >> /var/log/factory.log
++  cp -f site_tests/suite_Factory/control.full control
++  ./bin/autotest control >> /var/log/factory.log 2>&1
++fi
++end script
++
+diff -Naur old/etc/init/autotest.conf new/etc/init/autotest.conf
+--- old/etc/init/autotest.conf	1969-12-31 16:00:00.000000000 -0800
++++ new/etc/init/autotest.conf	2010-04-05 20:59:07.000000000 -0700
+@@ -0,0 +1,15 @@
++
++description   "Chrome OS autotest startup stub"
++author        "chromium-os-dev@googlegroups.com"
++
++start on started udev
++
++script
++# Sleep as the current upstart sequence gives no clear completion signal.
++# TODO: investigate generating authoritative bootup finished event.
++sleep 10
++cd /usr/local/autotest
++date >> /var/log/factory.log
++./tools/autotest >> /var/log/factory.log 2>&1
++end script
++
+diff -Naur old/etc/init/tty1.conf new/etc/init/tty1.conf
+--- old/etc/init/tty1.conf	1969-12-31 16:00:00.000000000 -0800
++++ new/etc/init/tty1.conf	2010-04-05 20:59:07.000000000 -0700
+@@ -0,0 +1,9 @@
++start on startup
++stop on starting halt or starting reboot
++
++respawn
++script
++cd /
++/sbin/agetty 38400 tty1 linux -l /bin/bash -n
++end script
++
+diff -Naur old/sbin/chromeos_startup new/sbin/chromeos_startup
+--- old/sbin/chromeos_startup	2010-04-05 21:33:52.000000000 -0700
++++ new/sbin/chromeos_startup	2010-04-05 21:38:02.000000000 -0700
+@@ -20,18 +20,12 @@
+ 
+ # Moblin trick: Disable blinking cursor. Without this a splash screen
+ # will show a distinct cursor shape even when the cursor is set to none.
+-echo 0 > /sys/devices/virtual/graphics/fbcon/cursor_blink
++# echo 0 > /sys/devices/virtual/graphics/fbcon/cursor_blink
+ 
+ # Since we defer udev until later in the boot process, we pre-populate /dev
+ # with the set of devices needed for X and other early services to run.
+ cp -a -f /lib/chromiumos/devices/* /dev
+ 
+-# Splash screen!
+-if [ -x /usr/bin/ply-image ]
+-then
+-  /usr/bin/ply-image /usr/share/chromeos-assets/images/login_splash.png &
+-fi
+-
+ mount -n -t tmpfs tmp /tmp
+ mount -n -t tmpfs -onosuid,nodev shmfs /dev/shm
+ mount -n -t devpts -onoexec,nosuid,gid=5,mode=0620 devpts /dev/pts
