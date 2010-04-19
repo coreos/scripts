@@ -6,12 +6,20 @@
 
 echo "Adding mock Google Accounts server certs."
 
-# TODO(cmasone): Generate these on the fly?
+# TODO(cmasone): Generate certs/keys on the fly from a CSR?
 CERT_DIR="${GCLIENT_ROOT}/src/platform/login_manager"
 CERT_NAME="mock_server"
+FAKE_CA_DIR="${ROOT_FS_DIR}/etc/fake_root_ca"
+FAKE_NSSDB="${FAKE_CA_DIR}/nssdb"
 
-cat "${CERT_DIR}/${CERT_NAME}.key" > "${ROOT_FS_DIR}/etc/${CERT_NAME}.key"
+mkdir -p "${FAKE_NSSDB}"
+cat "${CERT_DIR}/${CERT_NAME}.key" > "${FAKE_CA_DIR}/${CERT_NAME}.key"
+echo "DO NOT MOVE THIS DATA OFF OF THE ROOTFS!" > "${FAKE_CA_DIR}/README"
+nsscertutil -A -n FakeCA -t "C,C,C" -a -i "${CERT_DIR}/${CERT_NAME}.pem" \
+  -d "${FAKE_NSSDB}"
+chmod -R 0644 "${FAKE_NSSDB}"
 
+# TODO(cmasone): get rid of this once we're off pam_google for good.
 # Sadly, our fake cert HAS to be first in this file.
 TMPFILE=$(mktemp)
 CERT_FILE="${ROOT_FS_DIR}/etc/login_trust_root.pem"
