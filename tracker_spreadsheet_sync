@@ -28,19 +28,20 @@ import atom.core
 import getpass
 from optparse import OptionParser
 import pickle
-
+from sets import Set
 
 # Settings
 credentials_store = 'creds.dat'
 
 class Merger(object):
   def __init__(self, ss_key, ss_ws_key, tracker_message, tracker_project,
-               debug):
+               debug, pretend):
     self.ss_key = ss_key
     self.ss_ws_key = ss_ws_key
     self.tracker_message = tracker_message
     self.tracker_project = tracker_project
     self.debug_enabled = debug
+    self.pretend = pretend
     self.user_agent = 'adlr-tracker-spreadsheet-merger'
     self.it_keys = ['id', 'owner', 'status', 'title']
 
@@ -117,9 +118,35 @@ class Merger(object):
       issues.append(issue)
     return issues
 
-  def fetch_tracker_issues(self):
-    """Fetches all issues matching the query and returns them as an array
-    of dictionaries."""
+  def ids_for_spreadsheet_issues(self, ss_issues):
+    """Returns a Set of strings, each string an id from ss_issues"""
+    ret = Set()
+    for ss_issue in ss_issues:
+      ret.add(ss_issue['id'])
+    return ret
+
+  def tracker_issues_for_query_feed(self, feed):
+    """Converts a feed object from a query to a list of tracker issue
+    dictionaries."""
+    issues = []
+    for issue in feed.entry:
+      issue_dict = {}
+      issue_dict['labels'] = [label.text for label in issue.label]
+      issue_dict['id'] = issue.id.text.split('/')[-1]
+      issue_dict['title'] = issue.title.text
+      issue_dict['status'] = issue.status.text
+      if issue.owner:
+        issue_dict['owner'] = issue.owner.username.text
+      issues.append(issue_dict)
+    return issues
+
+  def fetch_tracker_issues(self, ss_issues):
+    """Fetches all relevant issues from traacker and returns them as an array
+    of dictionaries. Relevance is:
+    - has an ID that's in ss_issues, OR
+    - (is Area=Installer AND status is open).
+    Open status is one of: Unconfirmed, Untriaged, Available, Assigned,
+    Started, Upstream"""
     issues = []
     got_results = True
     index = 1
@@ -131,15 +158,30 @@ class Merger(object):
       if not feed.entry:
         got_results = False
       index = index + len(feed.entry)
-      for issue in feed.entry:
-        issue_dict = {}
-        issue_dict['labels'] = [label.text for label in issue.label]
-        issue_dict['id'] = issue.id.text.split('/')[-1]
-        issue_dict['title'] = issue.title.text
-        issue_dict['status'] = issue.status.text
-        if issue.owner:
-          issue_dict['owner'] = issue.owner.username.text
-        issues.append(issue_dict)
+      issues.extend(self.tracker_issues_for_query_feed(feed))
+    # Now, remove issues that are open or in ss_issues.
+    ss_ids = self.ids_for_spreadsheet_issues(ss_issues)
+    open_statuses = ['Unconfirmed', 'Untriaged', 'Available', 'Assigned',
+                     'Started', 'Upstream']
+    new_issues = []
+    for issue in issues:
+      if issue['status'] in open_statuses or issue['id'] in ss_ids:
+        new_issues.append(issue)
+      # Remove id from ss_ids, if it's there
+      ss_ids.discard(issue['id'])
+    issues = new_issues
+
+    # Now, for each ss_id that didn't turn up in the query, explicitly add it
+    for id_ in ss_ids:
+      query = gdata.projecthosting.client.Query(issue_id=id_,
+                                                max_results=50,
+                                                start_index=index)
+      feed = self.it_client.get_issues('chromium-os', query=query)
+      if not feed.entry:
+        print 'No result for id', id_
+        continue
+      issues.extend(self.tracker_issues_for_query_feed(feed))
+
     return issues
 
   def store_creds(self):
@@ -270,10 +312,12 @@ class Merger(object):
         # Nothing
         continue
 
-      if (ss_label is None) or (ss_label != t_label):
+      if (t_label is not None) and \
+        ((ss_label is None) or (ss_label != t_label)):
         ret['labels'].append('-' + t_label)
 
-      if (t_label is None) or (t_label != ss_label):
+      if (ss_label is not None) and \
+        ((t_label is None) or (t_label != ss_label)):
         ret['labels'].append(ss_label)
     return ret
 
@@ -322,12 +366,12 @@ class Merger(object):
     print 'Logging into Tracker...'
     self.tracker_login()
 
-    print 'Fetching tracker issues...'
-    t_issues = self.fetch_tracker_issues()
-    self.debug('Tracker issues: %s' % t_issues)
     print 'Fetching spreadsheet issues...'
     ss_issues = self.fetch_spreadsheet_issues()
     self.debug('Spreadsheet issues: %s' % ss_issues)
+    print 'Fetching tracker issues...'
+    t_issues = self.fetch_tracker_issues(ss_issues)
+    self.debug('Tracker issues: %s' % t_issues)
     return (t_issues, ss_issues)
 
   def spreadsheet_to_tracker(self):
@@ -349,6 +393,9 @@ class Merger(object):
 
       if commit['type'] == 'append':
         print 'Creating new tracker issue...'
+        if self.pretend:
+          print '(Skipping because --pretend is set)'
+          continue
         created = self.it_client.add_issue(self.tracker_project,
                                            dic['title'],
                                            self.tracker_message,
@@ -367,6 +414,9 @@ class Merger(object):
         print 'Done.'
       else:
         print 'Updating issue with id:', dic['id']
+        if self.pretend:
+          print '(Skipping because --pretend is set)'
+          continue
         self.it_client.update_issue(self.tracker_project,
                                     dic['id'],
                                     self.tracker_user,
@@ -465,10 +515,17 @@ class Merger(object):
       self.debug('Operating on commit: %s' % commit)
       if commit['type'] == 'append':
         print 'Appending new row...'
-        self.gd_client.InsertRow(commit['new_row'], self.ss_key, self.ss_ws_key)
+        if not self.pretend:
+          self.gd_client.InsertRow(commit['new_row'],
+                                   self.ss_key, self.ss_ws_key)
+        else:
+          print '(Skipped because --pretend set)'
       if commit['type'] == 'update':
         print 'Updating row...'
-        self.gd_client.UpdateRow(commit['__raw_entry'], commit['dict'])
+        if not self.pretend:
+          self.gd_client.UpdateRow(commit['__raw_entry'], commit['dict'])
+        else:
+          print '(Skipped because --pretend set)'
       print 'Done.'
 
 def main():
@@ -483,6 +540,8 @@ def main():
                     default=False, help='Print debug output.')
   parser.add_option('-m', '--message', dest='message', metavar='TEXT',
                     help='Log message when updating Tracker issues')
+  parser.add_option('-p', '--pretend', action='store_true', dest='pretend',
+                    default=False, help="Don't commit anything.")
   parser.add_option('--ss_key', dest='ss_key', metavar='KEY',
                     help='Spreadsheets key (find with browse action)')
   parser.add_option('--ss_ws_key', dest='ss_ws_key', metavar='KEY',
@@ -546,7 +605,7 @@ a delta and update the tracker issue with the owner, which seems to succeed.
 
   merger = Merger(options.ss_key, options.ss_ws_key,
                   options.message, options.tracker_project,
-                  options.debug)
+                  options.debug, options.pretend)
   if options.action == 'browse':
     merger.browse()
   elif options.action == 'ss_to_t':
