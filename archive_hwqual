@@ -57,8 +57,7 @@ function main() {
 
   echo "Extracting autotest from build artifacts..."
   tar --bzip2 -xf autotest.tar.bz2
-  mv rootfs_test.image image/rootfs.image
-  mv mbr.image image
+  mv chromiumos_test_image.bin image/chromiumos_image.bin
 
   echo "Formatting rootfs as a USB image..."
   "${script_dir}/image_to_usb.sh" --from=image \
