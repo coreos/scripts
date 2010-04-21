@@ -51,6 +51,9 @@ then
   SYSROOT="${FLAGS_build_root}/${FLAGS_board}"
 else
   SYSROOT="${DEFAULT_CHROOT_DIR}${FLAGS_build_root}/${FLAGS_board}"
+  echo "Caching sudo authentication"
+  sudo -v
+  echo "Done"
 fi
 AUTOTEST_SRC="${SYSROOT}/usr/local/autotest"
 
@@ -93,11 +96,6 @@ fi
 # chars like ~ are processed; just doing FOO=`readlink -f ${FOO}` won't work.
 FLAGS_from=`eval readlink -f ${FLAGS_from}`
 FLAGS_to=`eval readlink -f ${FLAGS_to}`
-
-# Done evaluating arguments, lets go!
-echo "Caching sudo authentication"
-sudo -v
-echo "Done"
 
 # Use this image as the source image to copy
 SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
