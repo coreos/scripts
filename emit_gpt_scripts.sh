@@ -23,8 +23,6 @@ fi
 PACK="${DIR}/pack_partitions.sh"
 UNPACK="${DIR}/unpack_partitions.sh"
 
-locate_gpt
-
 TMP=$(mktemp)
 sudo $GPT -r show -l "$IMAGE" > $TMP
 
