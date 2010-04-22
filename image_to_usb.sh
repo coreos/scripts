@@ -113,15 +113,12 @@ if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
     if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
       FACTORY_ARGS="--factory"
     fi
-    # Check for yes
-    if [ ${FLAGS_yes} -eq ${FLAGS_TRUE} ] ; then
-      YES="--yes"
-    fi
 
-
-    # Modify it.
+    # Modify it.  Pass --yes so that mod_image_for_test.sh won't ask us if we
+    # really want to modify the image; the user gave their assent already with
+    # --test-image and the original image is going to be preserved.
     "${SCRIPTS_DIR}/mod_image_for_test.sh" --image \
-      "${FLAGS_from}/chromiumos_test_image.bin" ${FACTORY_ARGS} ${YES}
+      "${FLAGS_from}/chromiumos_test_image.bin" ${FACTORY_ARGS} --yes
     echo "Done with mod_image_for_test."
   else
     echo "Using cached test image."
