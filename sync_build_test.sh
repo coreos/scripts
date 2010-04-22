@@ -401,22 +401,6 @@ EOF
 }
 
 
-function check_rootfs_validity() {
-  echo "Checking rootfs validity"
-  local device=$(sudo losetup -f)
-  local invalid=0
-  sudo losetup "${device}" rootfs.image
-  sudo mount "${device}" rootfs
-  if [[ ! -e rootfs/boot/vmlinuz ]]; then
-    echo "This image has no kernel"
-    invalid=1
-  fi
-  sudo umount rootfs
-  sudo losetup -d "${device}"
-  return ${invalid}
-}
-
-
 # Downloads a buildbot image
 function grab_buildbot() {
   if [[ "${FLAGS_grab_buildbot}" == "LATEST" ]]; then
@@ -433,18 +417,15 @@ function grab_buildbot() {
       -o "${dl_dir}/image.zip"
   cd "${dl_dir}"
   unzip image.zip
-  check_rootfs_validity
   local image_basename=$(basename $(dirname "${FLAGS_grab_buildbot}"))
   local image_base_dir="${FLAGS_top}/src/build/images/${FLAGS_board}"
   local image_dir="${image_base_dir}/${image_basename}"
   echo "Copying in build image to ${image_dir}"
   rm -rf "${image_dir}"
   mkdir -p "${image_dir}"
-  # Note that if mbr.image does not exist, this image was not successful.
-  mv mbr.image rootfs.image "${image_dir}"
   if [[ ${FLAGS_mod_image_for_test} -eq ${FLAGS_TRUE} ]]; then
     run_phase "Installing buildbot test modified image" \
-      mv rootfs_test.image "${image_dir}/rootfs.image"
+      mv chromiumos_test_image.bin "${image_dir}/chromiumos_image.bin"
     FLAGS_mod_image_for_test=${FLAGS_FALSE}
     if [[ -e "autotest.tgz" || -e "autotest.tar.bz2" ]]; then
       # pull in autotest
@@ -463,6 +444,8 @@ function grab_buildbot() {
       run_phase "Installing buildbot autotest cross-compiled binaries" \
         sudo mv autotest ${dir}
     fi
+  else
+    mv chromiumos_image.bin "${image_dir}"
   fi
   chdir_relative .
   run_phase "Removing downloaded image" rm -rf "${dl_dir}"
