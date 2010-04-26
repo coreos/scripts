@@ -77,19 +77,9 @@ if [ ! -d "${FLAGS_from}" ] ; then
   exit 1
 fi
 
-# If to isn't explicitly set
 if [ -z "${FLAGS_to}" ]; then
-  # Script can be run either inside or outside the chroot.
-  if [ ${INSIDE_CHROOT} -eq 1 ]
-  then
-    # Inside the chroot, we'll only output to a file, and we probably already
-    # have a valid image. Make the user specify a filename.
-    echo "ERROR: Inside the chroot, you must specify a --to FILE to create."
-    exit 1
-  else
-    # Outside the chroot, so output to the default device for a usb key.
-    FLAGS_to="/dev/sdb"
-  fi
+  echo "You must specify a file or device to write to using --to."
+  exit 1
 fi
 
 # Convert args to paths.  Need eval to un-quote the string so that shell
@@ -233,9 +223,9 @@ else
   echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
   cp -f "${SRC_IMAGE}" "${FLAGS_to}"
 
-  echo "Done.  To copy to USB keyfob, outside the chroot, do something like:"
-  echo "   sudo dd if=${FLAGS_to} of=/dev/sdb bs=4M"
-  echo "where /dev/sdb is the entire keyfob."
+  echo "Done.  To copy to a USB drive, outside the chroot, do something like:"
+  echo "   sudo dd if=${FLAGS_to} of=/dev/sdX bs=4M"
+  echo "where /dev/sdX is the entire drive."
   if [ ${INSIDE_CHROOT} -eq 1 ]
   then
     example=$(basename "${FLAGS_to}")
