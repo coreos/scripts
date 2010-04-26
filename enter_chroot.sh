@@ -93,10 +93,10 @@ function setup_env {
           die "Could not mount $MOUNTED_PATH"
     fi
 
-    MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/dev/pts")"
+    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}/dev")"
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
     then
-      sudo mount none -t devpts "$MOUNTED_PATH" || \
+      sudo mount --bind /dev "$MOUNTED_PATH" || \
           die "Could not mount $MOUNTED_PATH"
     fi
 
@@ -142,14 +142,8 @@ function setup_env {
       fi
     fi
 
-    # Mount fuse device from host machine into chroot and copy over
-    # corresponding kernel modules.
-    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${FUSE_DEVICE}")"
-    if [ -z "$(mount | grep -F "on ${MOUNTED_PATH} ")" ] && \
-      [ -c "${FUSE_DEVICE}" ] ; then
-      echo "Attempting to mount fuse device for gmergefs"
-      sudo touch "${MOUNTED_PATH}"
-      sudo mount --bind "${FUSE_DEVICE}" "${MOUNTED_PATH}"
+    # Install fuse module.
+    if [ -c "${FUSE_DEVICE}" ] ; then
       sudo modprobe fuse 2> /dev/null ||\
         echo "-- Note: modprobe fuse failed.  gmergefs will not work"
     fi
