@@ -31,6 +31,7 @@ function cleanup {
   echo "Killing dev server."
   kill_all_devservers
   cleanup_remote_access
+  . "$(dirname $0)/mount_gpt_image.sh" -mu
   rm -rf "${TMP}"
 }
 
@@ -52,6 +53,25 @@ function start_dev_server {
     echo -n "."
   done
   echo ""
+}
+
+function copy_stateful_tarball {
+  echo "Starting stateful update."
+  # Mounts most recent image stateful dir to /tmp/s
+  . "$(dirname $0)/mount_gpt_image.sh" -m
+  # Create tar files for the stateful partition.
+  cd /tmp/s/var && sudo tar -cf /tmp/var.tar . && cd -
+  cd /tmp/s/dev_image && sudo tar -cf /tmp/developer.tar . && cd -
+  # Copy over tar files.
+  remote_cp /tmp/var.tar /tmp
+  remote_cp /tmp/developer.tar /tmp
+  remote_sh "mkdir /mnt/stateful_partition/var_new |\
+             mkdir /mnt/stateful_partition/dev_image_new |\
+             tar -xf /tmp/var.tar -C /mnt/stateful_partition/var_new |\
+             tar -xf /tmp/developer.tar \
+              -C /mnt/stateful_partition/dev_image_new"
+  # unmounts stateful partition
+  . "$(dirname $0)/mount_gpt_image.sh" -mu
 }
 
 function prepare_update_metadata {
@@ -176,6 +196,11 @@ function main() {
 
   if ! run_auto_update; then
     echo "Update was not successful."
+    exit 1
+  fi
+
+  if ! copy_stateful_tarball; then
+    echo "Stateful update was not successful."
     exit 1
   fi
 

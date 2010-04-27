@@ -11,6 +11,13 @@ DEFINE_string remote "" "remote hostname/IP of running Chromium OS instance"
 DEFINE_string private_key "$DEFAULT_PRIVATE_KEY" \
   "Private key of root account on remote host"
 
+# Copies $1 to $2 on remote host
+function remote_cp() {
+  REMOTE_OUT=$(scp  -o StrictHostKeyChecking=no -o \
+    UserKnownHostsFile=$TMP_KNOWN_HOSTS $1 root@$FLAGS_remote:$2)
+  return ${PIPESTATUS[0]}
+}
+
 function remote_sh() {
   REMOTE_OUT=$(ssh  -o StrictHostKeyChecking=no -o \
     UserKnownHostsFile=$TMP_KNOWN_HOSTS root@$FLAGS_remote "$@")
