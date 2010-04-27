@@ -382,12 +382,20 @@ cat <<EOF | sudo dd of="${ESP_DIR}/efi/boot/grub.cfg"
 set timeout=2
 set default=0
 
-menuentry "normal" {
+menuentry "boot from disk" {
   linux /efi/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/sda3 ro noresume noswap i915.modeset=1 loglevel=1
 }
 
-menuentry "serial debug" {
+menuentry "boot from disk with serial debug" {
   linux /efi/boot/vmlinuz earlyprintk=serial,ttyS0,115200 console=ttyS0,115200 init=/sbin/init boot=local rootwait root=/dev/sda3 ro noresume noswap i915.modeset=1 loglevel=7
+}
+
+menuentry "boot from usb" {
+  linux /efi/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/sdb3 ro noresume noswap i915.modeset=1 loglevel=1
+}
+
+menuentry "boot from usb with serial debug" {
+  linux /efi/boot/vmlinuz earlyprintk=serial,ttyS0,115200 console=ttyS0,115200 init=/sbin/init boot=local rootwait root=/dev/sdb3 ro noresume noswap i915.modeset=1 loglevel=7
 }
 
 EOF
