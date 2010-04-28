@@ -57,6 +57,9 @@ parser.allow_interspersed_args = True
 
 DEFAULT_BOARD = os.environ.get('DEFAULT_BOARD', '')
 
+parser.add_option('--args', dest='args', action='store',
+                  default='',
+                  help='The arguments to pass to the test control file.')
 parser.add_option('--autox', dest='autox', action='store_true',
                   default=True,
                   help='Build autox along with autotest [default].')
@@ -188,12 +191,14 @@ def build_autotest(options):
   return run(emerge_cmd)
 
 
-def run_autoserv(board, args):
+def run_autoserv(options, args):
   environ = os.environ
+
+  environ['AUTOSERV_TEST_ARGS'] = options.args
   environ['AUTOSERV_ARGS'] = ' '.join(args)
   environ['FEATURES'] = ('%s -buildpkg -digest noauto' %
                          environ.get('FEATURES', ''))
-  ebuild_cmd = ['ebuild-%s' % board,
+  ebuild_cmd = ['ebuild-%s' % options.board,
                 '../third_party/chromiumos-overlay/chromeos-base/'
                 'autotest/autotest-0.0.1.ebuild',
                 'clean', 'unpack', 'test']
@@ -216,7 +221,7 @@ def main():
     ssh_key_file = os.path.join(os.path.dirname(me),
                                 'mod_for_test_scripts/ssh_keys/testing_rsa')
     os.chmod(ssh_key_file, 0400)
-    run_autoserv(options.board, args)
+    run_autoserv(options, args)
 
 
 if __name__ == '__main__':

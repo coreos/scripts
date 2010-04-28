@@ -14,6 +14,7 @@
 
 get_default_board
 
+DEFINE_string args "" "Command line arguments for test, separated with comma" a
 DEFINE_string board "$DEFAULT_BOARD" \
     "The board for which you are building autotest"
 DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
@@ -242,6 +243,12 @@ function main() {
     if [[ ${FLAGS_verbose} -eq $FLAGS_TRUE ]]; then
       verbose="--verbose"
     fi
+    local args=()
+    if [[ -n "${FLAGS_args}" ]]; then
+      local with_spaces=""
+      with_spaces=${FLAGS_args//,/ }
+      args=("-a" "${with_spaces}")
+    fi
 
     RAN_ANY_TESTS=${FLAGS_TRUE}
 
@@ -253,7 +260,8 @@ function main() {
     fi
 
     ${enter_chroot} ${autotest} --board "${FLAGS_board}" -m "${FLAGS_remote}" \
-      "${option}" "${control_file}" -r "${results_dir}" ${verbose}
+      "${option}" "${control_file}" -r "${results_dir}" ${verbose} \
+      "${args[@]}"
 
     results_dir="${TMP}/${results_dir_name}"
     local test_status="${results_dir}/status.log"
