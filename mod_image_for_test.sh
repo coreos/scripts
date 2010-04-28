@@ -114,51 +114,16 @@ fi
 sudo losetup -o $(( $offset * 512 )) "${LOOP_DEV}" "${FLAGS_image}"
 sudo mount "${LOOP_DEV}" "${ROOT_FS_DIR}"
 
-MOD_SCRIPTS_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
-# Run test setup script inside chroot jail to modify the image
+MOD_TEST_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
+# Run test setup script to modify the image
 sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-    "${MOD_SCRIPTS_ROOT}/test_setup.sh"
+    "${MOD_TEST_ROOT}/test_setup.sh"
 
-# Run manufacturing test setup
 if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
-  echo "Modifying image ${FLAGS_image} for manufacturing test..."
-
-  echo "Disabling ui.conf, don't do chrome startup on boot."
-  sudo mv ${ROOT_FS_DIR}/etc/init/ui.conf \
-      ${ROOT_FS_DIR}/etc/init/ui.conf.disabled
-
-  echo "Applying patch to init scripts"
-  MOD_MFG_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts"
-  pushd ${ROOT_FS_DIR}
-  sudo patch -d ${ROOT_FS_DIR} -p1 < ${MOD_MFG_ROOT}/factory.patch
-  popd
-
-  echo "Modifying Release Description for Factory."
-  FILE="${ROOT_FS_DIR}/etc/lsb-release"
-  sudo sed -i 's/Test/Factory/' $FILE
-
-  echo "Done applying patch."
-
-  # Try to use the sytem component file in the most recent autotest result
-  FLAGS_qualdb=$(ls -dt ${FLAGS_qualdb} 2>&-| head -1)
-
-  # Try to append the full path to the file if FLAGS_qualdb is a directory
-  if [ ! -z ${FLAGS_qualdb} ] && [ -d ${FLAGS_qualdb} ]; then
-    # TODO(waihong): Handle multiple results to deliver to multiple images
-    FLAGS_qualdb="${FLAGS_qualdb}/hardware_Components,*"
-    FLAGS_qualdb=$(ls -dt ${FLAGS_qualdb} 2>&-| head -1)
-    FLAGS_qualdb="${FLAGS_qualdb}/hardware_Components/results/system_components"
-  fi
-
-  if [ ! -z ${FLAGS_qualdb} ] && [ -f ${FLAGS_qualdb} ]; then
-    # Copy the qualified component file to the image
-    echo "Copying ${FLAGS_qualdb} to the image."
-    sudo mkdir -p ${ROOT_FS_DIR}/usr/local/manufacturing
-    sudo cp -f ${FLAGS_qualdb} \
-      ${ROOT_FS_DIR}/usr/local/manufacturing/qualified_components
-  else
-    echo "No qualified component file found at: ${FLAGS_qualdb}"
-  fi
+  MOD_FACTORY_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts"
+  # Run factory setup script to modify the image
+  sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
+      QUALDB="${FLAGS_qualdb}" "${MOD_FACTORY_ROOT}/factory_setup.sh"
 fi
 
 cleanup

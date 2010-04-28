@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Assume that we run HWQual test before and generate the system component file.
+# The file is placed in (XXXX is a random number):
+# /tmp/run_remote_tests.XXXX/hardware_Components/results/system_components
+#
+# QUALDB can be a full path of the file, or a specified directory
+# /tmp/run_remote_tests.XXXX, or a default wildcard one /tmp/run_remote_tests.*.
+
+# If QUALDB is a default wildcard directory, try to use the most recent one.
+QUALDB=$(ls -dt ${QUALDB} 2>&-| head -1)
+
+# Try to append the full path to the file if QUALDB is a directory.
+if [ ! -z ${QUALDB} ] && [ -d ${QUALDB} ]; then
+  QUALDB="${QUALDB}/hardware_Components/results/system_components"
+fi
+
+if [ ! -z ${QUALDB} ] && [ -f ${QUALDB} ]; then
+  # Copy the qualified component file to the image
+  echo "Copying ${QUALDB} to the image."
+  mkdir -p ${ROOT_FS_DIR}/usr/local/manufacturing
+  cp -f ${QUALDB} \
+    ${ROOT_FS_DIR}/usr/local/manufacturing/qualified_components
+else
+  echo "No qualified component file found at: ${QUALDB}"
+fi
