@@ -18,6 +18,9 @@ import re
 import sys
 
 
+_STDOUT_IS_TTY = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
+
+
 class Color(object):
   """Conditionally wraps text in ANSI color escape sequences."""
   BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
@@ -55,7 +58,7 @@ def Die(message):
   Args:
     message: The message to be emitted before exiting.
   """
-  print Color().Color(Color.RED, '\nERROR: ' + message)
+  print Color(_STDOUT_IS_TTY).Color(Color.RED, '\nERROR: ' + message)
   sys.exit(1)
 
 
@@ -148,6 +151,17 @@ class ReportGenerator(object):
     self._results[testdir] = {'status': status,
                               'perf': perf}
 
+  def _CollectResultsRec(self, resdir):
+    """Recursively collect results into the self._results dictionary.
+
+    Args:
+      resdir: results/test directory to parse results from and recurse into.
+    """
+
+    self._CollectResult(resdir)
+    for testdir in glob.glob(os.path.join(resdir, '*')):
+      self._CollectResultsRec(testdir)
+
   def _CollectResults(self):
     """Parses results into the self._results dictionary.
 
@@ -158,12 +172,7 @@ class ReportGenerator(object):
     for resdir in self._args:
       if not os.path.isdir(resdir):
         Die('\'%s\' does not exist' % resdir)
-
-      # Check the top level result directory, in case the control file or
-      # autoserv have signalled failures. Then check subdirectories.
-      self._CollectResult(resdir)
-      for testdir in glob.glob(os.path.join(resdir, '*')):
-        self._CollectResult(testdir)
+      self._CollectResultsRec(resdir)
 
     if not self._results:
       Die('no test directories found')
@@ -235,7 +244,7 @@ class ReportGenerator(object):
     print 'Total PASS: ' + self._color.Color(Color.BOLD, pass_str)
 
   def Run(self):
-    """Run report generation."""
+    """Runs report generation."""
     self._CollectResults()
     self._GenerateReportText()
 
@@ -244,8 +253,8 @@ def main():
   usage = 'Usage: %prog [options] result-directories...'
   parser = optparse.OptionParser(usage=usage)
   parser.add_option('--color', dest='color', action='store_true',
-                    default=True,
-                    help='Use color for text reports [default]')
+                    default=_STDOUT_IS_TTY,
+                    help='Use color for text reports [default if TTY stdout]')
   parser.add_option('--no-color', dest='color', action='store_false',
                     help='Don\'t use color for text reports')
   parser.add_option('--perf', dest='perf', action='store_true',
