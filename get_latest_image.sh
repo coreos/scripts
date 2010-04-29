@@ -10,7 +10,10 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-DEFINE_string board "" "The name of the board to check for images."
+get_default_board
+
+DEFINE_string board "$DEFAULT_BOARD" \
+  "The name of the board to check for images."
 
 # Parse command line flags
 FLAGS "$@" || exit 1
