@@ -90,33 +90,6 @@ FLAGS_to=`eval readlink -f ${FLAGS_to}`
 # Use this image as the source image to copy
 SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
 
-# If we're asked to modify the image for test, then let's make a copy and
-# modify that instead.
-if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
-  if [ ! -f "${FLAGS_from}/chromiumos_test_image.bin" ] || \
-     [ ${FLAGS_force_copy} -eq ${FLAGS_TRUE} ] ; then
-    # Copy it.
-    echo "Creating test image from original..."
-    cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_test_image.bin"
-
-    # Check for manufacturing image.
-    if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
-      FACTORY_ARGS="--factory"
-    fi
-
-    # Modify it.  Pass --yes so that mod_image_for_test.sh won't ask us if we
-    # really want to modify the image; the user gave their assent already with
-    # --test-image and the original image is going to be preserved.
-    "${SCRIPTS_DIR}/mod_image_for_test.sh" --image \
-      "${FLAGS_from}/chromiumos_test_image.bin" ${FACTORY_ARGS} --yes
-    echo "Done with mod_image_for_test."
-  else
-    echo "Using cached test image."
-  fi
-  SRC_IMAGE="${FLAGS_from}/chromiumos_test_image.bin"
-  echo "Source test image is: ${SRC_IMAGE}"
-fi
-
 STATEFUL_DIR="${FLAGS_from}/stateful_partition"
 mkdir -p "${STATEFUL_DIR}"
 
@@ -172,6 +145,34 @@ if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ] ; then
     echo "Please call build_autotest.sh inside chroot first."
     exit -1
   fi
+fi
+
+
+# If we're asked to modify the image for test, then let's make a copy and
+# modify that instead.
+if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
+  if [ ! -f "${FLAGS_from}/chromiumos_test_image.bin" ] || \
+     [ ${FLAGS_force_copy} -eq ${FLAGS_TRUE} ] ; then
+    # Copy it.
+    echo "Creating test image from original..."
+    cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_test_image.bin"
+
+    # Check for manufacturing image.
+    if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
+      FACTORY_ARGS="--factory"
+    fi
+
+    # Modify it.  Pass --yes so that mod_image_for_test.sh won't ask us if we
+    # really want to modify the image; the user gave their assent already with
+    # --test-image and the original image is going to be preserved.
+    "${SCRIPTS_DIR}/mod_image_for_test.sh" --image \
+      "${FLAGS_from}/chromiumos_test_image.bin" ${FACTORY_ARGS} --yes
+    echo "Done with mod_image_for_test."
+  else
+    echo "Using cached test image."
+  fi
+  SRC_IMAGE="${FLAGS_from}/chromiumos_test_image.bin"
+  echo "Source test image is: ${SRC_IMAGE}"
 fi
 
 

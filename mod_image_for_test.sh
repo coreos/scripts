@@ -46,36 +46,43 @@ if [ ! -f $FLAGS_image ] ; then
   exit 1
 fi
 
-# Make sure anything mounted in the rootfs is cleaned up ok on exit.
-cleanup_rootfs_mounts() {
+# Make sure anything mounted in the rootfs/stateful is cleaned up ok on exit.
+cleanup_mounts() {
   # Occasionally there are some daemons left hanging around that have our
-  # root image file system open. We do a best effort attempt to kill them.
-  PIDS=`sudo lsof -t "${ROOT_FS_DIR}" | sort | uniq`
+  # root/stateful image file system open. We do a best effort attempt to kill
+  # them.
+  PIDS=`sudo lsof -t "$1" | sort | uniq`
   for pid in ${PIDS}
   do
     local cmdline=`cat /proc/$pid/cmdline`
-    echo "Killing process that has open file on our rootfs: $cmdline"
+    echo "Killing process that has open file on the mounted directory: $cmdline"
     sudo kill $pid || /bin/true
   done
 }
 
-cleanup_rootfs_loop() {
-  sudo umount "${LOOP_DEV}"
-  sleep 1  # in case $LOOP_DEV is in use
-  sudo losetup -d "${LOOP_DEV}"
+cleanup_loop() {
+  sudo umount "$1"
+  sleep 1  # in case the loop device is in use
+  sudo losetup -d "$1"
 }
 
 cleanup() {
   # Disable die on error.
   set +e
 
-  cleanup_rootfs_mounts
-  if [ -n "${LOOP_DEV}" ]
+  cleanup_mounts "${ROOT_FS_DIR}"
+  if [ -n "${ROOT_LOOP_DEV}" ]
   then
-    cleanup_rootfs_loop
+    cleanup_loop "${ROOT_LOOP_DEV}"
   fi
-
   rmdir "${ROOT_FS_DIR}"
+
+  cleanup_mounts "${STATEFUL_DIR}"
+  if [ -n "${STATEFUL_LOOP_DEV}" ]
+  then
+    cleanup_loop "${STATEFUL_LOOP_DEV}"
+  fi
+  rmdir "${STATEFUL_DIR}"
 
   # Turn die on error back on.
   set -e
@@ -100,19 +107,34 @@ set -e
 ROOT_FS_DIR=$(dirname "${FLAGS_image}")/rootfs
 mkdir -p "${ROOT_FS_DIR}"
 
+STATEFUL_DIR=$(dirname "${FLAGS_image}")/stateful_partition
+mkdir -p "${STATEFUL_DIR}"
+
 trap cleanup EXIT
 
 # Figure out how to loop mount the rootfs partition. It should be partition 3
 # on the disk image.
 offset=$(partoffset "${FLAGS_image}" 3)
 
-LOOP_DEV=$(sudo losetup -f)
-if [ -z "$LOOP_DEV" ]; then
+ROOT_LOOP_DEV=$(sudo losetup -f)
+if [ -z "$ROOT_LOOP_DEV" ]; then
   echo "No free loop device"
   exit 1
 fi
-sudo losetup -o $(( $offset * 512 )) "${LOOP_DEV}" "${FLAGS_image}"
-sudo mount "${LOOP_DEV}" "${ROOT_FS_DIR}"
+sudo losetup -o $(( $offset * 512 )) "${ROOT_LOOP_DEV}" "${FLAGS_image}"
+sudo mount "${ROOT_LOOP_DEV}" "${ROOT_FS_DIR}"
+
+# The stateful partition should be partition 1 on the disk image.
+offset=$(partoffset "${FLAGS_image}" 1)
+
+STATEFUL_LOOP_DEV=$(sudo losetup -f)
+if [ -z "$STATEFUL_LOOP_DEV" ]; then
+  echo "No free loop device"
+  exit 1
+fi
+sudo losetup -o $(( $offset * 512 )) "${STATEFUL_LOOP_DEV}" "${FLAGS_image}"
+sudo mount "${STATEFUL_LOOP_DEV}" "${STATEFUL_DIR}"
+STATEFUL_DIR="${STATEFUL_DIR}"
 
 MOD_TEST_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
 # Run test setup script to modify the image
@@ -123,7 +145,8 @@ if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
   MOD_FACTORY_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts"
   # Run factory setup script to modify the image
   sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-      QUALDB="${FLAGS_qualdb}" "${MOD_FACTORY_ROOT}/factory_setup.sh"
+      STATEFUL_DIR="${STATEFUL_DIR}/dev_image" QUALDB="${FLAGS_qualdb}" \
+      "${MOD_FACTORY_ROOT}/factory_setup.sh"
 fi
 
 cleanup
