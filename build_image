@@ -115,23 +115,17 @@ fi
 mkdir -p "$OUTPUT_DIR"
 
 cleanup_rootfs_loop() {
-  sudo umount "$LOOP_DEV"
-  sleep 1  # in case $LOOP_DEV is in use.
-  sudo losetup -d "$LOOP_DEV"
+  sudo umount -d "$ROOT_FS_DIR"
 }
 
 cleanup_stateful_fs_loop() {
   sudo umount "${ROOT_FS_DIR}/usr/local"
   sudo umount "${ROOT_FS_DIR}/var"
-  sudo umount "${STATEFUL_DIR}"
-  sleep 1  # follows from cleanup_root_fs_loop.
-  sudo losetup -d "$STATEFUL_LOOP_DEV"
+  sudo umount -d "${STATEFUL_DIR}"
 }
 
 cleanup_esp_loop() {
-  sudo umount "$ESP_DIR"
-  sleep 1
-  sudo losetup -d "$ESP_LOOP_DEV"
+  sudo umount -d "$ESP_DIR"
 }
 
 cleanup() {
@@ -152,6 +146,20 @@ cleanup() {
 
   # Turn die on error back on.
   set -e
+}
+
+delete_prompt() {
+  echo "An error occurred in your build so your latest output directory" \
+    "is invalid."
+  read -p "Would you like to delete the output directory (y/N)? " SURE
+  SURE="${SURE:0:1}" # Get just the first character
+  if [ "${SURE}" == "y" ] ; then
+    sudo rm -rf "$OUTPUT_DIR"
+    echo "Deleted $OUTPUT_DIR"
+  else
+    echo "Not deleting $OUTPUT_DIR. Note dev server updates will not work" \
+      "until you successfully build another image or delete this directory"
+  fi
 }
 
 # ${DEV_IMAGE_ROOT} specifies the location of where developer packages will
@@ -187,7 +195,7 @@ setup_symlinks_on_root() {
   sudo ln -s "${2}" "${DEV_IMAGE_ROOT}/var"
 }
 
-trap cleanup EXIT
+trap "cleanup && delete_prompt" EXIT
 
 mkdir -p "$ROOT_FS_DIR"
 
@@ -427,6 +435,8 @@ setup_symlinks_on_root "/usr/local" "/var"
 
 # Cleanup loop devices.
 cleanup
+
+trap delete_prompt EXIT
 
 # Create the GPT-formatted image
 ${SCRIPTS_DIR}/build_gpt.sh \
