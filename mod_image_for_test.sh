@@ -13,6 +13,11 @@
 # Load functions and constants for chromeos-install
 . "$(dirname "$0")/chromeos-common.sh"
 
+if [ ${INSIDE_CHROOT} -eq 0 ] ; then
+  "$(dirname "$0")/enter_chroot.sh" ./mod_image_for_test.sh "$@"
+  exit 0
+fi
+
 get_default_board
 
 DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built"
