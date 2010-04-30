@@ -31,8 +31,11 @@ function cleanup {
   echo "Killing dev server."
   kill_all_devservers
   cleanup_remote_access
-  ./mount_gpt_image.sh -mu
   rm -rf "${TMP}"
+}
+
+function unmount_gpt {
+  ./mount_gpt_image.sh -mu
 }
 
 function remote_reboot_sh {
@@ -55,24 +58,35 @@ function start_dev_server {
   echo ""
 }
 
+# Copys new stateful var and developer directories to updating system.
+# chromeos_startup checks for .update_available on next boot and updates
+# the stateful directories.
 function copy_stateful_tarball {
   echo "Starting stateful update."
   # Mounts most recent image stateful dir to /tmp/s
   ./mount_gpt_image.sh -m
+  trap "unmount_gpt && cleanup" EXIT
+
   # Create tar files for the stateful partition.
-  cd /tmp/s/var && sudo tar -cf /tmp/var.tar . && cd -
-  cd /tmp/s/dev_image && sudo tar -cf /tmp/developer.tar . && cd -
-  # Copy over tar files.
-  remote_cp /tmp/var.tar /tmp
-  remote_cp /tmp/developer.tar /tmp
-  remote_sh "mkdir /mnt/stateful_partition/var_new &&\
-             mkdir /mnt/stateful_partition/dev_image_new &&\
-             tar -xf /tmp/var.tar -C /mnt/stateful_partition/var_new &&\
-             tar -xf /tmp/developer.tar \
-               -C /mnt/stateful_partition/dev_image_new &&\
-             touch /mnt/stateful_partition/.update_available"
+  if [ ! -d /tmp/s/var ] || [ ! -d /tmp/s/dev_image ] ; then
+    echo "No stateful directories found to copy.  Continuing update."
+  else
+    pushd /tmp/s/var && sudo tar -czf /tmp/var.tgz . && popd
+    pushd /tmp/s/dev_image && sudo tar -czf /tmp/developer.tgz . && popd
+    # Copy over tar files.
+    local s_dir="/mnt/stateful_partition"
+    remote_cp /tmp/var.tgz /tmp
+    remote_cp /tmp/developer.tgz /tmp
+    remote_sh "rm -rf $s_dir/var_new $s_dir/dev_image_new &&\
+               mkdir $s_dir/var_new $s_dir/dev_image_new &&\
+               tar -xzf /tmp/var.tgz -C $s_dir/var_new &&\
+               tar -xzf /tmp/developer.tgz -C $s_dir/dev_image_new &&\
+               touch $s_dir/.update_available"
+  fi
   # unmounts stateful partition
   ./mount_gpt_image.sh -mu
+
+  trap cleanup EXIT
 }
 
 function prepare_update_metadata {
@@ -202,7 +216,6 @@ function main() {
 
   if ! copy_stateful_tarball; then
     echo "Stateful update was not successful."
-    exit 1
   fi
 
   remote_reboot
