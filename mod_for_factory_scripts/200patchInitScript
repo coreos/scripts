@@ -8,9 +8,23 @@ echo "Applying patch to init scripts."
 pushd ${ROOT_FS_DIR}
 
 patch -d ${ROOT_FS_DIR} -Np1 <<EOF
+--- old/etc/init/ui.conf	2010-04-28 21:28:38.886069000 -0700
++++ new/etc/init/ui.conf	2010-04-28 21:29:42.676163000 -0700
+@@ -5,7 +5,7 @@
+ description   "Chrome OS user interface"
+ author        "chromium-os-dev@googlegroups.com"
+ 
+-start on stopping startup
++start on never
+ stop on starting halt or starting reboot
+ 
+ respawn
+EOF
+
+patch -d ${ROOT_FS_DIR} -Np1 <<EOF
 diff -Naur old/etc/init/dump-boot-stats.conf new/etc/init/dump-boot-stats.conf
---- old/etc/init/dump-boot-stats.conf	2010-04-05 21:33:11.000000000 -0700
-+++ new/etc/init/dump-boot-stats.conf	2010-04-05 21:00:48.000000000 -0700
+--- old/etc/init/dump-boot-stats.conf	2010-04-28 21:35:33.785340000 -0700
++++ new/etc/init/dump-boot-stats.conf	2010-04-28 21:36:28.819984000 -0700
 @@ -7,7 +7,7 @@
  # when login-prompt-ready is received, grabs the current uptime and
  # disk stats.  Also sends uptime to metrics client for perf dashboard
@@ -30,52 +44,33 @@ cat > ${ROOT_FS_DIR}/etc/init/factory.conf <<EOF
 description   "Chrome OS factory startup stub"
 author        "chromium-os-dev@googlegroups.com"
 
-start on stopping autotest
+start on started udev
 
 script
 
 cd /usr/local/autotest
+date >> /var/log/factory.log
 if [ ! -e factory_started ]; then
   touch factory_started
-  date >> /var/log/factory.log
   cp -f site_tests/suite_Factory/control.full control
   ./bin/autotest control >> /var/log/factory.log 2>&1
+else
+  ./tools/autotest >> /var/log/factory.log 2>&1
 fi
 end script
 EOF
 
-cat > ${ROOT_FS_DIR}/etc/init/autotest.conf <<EOF
+cat > ${ROOT_FS_DIR}/etc/init/factorylog.conf <<EOF
 # Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-description   "Chrome OS autotest startup stub"
-author        "chromium-os-dev@googlegroups.com"
-
-start on started udev
-
-script
-# Sleep as the current upstart sequence gives no clear completion signal.
-# TODO: investigate generating authoritative bootup finished event.
-sleep 10
-cd /usr/local/autotest
-date >> /var/log/factory.log
-./tools/autotest >> /var/log/factory.log 2>&1
-end script
-EOF
-
-cat > ${ROOT_FS_DIR}/etc/init/tty1.conf <<EOF
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
-
-start on startup
+start on started factory
 stop on starting halt or starting reboot
 
 respawn
 script
-cd /
-/sbin/agetty 38400 tty1 linux -l /bin/bash -n
+tail -n 48 -F /var/log/factory.log > /dev/tty1
 end script
 EOF
 
