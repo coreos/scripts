@@ -213,6 +213,10 @@ def main():
   set_common_env(common_sh, 'GCLIENT_ROOT')
 
   options, args = parse_args_and_help()
+
+  if not options.board:
+    die(common_sh, 'Missing --board argument.')
+
   if options.build:
     status = build_autotest(options)
     if status:
