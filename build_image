@@ -43,6 +43,8 @@ DEFINE_boolean withtest $FLAGS_FALSE \
   "Include packages required for testing and prepare image for testing"
 DEFINE_string factory_server "" \
   "Build a factory install image pointing to given server."
+DEFINE_string arm_extra_bootargs "" \
+  "Additional command line options to pass to the ARM kernel."
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -440,7 +442,11 @@ trap delete_prompt EXIT
 
 # Create the GPT-formatted image
 ${SCRIPTS_DIR}/build_gpt.sh \
-   --arch=${ARCH} --board=${FLAGS_board} "${OUTPUT_DIR}" "${OUTPUT_IMG}"
+  --arch=${ARCH} \
+  --board=${FLAGS_board} \
+  --arm_extra_bootargs="${FLAGS_arm_extra_bootargs}" \
+  "${OUTPUT_DIR}" \
+  "${OUTPUT_IMG}"
 
 # Clean up temporary files.
 rm -f "${ROOT_FS_IMG}" "${STATEFUL_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \

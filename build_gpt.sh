@@ -21,6 +21,8 @@ DEFINE_string arch "" \
   "The target architecture (\"arm\" or \"x86\")."
 DEFINE_string board "$DEFAULT_BOARD" \
   "The board to build an image for."
+DEFINE_string arm_extra_bootargs "" \
+  "Additional command line options to pass to the ARM kernel."
 
 # Usage.
 FLAGS_HELP=$(cat <<EOF
@@ -114,7 +116,11 @@ install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG $PMBRCODE $ESP_IMG
 if [[ "$ARCH" = "arm" ]]; then
   # assume /dev/mmcblk1. we could not get this from ${OUTDEV}
   DEVICE=1
-  MBR_SCRIPT_UIMG=$(make_arm_mbr ${START_KERN_A} ${NUM_KERN_SECTORS} ${DEVICE})
+  MBR_SCRIPT_UIMG=$(make_arm_mbr \
+    ${START_KERN_A} \
+    ${NUM_KERN_SECTORS} \
+    ${DEVICE} \
+    "${FLAGS_arm_extra_bootargs}")
   sudo dd bs=1 count=`stat --printf="%s" ${MBR_SCRIPT_UIMG}` \
      if="$MBR_SCRIPT_UIMG" of=${OUTDEV} conv=notrunc
 fi
