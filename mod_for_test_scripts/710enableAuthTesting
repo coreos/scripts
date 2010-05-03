@@ -13,16 +13,16 @@ TMP_KEY=$(mktemp -p /tmp "${CERT_NAME}.key.XXXXX")
 TMP_CERT=$(mktemp -p /tmp "${CERT_NAME}.pem.XXXXX")
 
 # Generate testing root cert on the fly.
-openssl req -x509 -nodes -days 365 \
-  -subj "/CN=*.google.com" \
-  -newkey rsa:1024 -keyout "${TMP_KEY}" -out "${TMP_CERT}"
+openssl req -x509 -days 2 -subj "/CN=www.google.com" \
+  -newkey rsa:1024 -nodes -keyout "${TMP_KEY}" -out "${TMP_CERT}"
 
 mkdir -m 0755 -p "${FAKE_NSSDB}"
+nsscertutil -d sql:"${FAKE_NSSDB}" -N -f <(echo "")
 cp "${TMP_KEY}" "${FAKE_CA_DIR}/${CERT_NAME}.key"
-echo "DO NOT MOVE THIS DATA OFF OF THE ROOTFS!" > "${FAKE_CA_DIR}/README"
-nsscertutil -A -n FakeCA -t "C,C,C" -a -i "${TMP_CERT}" -d "${FAKE_NSSDB}"
-chmod 0644 "${FAKE_NSSDB}"/*
 cp "${TMP_CERT}" "${FAKE_CA_DIR}/${CERT_NAME}.pem"
+echo "DO NOT MOVE THIS DATA OFF OF THE ROOTFS!" > "${FAKE_CA_DIR}/README"
+nsscertutil -d sql:"${FAKE_NSSDB}" -A -n FakeCert -t "C,," -a -i "${TMP_CERT}"
+chmod 0644 "${FAKE_NSSDB}"/*
 
 # TODO(cmasone): get rid of this once we're off pam_google for good.
 # Sadly, our fake cert HAS to be first in this file.
@@ -32,3 +32,6 @@ PERMS=$(stat --printf="%a" "${CERT_FILE}")
 cat "${TMP_CERT}" "${CERT_FILE}" > "${TMPFILE}"
 mv -f "${TMPFILE}" "${CERT_FILE}"
 chmod "${PERMS}" "${CERT_FILE}"
+
+
+
