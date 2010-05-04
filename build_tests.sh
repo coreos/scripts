@@ -8,8 +8,8 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-assert_inside_chroot
 assert_not_root_user
+restart_in_chroot_if_needed $*
 get_default_board
 
 # Flags

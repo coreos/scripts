@@ -12,7 +12,7 @@
 . "$(dirname "$0")/common.sh"
 
 # Script must be run inside the chroot
-assert_inside_chroot
+restart_in_chroot_if_needed $*
 
 FLAGS_HELP="USAGE: $0 [flags]"
 

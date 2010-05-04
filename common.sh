@@ -207,6 +207,16 @@ function make_pkg_common {
   popd
 }
 
+# Enter a chroot and restart the current script if needed
+function restart_in_chroot_if_needed {
+  if [ $INSIDE_CHROOT -ne 1 ]
+  then
+    # Equivalent to enter_chroot.sh -- <current command>
+    exec $SCRIPTS_DIR/enter_chroot.sh -- \
+      $CHROOT_TRUNK_DIR/src/scripts/$(basename $0) $*
+  fi
+}
+
 # Fail unless we're inside the chroot.  This guards against messing up your
 # workstation.
 function assert_inside_chroot {
