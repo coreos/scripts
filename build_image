@@ -332,7 +332,6 @@ if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ; then
   # TODO(sosa@chromium.org) - Re-hide under statefuldev after switch
   # Flag will mount /usr/local on target device
   sudo mkdir -p "$ROOT_FS_DIR/root"
-  sudo touch "$ROOT_FS_DIR/root/.dev_mode"
 
   # The ldd tool is a useful shell script but lives in glibc; just copy it.
   sudo cp -a "$(which ldd)" "${ROOT_DEV_DIR}/usr/bin"
@@ -410,13 +409,14 @@ menuentry "boot from usb with serial debug" {
 
 EOF
 
-# Run ldconfig for rootfs's ld.so.cache
-if [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] ; then
-  # Re-run ldconfig to fix /etc/ldconfig.so.cache
-  sudo /sbin/ldconfig -r "$ROOT_FS_DIR"
+# By default, dev mode should be activated for either development builds or
+# test builds.
+if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ||\
+    [[ $FLAGS_withtest -eq $FLAGS_TRUE ]]; then
+  sudo touch "$ROOT_FS_DIR/root/.dev_mode"
 
-  #TODO(sosa@chromium.org) - /usr/bin/xterm symlink not created in stateful.
-  sudo ln -sf "/usr/local/bin/aterm" "/usr/bin/xterm"
+  # Re-run ldconfig to fix /etc/ldconfig.so.cache.
+  sudo /sbin/ldconfig -r "$ROOT_FS_DIR"
 fi
 
 "${SCRIPTS_DIR}/customize_rootfs" \

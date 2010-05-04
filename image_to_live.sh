@@ -34,10 +34,6 @@ function cleanup {
   rm -rf "${TMP}"
 }
 
-function unmount_gpt {
-  ./mount_gpt_image.sh -mu
-}
-
 function remote_reboot_sh {
   rm -f "${TMP_KNOWN_HOSTS}"
   remote_sh "$@"
@@ -46,7 +42,7 @@ function remote_reboot_sh {
 function start_dev_server {
   kill_all_devservers
   if [ ${FLAGS_verbose} -eq ${FLAGS_FALSE} ]; then
-    ./enter_chroot.sh "./start_devserver > /dev/null 2>&1" &
+    ./enter_chroot.sh "./start_devserver > dev_server.log 2>&1" &
   else
     ./enter_chroot.sh "./start_devserver" &
   fi
@@ -58,35 +54,16 @@ function start_dev_server {
   echo ""
 }
 
-# Copys new stateful var and developer directories to updating system.
-# chromeos_startup checks for .update_available on next boot and updates
-# the stateful directories.
-function copy_stateful_tarball {
+# Copys stateful update script which fetches the newest stateful update
+# from the dev server and prepares the update. chromeos_startup finishes
+# the update on next boot.
+function copy_stateful_update {
   echo "Starting stateful update."
-  # Mounts most recent image stateful dir to /tmp/s
-  ./mount_gpt_image.sh -m
-  trap "unmount_gpt && cleanup" EXIT
+  local dev_dir="$(dirname $0)/../platform/dev"
 
-  # Create tar files for the stateful partition.
-  if [ ! -d /tmp/s/var ] || [ ! -d /tmp/s/dev_image ] ; then
-    echo "No stateful directories found to copy.  Continuing update."
-  else
-    pushd /tmp/s/var && sudo tar -czf /tmp/var.tgz . && popd
-    pushd /tmp/s/dev_image && sudo tar -czf /tmp/developer.tgz . && popd
-    # Copy over tar files.
-    local s_dir="/mnt/stateful_partition"
-    remote_cp /tmp/var.tgz /tmp
-    remote_cp /tmp/developer.tgz /tmp
-    remote_sh "rm -rf $s_dir/var_new $s_dir/dev_image_new &&\
-               mkdir $s_dir/var_new $s_dir/dev_image_new &&\
-               tar -xzf /tmp/var.tgz -C $s_dir/var_new &&\
-               tar -xzf /tmp/developer.tgz -C $s_dir/dev_image_new &&\
-               touch $s_dir/.update_available"
-  fi
-  # unmounts stateful partition
-  ./mount_gpt_image.sh -mu
-
-  trap cleanup EXIT
+  # Copy over tar files.
+  remote_cp "$dev_dir/stateful_update.sh" "/tmp"
+  remote_sh "/tmp/stateful_update.sh"
 }
 
 function prepare_update_metadata {
@@ -214,7 +191,7 @@ function main() {
     exit 1
   fi
 
-  if ! copy_stateful_tarball; then
+  if ! copy_stateful_update; then
     echo "Stateful update was not successful."
   fi
 
