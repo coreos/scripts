@@ -61,9 +61,9 @@ function copy_stateful_update {
   echo "Starting stateful update."
   local dev_dir="$(dirname $0)/../platform/dev"
 
-  # Copy over tar files.
-  remote_cp "$dev_dir/stateful_update.sh" "/tmp"
-  remote_sh "/tmp/stateful_update.sh"
+  # Copy over update script and run update.
+  remote_cp "$dev_dir/stateful_update" "/tmp"
+  remote_sh "/tmp/stateful_update"
 }
 
 function prepare_update_metadata {
