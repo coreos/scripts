@@ -20,11 +20,13 @@ DEFINE_boolean update_known_hosts ${FLAGS_FALSE} \
   "Update your known_hosts with the new remote instance's key"
 DEFINE_boolean verbose ${FLAGS_FALSE} \
   "Whether to output verbose information for debugging."
+DEFINE_integer devserver_port 8080 \
+  "Port to use for devserver"
 
 function kill_all_devservers {
   # Using ! here to avoid exiting with set -e is insufficient, so use
   # || true instead.
-  pkill -fx ".*devserver\.py" || true
+  sudo pkill -f devserver\.py || true
 }
 
 function cleanup {
@@ -42,12 +44,13 @@ function remote_reboot_sh {
 function start_dev_server {
   kill_all_devservers
   if [ ${FLAGS_verbose} -eq ${FLAGS_FALSE} ]; then
-    ./enter_chroot.sh "./start_devserver > dev_server.log 2>&1" &
+    ./enter_chroot.sh "sudo ./start_devserver ${FLAGS_devserver_port} \
+         > dev_server.log 2>&1" &
   else
-    ./enter_chroot.sh "./start_devserver" &
+    ./enter_chroot.sh "sudo ./start_devserver ${FLAGS_devserver_port}" &
   fi
   echo -n "Waiting on devserver to start"
-  until netstat -anp 2>&1 | grep 8080 > /dev/null; do
+  until netstat -anp 2>&1 | grep ${FLAGS_devserver_port} > /dev/null; do
     sleep .5
     echo -n "."
   done
@@ -78,14 +81,15 @@ function prepare_update_metadata {
   fi
 
   if [ ${FLAGS_ignore_hostname} -eq ${FLAGS_TRUE} ]; then
-    echo "Forcing update from ${HOSTNAME}"
+    devserver_url="http://$HOSTNAME:${FLAGS_devserver_port}"
+    echo "Forcing update from ${devserver_url}"
     remote_sh "cat /etc/lsb-release |\
         grep -v '^CHROMEOS_AUSERVER=' |\
         grep -v '^CHROMEOS_DEVSERVER=' > /etc/lsb-release~;\
         mv /etc/lsb-release~ /etc/lsb-release; \
-        echo 'CHROMEOS_AUSERVER=http://$HOSTNAME:8080/update' >> \
+        echo 'CHROMEOS_AUSERVER=${devserver_url}/update' >> \
           /etc/lsb-release; \
-        echo 'CHROMEOS_DEVSERVER=http://$HOSTNAME:8080' >> /etc/lsb-release"
+        echo 'CHROMEOS_DEVSERVER=${devserver_url}' >> /etc/lsb-release"
   fi
 }
 
