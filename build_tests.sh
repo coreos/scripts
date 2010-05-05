@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -30,7 +30,13 @@ fi
 # Die on error; print commands
 set -e
 
-TEST_DIRS="crash pam_google window_manager cryptohome"
+TEST_DIRS="
+  crash
+  cryptohome
+  metrics
+  pam_google
+  window_manager
+  "
 
 sudo TEST_DIRS="${TEST_DIRS}" \
   emerge-${FLAGS_board} chromeos-base/chromeos-unittests
