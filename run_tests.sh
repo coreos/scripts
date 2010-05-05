@@ -36,13 +36,25 @@ LD_LIBRARY_PATH=/build/${FLAGS_board}/lib:/build/${FLAGS_board}/usr/lib:\
 # Die on error; print commands
 set -ex
 
+# Change to a test directory to make it easier for tests to write
+# to and clean up temporary files.
+TEST_CWD=$(mktemp -d /tmp/run_tests.XXXX)
+cd $TEST_CWD
+
+function cleanup() {
+  cd -
+  rm -rf $TEST_CWD
+  trap - 0
+}
+
+trap cleanup ERR 0
+
 # NOTE: We currently skip cryptohome_tests (which happens to have a different
 # suffix than the other tests), because it doesn't work.
-for i in /build/${FLAGS_board}/tests/*_{test,unittests}; do
+for i in ${TESTS_DIR}/*_{test,unittests}; do
   if [[ "`file -b $i`" = "POSIX shell script text executable" ]]; then
     LD_LIBRARY_PATH=$LD_LIBRARY_PATH /build/${FLAGS_board}/lib/ld-linux.so.2 /build/${FLAGS_board}/bin/bash $i
   else
     LD_LIBRARY_PATH=$LD_LIBRARY_PATH /build/${FLAGS_board}/lib/ld-linux.so.2 $i
   fi
 done
-

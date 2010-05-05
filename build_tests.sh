@@ -30,7 +30,7 @@ fi
 # Die on error; print commands
 set -e
 
-TEST_DIRS="pam_google window_manager cryptohome"
+TEST_DIRS="crash pam_google window_manager cryptohome"
 
 sudo TEST_DIRS="${TEST_DIRS}" \
   emerge-${FLAGS_board} chromeos-base/chromeos-unittests
