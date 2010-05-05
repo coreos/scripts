@@ -35,7 +35,7 @@ DEFINE_boolean installmask $FLAGS_TRUE \
   "Use INSTALL_MASK to shrink the resulting image."
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
-DEFINE_boolean statefuldev $FLAGS_FALSE \
+DEFINE_boolean statefuldev $FLAGS_TRUE \
   "Install development packages on stateful partition rather than the rootfs"
 DEFINE_string to "" \
   "The target image file or device"
