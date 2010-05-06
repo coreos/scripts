@@ -99,8 +99,10 @@ function run_auto_update {
   # Clear it out so we don't see a prior run and make sure it
   # exists so the first tail below can't fail if it races the
   # memento updater first write and wins.
-  remote_sh "rm -f ${update_file}; touch ${update_file}; \
-      /opt/google/memento_updater/memento_updater.sh</dev/null>&/dev/null&"
+  remote_sh "rm -f /tmp/memento_autoupdate_completed; rm -f ${update_file}; \
+      touch ${update_file}; \
+      /opt/google/memento_updater/memento_updater.sh --force_update < /dev/null\
+      >&/dev/null&"
 
   local update_error
   local output_file
