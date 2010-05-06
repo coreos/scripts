@@ -41,8 +41,6 @@ DEFINE_string to "" \
   "The target image file or device"
 DEFINE_boolean withtest $FLAGS_FALSE \
   "Include packages required for testing and prepare image for testing"
-DEFINE_string factory_server "" \
-  "Build a factory install image pointing to given server."
 DEFINE_string arm_extra_bootargs "" \
   "Additional command line options to pass to the ARM kernel."
 
@@ -337,12 +335,6 @@ if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ; then
   sudo cp -a "$(which ldd)" "${ROOT_DEV_DIR}/usr/bin"
 fi
 
-if [ -n "$FLAGS_factory_server" ]; then
-  sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
-      --root="$ROOT_DEV_DIR" --root-deps=rdeps \
-      --usepkgonly chromeos-factoryinstall $EMERGE_JOBS
-fi
-
 # Install packages required for testing.
 if [[ $FLAGS_withtest -eq $FLAGS_TRUE ]] ; then
   sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
@@ -354,11 +346,6 @@ fi
 EXTRA_CUSTOMIZE_ROOTFS_FLAGS=""
 if [ $FLAGS_withdev -eq $FLAGS_TRUE ]; then
   EXTRA_CUSTOMIZE_ROOTFS_FLAGS="--withdev"
-fi
-if [ -n "$FLAGS_factory_server" ]; then
-# Indentation off b/c of long line
-EXTRA_CUSTOMIZE_ROOTFS_FLAGS="$EXTRA_CUSTOMIZE_ROOTFS_FLAGS"\
-" --factory_server=$FLAGS_factory_server"
 fi
 
 # Extract the kernel from the root filesystem for use by the GPT image. Legacy

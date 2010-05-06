@@ -22,6 +22,8 @@ DEFINE_string from "" \
 DEFINE_string to "" "${DEFAULT_TO_HELP}"
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts" "y"
 DEFINE_boolean force_copy ${FLAGS_FALSE} "Always rebuild test image"
+DEFINE_boolean factory_install ${FLAGS_FALSE} \
+  "Whether to generate a factory install shim."
 DEFINE_boolean factory ${FLAGS_FALSE} \
   "Whether to generate a factory runin image. Implies aututest and test"
 DEFINE_boolean install_autotest ${FLAGS_FALSE} \
@@ -37,12 +39,26 @@ DEFINE_string build_root "/build" \
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
+if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
+  if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
+    echo "Factory test image is incompatible with factory install shim."
+    exit 1
+  fi
+fi
+
 # Require autotest for manucaturing image.
 if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
   echo "Factory image requires --install_autotest and --test_image, setting."
   FLAGS_install_autotest=${FLAGS_TRUE}
   FLAGS_test_image=${FLAGS_TRUE}
 fi
+
+# Require test for for factory install shim.
+if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
+  echo "Factory install shim requires --test_image, setting."
+  FLAGS_test_image=${FLAGS_TRUE}
+fi
+
 
 # Inside the chroot, so output to usb.img in the same dir as the other
 # Script can be run either inside or outside the chroot.
@@ -159,14 +175,19 @@ if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
 
     # Check for manufacturing image.
     if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
-      FACTORY_ARGS="--factory"
+      EXTRA_ARGS="--factory"
+    fi
+
+    # Check for instqall shim.
+    if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
+      EXTRA_ARGS="--factory_install"
     fi
 
     # Modify it.  Pass --yes so that mod_image_for_test.sh won't ask us if we
     # really want to modify the image; the user gave their assent already with
     # --test-image and the original image is going to be preserved.
     "${SCRIPTS_DIR}/mod_image_for_test.sh" --image \
-      "${FLAGS_from}/chromiumos_test_image.bin" ${FACTORY_ARGS} --yes
+      "${FLAGS_from}/chromiumos_test_image.bin" ${EXTRA_ARGS} --yes
     echo "Done with mod_image_for_test."
   else
     echo "Using cached test image."

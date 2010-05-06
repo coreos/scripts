@@ -20,6 +20,8 @@ DEFINE_string qualdb "/tmp/run_remote_tests.*" \
     "Location of qualified component file"
 DEFINE_string image "" "Location of the rootfs raw image file"
 DEFINE_boolean factory $FLAGS_FALSE "Modify the image for manufacturing testing"
+DEFINE_boolean factory_install $FLAGS_FALSE \
+    "Modify the image for factory install shim"
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" "y"
 
 # Parse command line
@@ -73,6 +75,7 @@ cleanup() {
   cleanup_mounts "${ROOT_FS_DIR}"
   if [ -n "${ROOT_LOOP_DEV}" ]
   then
+    sudo umount "${ROOT_FS_DIR}/var"
     cleanup_loop "${ROOT_LOOP_DEV}"
   fi
   rmdir "${ROOT_FS_DIR}"
@@ -134,6 +137,7 @@ if [ -z "$STATEFUL_LOOP_DEV" ]; then
 fi
 sudo losetup -o $(( $offset * 512 )) "${STATEFUL_LOOP_DEV}" "${FLAGS_image}"
 sudo mount "${STATEFUL_LOOP_DEV}" "${STATEFUL_DIR}"
+sudo mount --bind "${STATEFUL_DIR}/var" "${ROOT_FS_DIR}/var"
 STATEFUL_DIR="${STATEFUL_DIR}"
 
 MOD_TEST_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
@@ -147,6 +151,20 @@ if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
   sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
       STATEFUL_DIR="${STATEFUL_DIR}/dev_image" QUALDB="${FLAGS_qualdb}" \
       "${MOD_FACTORY_ROOT}/factory_setup.sh"
+fi
+
+if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
+  # Run factory setup script to modify the image.
+  sudo emerge-${FLAGS_board} --root=$ROOT_FS_DIR --usepkgonly \
+      --root-deps=rdeps chromeos-factoryinstall
+
+  # Set factory server if necessary.
+  if [ "${FACTORY_SERVER}" != "" ]; then 
+    sudo sed -i \
+      "s/CHROMEOS_AUSERVER=.*$/CHROMEOS_AUSERVER=\
+http:\/\/${FACTORY_SERVER}:8080\/update/" \
+      ${ROOT_FS_DIR}/etc/lsb-release
+  fi
 fi
 
 cleanup
