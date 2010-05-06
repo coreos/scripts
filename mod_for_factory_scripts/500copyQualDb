@@ -11,6 +11,9 @@
 # QUALDB can be a full path of the file, or a specified directory
 # /tmp/run_remote_tests.XXXX, or a default wildcard one /tmp/run_remote_tests.*.
 
+COMPONENTS_FILE="${STATEFUL_DIR}/usr/local/autotest/site_tests/"\
+"hardware_Components/qualified_components"
+
 # If QUALDB is a default wildcard directory, try to use the most recent one.
 QUALDB=$(ls -dt ${QUALDB} 2>&-| head -1)
 
@@ -22,9 +25,7 @@ fi
 if [ ! -z ${QUALDB} ] && [ -f ${QUALDB} ]; then
   # Copy the qualified component file to the image
   echo "Copying ${QUALDB} to the image."
-  mkdir -p ${ROOT_FS_DIR}/usr/local/manufacturing
-  cp -f ${QUALDB} \
-    ${ROOT_FS_DIR}/usr/local/manufacturing/qualified_components
+  cp -f ${QUALDB} ${COMPONENTS_FILE}
 else
   echo "No qualified component file found at: ${QUALDB}"
 fi

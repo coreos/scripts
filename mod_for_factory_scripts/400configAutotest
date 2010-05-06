@@ -6,12 +6,15 @@
 
 echo "Create global_config.ini in autotest directory."
 
-pushd ${STATEFUL_DIR}
+GLOBAL_CONFIG="${STATEFUL_DIR}/home/autotest-client/global_config.ini"
 
-cat > ${STATEFUL_DIR}/home/autotest-client/global_config.ini <<EOF
+if [ -f "${GLOBAL_CONFIG}" ]; then
+  echo -e "File ${GLOBAL_CONFIG} already exists."
+  exit 1
+fi
+
+cat > "${GLOBAL_CONFIG}" <<EOF
 [CLIENT]
 drop_caches: False
 drop_caches_between_iterations: False
 EOF
-
-popd
