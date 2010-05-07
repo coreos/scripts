@@ -50,7 +50,8 @@ function start_dev_server {
     ./enter_chroot.sh "sudo ./start_devserver ${FLAGS_devserver_port}" &
   fi
   echo -n "Waiting on devserver to start"
-  until netstat -anp 2>&1 | grep ${FLAGS_devserver_port} > /dev/null; do
+  until netstat -anp 2>&1 | grep 0.0.0.0:${FLAGS_devserver_port} > /dev/null
+  do
     sleep .5
     echo -n "."
   done
