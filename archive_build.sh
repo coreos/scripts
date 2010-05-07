@@ -38,15 +38,27 @@ DEFINE_boolean test_mod $FLAGS_TRUE "Modify image for testing purposes"
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
+# Set if default from path is used
+DEFAULT_USED=
+
 # Reset "default" FLAGS_from based on passed-in board if not set on cmd-line
 if [ "$FLAGS_from" = "$DEFAULT_FROM" ]
 then
-   FLAGS_from="${IMAGES_DIR}/$FLAGS_board/$(ls -t1 \
-               $IMAGES_DIR/$FLAGS_board 2>&-| head -1)"
+  FLAGS_from="${IMAGES_DIR}/$FLAGS_board/$(ls -t1 \
+              $IMAGES_DIR/$FLAGS_board 2>&-| head -1)"
+  DEFAULT_USED=1
 fi
 
 # Die on any errors.
 set -e
+
+if [ -z $DEFAULT_USED ] && [ $FLAGS_test_mod -eq $FLAGS_TRUE ]
+then
+  echo "test_mod requires that the default from path be used."
+  echo "If non default behavior is desired, run mod_image_for_test manually"
+  echo "re-run archive build without test_mod"
+  exit 1
+fi
 
 if [ ! -d "$FLAGS_from" ]
 then
@@ -94,10 +106,10 @@ if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]
 then
   echo "Modifying image for test"
   SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
-  cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_test_image.bin"
-  SRC_IMAGE="${FLAGS_from}/chromiumos_test_image.bin"
-  "${SCRIPTS_DIR}/mod_image_for_test.sh" --board $FLAGS_board --yes --image \
-      "${SRC_IMAGE}"
+  cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_image_bkup.bin"
+  ./enter_chroot.sh -- ./mod_image_for_test.sh --board $FLAGS_board --yes
+  mv "$SRC_IMAGE" "${FLAGS_from}/chromiumos_test_image.bin"
+  mv "${FLAGS_from}/chromiumos_image_bkup.bin" "$SRC_IMAGE"
   cd "${FLAGS_chroot}/build/${FLAGS_board}/usr/local"
   echo "Archiving autotest build artifacts"
   tar cjf "${FLAGS_from}/autotest.tar.bz2" autotest
