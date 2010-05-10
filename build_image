@@ -342,12 +342,6 @@ if [[ $FLAGS_withtest -eq $FLAGS_TRUE ]] ; then
       --usepkgonly chromeos-test $EMERGE_JOBS
 fi
 
-# Perform any customizations on the root file system that are needed.
-EXTRA_CUSTOMIZE_ROOTFS_FLAGS=""
-if [ $FLAGS_withdev -eq $FLAGS_TRUE ]; then
-  EXTRA_CUSTOMIZE_ROOTFS_FLAGS="--withdev"
-fi
-
 # Extract the kernel from the root filesystem for use by the GPT image. Legacy
 # BIOS will use the kernel in the rootfs (via syslinux), Chrome OS BIOS will
 # use the kernel partition.
@@ -406,11 +400,11 @@ if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ||\
   sudo /sbin/ldconfig -r "$ROOT_FS_DIR"
 fi
 
+# Perform any customizations on the root file system that are needed.
 "${SCRIPTS_DIR}/customize_rootfs" \
   --root="$ROOT_FS_DIR" \
   --target="$ARCH" \
-  --board="$BOARD" \
-  $EXTRA_CUSTOMIZE_ROOTFS_FLAGS
+  --board="$BOARD"
 
 # Check that the image has been correctly created.
 "${SCRIPTS_DIR}/test_image" \
