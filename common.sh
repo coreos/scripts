@@ -121,7 +121,7 @@ DEFAULT_INSTALL_MASK="/usr/include /usr/man /usr/share/man /usr/share/doc \
   /usr/share/gtk-doc /usr/share/gtk-2.0 /usr/lib/gtk-2.0/include \
   /usr/share/info /usr/share/aclocal /usr/lib/gcc /usr/lib/pkgconfig \
   /usr/share/pkgconfig /usr/share/gettext /usr/share/readline /etc/runlevels \
-  /usr/share/openrc /lib/rc *.a *.la"
+  /usr/share/openrc /lib/rc *.a *.la /etc/init.d"
 
 # Check to ensure not running old scripts
 V_REVERSE='[7m'
