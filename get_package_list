@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Lists all package dependencies of a particular package.  Useful to find out
+# all packages depended on by chromeos and chromeos-dev.
+
+. "$(dirname "$0")/common.sh"
+
+# Script must be run inside the chroot.
+assert_inside_chroot
+
+get_default_board
+
+# Flags.
+DEFINE_string board "$DEFAULT_BOARD" \
+  "The board for which the image was built." b
+
+# Parse flags.
+FLAGS "$@" || exit 1
+
+if [[ -z "${FLAGS_ARGV}" ]]; then
+  echo "Please specify package."
+  echo "Usage:  ./get_package_list.sh chromeos-base/chromeos > package.list"
+  exit 1
+fi
+
+emerge-$FLAGS_board --emptytree --usepkgonly -p -v --columns \
+  $1 2> /dev/null | cut -d ' ' -f 8 | grep '/'
