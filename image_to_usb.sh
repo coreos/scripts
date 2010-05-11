@@ -232,7 +232,14 @@ then
   echo "Attempting to unmount any mounts on the USB device..."
   for i in $(mount | grep ^"${FLAGS_to}" | awk '{print $1}')
   do
-    sudo umount "$i"
+    if sudo umount "$i" 2>&1 >/dev/null | grep "not found"; then
+      echo
+      echo "The device you have specified is already mounted at some point "
+      echo "that is not visible from inside the chroot.  Please unmount the "
+      echo "device manually from outside the chroot and try again."
+      echo
+      exit 1
+    fi
   done
   sleep 3
 

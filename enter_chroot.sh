@@ -24,6 +24,8 @@ DEFINE_string build_number "" \
   "The build-bot build number (when called by buildbot only)." "b"
 DEFINE_string chrome_root "" \
   "The root of your chrome browser source. Should contain a 'src' subdir."
+DEFINE_string automount_dir "/media" \
+  "The directory in which your host OS creates mountpoints for external media."
 
 DEFINE_boolean official_build $FLAGS_FALSE \
   "Set CHROMEOS_OFFICIAL=1 for release builds."
@@ -97,6 +99,13 @@ function setup_env {
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
     then
       sudo mount --bind /dev "$MOUNTED_PATH" || \
+          die "Could not mount $MOUNTED_PATH"
+    fi
+
+    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${FLAGS_automount_dir}")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
+    then
+      sudo mount --bind "${FLAGS_automount_dir}" "$MOUNTED_PATH" || \
           die "Could not mount $MOUNTED_PATH"
     fi
 
