@@ -24,8 +24,6 @@ DEFINE_string build_number "" \
   "The build-bot build number (when called by buildbot only)." "b"
 DEFINE_string chrome_root "" \
   "The root of your chrome browser source. Should contain a 'src' subdir."
-DEFINE_string automount_dir "/media" \
-  "The directory in which your host OS creates mountpoints for external media."
 
 DEFINE_boolean official_build $FLAGS_FALSE \
   "Set CHROMEOS_OFFICIAL=1 for release builds."
@@ -68,6 +66,8 @@ INNER_CHROME_ROOT="/home/$USER/chrome_root"  # inside chroot
 CHROME_ROOT_CONFIG="/var/cache/chrome_root"  # inside chroot
 INNER_DEPOT_TOOLS_ROOT="/home/$USER/depot_tools"  # inside chroot
 FUSE_DEVICE="/dev/fuse"
+AUTOMOUNT_PREF="/apps/nautilus/preferences/media_automount"
+SAVED_AUTOMOUNT_PREF_FILE="/tmp/.automount_pref"
 
 sudo chmod 0777 "$FLAGS_chroot/var/lock"
 
@@ -99,13 +99,6 @@ function setup_env {
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
     then
       sudo mount --bind /dev "$MOUNTED_PATH" || \
-          die "Could not mount $MOUNTED_PATH"
-    fi
-
-    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${FLAGS_automount_dir}")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
-    then
-      sudo mount --bind "${FLAGS_automount_dir}" "$MOUNTED_PATH" || \
           die "Could not mount $MOUNTED_PATH"
     fi
 
@@ -157,6 +150,20 @@ function setup_env {
         echo "-- Note: modprobe fuse failed.  gmergefs will not work"
     fi
 
+    # Turn off automounting of external media when we enter the
+    # chroot; thus we don't have to worry about being able to unmount
+    # from inside.
+    if [ $(which gconftool-2 2>/dev/null) ]; then
+      gconftool-2 -g ${AUTOMOUNT_PREF} > \
+        "${FLAGS_chroot}${SAVED_AUTOMOUNT_PREF_FILE}"
+      if [ $(gconftool-2 -s --type=boolean ${AUTOMOUNT_PREF} false) ]; then
+        echo "-- Note: USB sticks may be automounted by your host OS."
+        echo "-- Note: If you plan to burn bootable media, you may need to"
+        echo "-- Note: unmount these devices manually, or run image_to_usb.sh"
+        echo "-- Note: outside the chroot."
+      fi
+    fi
+
   ) 200>>"$LOCKFILE" || die "setup_env failed"
 }
 
@@ -184,6 +191,12 @@ function teardown_env {
     done
     # Remove any dups from lock file while installing new one
     sort -n "$TMP_LOCKFILE" | uniq > "$LOCKFILE"
+
+    if [ $(which gconftool-2 2>/dev/null) ]; then
+      SAVED_PREF=$(cat "${FLAGS_chroot}${SAVED_AUTOMOUNT_PREF_FILE}")
+      gconftool-2 -s --type=boolean ${AUTOMOUNT_PREF} ${SAVED_PREF} || \
+        echo "could not re-set your automount preference."
+    fi
 
     if [ -s "$LOCKFILE" ]; then
       echo "At least one other pid is running in the chroot, so not"
