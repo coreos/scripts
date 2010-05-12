@@ -22,6 +22,7 @@ DEFINE_boolean verbose ${FLAGS_FALSE} \
   "Whether to output verbose information for debugging."
 DEFINE_integer devserver_port 8080 \
   "Port to use for devserver"
+DEFINE_string update_url "" "Full url of an update image"
 
 function kill_all_devservers {
   # Using ! here to avoid exiting with set -e is insufficient, so use
@@ -82,13 +83,17 @@ function prepare_update_metadata {
   fi
 
   if [ ${FLAGS_ignore_hostname} -eq ${FLAGS_TRUE} ]; then
-    devserver_url="http://$HOSTNAME:${FLAGS_devserver_port}"
+    if [ -z ${FLAGS_update_url} ]; then
+      devserver_url="http://$HOSTNAME:${FLAGS_devserver_port}/update"
+    else
+      devserver_url="${FLAGS_update_url}"
+    fi
     echo "Forcing update from ${devserver_url}"
     remote_sh "cat /etc/lsb-release |\
         grep -v '^CHROMEOS_AUSERVER=' |\
         grep -v '^CHROMEOS_DEVSERVER=' > /etc/lsb-release~;\
         mv /etc/lsb-release~ /etc/lsb-release; \
-        echo 'CHROMEOS_AUSERVER=${devserver_url}/update' >> \
+        echo 'CHROMEOS_AUSERVER=${devserver_url}' >> \
           /etc/lsb-release; \
         echo 'CHROMEOS_DEVSERVER=${devserver_url}' >> /etc/lsb-release"
   fi
@@ -189,7 +194,10 @@ function main() {
     exit 1
   fi
 
-  start_dev_server
+  if [ -z "${FLAGS_update_url}" ]; then
+    # only start local devserver if no update url specified.
+    start_dev_server
+  fi
 
   prepare_update_metadata
 
