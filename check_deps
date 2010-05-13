@@ -28,16 +28,27 @@ class CheckDependencies(object):
     self._verbose = verbose
 
     # Insert some default directories into our library cache.
-    # The /usr/lib/nss and /usr/lib/nspr directories are
-    # required for understanding old-style Netscape plugins.
-    self._ReadLibs([
-        "%s/lib" % root,
-        "%s/usr/local/lib" % root,
-        "%s/usr/lib" % root,
-        "%s/usr/lib/nss" % root,
-        "%s/usr/lib/nspr" % root,
-        "%s/opt/google/o3d/lib" % root
-    ], self._libcache)
+    libdirs = [
+      "%s/lib" % root,
+      "%s/usr/lib" % root,
+      "%s/opt/google/o3d/lib" % root,
+      "%s/usr/lib/opengl/xorg-x11/lib" % root,
+      "%s/usr/local/lib/icedtea6/jre/lib/i386/client" % root,
+      "%s/usr/local/lib/icedtea6/jre/lib/i386/headless" % root
+    ]
+
+    # Read more directories from ld.so.conf.
+    ld_so_conf = "%s/etc/ld.so.conf" % root
+    if os.path.exists(ld_so_conf):
+      f = file(ld_so_conf)
+      for line in f:
+        if line.startswith("/"):
+          path = root + line[:-1]
+          if os.path.exists(path):
+            libdirs.append(path)
+      f.close()
+
+    self._ReadLibs(libdirs, self._libcache)
 
   def _ReadLibs(self, paths, libcache):
     for path in paths:
@@ -65,7 +76,10 @@ class CheckDependencies(object):
       m = _RPATH_RE.search(line)
       if m:
         for path in m.group(1).split(":"):
-          rpaths.add(os.path.join(self._root, path[1:]))
+          if path.startswith("$ORIGIN"):
+            rpaths.add(path.replace("$ORIGIN", os.path.dirname(binary)))
+          else:
+            rpaths.add(os.path.join(self._root, path[1:]))
     f.close()
 
     return (deps, rpaths)
