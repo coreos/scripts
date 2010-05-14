@@ -362,3 +362,44 @@ function safe_umount {
     sudo umount -d -l "${path}" || die "Failed to lazily unmount ${path}"
   fi
 }
+
+# Sets up symlinks for the developer root. It is necessary to symlink
+# usr and local since the developer root is mounted at /usr/local and
+# applications expect to be installed under /usr/local/bin, etc.
+# This avoids packages installing into /usr/local/usr/local/bin.
+# ${1} specifies the symlink target for the developer root.
+# ${2} specifies the symlink target for the var directory.
+# ${3} specifies the location of the stateful partition.
+setup_symlinks_on_root() {
+  # Give args better names.
+  local dev_image_target=${1}
+  local var_target=${2}
+  local dev_image_root="${3}/dev_image"
+
+  # If our var target is actually the standard var, we are cleaning up the
+  # symlinks (could also check for /usr/local for the dev_image_target).
+  if [ ${var_target} = "/var" ]; then
+    echo "Cleaning up /usr/local symlinks for ${dev_image_root}"
+  else
+    echo "Setting up symlinks for /usr/local for ${dev_image_root}"
+  fi
+
+  # Set up symlinks that should point to ${dev_image_target}.
+  for path in usr local; do
+    if [ -h "${dev_image_root}/${path}" ]; then
+      sudo unlink "${dev_image_root}/${path}"
+    elif [ -e "${dev_image_root}/${path}" ]; then
+      die "${dev_image_root}/${path} should be a symlink if exists"
+    fi
+    sudo ln -s ${dev_image_target} "${dev_image_root}/${path}"
+  done
+
+  # Setup var symlink.
+  if [ -h "${dev_image_root}/var" ]; then
+    sudo unlink "${dev_image_root}/var"
+  elif [ -e "${dev_image_root}/var" ]; then
+    die "${dev_image_root}/var should be a symlink if it exists"
+  fi
+
+  sudo ln -s "${var_target}" "${dev_image_root}/var"
+}

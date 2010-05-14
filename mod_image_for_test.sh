@@ -13,16 +13,24 @@
 # Load functions and constants for chromeos-install
 . "$(dirname "$0")/chromeos-common.sh"
 
+# We need to be in the chroot to emerge test packages.
+assert_inside_chroot
+
 get_default_board
 
-DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built"
-DEFINE_string qualdb "/tmp/run_remote_tests.*" \
-    "Location of qualified component file"
-DEFINE_string image "" "Location of the rootfs raw image file"
-DEFINE_boolean factory $FLAGS_FALSE "Modify the image for manufacturing testing"
+DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built" b
+DEFINE_boolean factory $FLAGS_FALSE \
+  "Modify the image for manufacturing testing" f
 DEFINE_boolean factory_install $FLAGS_FALSE \
     "Modify the image for factory install shim"
-DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" "y"
+DEFINE_string image "" "Location of the rootfs raw image file" i
+DEFINE_boolean installmask $FLAGS_TRUE \
+  "Use INSTALL_MASK to shrink the resulting image." m
+DEFINE_integer jobs -1 \
+  "How many packages to build in parallel at maximum." j
+DEFINE_string qualdb "/tmp/run_remote_tests.*" \
+    "Location of qualified component file" d
+DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" y
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -31,8 +39,7 @@ eval set -- "${FLAGS_ARGV}"
 # No board, no default and no image set then we can't find the image
 if [ -z $FLAGS_image ] && [ -z $FLAGS_board ] ; then
   setup_board_warning
-  echo "*** mod_image_for_test failed.  No board set and no image set"
-  exit 1
+  die "mod_image_for_test failed.  No board set and no image set"
 fi
 
 # We have a board name but no image set.  Use image at default location
@@ -41,6 +48,9 @@ if [ -z $FLAGS_image ] ; then
   FILENAME="chromiumos_image.bin"
   FLAGS_image="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)/${FILENAME}"
 fi
+
+# Turn path into an absolute path.
+FLAGS_image=`eval readlink -f ${FLAGS_image}`
 
 # Abort early if we can't find the image
 if [ ! -f $FLAGS_image ] ; then
@@ -62,33 +72,23 @@ cleanup_mounts() {
   done
 }
 
-cleanup_loop() {
-  sudo umount "$1"
-  sleep 1  # in case the loop device is in use
-  sudo losetup -d "$1"
+cleanup() {
+  "$SCRIPTS_DIR/mount_gpt_image.sh" -u -r "$ROOT_FS_DIR" -s "$STATEFUL_DIR"
 }
 
-cleanup() {
-  # Disable die on error.
-  set +e
-
-  cleanup_mounts "${ROOT_FS_DIR}"
-  if [ -n "${ROOT_LOOP_DEV}" ]
-  then
-    sudo umount "${ROOT_FS_DIR}/var"
-    cleanup_loop "${ROOT_LOOP_DEV}"
+# Emerges chromeos-test onto the image.
+emerge_chromeos_test() {
+  INSTALL_MASK=""
+  if [[ $FLAGS_installmask -eq ${FLAGS_TRUE} ]]; then
+    INSTALL_MASK="$DEFAULT_INSTALL_MASK"
   fi
-  rmdir "${ROOT_FS_DIR}"
 
-  cleanup_mounts "${STATEFUL_DIR}"
-  if [ -n "${STATEFUL_LOOP_DEV}" ]
-  then
-    cleanup_loop "${STATEFUL_LOOP_DEV}"
-  fi
-  rmdir "${STATEFUL_DIR}"
+  # Determine the root dir for test packages.
+  ROOT_DEV_DIR="$ROOT_FS_DIR/usr/local"
 
-  # Turn die on error back on.
-  set -e
+  INSTALL_MASK="$INSTALL_MASK" emerge-${FLAGS_board} \
+    --root="$ROOT_DEV_DIR" --root-deps=rdeps \
+    --usepkgonly chromeos-test $EMERGE_JOBS
 }
 
 # main process begins here.
@@ -107,38 +107,19 @@ fi
 
 set -e
 
-ROOT_FS_DIR=$(dirname "${FLAGS_image}")/rootfs
-mkdir -p "${ROOT_FS_DIR}"
-
-STATEFUL_DIR=$(dirname "${FLAGS_image}")/stateful_partition
-mkdir -p "${STATEFUL_DIR}"
+IMAGE_DIR="$(dirname "$FLAGS_image")"
+IMAGE_NAME="$(basename "$FLAGS_image")"
+ROOT_FS_DIR="$IMAGE_DIR/rootfs"
+STATEFUL_DIR="$IMAGE_DIR/stateful_partition"
+SCRIPTS_DIR=$(dirname "$0")
 
 trap cleanup EXIT
 
-# Figure out how to loop mount the rootfs partition. It should be partition 3
-# on the disk image.
-offset=$(partoffset "${FLAGS_image}" 3)
+# Mounts gpt image and sets up var, /usr/local and symlinks.
+"$SCRIPTS_DIR/mount_gpt_image.sh" -i "$IMAGE_NAME" -f "$IMAGE_DIR" \
+  -r "$ROOT_FS_DIR" -s "$STATEFUL_DIR"
 
-ROOT_LOOP_DEV=$(sudo losetup -f)
-if [ -z "$ROOT_LOOP_DEV" ]; then
-  echo "No free loop device"
-  exit 1
-fi
-sudo losetup -o $(( $offset * 512 )) "${ROOT_LOOP_DEV}" "${FLAGS_image}"
-sudo mount "${ROOT_LOOP_DEV}" "${ROOT_FS_DIR}"
-
-# The stateful partition should be partition 1 on the disk image.
-offset=$(partoffset "${FLAGS_image}" 1)
-
-STATEFUL_LOOP_DEV=$(sudo losetup -f)
-if [ -z "$STATEFUL_LOOP_DEV" ]; then
-  echo "No free loop device"
-  exit 1
-fi
-sudo losetup -o $(( $offset * 512 )) "${STATEFUL_LOOP_DEV}" "${FLAGS_image}"
-sudo mount "${STATEFUL_LOOP_DEV}" "${STATEFUL_DIR}"
-sudo mount --bind "${STATEFUL_DIR}/var" "${ROOT_FS_DIR}/var"
-STATEFUL_DIR="${STATEFUL_DIR}"
+emerge_chromeos_test
 
 MOD_TEST_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
 # Run test setup script to modify the image
@@ -159,7 +140,7 @@ if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
       --root-deps=rdeps chromeos-factoryinstall
 
   # Set factory server if necessary.
-  if [ "${FACTORY_SERVER}" != "" ]; then 
+  if [ "${FACTORY_SERVER}" != "" ]; then
     sudo sed -i \
       "s/CHROMEOS_AUSERVER=.*$/CHROMEOS_AUSERVER=\
 http:\/\/${FACTORY_SERVER}:8080\/update/" \

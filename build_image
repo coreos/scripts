@@ -39,8 +39,6 @@ DEFINE_boolean statefuldev $FLAGS_TRUE \
   "Install development packages on stateful partition rather than the rootfs"
 DEFINE_string to "" \
   "The target image file or device"
-DEFINE_boolean withtest $FLAGS_FALSE \
-  "Include packages required for testing and prepare image for testing"
 DEFINE_string arm_extra_bootargs "" \
   "Additional command line options to pass to the ARM kernel."
 
@@ -167,34 +165,6 @@ delete_prompt() {
 # translate to /usr/local
 DEV_IMAGE_ROOT=
 
-# Sets up symlinks for the stateful partition based on the root specified by
-# ${1} and var directory specified by ${2}.
-setup_symlinks_on_root() {
-  echo "Setting up symlinks on the stateful partition rooted at ${1} with"\
-    "var directory located at ${2}"
-
-  for path in usr local; do
-    if [ -h "${DEV_IMAGE_ROOT}/${path}" ] ; then
-      sudo unlink "${DEV_IMAGE_ROOT}/${path}"
-    elif [ -e "${DEV_IMAGE_ROOT}/${path}" ] ; then
-      echo "*** ERROR: ${DEV_IMAGE_ROOT}/${path} should be a symlink if exists"
-      return 1
-    fi
-    sudo ln -s ${1} "${DEV_IMAGE_ROOT}/${path}"
-  done
-
-  # Setup var.  Var is on the stateful partition at /var for both non-developer
-  # builds and developer builds.
-  if [ -h "${DEV_IMAGE_ROOT}/var" ] ; then
-    sudo unlink "${DEV_IMAGE_ROOT}/var"
-  elif [ -e "${DEV_IMAGE_ROOT}/var" ] ; then
-    echo "*** ERROR: ${DEV_IMAGE_ROOT}/var should be a symlink if it exists"
-    return 1
-  fi
-
-  sudo ln -s "${2}" "${DEV_IMAGE_ROOT}/var"
-}
-
 trap "cleanup && delete_prompt" EXIT
 
 mkdir -p "$ROOT_FS_DIR"
@@ -299,7 +269,8 @@ sudo mkdir -p "${STATEFUL_DIR}/var"
 
 # Create symlinks so that /usr/local/usr based directories are symlinked to
 # /usr/local/ directories e.g. /usr/local/usr/bin -> /usr/local/bin, etc.
-setup_symlinks_on_root "${DEV_IMAGE_ROOT}" "${STATEFUL_DIR}/var"
+setup_symlinks_on_root "${DEV_IMAGE_ROOT}" "${STATEFUL_DIR}/var" \
+  "${STATEFUL_DIR}"
 
 # Perform binding rather than symlinking because directories must exist
 # on rootfs so that we can bind at run-time since rootfs is read-only
@@ -333,13 +304,6 @@ if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ; then
 
   # The ldd tool is a useful shell script but lives in glibc; just copy it.
   sudo cp -a "$(which ldd)" "${ROOT_DEV_DIR}/usr/bin"
-fi
-
-# Install packages required for testing.
-if [[ $FLAGS_withtest -eq $FLAGS_TRUE ]] ; then
-  sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
-      --root="$ROOT_DEV_DIR" --root-deps=rdeps \
-      --usepkgonly chromeos-test $EMERGE_JOBS
 fi
 
 # Extract the kernel from the root filesystem for use by the GPT image. Legacy
@@ -414,7 +378,7 @@ fi
 # Clean up symlinks so they work on a running target rooted at "/".
 # Here development packages are rooted at /usr/local.  However, do not
 # create /usr/local or /var on host (already exist on target).
-setup_symlinks_on_root "/usr/local" "/var"
+setup_symlinks_on_root "/usr/local" "/var" "${STATEFUL_DIR}"
 
 # Cleanup loop devices.
 cleanup
