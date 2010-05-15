@@ -331,25 +331,18 @@ sudo mount "${ESP_LOOP_DEV}" "${ESP_DIR}"
 sudo mkdir -p "${ESP_DIR}/efi/boot"
 sudo grub-mkimage -p /efi/boot -o "${ESP_DIR}/efi/boot/bootx64.efi" \
   part_gpt fat ext2 normal boot sh chain configfile linux
-sudo cp "${ROOT_FS_DIR}/boot/vmlinuz" "${ESP_DIR}/efi/boot/vmlinuz"
-cat <<EOF | sudo dd of="${ESP_DIR}/efi/boot/grub.cfg"
-set timeout=2
+cat <<'EOF' | sudo dd of="${ESP_DIR}/efi/boot/grub.cfg"
 set default=0
+set timeout=2
 
-menuentry "boot from disk" {
-  linux /efi/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/sda3 ro noresume noswap i915.modeset=1 loglevel=1
+# NOTE: These magic grub variables are a Chrome OS hack. They are not portable.
+
+menuentry "local image A" {
+  linux $grubpartA/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/$linuxpartA ro noresume noswap i915.modeset=1 loglevel=1
 }
 
-menuentry "boot from disk with serial debug" {
-  linux /efi/boot/vmlinuz earlyprintk=serial,ttyS0,115200 console=ttyS0,115200 init=/sbin/init boot=local rootwait root=/dev/sda3 ro noresume noswap i915.modeset=1 loglevel=7
-}
-
-menuentry "boot from usb" {
-  linux /efi/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/sdb3 ro noresume noswap i915.modeset=1 loglevel=1
-}
-
-menuentry "boot from usb with serial debug" {
-  linux /efi/boot/vmlinuz earlyprintk=serial,ttyS0,115200 console=ttyS0,115200 init=/sbin/init boot=local rootwait root=/dev/sdb3 ro noresume noswap i915.modeset=1 loglevel=7
+menuentry "local image B" {
+  linux $grubpartB/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/$linuxpartB ro noresume noswap i915.modeset=1 loglevel=1
 }
 
 EOF
