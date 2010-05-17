@@ -39,6 +39,9 @@ DEFINE_boolean statefuldev $FLAGS_TRUE \
   "Install development packages on stateful partition rather than the rootfs"
 DEFINE_string to "" \
   "The target image file or device"
+DEFINE_boolean factory_install $FLAGS_FALSE \
+  "Build a smaller image to overlay the factory install shim on; this argument \
+is also required in image_to_usb."
 DEFINE_string arm_extra_bootargs "" \
   "Additional command line options to pass to the ARM kernel."
 
@@ -180,7 +183,12 @@ fi
 
 # Create root file system disk image to fit on a 1GB memory stick.
 # 1 GB in hard-drive-manufacturer-speak is 10^9, not 2^30.  950MB < 10^9 bytes.
-ROOT_SIZE_BYTES=$((1024 * 1024 * 720))
+if [[ $FLAGS_factory_install -eq ${FLAGS_TRUE} ]] ; then
+  ROOT_SIZE_BYTES=$((1024 * 1024 * 180))
+else
+  ROOT_SIZE_BYTES=$((1024 * 1024 * 720))
+fi
+
 dd if=/dev/zero of="$ROOT_FS_IMG" bs=1 count=1 seek=$((ROOT_SIZE_BYTES - 1))
 sudo losetup "$LOOP_DEV" "$ROOT_FS_IMG"
 sudo mkfs.ext3 "$LOOP_DEV"
@@ -257,6 +265,12 @@ sudo cp -a "${BOARD_ROOT}"/usr/lib/libstdc++.so* "${ROOT_FS_DIR}/usr/lib"
 INSTALL_MASK=""
 if [[ $FLAGS_installmask -eq ${FLAGS_TRUE} ]] ; then
   INSTALL_MASK="$DEFAULT_INSTALL_MASK"
+fi
+
+# Reduce the size of factory install shim.
+# TODO: Build a separated ebuild for the factory install shim to reduce size.
+if [[ $FLAGS_factory_install -eq ${FLAGS_TRUE} ]] ; then
+  INSTALL_MASK="$INSTALL_MASK $FACTORY_INSTALL_MASK"
 fi
 
 if [[ $FLAGS_jobs -ne -1 ]]; then
@@ -349,8 +363,7 @@ EOF
 
 # By default, dev mode should be activated for either development builds or
 # test builds.
-if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ||\
-    [[ $FLAGS_withtest -eq $FLAGS_TRUE ]]; then
+if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ; then
   sudo touch "$ROOT_FS_DIR/root/.dev_mode"
 
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
@@ -363,10 +376,13 @@ fi
   --target="$ARCH" \
   --board="$BOARD"
 
-# Check that the image has been correctly created.
-"${SCRIPTS_DIR}/test_image" \
-  --root="$ROOT_FS_DIR" \
-  --target="$ARCH"
+# Don't test the factory install shim.
+if [[ $FLAGS_factory_install -eq ${FLAGS_FALSE} ]] ; then
+  # Check that the image has been correctly created.
+  "${SCRIPTS_DIR}/test_image" \
+    --root="$ROOT_FS_DIR" \
+    --target="$ARCH"
+fi
 
 # Clean up symlinks so they work on a running target rooted at "/".
 # Here development packages are rooted at /usr/local.  However, do not

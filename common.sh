@@ -123,6 +123,12 @@ DEFAULT_INSTALL_MASK="/usr/include /usr/man /usr/share/man /usr/share/doc \
   /usr/share/pkgconfig /usr/share/gettext /usr/share/readline /etc/runlevels \
   /usr/share/openrc /lib/rc *.a *.la /etc/init.d"
 
+FACTORY_INSTALL_MASK="/opt/google/chrome /opt/google/o3d /opt/netscape \
+  /usr/lib/dri /usr/lib/python2.6/test /usr/share/chewing /usr/share/fonts \
+  /usr/share/ibus-pinyin /usr/share/libhangul /usr/share/locale \
+  /usr/share/m17n /usr/share/mime /usr/share/sounds /usr/share/tts \
+  /usr/share/X11 /usr/share/zoneinfo"
+
 # Check to ensure not running old scripts
 V_REVERSE='[7m'
 V_VIDOFF='[m'
