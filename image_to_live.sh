@@ -25,14 +25,16 @@ DEFINE_integer devserver_port 8080 \
 DEFINE_string update_url "" "Full url of an update image"
 
 function kill_all_devservers {
+  echo "Killing dev server."
   # Using ! here to avoid exiting with set -e is insufficient, so use
   # || true instead.
   sudo pkill -f devserver\.py || true
 }
 
 function cleanup {
-  echo "Killing dev server."
-  kill_all_devservers
+  if [ -z "${FLAGS_update_url}" ]; then
+    kill_all_devservers
+  fi
   cleanup_remote_access
   rm -rf "${TMP}"
 }
