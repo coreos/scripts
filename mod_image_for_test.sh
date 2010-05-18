@@ -119,22 +119,10 @@ trap cleanup EXIT
 "$SCRIPTS_DIR/mount_gpt_image.sh" -i "$IMAGE_NAME" -f "$IMAGE_DIR" \
   -r "$ROOT_FS_DIR" -s "$STATEFUL_DIR"
 
-emerge_chromeos_test
-
-MOD_TEST_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
-# Run test setup script to modify the image
-sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-    "${MOD_TEST_ROOT}/test_setup.sh"
-
-if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
-  MOD_FACTORY_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts"
-  # Run factory setup script to modify the image
-  sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-      STATEFUL_DIR="${STATEFUL_DIR}/dev_image" QUALDB="${FLAGS_qualdb}" \
-      "${MOD_FACTORY_ROOT}/factory_setup.sh"
-fi
-
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
+  # We don't want to emerge test packages on factory install, otherwise we run
+  # out of space.
+
   # Run factory setup script to modify the image.
   sudo emerge-${FLAGS_board} --root=$ROOT_FS_DIR --usepkgonly \
       --root-deps=rdeps chromeos-factoryinstall
@@ -145,6 +133,21 @@ if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
       "s/CHROMEOS_AUSERVER=.*$/CHROMEOS_AUSERVER=\
 http:\/\/${FACTORY_SERVER}:8080\/update/" \
       ${ROOT_FS_DIR}/etc/lsb-release
+  fi
+else
+  emerge_chromeos_test
+
+  MOD_TEST_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
+  # Run test setup script to modify the image
+  sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
+      "${MOD_TEST_ROOT}/test_setup.sh"
+
+  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+    MOD_FACTORY_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts"
+    # Run factory setup script to modify the image
+    sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
+        STATEFUL_DIR="${STATEFUL_DIR}/dev_image" QUALDB="${FLAGS_qualdb}" \
+        "${MOD_FACTORY_ROOT}/factory_setup.sh"
   fi
 fi
 
