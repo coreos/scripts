@@ -67,7 +67,16 @@ IMAGE_SUBDIR="${CHROMEOS_VERSION_STRING}-a${FLAGS_build_attempt}"
 OUTPUT_DIR="${FLAGS_output_root}/${FLAGS_board}/${IMAGE_SUBDIR}"
 ROOT_FS_DIR="${OUTPUT_DIR}/rootfs"
 ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
-OUTPUT_IMG=${FLAGS_to:-${OUTPUT_DIR}/chromiumos_image.bin}
+
+# If we are creating a developer image, also create a pristine image with a
+# different name.
+DEVELOPER_IMAGE_NAME=
+PRISTINE_IMAGE_NAME=chromiumos_image.bin
+if [ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ]; then
+  PRISTINE_IMAGE_NAME=chromiumos_base_image.bin
+  DEVELOPER_IMAGE_NAME=chromiumos_image.bin
+fi
+OUTPUT_IMG=${FLAGS_to:-${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}}
 
 BOARD="${FLAGS_board}"
 BOARD_ROOT="${FLAGS_build_root}/${BOARD}"
@@ -161,6 +170,68 @@ delete_prompt() {
     echo "Not deleting $OUTPUT_DIR. Note dev server updates will not work" \
       "until you successfully build another image or delete this directory"
   fi
+}
+
+# $1 - Directory where developer rootfs is mounted.
+# $2 - Directory where developer stateful_partition is mounted.
+developer_cleanup() {
+  "$SCRIPTS_DIR/mount_gpt_image.sh" -u -r "$1" -s "$2"
+  delete_prompt
+}
+
+# Creates a new image based on $OUTPUT_IMG with additional developer packages.
+create_developer_image() {
+  local root_fs_dir="${OUTPUT_DIR}/rootfs_dev"
+  local root_fs_img="${OUTPUT_DIR}/rootfs_dev.image"
+  local output_img="${OUTPUT_DIR}/${DEVELOPER_IMAGE_NAME}"
+
+  # Create stateful partition of the same size as the rootfs.
+  local stateful_img="$OUTPUT_DIR/stateful_partition_dev.image"
+  local stateful_dir="$OUTPUT_DIR/stateful_partition_dev"
+
+  trap "developer_cleanup \"$root_fs_dir\" \"$stateful_dir\"" EXIT
+
+  # Mount a new copy of the base image.
+  echo "Creating developer image from base image $OUTPUT_IMG"
+  cp "$OUTPUT_IMG" "$output_img"
+  $SCRIPTS_DIR/mount_gpt_image.sh --from "$OUTPUT_DIR" \
+    --image "$DEVELOPER_IMAGE_NAME" -r "$root_fs_dir" -s "$stateful_dir"
+
+  # Determine the root dir for developer packages.
+  local root_dev_dir="$root_fs_dir"
+  [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] && \
+    root_dev_dir="$root_fs_dir/usr/local"
+
+  # Install developer packages described in chromeos-dev.
+  sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
+      --root="$root_dev_dir" --root-deps=rdeps \
+      --usepkgonly chromeos-dev $EMERGE_JOBS
+
+  # Re-run ldconfig to fix /etc/ldconfig.so.cache.
+  sudo /sbin/ldconfig -r "$root_fs_dir"
+
+  # Mark the image as a developer image (input to chromeos_startup).
+  sudo mkdir -p "$root_fs_dir/root"
+  sudo touch "$root_fs_dir/root/.dev_mode"
+
+  # Additional changes to developer image.
+
+  # The ldd tool is a useful shell script but lives in glibc; just copy it.
+  sudo cp -a "$(which ldd)" "${root_dev_dir}/usr/bin"
+
+  # If vim is installed, then a vi symlink would probably help.
+  if [[ -x "${ROOT_FS_DIR}/usr/local/bin/vim" ]]; then
+    sudo ln -sf vim "${ROOT_FS_DIR}/usr/local/bin/vi"
+  fi
+
+  # Check that the image has been correctly created.
+  "${SCRIPTS_DIR}/test_image" \
+    --root="$root_fs_dir" \
+    --target="$ARCH"
+
+  trap - EXIT
+  $SCRIPTS_DIR/mount_gpt_image.sh -u -r "$root_fs_dir" -s "$stateful_dir"
+  echo "Developer image built and stored at $output_img"
 }
 
 # ${DEV_IMAGE_ROOT} specifies the location of where developer packages will
@@ -302,24 +373,6 @@ sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
   --root="$ROOT_FS_DIR" --root-deps=rdeps \
   --usepkgonly chromeos $EMERGE_JOBS
 
-# Determine the root dir for development packages.
-ROOT_DEV_DIR="$ROOT_FS_DIR"
-[ $FLAGS_statefuldev -eq $FLAGS_TRUE ] && ROOT_DEV_DIR="$ROOT_FS_DIR/usr/local"
-
-# Install development packages.
-if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ; then
-  sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
-      --root="$ROOT_DEV_DIR" --root-deps=rdeps \
-      --usepkgonly chromeos-dev $EMERGE_JOBS
-
-  # TODO(sosa@chromium.org) - Re-hide under statefuldev after switch
-  # Flag will mount /usr/local on target device
-  sudo mkdir -p "$ROOT_FS_DIR/root"
-
-  # The ldd tool is a useful shell script but lives in glibc; just copy it.
-  sudo cp -a "$(which ldd)" "${ROOT_DEV_DIR}/usr/bin"
-fi
-
 # Extract the kernel from the root filesystem for use by the GPT image. Legacy
 # BIOS will use the kernel in the rootfs (via syslinux), Chrome OS BIOS will
 # use the kernel partition.
@@ -361,15 +414,6 @@ menuentry "local image B" {
 
 EOF
 
-# By default, dev mode should be activated for either development builds or
-# test builds.
-if [[ $FLAGS_withdev -eq $FLAGS_TRUE ]] ; then
-  sudo touch "$ROOT_FS_DIR/root/.dev_mode"
-
-  # Re-run ldconfig to fix /etc/ldconfig.so.cache.
-  sudo /sbin/ldconfig -r "$ROOT_FS_DIR"
-fi
-
 # Perform any customizations on the root file system that are needed.
 "${SCRIPTS_DIR}/customize_rootfs" \
   --root="$ROOT_FS_DIR" \
@@ -408,11 +452,18 @@ rm -f "${ROOT_FS_IMG}" "${STATEFUL_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \
 rmdir "${ROOT_FS_DIR}" "${STATEFUL_DIR}" "${ESP_DIR}"
 
 OUTSIDE_OUTPUT_DIR="../build/images/${FLAGS_board}/${IMAGE_SUBDIR}"
+
+# Create a developer image based on the chromium os base image
+[ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ] && create_developer_image
+trap - EXIT
+
 echo "Done.  Image created in ${OUTPUT_DIR}"
+echo "Chromium OS image created as $PRISTINE_IMAGE_NAME"
+if [ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ]; then
+  echo "Developer image created as $DEVELOPER_IMAGE_NAME"
+fi
 echo "To copy to USB keyfob, OUTSIDE the chroot, do something like:"
 echo "  ./image_to_usb.sh --from=${OUTSIDE_OUTPUT_DIR} --to=/dev/sdX"
 echo "To convert to VMWare image, OUTSIDE the chroot, do something like:"
 echo "  ./image_to_vmware.sh --from=${OUTSIDE_OUTPUT_DIR}"
 echo "from the scripts directory where you entered the chroot."
-
-trap - EXIT

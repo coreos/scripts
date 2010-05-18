@@ -41,12 +41,10 @@ function unmount_image() {
       "and ${FLAGS_rootfs_mountpt}"
   # Don't die on error to force cleanup
   set +e
-  if [ -e "${FLAGS_rootfs_mountpt}/root/.dev_mode" ] ; then
-    # Reset symlinks in /usr/local.
-    setup_symlinks_on_root "/usr/local" "/var" \
-      "${FLAGS_stateful_mountpt}"
-    sudo umount "${FLAGS_rootfs_mountpt}/usr/local"
-  fi
+  # Reset symlinks in /usr/local.
+  setup_symlinks_on_root "/usr/local" "/var" \
+    "${FLAGS_stateful_mountpt}"
+  sudo umount "${FLAGS_rootfs_mountpt}/usr/local"
   sudo umount "${FLAGS_rootfs_mountpt}/var"
   sudo umount -d "${FLAGS_stateful_mountpt}"
   sudo umount -d "${FLAGS_rootfs_mountpt}"
@@ -84,16 +82,14 @@ function mount_image() {
     get_gpt_partitions
   fi
 
-  # Mount var unconditionally and then setup /usr/local for user of dev mode.
+  # Mount directories and setup symlinks.
   sudo mount --bind "${FLAGS_stateful_mountpt}/var" \
     "${FLAGS_rootfs_mountpt}/var"
-  if [ -e "${FLAGS_rootfs_mountpt}/root/.dev_mode" ] ; then
-    sudo mount --bind "${FLAGS_stateful_mountpt}/dev_image" \
-      "${FLAGS_rootfs_mountpt}/usr/local"
-    # Setup symlinks in /usr/local so you can emerge packages into /usr/local.
-    setup_symlinks_on_root "${FLAGS_stateful_mountpt}/dev_image" \
-      "${FLAGS_stateful_mountpt}/var" "${FLAGS_stateful_mountpt}"
-  fi
+  sudo mount --bind "${FLAGS_stateful_mountpt}/dev_image" \
+    "${FLAGS_rootfs_mountpt}/usr/local"
+  # Setup symlinks in /usr/local so you can emerge packages into /usr/local.
+  setup_symlinks_on_root "${FLAGS_stateful_mountpt}/dev_image" \
+    "${FLAGS_stateful_mountpt}/var" "${FLAGS_stateful_mountpt}"
   echo "Image specified by ${FLAGS_from} mounted at"\
     "${FLAGS_rootfs_mountpt} successfully."
 }
