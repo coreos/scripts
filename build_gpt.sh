@@ -23,6 +23,8 @@ DEFINE_string board "$DEFAULT_BOARD" \
   "The board to build an image for."
 DEFINE_string arm_extra_bootargs "" \
   "Additional command line options to pass to the ARM kernel."
+DEFINE_boolean recovery $FLAGS_FALSE \
+  "Build GPT for a recovery image. Default: False."
 
 # Usage.
 FLAGS_HELP=$(cat <<EOF
@@ -77,6 +79,8 @@ set -e
 set -u
 
 # Check for missing parts.
+# For recovery image, only populate ROOT-A and KERN-A
+# TODO(tgao): write a script to populate ROOT-B and KERN-B
 ROOTFS_IMG="${IMAGEDIR}/rootfs.image"
 if [[ ! -s ${ROOTFS_IMG} ]]; then
   error "Can't find ${ROOTFS_IMG}"
@@ -90,13 +94,13 @@ if [[ ! -s ${KERNEL_IMG} ]]; then
 fi
 
 STATEFUL_IMG="${IMAGEDIR}/stateful_partition.image"
-if [[ ! -s ${STATEFUL_IMG} ]]; then
+if [ ! -s ${STATEFUL_IMG} ] && [ ${FLAGS_recovery} -eq $FLAGS_FALSE ]; then
   error "Can't find ${STATEFUL_IMG}"
   exit 1
 fi
 
 ESP_IMG="${IMAGEDIR}/esp.image"
-if [[ ! -s ${ESP_IMG} ]]; then
+if [ ! -s ${ESP_IMG} ] && [ ${FLAGS_recovery} -eq $FLAGS_FALSE ]; then
   error "Can't find ${ESP_IMG}"
   exit 1
 fi
@@ -111,7 +115,8 @@ fi
 
 # Create the GPT. This has the side-effect of setting some global vars
 # describing the partition table entries (see the comments in the source).
-install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG $PMBRCODE $ESP_IMG
+install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG $PMBRCODE $ESP_IMG \
+    false $FLAGS_recovery
 
 if [[ "$ARCH" = "arm" ]]; then
   # assume /dev/mmcblk1. we could not get this from ${OUTDEV}

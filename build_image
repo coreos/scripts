@@ -44,6 +44,8 @@ DEFINE_boolean factory_install $FLAGS_FALSE \
 is also required in image_to_usb."
 DEFINE_string arm_extra_bootargs "" \
   "Additional command line options to pass to the ARM kernel."
+DEFINE_boolean recovery $FLAGS_FALSE \
+  "Build a recovery image. Default: False."
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -442,11 +444,17 @@ cleanup
 
 trap delete_prompt EXIT
 
+RECOVERY="--norecovery"
+if [[ ${FLAGS_recovery} -eq $FLAGS_TRUE ]]; then
+  RECOVERY="--recovery"
+fi
+
 # Create the GPT-formatted image
 ${SCRIPTS_DIR}/build_gpt.sh \
   --arch=${ARCH} \
   --board=${FLAGS_board} \
   --arm_extra_bootargs="${FLAGS_arm_extra_bootargs}" \
+  ${RECOVERY} \
   "${OUTPUT_DIR}" \
   "${OUTPUT_IMG}"
 
