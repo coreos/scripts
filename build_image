@@ -224,10 +224,14 @@ create_developer_image() {
     sudo ln -sf vim "${ROOT_FS_DIR}/usr/local/bin/vi"
   fi
 
-  # Check that the image has been correctly created.
-  "${SCRIPTS_DIR}/test_image" \
-    --root="$root_fs_dir" \
-    --target="$ARCH"
+  # Check that the image has been correctly created.  Only do it if not
+  # building a factory install image, as the INSTALL_MASK for it will
+  # make test_image fail.
+  if [[ $FLAGS_factory_install -eq ${FLAGS_FALSE} ]] ; then
+    "${SCRIPTS_DIR}/test_image" \
+      --root="$root_fs_dir" \
+      --target="$ARCH"
+  fi
 
   trap - EXIT
   $SCRIPTS_DIR/mount_gpt_image.sh -u -r "$root_fs_dir" -s "$stateful_dir"
@@ -255,7 +259,7 @@ fi
 # Create root file system disk image to fit on a 1GB memory stick.
 # 1 GB in hard-drive-manufacturer-speak is 10^9, not 2^30.  950MB < 10^9 bytes.
 if [[ $FLAGS_factory_install -eq ${FLAGS_TRUE} ]] ; then
-  ROOT_SIZE_BYTES=$((1024 * 1024 * 180))
+  ROOT_SIZE_BYTES=$((1024 * 1024 * 300))
 else
   ROOT_SIZE_BYTES=$((1024 * 1024 * 720))
 fi
