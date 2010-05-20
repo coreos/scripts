@@ -26,8 +26,6 @@ DEFINE_boolean factory_install ${FLAGS_FALSE} \
   "Whether to generate a factory install shim."
 DEFINE_boolean factory ${FLAGS_FALSE} \
   "Whether to generate a factory runin image. Implies aututest and test"
-DEFINE_boolean install_autotest ${FLAGS_FALSE} \
-  "Whether to install autotest to the stateful partition."
 DEFINE_boolean copy_kernel ${FLAGS_FALSE} \
   "Copy the kernel to the fourth partition."
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
@@ -48,8 +46,7 @@ fi
 
 # Require autotest for manucaturing image.
 if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
-  echo "Factory image requires --install_autotest and --test_image, setting."
-  FLAGS_install_autotest=${FLAGS_TRUE}
+  echo "Factory image requires --test_image, setting."
   FLAGS_test_image=${FLAGS_TRUE}
 fi
 
@@ -59,19 +56,6 @@ if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
   FLAGS_test_image=${FLAGS_TRUE}
 fi
 
-
-# Inside the chroot, so output to usb.img in the same dir as the other
-# Script can be run either inside or outside the chroot.
-if [ ${INSIDE_CHROOT} -eq 1 ]
-then
-  SYSROOT="${FLAGS_build_root}/${FLAGS_board}"
-else
-  SYSROOT="${DEFAULT_CHROOT_DIR}${FLAGS_build_root}/${FLAGS_board}"
-  echo "Caching sudo authentication"
-  sudo -v
-  echo "Done"
-fi
-AUTOTEST_SRC="${SYSROOT}/usr/local/autotest"
 
 # Die on any errors.
 set -e
@@ -118,50 +102,6 @@ function do_cleanup {
     echo "Cleaned"
   fi
 }
-
-if [ ${FLAGS_install_autotest} -eq ${FLAGS_TRUE} ] ; then
-  echo "Detecting autotest at ${AUTOTEST_SRC}"
-  if [ -d ${AUTOTEST_SRC} ]
-  then
-    # Figure out how to loop mount the stateful partition. It's always
-    # partition 1 on the disk image.
-    offset=$(partoffset "${SRC_IMAGE}" 1)
-
-    stateful_loop_dev=$(sudo losetup -f)
-    if [ -z "${stateful_loop_dev}" ]
-    then
-      echo "No free loop device. Free up a loop device or reboot. exiting."
-      exit 1
-    fi
-    STATEFUL_LOOP_DEV=$stateful_loop_dev
-    trap do_cleanup INT TERM EXIT
-
-    echo "Mounting ${STATEFUL_DIR} loopback"
-    sudo losetup -o $(( $offset * 512 )) "${stateful_loop_dev}" "${SRC_IMAGE}"
-    sudo mount "${stateful_loop_dev}" "${STATEFUL_DIR}"
-    stateful_root="${STATEFUL_DIR}/dev_image"
-
-    echo "Install autotest into stateful partition..."
-    autotest_client="/home/autotest-client"
-    sudo mkdir -p "${stateful_root}${autotest_client}"
-    sudo ln -sf /mnt/stateful_partition/dev_image${autotest_client} \
-      ${stateful_root}/autotest
-
-    sudo cp -fpru ${AUTOTEST_SRC}/client/* \
-      "${stateful_root}/${autotest_client}"
-    sudo chmod 755 "${stateful_root}/${autotest_client}"
-    sudo chown -R 1000:1000 "${stateful_root}/${autotest_client}"
-
-    sudo umount ${STATEFUL_DIR}
-    sudo losetup -d "${stateful_loop_dev}"
-    trap - INT TERM EXIT
-    rmdir "${STATEFUL_DIR}"
-  else
-    echo "/usr/local/autotest under ${DEFAULT_CHROOT_DIR} is not installed."
-    echo "Please call build_autotest.sh inside chroot first."
-    exit -1
-  fi
-fi
 
 
 # If we're asked to modify the image for test, then let's make a copy and

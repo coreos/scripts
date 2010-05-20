@@ -7,6 +7,7 @@
 echo "Applying patch to init scripts."
 pushd ${ROOT_FS_DIR}
 
+touch ${ROOT_FS_DIR}/root/.factory_test
 patch -d ${ROOT_FS_DIR} -Np1 <<EOF
 --- old/etc/init/ui.conf	2010-04-28 21:28:38.886069000 -0700
 +++ new/etc/init/ui.conf	2010-04-28 21:29:42.676163000 -0700
@@ -72,32 +73,6 @@ respawn
 script
 tail -n 48 -F /var/log/factory.log > /dev/tty1
 end script
-EOF
-
-patch -d ${ROOT_FS_DIR} -Np1 <<EOF
-diff -Naur old/sbin/chromeos_startup new/sbin/chromeos_startup
---- old/sbin/chromeos_startup	2010-04-05 21:33:52.000000000 -0700
-+++ new/sbin/chromeos_startup	2010-04-05 21:38:02.000000000 -0700
-@@ -20,18 +20,12 @@
- 
- # Moblin trick: Disable blinking cursor. Without this a splash screen
- # will show a distinct cursor shape even when the cursor is set to none.
--echo 0 > /sys/devices/virtual/graphics/fbcon/cursor_blink
-+# echo 0 > /sys/devices/virtual/graphics/fbcon/cursor_blink
- 
- # Since we defer udev until later in the boot process, we pre-populate /dev
- # with the set of devices needed for X and other early services to run.
- cp -a -f /lib/chromiumos/devices/* /dev
- 
--# Splash screen!
--if [ -x /usr/bin/ply-image ]
--then
--  /usr/bin/ply-image /usr/share/chromeos-assets/images/login_splash.png &
--fi
--
- mount -n -t tmpfs tmp /tmp
- mount -n -t tmpfs -onosuid,nodev shmfs /dev/shm
- mount -n -t devpts -onoexec,nosuid,gid=5,mode=0620 devpts /dev/pts
 EOF
 
 popd

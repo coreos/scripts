@@ -20,17 +20,20 @@ get_default_board
 
 DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built" b
 DEFINE_boolean factory $FLAGS_FALSE \
-  "Modify the image for manufacturing testing" f
+    "Modify the image for manufacturing testing" f
 DEFINE_boolean factory_install $FLAGS_FALSE \
     "Modify the image for factory install shim"
 DEFINE_string image "" "Location of the rootfs raw image file" i
 DEFINE_boolean installmask $FLAGS_TRUE \
-  "Use INSTALL_MASK to shrink the resulting image." m
+    "Use INSTALL_MASK to shrink the resulting image." m
 DEFINE_integer jobs -1 \
-  "How many packages to build in parallel at maximum." j
+    "How many packages to build in parallel at maximum." j
 DEFINE_string qualdb "/tmp/run_remote_tests.*" \
     "Location of qualified component file" d
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" y
+DEFINE_string build_root "/build" \
+    "The root location for board sysroots."
+
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -91,6 +94,35 @@ emerge_chromeos_test() {
     --usepkgonly chromeos-test $EMERGE_JOBS
 }
 
+
+install_autotest() {
+    SYSROOT="${FLAGS_build_root}/${FLAGS_board}"
+    AUTOTEST_SRC="${SYSROOT}/usr/local/autotest"
+    stateful_root="${ROOT_FS_DIR}/usr/local"
+    autotest_client="/autotest"
+
+    echo "Install autotest into stateful partition from $AUTOTEST_SRC"
+
+    sudo mkdir -p "${stateful_root}${autotest_client}"
+    sudo mkdir -p "/tmp/autotest"
+    sudo rm -rf /tmp/autotest/*
+
+    sudo cp -fpru ${AUTOTEST_SRC}/client/* \
+      "/tmp/autotest"
+    # Remove outrageously large tests.
+    # TODO(nsanders): is there a better way to do this?
+    sudo rm -rf /tmp/autotest/deps/realtimecomm_playground
+    sudo rm -rf /tmp/autotest/tests/ltp
+    sudo rm -rf /tmp/autotest/site_tests/graphics_O3DSelenium
+    sudo rm -rf /tmp/autotest/realtimecomm_GTalk*
+    sudo rm -rf /tmp/autotest/site_tests/platform_StackProtector
+
+    sudo cp -fpru /tmp/autotest/* \
+      "${stateful_root}/${autotest_client}"
+    sudo chmod 755 "${stateful_root}/${autotest_client}"
+    sudo chown -R 1000:1000 "${stateful_root}/${autotest_client}"
+}
+
 # main process begins here.
 
 # Make sure this is really what the user wants, before nuking the device
@@ -125,7 +157,7 @@ if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
 
   # Run factory setup script to modify the image.
   sudo emerge-${FLAGS_board} --root=$ROOT_FS_DIR --usepkgonly \
-      --root-deps=rdeps chromeos-factoryinstall
+      --root-deps=rdeps --nodeps chromeos-factoryinstall
 
   # Set factory server if necessary.
   if [ "${FACTORY_SERVER}" != "" ]; then
@@ -143,12 +175,21 @@ else
       "${MOD_TEST_ROOT}/test_setup.sh"
 
   if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+    install_autotest
+
     MOD_FACTORY_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts"
     # Run factory setup script to modify the image
     sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-        STATEFUL_DIR="${STATEFUL_DIR}/dev_image" QUALDB="${FLAGS_qualdb}" \
+        QUALDB="${FLAGS_qualdb}" \
         "${MOD_FACTORY_ROOT}/factory_setup.sh"
   fi
+fi
+
+# Let's have a look at the image just in case..
+if [ "${VERIFY}" = "true" ]; then
+  pushd "${ROOT_FS_DIR}"
+  bash
+  popd
 fi
 
 cleanup

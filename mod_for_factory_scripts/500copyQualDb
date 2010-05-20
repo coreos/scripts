@@ -11,7 +11,7 @@
 # QUALDB can be a full path of the file, or a specified directory
 # /tmp/run_remote_tests.XXXX, or a default wildcard one /tmp/run_remote_tests.*.
 
-COMPONENTS_FILE="${STATEFUL_DIR}/usr/local/autotest/site_tests/"\
+COMPONENTS_FILE="${ROOT_FS_DIR}/usr/local/autotest/site_tests/"\
 "hardware_Components/qualified_components"
 
 # If QUALDB is a default wildcard directory, try to use the most recent one.
