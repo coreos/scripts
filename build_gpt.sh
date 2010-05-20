@@ -80,7 +80,6 @@ set -u
 
 # Check for missing parts.
 # For recovery image, only populate ROOT-A and KERN-A
-# TODO(tgao): write a script to populate ROOT-B and KERN-B
 ROOTFS_IMG="${IMAGEDIR}/rootfs.image"
 if [[ ! -s ${ROOTFS_IMG} ]]; then
   error "Can't find ${ROOTFS_IMG}"
@@ -148,7 +147,21 @@ echo "Copying kernel..."
 $sudo dd if=${KERNEL_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_KERN_A}
 
 echo "Copying rootfs..."
-$sudo dd if=${ROOTFS_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_ROOTFS_A}
+$sudo dd if=${ROOTFS_IMG} of=${OUTDEV} conv=notrunc bs=512 \
+    seek=${START_ROOTFS_A}
+
+# TODO(tgao): write a script to populate ROOT-B and KERN-B with user-specified
+# rootfs and kernel. Do NOT remove if block below until then (otherwise
+# chromeos-installer will fail b/c it expects to install from partition B)
+if [ ${FLAGS_recovery} -eq $FLAGS_TRUE ]; then
+  echo "Copying kernel B..."
+  $sudo dd if=${KERNEL_IMG} of=${OUTDEV} conv=notrunc bs=512 \
+      seek=${START_KERN_B}
+
+  echo "Copying rootfs B..."
+  $sudo dd if=${ROOTFS_IMG} of=${OUTDEV} conv=notrunc bs=512 \
+      seek=${START_ROOTFS_B}
+fi
 
 echo "Copying EFI system partition..."
 $sudo dd if=${ESP_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_ESP}
