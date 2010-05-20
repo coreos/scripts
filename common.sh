@@ -369,6 +369,26 @@ function safe_umount {
   fi
 }
 
+# Fixes symlinks that are incorrectly prefixed with the build root ${1}
+# rather than the real running root '/'.
+# TODO(sosa) - Merge setup - cleanup below with this method.
+fix_broken_symlinks() {
+  local build_root="${1}"
+  local symlinks=$(find "${build_root}/usr/local" -lname "${build_root}/*")
+  for symlink in ${symlinks}; do
+    echo "Fixing ${symlink}"
+    local target=$(ls -l "${symlink}" | cut -f 2 -d '>')
+    # Trim spaces from target (bashism).
+    target=${target/ /}
+    # Make new target (removes rootfs prefix).
+    new_target=$(echo ${target} | sed "s#${build_root}##")
+
+    echo "Fixing symlink ${symlink}"
+    sudo unlink "${symlink}"
+    sudo ln -sf "${new_target}" "${symlink}"
+  done
+}
+
 # Sets up symlinks for the developer root. It is necessary to symlink
 # usr and local since the developer root is mounted at /usr/local and
 # applications expect to be installed under /usr/local/bin, etc.

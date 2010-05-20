@@ -44,6 +44,7 @@ function unmount_image() {
   # Reset symlinks in /usr/local.
   setup_symlinks_on_root "/usr/local" "/var" \
     "${FLAGS_stateful_mountpt}"
+  fix_broken_symlinks "${FLAGS_rootfs_mountpt}"
   sudo umount "${FLAGS_rootfs_mountpt}/usr/local"
   sudo umount "${FLAGS_rootfs_mountpt}/var"
   sudo umount -d "${FLAGS_stateful_mountpt}"

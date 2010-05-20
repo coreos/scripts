@@ -106,10 +106,8 @@ if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]
 then
   echo "Modifying image for test"
   SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
-  cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_image_bkup.bin"
   ./enter_chroot.sh -- ./mod_image_for_test.sh --board $FLAGS_board --yes
   mv "$SRC_IMAGE" "${FLAGS_from}/chromiumos_test_image.bin"
-  mv "${FLAGS_from}/chromiumos_image_bkup.bin" "$SRC_IMAGE"
   cd "${FLAGS_chroot}/build/${FLAGS_board}/usr/local"
   echo "Archiving autotest build artifacts"
   tar cjf "${FLAGS_from}/autotest.tar.bz2" autotest

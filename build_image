@@ -237,6 +237,7 @@ create_developer_image() {
 
   trap - EXIT
   $SCRIPTS_DIR/mount_gpt_image.sh -u -r "$root_fs_dir" -s "$stateful_dir"
+  sudo rm -rf "$root_fs_dir" "$stateful_dir"
   echo "Developer image built and stored at $output_img"
 }
 

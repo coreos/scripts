@@ -30,6 +30,8 @@ DEFINE_boolean copy_kernel ${FLAGS_FALSE} \
   "Copy the kernel to the fourth partition."
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
   "Copies normal image to chromiumos_test_image.bin, modifies it for test."
+DEFINE_string image_name "chromiumos_image.bin" \
+  "Base name of the image" i
 DEFINE_string build_root "/build" \
   "The root location for board sysroots."
 
@@ -88,7 +90,7 @@ FLAGS_from=`eval readlink -f ${FLAGS_from}`
 FLAGS_to=`eval readlink -f ${FLAGS_to}`
 
 # Use this image as the source image to copy
-SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
+SRC_IMAGE="${FLAGS_from}/${FLAGS_image_name}"
 
 STATEFUL_DIR="${FLAGS_from}/stateful_partition"
 mkdir -p "${STATEFUL_DIR}"
