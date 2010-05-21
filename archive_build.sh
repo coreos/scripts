@@ -149,8 +149,10 @@ then
       "--factory_install"
 fi
 
-# Remove the developer build.
-rm -f ${SRC_IMAGE}
+# Remove the developer build if test image is also built.
+if [ $FLAGS_test_mod -eq $FLAGS_TRUE ] ; then
+  rm -f ${SRC_IMAGE}
+fi
 
 # Zip the build
 echo "Compressing and archiving build..."
