@@ -21,18 +21,22 @@ DEFAULT_FROM="${IMAGES_DIR}/$DEFAULT_BOARD/$(ls -t1 \
 
 # Flags
 DEFINE_string board "$DEFAULT_BOARD" \
-  "The board to build packages for."
+    "The board to build packages for."
 DEFINE_string chroot "$DEFAULT_CHROOT_DIR" \
-  "The chroot of the build to archive."
+    "The chroot of the build to archive."
 DEFINE_string from "$DEFAULT_FROM" \
-  "Directory to archive"
+    "Directory to archive"
 DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
 DEFINE_integer keep_max 0 "Maximum builds to keep in archive (0=all)"
 DEFINE_string zipname "image.zip" "Name of zip file to create."
 DEFINE_boolean official_build $FLAGS_FALSE "Set CHROMEOS_OFFICIAL=1 for release builds."
 DEFINE_string build_number "" \
-  "The build-bot build number (when called by buildbot only)." "b"
+    "The build-bot build number (when called by buildbot only)." "b"
 DEFINE_boolean test_mod $FLAGS_TRUE "Modify image for testing purposes"
+DEFINE_boolean factory_test_mod $FLAGS_FALSE \
+    "Modify image for factory testing purposes"
+DEFINE_boolean factory_install_mod $FLAGS_FALSE \
+    "Modify image for factory install purposes"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -95,28 +99,71 @@ echo "archive from: $FLAGS_from"
 # Create the output directory
 OUTDIR="${FLAGS_to}/${LAST_CHANGE}"
 ZIPFILE="${OUTDIR}/${FLAGS_zipname}"
+FACTORY_ZIPFILE="${OUTDIR}/factory_${FLAGS_zipname}"
 echo "archive to dir: $OUTDIR"
 echo "archive to file: $ZIPFILE"
 
 rm -rf "$OUTDIR"
 mkdir -p "$OUTDIR"
 
+
+SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
+BACKUP_IMAGE="${FLAGS_from}/chromiumos_image_bkup.bin"
+
+# Apply mod_image_for_test to the developer image, and store the
+# result in a new location. Usage:
+# do_chroot_mod "$OUTPUT_IMAGE" "--flags_to_mod_image_for_test"
+function do_chroot_mod() {
+  MOD_ARGS=$2
+  OUTPUT_IMAGE=$1
+  cp -f "${SRC_IMAGE}" "${BACKUP_IMAGE}"
+  ./enter_chroot.sh -- ./mod_image_for_test.sh --board $FLAGS_board \
+      --yes ${MOD_ARGS}
+  mv "${SRC_IMAGE}" "${OUTPUT_IMAGE}"
+  mv "${BACKUP_IMAGE}" "${SRC_IMAGE}"
+}
+
 # Modify image for test if flag set.
 if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]
 then
   echo "Modifying image for test"
-  SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
-  ./enter_chroot.sh -- ./mod_image_for_test.sh --board $FLAGS_board --yes
-  mv "$SRC_IMAGE" "${FLAGS_from}/chromiumos_test_image.bin"
-  cd "${FLAGS_chroot}/build/${FLAGS_board}/usr/local"
+  do_chroot_mod "${FLAGS_from}/chromiumos_test_image.bin" ""
+
+  pushd "${FLAGS_chroot}/build/${FLAGS_board}/usr/local"
   echo "Archiving autotest build artifacts"
   tar cjf "${FLAGS_from}/autotest.tar.bz2" autotest
+  popd
 fi
+
+if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ]
+then
+  echo "Modifying image for factory test"
+  do_chroot_mod "${FLAGS_from}/chromiumos_factory_image.bin" \
+      "--factory"
+fi
+
+if [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]
+then
+  echo "Modifying image for factory install"
+  do_chroot_mod "${FLAGS_from}/chromiumos_factory_install_image.bin" \
+      "--factory_install"
+fi
+
+# Remove the developer build.
+rm -f ${SRC_IMAGE}
 
 # Zip the build
 echo "Compressing and archiving build..."
 cd "$FLAGS_from"
-zip -r "$ZIPFILE" *
+MANIFEST=`ls | grep -v factory`
+zip -r "${ZIPFILE}" ${MANIFEST}
+
+if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
+   [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]
+then
+  FACTORY_MANIFEST=`ls | grep factory`
+  zip -r "${FACTORY_ZIPFILE}" ${FACTORY_MANIFEST}
+fi
 cd -
 
 # Update LATEST file
