@@ -207,7 +207,7 @@ create_developer_image() {
   # Install developer packages described in chromeos-dev.
   sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
       --root="$root_dev_dir" --root-deps=rdeps \
-      --usepkgonly chromeos-dev $EMERGE_JOBS
+      --getbinpkg --usepkg chromeos-dev $EMERGE_JOBS
 
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
   sudo /sbin/ldconfig -r "$root_fs_dir"
@@ -378,7 +378,7 @@ sudo mount --bind "${STATEFUL_DIR}/var" "${ROOT_FS_DIR}/var"
 # image size as much as possible.
 sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
   --root="$ROOT_FS_DIR" --root-deps=rdeps \
-  --usepkgonly chromeos $EMERGE_JOBS
+  --getbinpkg --usepkg chromeos $EMERGE_JOBS
 
 # Extract the kernel from the root filesystem for use by the GPT image. Legacy
 # BIOS will use the kernel in the rootfs (via syslinux), Chrome OS BIOS will
