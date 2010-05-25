@@ -24,6 +24,8 @@ DEFINE_string build_number "" \
   "The build-bot build number (when called by buildbot only)." "b"
 DEFINE_string chrome_root "" \
   "The root of your chrome browser source. Should contain a 'src' subdir."
+DEFINE_string chrome_root_mount "/home/$USER/chrome_root" \
+  "The mount point of the chrome broswer source in the chroot."
 
 DEFINE_boolean official_build $FLAGS_FALSE \
   "Set CHROMEOS_OFFICIAL=1 for release builds."
@@ -62,7 +64,7 @@ fi
 # TODO: replace shflags with something less error-prone, or contribute a fix.
 set -e
 
-INNER_CHROME_ROOT="/home/$USER/chrome_root"  # inside chroot
+INNER_CHROME_ROOT=$FLAGS_chrome_root_mount  # inside chroot
 CHROME_ROOT_CONFIG="/var/cache/chrome_root"  # inside chroot
 INNER_DEPOT_TOOLS_ROOT="/home/$USER/depot_tools"  # inside chroot
 FUSE_DEVICE="/dev/fuse"
