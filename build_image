@@ -221,9 +221,16 @@ create_developer_image() {
   # The ldd tool is a useful shell script but lives in glibc; just copy it.
   sudo cp -a "$(which ldd)" "${root_dev_dir}/usr/bin"
 
+  # TODO: Temporarily create fake xterm symlink until we do proper xinitrc
+  local aterm="$root_fs_dir/usr/local/bin/aterm"
+  if [[ -f "${aterm}" ]]; then
+    sudo chmod 0755 "$aterm"
+    sudo ln -s aterm "${root_fs_dir}/usr/local/bin/xterm"
+  fi
+
   # If vim is installed, then a vi symlink would probably help.
-  if [[ -x "${ROOT_FS_DIR}/usr/local/bin/vim" ]]; then
-    sudo ln -sf vim "${ROOT_FS_DIR}/usr/local/bin/vi"
+  if [[ -x "${root_fs_dir}/usr/local/bin/vim" ]]; then
+    sudo ln -sf vim "${root_fs_dir}/usr/local/bin/vi"
   fi
 
   # Check that the image has been correctly created.  Only do it if not
