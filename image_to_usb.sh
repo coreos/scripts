@@ -22,6 +22,8 @@ DEFINE_string from "" \
 DEFINE_string to "" "${DEFAULT_TO_HELP}"
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts" "y"
 DEFINE_boolean force_copy ${FLAGS_FALSE} "Always rebuild test image"
+DEFINE_boolean force_non_usb ${FLAGS_FALSE} \
+  "Write out image even if target (--to) doesn't look like a USB disk"
 DEFINE_boolean factory_install ${FLAGS_FALSE} \
   "Whether to generate a factory install shim."
 DEFINE_boolean factory ${FLAGS_FALSE} \
@@ -81,6 +83,15 @@ fi
 
 if [ -z "${FLAGS_to}" ]; then
   echo "You must specify a file or device to write to using --to."
+  disks=$(list_usb_disks)
+  if [ -n "$disks" ]; then
+    echo "Available USB disks:"
+    for disk in $disks; do
+      echo "  /dev/$disk:"
+      echo "    Manufacturer: $(get_disk_info $disk manufacturer)"
+      echo "         Product: $(get_disk_info $disk product)"
+    done
+  fi
   exit 1
 fi
 
@@ -88,6 +99,17 @@ fi
 # chars like ~ are processed; just doing FOO=`readlink -f ${FOO}` won't work.
 FLAGS_from=`eval readlink -f ${FLAGS_from}`
 FLAGS_to=`eval readlink -f ${FLAGS_to}`
+
+# One last check to make sure user is not shooting themselves in the foot
+if [ -b "${FLAGS_to}" ] &&
+  ! list_usb_disks | grep -q '^'${FLAGS_to##*/}'$' &&
+  [ ${FLAGS_force_non_usb} -ne ${FLAGS_TRUE} ]
+then
+  # Safeguard against writing to a real non-USB disk
+  echo "Error: Device ${FLAGS_to} does not appear to be a USB disk!"
+  echo "       To override this safeguard, use the --force_non_usb flag"
+  exit 1
+fi
 
 # Use this image as the source image to copy
 SRC_IMAGE="${FLAGS_from}/${FLAGS_image_name}"
