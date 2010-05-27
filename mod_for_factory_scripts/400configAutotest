@@ -13,6 +13,13 @@ if [ -f "${GLOBAL_CONFIG}" ]; then
   exit 1
 fi
 
+AUTOTEST_DIR="${ROOT_FS_DIR}/usr/local/autotest/"
+
+chmod +x factory_ui
+cp "factory_ui" "${AUTOTEST_DIR}"
+chmod +x factory_startx.sh
+cp "factory_startx.sh" "${AUTOTEST_DIR}"
+
 cat > "${GLOBAL_CONFIG}" <<EOF
 [CLIENT]
 drop_caches: False

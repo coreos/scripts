@@ -5,7 +5,6 @@
 # found in the LICENSE file.
 
 echo "Applying patch to init scripts."
-pushd ${ROOT_FS_DIR}
 
 touch ${ROOT_FS_DIR}/root/.factory_test
 patch -d ${ROOT_FS_DIR} -Np1 <<EOF
@@ -46,14 +45,15 @@ description   "Chrome OS factory startup stub"
 author        "chromium-os-dev@googlegroups.com"
 
 start on started udev
+stop on starting halt or starting reboot
 
 script
-
 cd /usr/local/autotest
+eval \$(./factory_startx.sh)
 date >> /var/log/factory.log
 if [ ! -e factory_started ]; then
   touch factory_started
-  cp -f site_tests/suite_Factory/control.full control
+  cp -f site_tests/suite_Factory/control.ui control
   ./bin/autotest control >> /var/log/factory.log 2>&1
 else
   ./tools/autotest >> /var/log/factory.log 2>&1
@@ -71,8 +71,21 @@ stop on starting halt or starting reboot
 
 respawn
 script
-tail -n 48 -F /var/log/factory.log > /dev/tty1
+tail -n 48 -F /var/log/factory.log > /dev/tty3
 end script
 EOF
 
-popd
+patch -d ${ROOT_FS_DIR} -Np1 <<EOF
+diff --git old/etc/init/software-update.conf new/etc/init/software-update.conf
+index 28c9086..9ebf2b9 100644
+--- old/etc/init/software-update.conf
++++ new/etc/init/software-update.conf
+@@ -7,7 +7,7 @@
+ #
+ # when dump-boot-stats has run, start up software update check.
+ 
+-start on stopped dump-boot-stats
++start on never
+ 
+ respawn
+EOF
