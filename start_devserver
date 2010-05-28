@@ -10,7 +10,7 @@ COMMON_SH="$(dirname "$0")/common.sh"
 . "$COMMON_SH"
 
 # Script must be run inside the chroot if not in 'always serve' mode.
-if [[ "$1" != "-a" ]]
+if [[ "$1" != "--archive_dir" ]]
 then
   restart_in_chroot_if_needed $*
 fi
