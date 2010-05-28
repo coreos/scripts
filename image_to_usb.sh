@@ -90,6 +90,7 @@ if [ -z "${FLAGS_to}" ]; then
       echo "  /dev/$disk:"
       echo "    Manufacturer: $(get_disk_info $disk manufacturer)"
       echo "         Product: $(get_disk_info $disk product)"
+      echo "            Size: $(cat /sys/block/$disk/size) kBytes"
     done
   fi
   exit 1
@@ -101,14 +102,16 @@ FLAGS_from=`eval readlink -f ${FLAGS_from}`
 FLAGS_to=`eval readlink -f ${FLAGS_to}`
 
 # One last check to make sure user is not shooting themselves in the foot
-if [ -b "${FLAGS_to}" ] &&
-  ! list_usb_disks | grep -q '^'${FLAGS_to##*/}'$' &&
-  [ ${FLAGS_force_non_usb} -ne ${FLAGS_TRUE} ]
-then
-  # Safeguard against writing to a real non-USB disk
-  echo "Error: Device ${FLAGS_to} does not appear to be a USB disk!"
-  echo "       To override this safeguard, use the --force_non_usb flag"
-  exit 1
+if [ -b "${FLAGS_to}" ]; then
+  if list_usb_disks | grep -q '^'${FLAGS_to##*/}'$'; then
+    disk_manufacturer=$(get_disk_info ${FLAGS_to##*/} manufacturer)
+    disk_product=$(get_disk_info ${FLAGS_to##*/} product)
+  elif [ ${FLAGS_force_non_usb} -ne ${FLAGS_TRUE} ]; then
+    # Safeguard against writing to a real non-USB disk
+    echo "Error: Device ${FLAGS_to} does not appear to be a USB disk!"
+    echo "       To override this safeguard, use the --force_non_usb flag"
+    exit 1
+  fi
 fi
 
 # Use this image as the source image to copy
@@ -183,6 +186,8 @@ then
   if [ ${FLAGS_yes} -ne ${FLAGS_TRUE} ]
   then
     sudo fdisk -l "${FLAGS_to}" 2>/dev/null | grep Disk | head -1
+    [ -n "$disk_manufacturer" ] && echo "Manufacturer: $disk_manufacturer"
+    [ -n "$disk_product" ] && echo "Product: $disk_product"
     echo "This will erase all data on this device:"
     read -p "Are you sure (y/N)? " SURE
     SURE="${SURE:0:1}" # Get just the first character
