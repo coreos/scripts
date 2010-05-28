@@ -387,6 +387,11 @@ sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
   --root="$ROOT_FS_DIR" --root-deps=rdeps \
   --usepkgonly chromeos $EMERGE_JOBS
 
+# Extract the kernel from the root filesystem for use by the GPT image. Legacy
+# BIOS will use the kernel in the rootfs (via syslinux), Chrome OS BIOS will
+# use the kernel partition.
+sudo cp -f "${ROOT_FS_DIR}/boot/vmlinuz" "${OUTPUT_DIR}/vmlinuz.image"
+
 # Create EFI System Partition to boot stock EFI BIOS (but not ChromeOS EFI
 # BIOS). We only need this for x86, but it's simpler and safer to keep the disk
 # images the same for both x86 and ARM.
@@ -422,43 +427,6 @@ menuentry "local image B" {
 }
 
 EOF
-
-# Legacy BIOS will use the kernel in the rootfs (via syslinux), as will
-# standard EFI BIOS (via grub, from the EFI System Partition). Chrome OS BIOS
-# will use a separate signed kernel partition, which we'll create now.
-# FIXME: remove serial output, debugging messages
-cat <<'EOF' > "${OUTPUT_DIR}/config.txt"
-earlyprintk=serial,ttyS0,115200
-console=ttyS0,115200
-init=/sbin/init
-add_efi_memmap
-boot=local
-rootwait
-root=/dev/sd%D%P
-ro
-noresume
-noswap
-i915.modeset=1
-loglevel=7
-Hi_Mom
-EOF
-
-# FIXME: We need to specify the real keys and certs here!
-SIG_DIR="${SRC_ROOT}/platform/vboot_reference/tests/testkeys"
-
-# Create the kernel partition image.
-kernel_utility --generate \
-    --firmware_key "${SIG_DIR}/key_rsa4096.pem" \
-    --kernel_key "${SIG_DIR}/key_rsa1024.pem" \
-    --kernel_key_pub "${SIG_DIR}/key_rsa1024.keyb" \
-    --firmware_sign_algorithm 8 \
-    --kernel_sign_algorithm 2 \
-    --kernel_key_version 1 \
-    --kernel_version 1 \
-    --config "${OUTPUT_DIR}/config.txt" \
-    --bootloader /lib64/bootstub/bootstub.efi \
-    --vmlinuz "${ROOT_FS_DIR}/boot/vmlinuz" \
-    --out "${OUTPUT_DIR}/vmlinuz.image"
 
 # Perform any customizations on the root file system that are needed.
 "${SCRIPTS_DIR}/customize_rootfs" \
