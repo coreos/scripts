@@ -45,6 +45,8 @@ function main() {
   local script_dir=$(dirname "$0")
 
   script_dir=$(readlink -f "${script_dir}")
+  docgen_dir="autotest/utils/docgen"
+  html_target="${TMP}/autotest/client/site_tests/suite_HWQual/html"
 
   trap cleanup EXIT
 
@@ -57,6 +59,18 @@ function main() {
 
   echo "Extracting autotest from build artifacts..."
   tar --bzip2 -xf autotest.tar.bz2
+
+  # Create HTML and PDF test documentation for HWQual Tests.
+  echo "Generating test documentation..."
+  cd "${docgen_dir}"
+  ./CreateDocs.py --docversion ${FLAGS_output_tag} --html ${html_target}
+  make -C latex pdf
+  mv latex/refman.pdf "${html_target}/HWQual.pdf"
+  # Clean up the generated files.
+  rm -rf testsource latex *.log
+
+  cd "${TMP}"
+
   mv chromiumos_test_image.bin image/chromiumos_image.bin
 
   echo "Formatting rootfs as a USB image..."
@@ -67,6 +81,8 @@ function main() {
   ln -s \
     "${FLAGS_output_tag}/autotest/client/site_tests/suite_HWQual/README.txt" \
     tarball
+  ln -s \
+    "${FLAGS_output_tag}/autotest/client/site_tests/suite_HWQual/html" tarball
   ln -s autotest/client/site_tests/suite_HWQual/manual \
     "tarball/${FLAGS_output_tag}"
   cp "${script_dir}/mod_for_test_scripts/ssh_keys/testing_rsa" \
@@ -74,7 +90,6 @@ function main() {
   chmod 0400 "tarball/${FLAGS_output_tag}/testing_rsa"
   mv autotest "tarball/${FLAGS_output_tag}"
   cp "${script_dir}/generate_test_report" "tarball/${FLAGS_output_tag}"
-
   echo "Creating ${FLAGS_to}/${FLAGS_output_tag}.tar.bz2..."
   mkdir -p "${FLAGS_to}"
   cd tarball
