@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Enables chromium mini and core dumps.
+
+echo "Enabling chromium [mini,core]dumps."
+mkdir -p "${STATEFUL_DIR}/etc"
+touch "${STATEFUL_DIR}/etc/enable_chromium_minidumps"
+touch "${STATEFUL_DIR}/etc/enable_chromium_coredumps"

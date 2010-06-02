@@ -172,7 +172,7 @@ else
   MOD_TEST_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
   # Run test setup script to modify the image
   sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-      "${MOD_TEST_ROOT}/test_setup.sh"
+      STATEFUL_DIR="${STATEFUL_DIR}" "${MOD_TEST_ROOT}/test_setup.sh"
 
   if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
     install_autotest
