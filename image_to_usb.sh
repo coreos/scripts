@@ -90,7 +90,7 @@ if [ -z "${FLAGS_to}" ]; then
       echo "  /dev/$disk:"
       echo "    Manufacturer: $(get_disk_info $disk manufacturer)"
       echo "         Product: $(get_disk_info $disk product)"
-      echo "            Size: $(cat /sys/block/$disk/size) kBytes"
+      echo "            Size: $[$(cat /sys/block/$disk/size) * 512] bytes"
     done
   fi
   exit 1
