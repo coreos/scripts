@@ -87,6 +87,12 @@ if [ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ]; then
   PRISTINE_IMAGE_NAME=chromiumos_base_image.bin
   DEVELOPER_IMAGE_NAME=chromiumos_image.bin
 fi
+
+# If we are creating a recovery image, rename pristine image
+if [ "$FLAGS_recovery" -eq "$FLAGS_TRUE" ]; then
+  PRISTINE_IMAGE_NAME=recovery_image.bin
+fi
+
 OUTPUT_IMG=${FLAGS_to:-${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}}
 
 BOARD="${FLAGS_board}"
@@ -193,71 +199,88 @@ developer_cleanup() {
   delete_prompt
 }
 
-# Creates a new image based on $OUTPUT_IMG with additional developer packages.
-create_developer_image() {
+# Creates a modified image based on $OUTPUT_IMG with additional packages.
+create_mod_image() {
+  local image_type=$1
   local root_fs_dir="${OUTPUT_DIR}/rootfs_dev"
   local root_fs_img="${OUTPUT_DIR}/rootfs_dev.image"
-  local output_img="${OUTPUT_DIR}/${DEVELOPER_IMAGE_NAME}"
+  local image_to_mount=${DEVELOPER_IMAGE_NAME}
+  local output_img="${OUTPUT_DIR}/${image_to_mount}"
 
   # Create stateful partition of the same size as the rootfs.
   local stateful_img="$OUTPUT_DIR/stateful_partition_dev.image"
   local stateful_dir="$OUTPUT_DIR/stateful_partition_dev"
+  local file_to_touch=".dev_mode"
 
   trap "developer_cleanup \"$root_fs_dir\" \"$stateful_dir\"" EXIT
 
-  # Mount a new copy of the base image.
-  echo "Creating developer image from base image $OUTPUT_IMG"
-  cp "$OUTPUT_IMG" "$output_img"
+  if [ "$image_type" == "dev" ]; then
+    # Mount a new copy of the base image.
+    echo "Creating developer image from base image $OUTPUT_IMG"
+    cp "$OUTPUT_IMG" "$output_img"
+  elif [ "$image_type" == "recovery" ]; then
+    image_to_mount=$PRISTINE_IMAGE_NAME
+    file_to_touch=".recovery_installer"
+  fi
+
   $SCRIPTS_DIR/mount_gpt_image.sh --from "$OUTPUT_DIR" \
-    --image "$DEVELOPER_IMAGE_NAME" -r "$root_fs_dir" -s "$stateful_dir"
+    --image "$image_to_mount" -r "$root_fs_dir" -s "$stateful_dir"
 
-  # Determine the root dir for developer packages.
-  local root_dev_dir="$root_fs_dir"
-  [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] && \
-    root_dev_dir="$root_fs_dir/usr/local"
+  if [ "$image_type" == "dev" ]; then
+    # Determine the root dir for developer packages.
+    local root_dev_dir="$root_fs_dir"
+    [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] && \
+      root_dev_dir="$root_fs_dir/usr/local"
 
-  # Install developer packages described in chromeos-dev.
-  sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
-      --root="$root_dev_dir" --root-deps=rdeps \
-      --usepkgonly chromeos-dev $EMERGE_JOBS
+    # Install developer packages described in chromeos-dev.
+    sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
+        --root="$root_dev_dir" --root-deps=rdeps \
+        --usepkgonly chromeos-dev $EMERGE_JOBS
+  elif [ "$image_type" == "recovery" ]; then
+    # Install recovery installer
+    sudo emerge-${BOARD} --root=$root_fs_dir --usepkgonly \
+        --root-deps=rdeps --nodeps chromeos-recovery
+  fi
 
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
   sudo /sbin/ldconfig -r "$root_fs_dir"
 
   # Mark the image as a developer image (input to chromeos_startup).
   sudo mkdir -p "$root_fs_dir/root"
-  sudo touch "$root_fs_dir/root/.dev_mode"
+  sudo touch "$root_fs_dir/root/$file_to_touch"
 
-  # Additional changes to developer image.
+  if [ "$image_type" == "dev" ]; then
+    # Additional changes to developer image.
 
-  # The ldd tool is a useful shell script but lives in glibc; just copy it.
-  sudo cp -a "$(which ldd)" "${root_dev_dir}/usr/bin"
+    # The ldd tool is a useful shell script but lives in glibc; just copy it.
+    sudo cp -a "$(which ldd)" "${root_dev_dir}/usr/bin"
 
-  # TODO: Temporarily create fake xterm symlink until we do proper xinitrc
-  local aterm="$root_fs_dir/usr/local/bin/aterm"
-  if [[ -f "${aterm}" ]]; then
-    sudo chmod 0755 "$aterm"
-    sudo ln -s aterm "${root_fs_dir}/usr/local/bin/xterm"
-  fi
+    # TODO: Temporarily create fake xterm symlink until we do proper xinitrc
+    local aterm="$root_fs_dir/usr/local/bin/aterm"
+    if [[ -f "${aterm}" ]]; then
+      sudo chmod 0755 "$aterm"
+      sudo ln -s aterm "${root_fs_dir}/usr/local/bin/xterm"
+    fi
 
-  # If vim is installed, then a vi symlink would probably help.
-  if [[ -x "${root_fs_dir}/usr/local/bin/vim" ]]; then
-    sudo ln -sf vim "${root_fs_dir}/usr/local/bin/vi"
-  fi
+    # If vim is installed, then a vi symlink would probably help.
+    if [[ -x "${root_fs_dir}/usr/local/bin/vim" ]]; then
+      sudo ln -sf vim "${root_fs_dir}/usr/local/bin/vi"
+    fi
 
-  # Check that the image has been correctly created.  Only do it if not
-  # building a factory install image, as the INSTALL_MASK for it will
-  # make test_image fail.
-  if [[ $FLAGS_factory_install -eq ${FLAGS_FALSE} ]] ; then
-    "${SCRIPTS_DIR}/test_image" \
-      --root="$root_fs_dir" \
-      --target="$ARCH"
+    # Check that the image has been correctly created.  Only do it if not
+    # building a factory install image, as the INSTALL_MASK for it will
+    # make test_image fail.
+    if [[ $FLAGS_factory_install -eq ${FLAGS_FALSE} ]] ; then
+      "${SCRIPTS_DIR}/test_image" \
+        --root="$root_fs_dir" \
+        --target="$ARCH"
+    fi
+    echo "Developer image built and stored at $output_img"
   fi
 
   trap - EXIT
   $SCRIPTS_DIR/mount_gpt_image.sh -u -r "$root_fs_dir" -s "$stateful_dir"
   sudo rm -rf "$root_fs_dir" "$stateful_dir"
-  echo "Developer image built and stored at $output_img"
 }
 
 # ${DEV_IMAGE_ROOT} specifies the location of where developer packages will
@@ -518,8 +541,12 @@ rmdir "${ROOT_FS_DIR}" "${STATEFUL_DIR}" "${ESP_DIR}"
 
 OUTSIDE_OUTPUT_DIR="../build/images/${FLAGS_board}/${IMAGE_SUBDIR}"
 
+# Create a recovery image based on the chromium os base image
+[ "$FLAGS_recovery" -eq "$FLAGS_TRUE" ] && create_mod_image "recovery"
+trap - EXIT
+
 # Create a developer image based on the chromium os base image
-[ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ] && create_developer_image
+[ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ] && create_mod_image "dev"
 trap - EXIT
 
 # be quiet again
@@ -527,6 +554,9 @@ set +x
 
 echo "Done.  Image created in ${OUTPUT_DIR}"
 echo "Chromium OS image created as $PRISTINE_IMAGE_NAME"
+if [ "$FLAGS_recovery" -eq "$FLAGS_TRUE" ]; then
+  echo "Recovery image created as $PRISTINE_IMAGE_NAME"
+fi
 if [ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ]; then
   echo "Developer image created as $DEVELOPER_IMAGE_NAME"
 fi
