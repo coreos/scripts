@@ -25,6 +25,8 @@ DEFINE_string arm_extra_bootargs "" \
   "Additional command line options to pass to the ARM kernel."
 DEFINE_boolean recovery $FLAGS_FALSE \
   "Build GPT for a recovery image. Default: False."
+DEFINE_integer rootfs_partition_size 1024 \
+  "rootfs parition size in MBs."
 
 # Usage.
 FLAGS_HELP=$(cat <<EOF
@@ -115,7 +117,7 @@ fi
 # Create the GPT. This has the side-effect of setting some global vars
 # describing the partition table entries (see the comments in the source).
 install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG $PMBRCODE $ESP_IMG \
-    false $FLAGS_recovery
+    false $FLAGS_recovery $FLAGS_rootfs_partition_size 
 
 if [[ "$ARCH" = "arm" ]]; then
   # assume /dev/mmcblk1. we could not get this from ${OUTDEV}

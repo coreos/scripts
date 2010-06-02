@@ -46,6 +46,10 @@ DEFINE_string arm_extra_bootargs "" \
   "Additional command line options to pass to the ARM kernel."
 DEFINE_boolean recovery $FLAGS_FALSE \
   "Build a recovery image. Default: False."
+DEFINE_integer rootfs_partition_size 1024 \
+  "rootfs parition size in MBs."
+DEFINE_integer rootfs_size 720 \
+  "rootfs filesystem size in MBs."
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -57,6 +61,11 @@ set -e
 
 if [ -z "$FLAGS_board" ] ; then
   error "--board is required."
+  exit 1
+fi
+
+if [ "$FLAGS_rootfs_size" -gt "$FLAGS_rootfs_partition_size" ] ; then
+  error "rootfs (${FLAGS_rootfs_size} MB) is bigger than partition (${FLAGS_rootfs_partition_size} MB)."
   exit 1
 fi
 
@@ -274,7 +283,7 @@ fi
 if [[ $FLAGS_factory_install -eq ${FLAGS_TRUE} ]] ; then
   ROOT_SIZE_BYTES=$((1024 * 1024 * 300))
 else
-  ROOT_SIZE_BYTES=$((1024 * 1024 * 720))
+  ROOT_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_rootfs_size}))
 fi
 
 dd if=/dev/zero of="$ROOT_FS_IMG" bs=1 count=1 seek=$((ROOT_SIZE_BYTES - 1))
@@ -497,6 +506,7 @@ ${SCRIPTS_DIR}/build_gpt.sh \
   --arch=${ARCH} \
   --board=${FLAGS_board} \
   --arm_extra_bootargs="${FLAGS_arm_extra_bootargs}" \
+  --rootfs_partition_size=${FLAGS_rootfs_partition_size} \
   ${RECOVERY} \
   "${OUTPUT_DIR}" \
   "${OUTPUT_IMG}"
