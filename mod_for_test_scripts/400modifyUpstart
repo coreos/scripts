@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+echo "Modifying upstart scripts for test accesibility."
+sed -i 's/#for_test //' "${ROOT_FS_DIR}/etc/init/openssh-server.conf"
+sed -i 's/#for_test //' "${ROOT_FS_DIR}/etc/init/iptables.conf"
+
