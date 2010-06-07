@@ -4,7 +4,15 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-echo "Create global_config.ini in autotest directory."
+echo "Configure autotest setting."
+
+SCRIPT_DIR="${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts/"
+AUTOTEST_DIR="${ROOT_FS_DIR}/usr/local/autotest/"
+
+cp "${SCRIPT_DIR}/factory_ui" "${AUTOTEST_DIR}"
+chmod +x "${AUTOTEST_DIR}/factory_ui"
+cp "${SCRIPT_DIR}/factory_startx.sh" "${AUTOTEST_DIR}"
+chmod +x "${AUTOTEST_DIR}/factory_startx.sh"
 
 GLOBAL_CONFIG="${ROOT_FS_DIR}/usr/local/autotest/global_config.ini"
 
@@ -12,13 +20,6 @@ if [ -f "${GLOBAL_CONFIG}" ]; then
   echo -e "File ${GLOBAL_CONFIG} already exists."
   exit 1
 fi
-
-AUTOTEST_DIR="${ROOT_FS_DIR}/usr/local/autotest/"
-
-chmod +x factory_ui
-cp "factory_ui" "${AUTOTEST_DIR}"
-chmod +x factory_startx.sh
-cp "factory_startx.sh" "${AUTOTEST_DIR}"
 
 cat > "${GLOBAL_CONFIG}" <<EOF
 [CLIENT]
