@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+mkdir -p "${STATEFUL_DIR}/var/lib/power_manager"
+echo 1 > "${STATEFUL_DIR}/var/lib/power_manager/disable_idle_suspend"
