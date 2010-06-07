@@ -155,8 +155,8 @@ def build_autotest(options):
   else:
     blacklist = []
 
-  all_tests = ('compilebench,dbench,disktest,iperf,netperf2,netpipe,ltp,'
-               'unixbench')
+  all_tests = ('compilebench,dbench,disktest,fsx,hackbench,iperf,ltp,netperf2,'
+               'netpipe,unixbench')
   site_tests = '../third_party/autotest/files/client/site_tests'
   for site_test in os.listdir(site_tests):
     test_path = os.path.join(site_tests, site_test)
