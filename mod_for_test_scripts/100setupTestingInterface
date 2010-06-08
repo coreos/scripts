@@ -8,10 +8,10 @@ echo "Configuring for backchannel network device"
 
 testif=eth_test
 
-# Prevent connman from taking control of the backchannel network device.
-ORIG_CONF=${ROOT_FS_DIR}/etc/init/connman.conf
+# Prevent flimflam from taking control of the backchannel network device.
+ORIG_CONF=${ROOT_FS_DIR}/etc/init/flimflam.conf
 TEMP_CONF=${ORIG_CONF}.tmp
-sed "s/connmand -W/connmand -I ${testif} -W/" ${ORIG_CONF} > ${TEMP_CONF}
+sed "s/flimflamd -W/flimflamd -I ${testif} -W/" ${ORIG_CONF} > ${TEMP_CONF}
 mv -f ${TEMP_CONF} ${ORIG_CONF}
 
 # Arrange to run dhclient on the backchannel device but without
@@ -39,7 +39,7 @@ if [ -f /var/run/dhclient-\${testif}.pid ]; then
 fi
 
 if [ "\$1" != "\${testif}" ]; then
-    initctl stop connman
+    initctl stop flimflam
     # \$1 is the current name of the backchannel device. Swap it with testif.
     if ifconfig \${testif} > /dev/null 2>&1; then
         orig_mac=\$(ifconfig \${testif} | awk '/HWaddr/ {print \$5}')
@@ -52,7 +52,7 @@ if [ "\$1" != "\${testif}" ]; then
     if [ -n "\${orig_mac}" ]; then
         nameif \$1 \${orig_mac}
     fi
-    initctl start connman
+    initctl start flimflam
 fi
 
 # Bring up the backchannel interface
