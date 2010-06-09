@@ -1,0 +1,4 @@
+# User files
+/.chromeos_dev
+/.default_board
+/shared_user_passwd.txt
