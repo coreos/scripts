@@ -149,15 +149,37 @@ function main() {
     exit 1
   fi
 
+  # Check the validity of the user-specified result directory
+  # It must be within the /tmp directory
+  if [[ -n "${FLAGS_results_dir_root}" ]]; then
+    SUBSTRING=${FLAGS_results_dir_root:0:5}
+    if [[ ${SUBSTRING} != "/tmp/" ]]; then
+      echo "User-specified result directory must be within the /tmp directory"
+      echo "ex: --results_dir_root=/tmp/<result_directory>"
+      exit 1
+    fi
+  fi
+
   set -e
 
   # Set global TMP for remote_access.sh's sake
-  if [[ ${INSIDE_CHROOT} -eq 0 ]]
-  then
-    TMP=$(mktemp -d ${FLAGS_chroot}/tmp/run_remote_tests.XXXX)
+  # and if --results_dir_root is specified,
+  # set TMP and create dir appropriately
+  if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
+    if [[ -n "${FLAGS_results_dir_root}" ]]; then
+      TMP=${FLAGS_chroot}${FLAGS_results_dir_root}
+      mkdir -m 777 ${TMP}
+    else
+      TMP=$(mktemp -d ${FLAGS_chroot}/tmp/run_remote_tests.XXXX)
+    fi
     TMP_INSIDE_CHROOT=$(echo ${TMP#${FLAGS_chroot}})
   else
-    TMP=$(mktemp -d /tmp/run_remote_tests.XXXX)
+    if [[ -n "${FLAGS_results_dir_root}" ]]; then
+      TMP=${FLAGS_results_dir_root}
+      mkdir -m 777 ${TMP}
+    else
+      TMP=$(mktemp -d /tmp/run_remote_tests.XXXX)
+    fi
     TMP_INSIDE_CHROOT=${TMP}
   fi
 
@@ -216,12 +238,6 @@ function main() {
   for CONTROL_FILE in ${control_files_to_run}; do
     echo_color "yellow" " * " "${CONTROL_FILE}"
   done
-
-  if [[ -z "${FLAGS_results_dir_root}" ]]; then
-    FLAGS_results_dir_root="${TMP_INSIDE_CHROOT}"
-  fi
-
-  mkdir -p "${FLAGS_results_dir_root}"
 
   for control_file in ${control_files_to_run}; do
     # Assume a line starts with TEST_TYPE =
