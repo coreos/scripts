@@ -1,0 +1,15 @@
+# See http://dev.chromium.org/developers/contributing-code/watchlists for
+# a description of this file's format.
+# Please keep these keys in alphabetical order.
+
+{
+  'WATCHLIST_DEFINITIONS': {
+    'all': {
+      'filepath': '.',
+    },
+  },
+  'WATCHLISTS': {
+    'all': ['sosa@chromium.org', 'msb@chromium.org',
+	    'anush@chromium.org']
+  },
+}
