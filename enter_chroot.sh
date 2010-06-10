@@ -104,6 +104,13 @@ function setup_env {
           die "Could not mount $MOUNTED_PATH"
     fi
 
+    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}/dev/pts")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
+    then
+      sudo mount none -t devpts "$MOUNTED_PATH" || \
+          die "Could not mount $MOUNTED_PATH"
+    fi
+
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}$CHROOT_TRUNK_DIR")"
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
     then
@@ -206,7 +213,10 @@ function teardown_env {
     else
       MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
       echo "Unmounting chroot environment."
-      for i in $(mount | grep -F "on $MOUNTED_PATH/" | awk '{print $3}'); do
+      # sort the list of mounts in reverse order, to ensure umount of
+      # cascading mounts in proper order
+      for i in \
+        $(mount | grep -F "on $MOUNTED_PATH/" | sort -r | awk '{print $3}'); do
         safe_umount "$i"
       done
     fi
