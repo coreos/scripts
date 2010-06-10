@@ -247,18 +247,7 @@ setup_env
 # hand-sync'd some subdirs and edited files in others.
 # In that case, check against origin/HEAD and mark** revision.
 # Use git:8 chars of sha1
-REVISION=$(git rev-parse HEAD)
-ORIGIN_REVISION=$(git rev-parse origin/HEAD)
-# Do not check for clean revision on official builds.  They are coming directly
-# from a branch rev and cannot compare to origin/HEAD.
-if [ $FLAGS_official_build != $FLAGS_TRUE ] && \
-   [ "$REVISION" != "$ORIGIN_REVISION" ]
-then
-  # Mark dirty tree with "**"
-  REVISION="${REVISION:0:8}**"
-else
-  REVISION="${REVISION:0:8}"
-fi
+REVISION=$(git rev-parse --short=8 HEAD)
 CHROOT_PASSTHRU="CHROMEOS_REVISION=$REVISION BUILDBOT_BUILD=$FLAGS_build_number CHROMEOS_OFFICIAL=$CHROMEOS_OFFICIAL"
 
 # Run command or interactive shell.  Also include the non-chrooted path to
