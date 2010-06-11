@@ -449,6 +449,10 @@ menuentry "local image B" {
   linux $grubpartB/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/$linuxpartB ro noresume noswap i915.modeset=1 loglevel=1
 }
 
+menuentry "Alternate USB Boot" {
+  linux (hd0,3)/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/sdb3 ro noresume noswap i915.modeset=1 loglevel=1
+}
+
 EOF
 
 # FIXME: At the moment, we're working on signed images for x86 only. ARM will
