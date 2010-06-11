@@ -11,6 +11,7 @@
 
 # For functions related to gpt images.
 . "$(dirname "$0")/chromeos-common.sh"
+locate_gpt
 
 get_default_board
 

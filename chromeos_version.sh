@@ -87,6 +87,7 @@ export CHROME_BASE=
 # directory containing chrome-chromeos.zip - an svn rev or a full version
 export CHROME_BUILD=
 
-# Print version info.
+# Print (and remember) version info.
 echo "ChromeOS version information:"
-env | egrep '^CHROMEOS_VERSION|CHROME_' | sed 's/^/    /'
+logvers="/tmp/version_${CHROMEOS_VERSION_STRING}"
+env | egrep '^CHROMEOS_VERSION|CHROME_' | tee $logvers | sed 's/^/    /'
