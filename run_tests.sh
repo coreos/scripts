@@ -51,10 +51,24 @@ trap cleanup ERR 0
 
 # NOTE: We currently skip cryptohome_tests (which happens to have a different
 # suffix than the other tests), because it doesn't work.
+# NOTE: Removed explicit use of the target board's ld-linux.so.2 so that this
+# will work on hardened builds (with PIE on by default).  Tests pass on
+# hardened and non-hardened builds without this explicit use, but we only
+# disable this on hardened, since that is where the PIE conflict happens.
 for i in ${TESTS_DIR}/*_{test,unittests}; do
   if [[ "`file -b $i`" = "POSIX shell script text executable" ]]; then
-    LD_LIBRARY_PATH=$LD_LIBRARY_PATH /build/${FLAGS_board}/lib/ld-linux.so.2 /build/${FLAGS_board}/bin/bash $i
+    if [[ -f /etc/hardened ]]; then
+      LD_LIBRARY_PATH=$LD_LIBRARY_PATH /build/${FLAGS_board}/bin/bash $i
+    else
+      LD_LIBRARY_PATH=$LD_LIBRARY_PATH /build/${FLAGS_board}/lib/ld-linux.so.2 /build/${FLAGS_board}/bin/bash $i
+    fi
   else
-    LD_LIBRARY_PATH=$LD_LIBRARY_PATH /build/${FLAGS_board}/lib/ld-linux.so.2 $i
+    if [[ -f /etc/hardened ]]; then
+      LD_LIBRARY_PATH=$LD_LIBRARY_PATH $i
+    else
+      LD_LIBRARY_PATH=$LD_LIBRARY_PATH /build/${FLAGS_board}/lib/ld-linux.so.2 $i
+    fi
   fi
 done
+
+
