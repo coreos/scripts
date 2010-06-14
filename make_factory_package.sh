@@ -24,6 +24,8 @@ get_default_board
 DEFINE_string board "${DEFAULT_BOARD}" "Board for which the image was built"
 DEFINE_string factory "" \
   "Directory and file containing factory image: /path/chromiumos_test_image.bin"
+DEFINE_boolean include_firmware $FLAGS_FALSE \
+  "If set, include the firmware image to the server configuration"
 DEFINE_string release "" \
   "Directory and file containing release image: /path/chromiumos_image.bin"
 
@@ -46,6 +48,7 @@ fi
 # chars like ~ are processed; just doing FOO=`readlink -f ${FOO}` won't work.
 OMAHA_DIR=${SRC_ROOT}/platform/dev
 OMAHA_DATA_DIR=${OMAHA_DIR}/static/
+FIRMWARE_DIR=${SRC_ROOT}/platform/firmware/${FLAGS_board}
 
 if [ ${INSIDE_CHROOT} -eq 0 ]; then
   echo "Caching sudo authentication"
@@ -82,7 +85,7 @@ prepare_dir() {
 prepare_omaha
 
 # Get the release image.
-pushd ${RELEASE_DIR}
+pushd ${RELEASE_DIR} > /dev/null
 echo "Generating omaha release image from ${FLAGS_release}"
 echo "Generating omaha factory image from ${FLAGS_factory}"
 echo "Output omaha image to ${OMAHA_DATA_DIR}"
@@ -108,10 +111,10 @@ efi_hash=`cat efi.gz | openssl sha1 -binary | openssl base64`
 mv efi.gz ${OMAHA_DATA_DIR}
 echo "efi: ${efi_hash}"
 
-popd
+popd > /dev/null
 
 # Go to retrieve the factory test image.
-pushd ${FACTORY_DIR}
+pushd ${FACTORY_DIR} > /dev/null
 prepare_dir
 
 
@@ -128,7 +131,24 @@ state_hash=`cat state.gz | openssl sha1 -binary | openssl base64`
 mv state.gz ${OMAHA_DATA_DIR}
 echo "state: ${state_hash}"
 
-echo "
+popd > /dev/null
+
+if [ ${FLAGS_include_firmware} -eq ${FLAGS_TRUE} ] ; then
+  pushd ${FIRMWARE_DIR} > /dev/null
+
+  ./pack_firmware.sh | gzip -9 > firmware.gz
+  if [ "${PIPESTATUS[*]}" != "0 0" ]; then
+    echo "Failed to pack the firmware image."
+    exit 1
+  fi
+  firmware_hash=`cat firmware.gz | openssl sha1 -binary | openssl base64`
+  mv firmware.gz ${OMAHA_DATA_DIR}
+  echo "firmware: ${firmware_hash}"
+
+  popd > /dev/null
+fi
+
+echo -n "
 config = [
  {
    'qual_ids': set([\"${FLAGS_board}\"]),
@@ -141,12 +161,19 @@ config = [
    'efipartitionimg_image': 'efi.gz',
    'efipartitionimg_checksum': '${efi_hash}',
    'stateimg_image': 'state.gz',
-   'stateimg_checksum': '${state_hash}'
+   'stateimg_checksum': '${state_hash}'," > ${OMAHA_DIR}/miniomaha.conf
+
+if [ ! -z ${FLAGS_include_firmware} ] ; then
+  echo -n "
+   'firmware_image': 'firmware.gz',
+   'firmware_checksum': '${firmware_hash}'," >> ${OMAHA_DIR}/miniomaha.conf
+fi
+
+echo -n "
  },
 ]
-" > ${OMAHA_DIR}/miniomaha.conf
+" >> ${OMAHA_DIR}/miniomaha.conf
 
-popd
 echo "The miniomaha server lives in src/platform/dev"
 echo "to validate the configutarion, run:"
 echo "  python2.6 devserver.py --factory_config miniomaha.conf \
