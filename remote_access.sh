@@ -10,6 +10,8 @@ ssh_keys/testing_rsa"
 DEFINE_string remote "" "remote hostname/IP of running Chromium OS instance"
 DEFINE_string private_key "$DEFAULT_PRIVATE_KEY" \
   "Private key of root account on remote host"
+DEFINE_integer ssh_port 22 \
+  "SSH port of the remote machine running Chromium OS instance"
 
 # Copies $1 to $2 on remote host
 function remote_cp() {
@@ -19,7 +21,7 @@ function remote_cp() {
 }
 
 function remote_sh() {
-  REMOTE_OUT=$(ssh  -o StrictHostKeyChecking=no -o \
+  REMOTE_OUT=$(ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no -o \
     UserKnownHostsFile=$TMP_KNOWN_HOSTS root@$FLAGS_remote "$@")
   return ${PIPESTATUS[0]}
 }

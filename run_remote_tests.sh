@@ -276,6 +276,7 @@ function main() {
     fi
 
     ${enter_chroot} ${autotest} --board "${FLAGS_board}" -m "${FLAGS_remote}" \
+      --ssh-port ${FLAGS_ssh_port} \
       "${option}" "${control_file}" -r "${results_dir}" ${verbose} \
       "${args[@]}"
 
