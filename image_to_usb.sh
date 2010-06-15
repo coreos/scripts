@@ -214,6 +214,7 @@ then
 
   echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
   sudo dd if="${SRC_IMAGE}" of="${FLAGS_to}" bs=4M
+  sync
 
   echo "Done."
 else
