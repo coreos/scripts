@@ -165,6 +165,7 @@ if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
 then
   FACTORY_MANIFEST=`ls | grep factory`
   zip -r "${FACTORY_ZIPFILE}" ${FACTORY_MANIFEST}
+  chmod 644 "${FACTORY_ZIPFILE}"
 fi
 cd -
 
