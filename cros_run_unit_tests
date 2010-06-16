@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# This script builds and runs Chromium OS unit tests.  Note that this script
+# utilizes the src_test stanza in chromeos-base packages.  These stanzas
+# should both build and run the unit tests.
+
+# This script requires that you run build_packages first.
+
+. "$(dirname "$0")/common.sh"
+
+get_default_board
+
+# Flags
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "Target board of which tests were built"
+DEFINE_string build_root "${DEFAULT_BUILD_ROOT}" \
+  "Root of build output"
+DEFINE_string packages "" \
+  "Optional space-separated list of packages to run unit tests" p
+
+# Total count of packages with unit tests.
+TEST_COUNT=0
+# Number of unit test failures.
+TEST_FAILURES=0
+# List of packages with no unit tests.
+NO_UNITTESTS=""
+# List of packages that have unit test failures.
+FAILED_PACKAGES=""
+
+function check_src_test() {
+  egrep '^src_test()' "${1}" > /dev/null
+}
+
+function record_test_failure() {
+  TEST_FAILURES=$(( TEST_FAILURES + 1 ))
+  FAILED_PACKAGES="${FAILED_PACKAGES} ${1}"
+}
+
+function run_unit_test() {
+  FEATURES="-buildpkg -digest noauto" \
+    ebuild-${FLAGS_board} "${1}" clean unpack test
+}
+
+# Parse command line and die if unexpected paramters given.
+FLAGS_HELP="usage: ${0} [flags]"
+FLAGS "${@}" || exit 1
+eval set -- "${FLAGS_ARGV}"
+check_flags_only_and_allow_null_arg "${@}" && set --
+
+set -e
+
+[ -z "${FLAGS_board}" ] && die "--board required"
+
+# If no packages are specified we run all unit tests for chromeos-base
+# packages.
+if [ -n "${FLAGS_packages}" ]; then
+  PACKAGE_LIST="${FLAGS_packages}"
+else
+  PACKAGE_LIST=$( ./get_package_list chromeos | egrep '^chromeos-base' )
+fi
+
+for package in ${PACKAGE_LIST}; do
+  EBUILD_PATH=$( equery-${FLAGS_board} which ${package} 2> /dev/null )
+  if [ -n "${EBUILD_PATH}" ]; then
+    if check_src_test "${EBUILD_PATH}"; then
+      run_unit_test "${EBUILD_PATH}" || record_test_failure "${package}"
+    else
+      NO_UNITTESTS="${NO_UNITTESTS} ${package}"
+    fi
+    TEST_COUNT=$(( TEST_COUNT + 1 ))
+  fi
+done
+
+if [ -n "${NO_UNITTESTS}" ]; then
+  warn "The following packages have no unit tests:"
+  warn "${NO_UNITTESTS}"
+fi
+
+if [ ${TEST_FAILURES} -ne 0 ]; then
+  error "Run completed with ${TEST_FAILURES}/${TEST_COUNT} test failures."
+  error "Following packages had failing tests:"
+  die "${FAILED_PACKAGES}"
+else
+  info "All unit tests passed."
+fi
