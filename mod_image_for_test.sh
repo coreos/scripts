@@ -39,6 +39,12 @@ DEFINE_string build_root "/build" \
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
+EMERGE_CMD="emerge"
+EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
+if [ -e "${TOP_SCRIPTS_DIR}/.emerge" ]; then
+  .  "${TOP_SCRIPTS_DIR}/.emerge"
+fi
+
 # No board, no default and no image set then we can't find the image
 if [ -z $FLAGS_image ] && [ -z $FLAGS_board ] ; then
   setup_board_warning
@@ -89,7 +95,7 @@ emerge_chromeos_test() {
   # Determine the root dir for test packages.
   ROOT_DEV_DIR="$ROOT_FS_DIR/usr/local"
 
-  INSTALL_MASK="$INSTALL_MASK" emerge-${FLAGS_board} \
+  INSTALL_MASK="$INSTALL_MASK" $EMERGE_BOARD_CMD \
     --root="$ROOT_DEV_DIR" --root-deps=rdeps \
     --usepkgonly chromeos-test $EMERGE_JOBS
 }
@@ -156,7 +162,7 @@ if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   # out of space.
 
   # Run factory setup script to modify the image.
-  sudo emerge-${FLAGS_board} --root=$ROOT_FS_DIR --usepkgonly \
+  sudo $EMERGE_BOARD_CMD --root=$ROOT_FS_DIR --usepkgonly \
       --root-deps=rdeps --nodeps chromeos-factoryinstall
 
   # Set factory server if necessary.

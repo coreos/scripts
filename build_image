@@ -69,6 +69,14 @@ if [ "$FLAGS_rootfs_size" -gt "$FLAGS_rootfs_partition_size" ] ; then
   exit 1
 fi
 
+EMERGE_CMD="emerge"
+EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
+TOP_SCRIPTS_DIR="$(dirname $0)"
+if [ -e "${TOP_SCRIPTS_DIR}/.emerge" ]; then
+  echo "Using alternate emerge"
+  .  "${TOP_SCRIPTS_DIR}/.emerge"
+fi
+
 # Determine build version.
 . "${SCRIPTS_DIR}/chromeos_version.sh"
 
@@ -233,12 +241,12 @@ create_mod_image() {
       root_dev_dir="$root_fs_dir/usr/local"
 
     # Install developer packages described in chromeos-dev.
-    sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
+    sudo INSTALL_MASK="$INSTALL_MASK" ${EMERGE_BOARD_CMD} \
         --root="$root_dev_dir" --root-deps=rdeps \
         --usepkgonly chromeos-dev $EMERGE_JOBS
   elif [ "$image_type" == "recovery" ]; then
     # Install recovery installer
-    sudo emerge-${BOARD} --root=$root_fs_dir --usepkgonly \
+    sudo ${EMERGE_BOARD_CMD} --root=$root_fs_dir --usepkgonly \
         --root-deps=rdeps --nodeps chromeos-recovery
   fi
 
@@ -406,12 +414,13 @@ sudo mkdir -p "${ROOT_FS_DIR}/usr/local"
 sudo mount --bind "${DEV_IMAGE_ROOT}" "${ROOT_FS_DIR}/usr/local"
 sudo mkdir -p "${ROOT_FS_DIR}/var"
 sudo mount --bind "${STATEFUL_DIR}/var" "${ROOT_FS_DIR}/var"
+sudo mkdir -p "${ROOT_FS_DIR}/dev"
 
 # We "emerge --root=$ROOT_FS_DIR --root-deps=rdeps --usepkgonly" all of the
 # runtime packages for chrome os. This builds up a chrome os image from binary
 # packages with runtime dependencies only.  We use INSTALL_MASK to trim the
 # image size as much as possible.
-sudo INSTALL_MASK="$INSTALL_MASK" emerge-${BOARD} \
+sudo INSTALL_MASK="$INSTALL_MASK" ${EMERGE_BOARD_CMD} \
   --root="$ROOT_FS_DIR" --root-deps=rdeps \
   --usepkgonly chromeos $EMERGE_JOBS
 
@@ -567,6 +576,7 @@ fi
 if [ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ]; then
   echo "Developer image created as $DEVELOPER_IMAGE_NAME"
 fi
+
 echo "To copy to USB keyfob, OUTSIDE the chroot, do something like:"
 echo "  ./image_to_usb.sh --from=${OUTSIDE_OUTPUT_DIR} --to=/dev/sdX"
 echo "To convert to VMWare image, OUTSIDE the chroot, do something like:"
