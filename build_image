@@ -146,9 +146,6 @@ if [[ -e "$OUTPUT_DIR" ]]; then
   fi
 fi
 
-# Be verbose to help debug failures.
-set -x
-
 # Create the output directory.
 mkdir -p "$OUTPUT_DIR"
 
@@ -576,6 +573,8 @@ fi
 if [ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ]; then
   echo "Developer image created as $DEVELOPER_IMAGE_NAME"
 fi
+
+print_time_elapsed
 
 echo "To copy to USB keyfob, OUTSIDE the chroot, do something like:"
 echo "  ./image_to_usb.sh --from=${OUTSIDE_OUTPUT_DIR} --to=/dev/sdX"

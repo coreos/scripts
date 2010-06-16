@@ -429,3 +429,15 @@ setup_symlinks_on_root() {
 
   sudo ln -s "${var_target}" "${dev_image_root}/var"
 }
+
+# Get current timestamp. Assumes common.sh runs at startup.
+start_time=$(date +%s)
+
+# Print time elsapsed since start_time.
+print_time_elapsed() {
+  end_time=$(date +%s)
+  elapsed_seconds="$(( $end_time - $start_time ))"
+  minutes="$(( $elapsed_seconds / 60 ))"
+  seconds="$(( $elapsed_seconds % 60 ))"
+  echo "Elapsed time: ${minutes}:${seconds}"
+}

@@ -199,5 +199,8 @@ if [ "${VERIFY}" = "true" ]; then
 fi
 
 cleanup
+
+print_time_elapsed
+
 trap - EXIT
 
