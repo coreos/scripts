@@ -19,7 +19,7 @@ restart_in_chroot_if_needed $*
 get_default_board
 
 # Flags.
-DEFINE_string board "$DEFAULT_BOARD" \
+DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
 DEFINE_string build_root "/build" \
   "The root location for board sysroots."
@@ -27,24 +27,24 @@ DEFINE_integer build_attempt 1 \
   "The build attempt for this image build."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
-DEFINE_boolean replace $FLAGS_FALSE \
+DEFINE_boolean replace ${FLAGS_FALSE} \
   "Overwrite existing output, if any."
-DEFINE_boolean withdev $FLAGS_TRUE \
+DEFINE_boolean withdev ${FLAGS_TRUE} \
   "Include useful developer friendly utilities in the image."
-DEFINE_boolean installmask $FLAGS_TRUE \
+DEFINE_boolean installmask ${FLAGS_TRUE} \
   "Use INSTALL_MASK to shrink the resulting image."
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
-DEFINE_boolean statefuldev $FLAGS_TRUE \
+DEFINE_boolean statefuldev ${FLAGS_TRUE} \
   "Install development packages on stateful partition rather than the rootfs"
 DEFINE_string to "" \
   "The target image file or device"
-DEFINE_boolean factory_install $FLAGS_FALSE \
+DEFINE_boolean factory_install ${FLAGS_FALSE} \
   "Build a smaller image to overlay the factory install shim on; this argument \
 is also required in image_to_usb."
 DEFINE_string arm_extra_bootargs "" \
   "Additional command line options to pass to the ARM kernel."
-DEFINE_boolean recovery $FLAGS_FALSE \
+DEFINE_boolean recovery ${FLAGS_FALSE} \
   "Build a recovery image. Default: False."
 DEFINE_integer rootfs_partition_size 1024 \
   "rootfs parition size in MBs."
@@ -59,12 +59,12 @@ eval set -- "${FLAGS_ARGV}"
 # so will die prematurely if 'set -e' is specified before now.
 set -e
 
-if [ -z "$FLAGS_board" ] ; then
+if [ -z "${FLAGS_board}" ] ; then
   error "--board is required."
   exit 1
 fi
 
-if [ "$FLAGS_rootfs_size" -gt "$FLAGS_rootfs_partition_size" ] ; then
+if [ "${FLAGS_rootfs_size}" -gt "${FLAGS_rootfs_partition_size}" ] ; then
   error "rootfs (${FLAGS_rootfs_size} MB) is bigger than partition (${FLAGS_rootfs_partition_size} MB)."
   exit 1
 fi
@@ -91,13 +91,13 @@ ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
 # different name.
 DEVELOPER_IMAGE_NAME=
 PRISTINE_IMAGE_NAME=chromiumos_image.bin
-if [ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ]; then
+if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
   PRISTINE_IMAGE_NAME=chromiumos_base_image.bin
   DEVELOPER_IMAGE_NAME=chromiumos_image.bin
 fi
 
-# If we are creating a recovery image, rename pristine image
-if [ "$FLAGS_recovery" -eq "$FLAGS_TRUE" ]; then
+# If we are creating a recovery image, rename pristine image.
+if [ "${FLAGS_recovery}" -eq "${FLAGS_TRUE}" ]; then
   PRISTINE_IMAGE_NAME=recovery_image.bin
 fi
 
@@ -116,8 +116,8 @@ LIBC_VERSION=${LIBC_VERSION:-"2.10.1-r1"}
 
 # Figure out ARCH from the given toolchain.
 # TODO: Move to common.sh as a function after scripts are switched over.
-TC_ARCH=$(echo "$CHOST" | awk -F'-' '{ print $1 }')
-case "$TC_ARCH" in
+TC_ARCH=$(echo "${CHOST}" | awk -F'-' '{ print $1 }')
+case "${TC_ARCH}" in
   arm*)
     ARCH="arm"
     ;;
@@ -125,7 +125,7 @@ case "$TC_ARCH" in
     ARCH="x86"
     ;;
   *)
-    error "Unable to determine ARCH from toolchain: $CHOST"
+    error "Unable to determine ARCH from toolchain: ${CHOST}"
     exit 1
 esac
 
@@ -135,11 +135,11 @@ PACKAGES_FILE="${BOARD_ROOT}/packages/Packages"
 sudo sed -e "s/CHOST: x86_64-pc-linux-gnu//" -i "${PACKAGES_FILE}"
 
 # Handle existing directory.
-if [[ -e "$OUTPUT_DIR" ]]; then
-  if [[ $FLAGS_replace -eq $FLAGS_TRUE ]]; then
-    sudo rm -rf "$OUTPUT_DIR"
+if [[ -e "${OUTPUT_DIR}" ]]; then
+  if [[ ${FLAGS_replace} -eq ${FLAGS_TRUE} ]]; then
+    sudo rm -rf "${OUTPUT_DIR}"
   else
-    echo "Directory $OUTPUT_DIR already exists."
+    echo "Directory ${OUTPUT_DIR} already exists."
     echo "Use --build_attempt option to specify an unused attempt."
     echo "Or use --replace if you want to overwrite this directory."
     exit 1
@@ -147,10 +147,10 @@ if [[ -e "$OUTPUT_DIR" ]]; then
 fi
 
 # Create the output directory.
-mkdir -p "$OUTPUT_DIR"
+mkdir -p "${OUTPUT_DIR}"
 
 cleanup_rootfs_loop() {
-  sudo umount -d "$ROOT_FS_DIR"
+  sudo umount -d "${ROOT_FS_DIR}"
 }
 
 cleanup_stateful_fs_loop() {
@@ -160,22 +160,22 @@ cleanup_stateful_fs_loop() {
 }
 
 cleanup_esp_loop() {
-  sudo umount -d "$ESP_DIR"
+  sudo umount -d "${ESP_DIR}"
 }
 
 cleanup() {
   # Disable die on error.
   set +e
 
-  if [[ -n "$STATEFUL_LOOP_DEV" ]]; then
+  if [[ -n "${STATEFUL_LOOP_DEV}" ]]; then
     cleanup_stateful_fs_loop
   fi
 
-  if [[ -n "$LOOP_DEV" ]]; then
+  if [[ -n "${LOOP_DEV}" ]]; then
     cleanup_rootfs_loop
   fi
 
-  if [[ -n "$ESP_LOOP_DEV" ]]; then
+  if [[ -n "${ESP_LOOP_DEV}" ]]; then
     cleanup_esp_loop
   fi
 
@@ -187,12 +187,12 @@ delete_prompt() {
   echo "An error occurred in your build so your latest output directory" \
     "is invalid."
   read -p "Would you like to delete the output directory (y/N)? " SURE
-  SURE="${SURE:0:1}" # Get just the first character
+  SURE="${SURE:0:1}" # Get just the first character.
   if [ "${SURE}" == "y" ] ; then
-    sudo rm -rf "$OUTPUT_DIR"
-    echo "Deleted $OUTPUT_DIR"
+    sudo rm -rf "${OUTPUT_DIR}"
+    echo "Deleted ${OUTPUT_DIR}"
   else
-    echo "Not deleting $OUTPUT_DIR. Note dev server updates will not work" \
+    echo "Not deleting ${OUTPUT_DIR}. Note dev server updates will not work" \
       "until you successfully build another image or delete this directory"
   fi
 }
@@ -200,11 +200,11 @@ delete_prompt() {
 # $1 - Directory where developer rootfs is mounted.
 # $2 - Directory where developer stateful_partition is mounted.
 developer_cleanup() {
-  "$SCRIPTS_DIR/mount_gpt_image.sh" -u -r "$1" -s "$2"
+  "${SCRIPTS_DIR}/mount_gpt_image.sh" -u -r "$1" -s "$2"
   delete_prompt
 }
 
-# Creates a modified image based on $OUTPUT_IMG with additional packages.
+# Creates a modified image based on ${OUTPUT_IMG} with additional packages.
 create_mod_image() {
   local image_type=$1
   local root_fs_dir="${OUTPUT_DIR}/rootfs_dev"
@@ -213,48 +213,48 @@ create_mod_image() {
   local output_img="${OUTPUT_DIR}/${image_to_mount}"
 
   # Create stateful partition of the same size as the rootfs.
-  local stateful_img="$OUTPUT_DIR/stateful_partition_dev.image"
-  local stateful_dir="$OUTPUT_DIR/stateful_partition_dev"
+  local stateful_img="${OUTPUT_DIR}/stateful_partition_dev.image"
+  local stateful_dir="${OUTPUT_DIR}/stateful_partition_dev"
   local file_to_touch=".dev_mode"
 
-  trap "developer_cleanup \"$root_fs_dir\" \"$stateful_dir\"" EXIT
+  trap "developer_cleanup \"${root_fs_dir}\" \"${stateful_dir}\"" EXIT
 
-  if [ "$image_type" == "dev" ]; then
+  if [ "${image_type}" == "dev" ]; then
     # Mount a new copy of the base image.
-    echo "Creating developer image from base image $OUTPUT_IMG"
-    cp "$OUTPUT_IMG" "$output_img"
-  elif [ "$image_type" == "recovery" ]; then
-    image_to_mount=$PRISTINE_IMAGE_NAME
+    echo "Creating developer image from base image ${OUTPUT_IMG}"
+    cp "${OUTPUT_IMG}" "${output_img}"
+  elif [ "${image_type}" == "recovery" ]; then
+    image_to_mount=${PRISTINE_IMAGE_NAME}
     file_to_touch=".recovery_installer"
   fi
 
-  $SCRIPTS_DIR/mount_gpt_image.sh --from "$OUTPUT_DIR" \
-    --image "$image_to_mount" -r "$root_fs_dir" -s "$stateful_dir"
+  ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
+    --image "${image_to_mount}" -r "${root_fs_dir}" -s "${stateful_dir}"
 
-  if [ "$image_type" == "dev" ]; then
+  if [ "${image_type}" == "dev" ]; then
     # Determine the root dir for developer packages.
-    local root_dev_dir="$root_fs_dir"
-    [ $FLAGS_statefuldev -eq $FLAGS_TRUE ] && \
-      root_dev_dir="$root_fs_dir/usr/local"
+    local root_dev_dir="${root_fs_dir}"
+    [ ${FLAGS_statefuldev} -eq ${FLAGS_TRUE} ] && \
+      root_dev_dir="${root_fs_dir}/usr/local"
 
     # Install developer packages described in chromeos-dev.
-    sudo INSTALL_MASK="$INSTALL_MASK" ${EMERGE_BOARD_CMD} \
-        --root="$root_dev_dir" --root-deps=rdeps \
-        --usepkgonly chromeos-dev $EMERGE_JOBS
-  elif [ "$image_type" == "recovery" ]; then
-    # Install recovery installer
-    sudo ${EMERGE_BOARD_CMD} --root=$root_fs_dir --usepkgonly \
+    sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
+        --root="${root_dev_dir}" --root-deps=rdeps \
+        --usepkgonly chromeos-dev ${EMERGE_JOBS}
+  elif [ "${image_type}" == "recovery" ]; then
+    # Install recovery installer.
+    sudo ${EMERGE_BOARD_CMD} --root=${root_fs_dir} --usepkgonly \
         --root-deps=rdeps --nodeps chromeos-recovery
   fi
 
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
-  sudo /sbin/ldconfig -r "$root_fs_dir"
+  sudo /sbin/ldconfig -r "${root_fs_dir}"
 
   # Mark the image as a developer image (input to chromeos_startup).
-  sudo mkdir -p "$root_fs_dir/root"
-  sudo touch "$root_fs_dir/root/$file_to_touch"
+  sudo mkdir -p "${root_fs_dir}/root"
+  sudo touch "${root_fs_dir}/root/${file_to_touch}"
 
-  if [ "$image_type" == "dev" ]; then
+  if [ "${image_type}" == "dev" ]; then
     # Additional changes to developer image.
 
     # The ldd tool is a useful shell script but lives in glibc; just copy it.
@@ -268,84 +268,85 @@ create_mod_image() {
     # Check that the image has been correctly created.  Only do it if not
     # building a factory install image, as the INSTALL_MASK for it will
     # make test_image fail.
-    if [[ $FLAGS_factory_install -eq ${FLAGS_FALSE} ]] ; then
+    if [[ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]] ; then
       "${SCRIPTS_DIR}/test_image" \
-        --root="$root_fs_dir" \
-        --target="$ARCH"
+        --root="${root_fs_dir}" \
+        --target="${ARCH}"
     fi
-    echo "Developer image built and stored at $output_img"
+    echo "Developer image built and stored at ${output_img}"
   fi
 
   trap - EXIT
-  $SCRIPTS_DIR/mount_gpt_image.sh -u -r "$root_fs_dir" -s "$stateful_dir"
-  sudo rm -rf "$root_fs_dir" "$stateful_dir"
+  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${root_fs_dir}" -s "${stateful_dir}"
+  sudo rm -rf "${root_fs_dir}" "${stateful_dir}"
 }
 
 # ${DEV_IMAGE_ROOT} specifies the location of where developer packages will
 # be installed on the stateful dir.  On a Chromium OS system, this will
-# translate to /usr/local
+# translate to /usr/local.
 DEV_IMAGE_ROOT=
 
 trap "cleanup && delete_prompt" EXIT
 
-mkdir -p "$ROOT_FS_DIR"
+mkdir -p "${ROOT_FS_DIR}"
 
 # Create and format the root file system.
 
 # Check for loop device before creating image.
 LOOP_DEV=$(sudo losetup -f)
-if [ -z "$LOOP_DEV" ] ; then
+if [ -z "${LOOP_DEV}" ] ; then
   echo "No free loop device.  Free up a loop device or reboot.  exiting. "
   exit 1
 fi
 
 # Create root file system disk image to fit on a 1GB memory stick.
 # 1 GB in hard-drive-manufacturer-speak is 10^9, not 2^30.  950MB < 10^9 bytes.
-if [[ $FLAGS_factory_install -eq ${FLAGS_TRUE} ]] ; then
+if [[ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]] ; then
   ROOT_SIZE_BYTES=$((1024 * 1024 * 300))
 else
   ROOT_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_rootfs_size}))
 fi
 
-dd if=/dev/zero of="$ROOT_FS_IMG" bs=1 count=1 seek=$((ROOT_SIZE_BYTES - 1))
-sudo losetup "$LOOP_DEV" "$ROOT_FS_IMG"
-sudo mkfs.ext3 "$LOOP_DEV"
+dd if=/dev/zero of="${ROOT_FS_IMG}" bs=1 count=1 seek=$((ROOT_SIZE_BYTES - 1))
+sudo losetup "${LOOP_DEV}" "${ROOT_FS_IMG}"
+sudo mkfs.ext3 "${LOOP_DEV}"
 
 # Tune and mount rootfs.
 UUID=$(uuidgen)
 DISK_LABEL="C-KEYFOB"
-sudo tune2fs -L "$DISK_LABEL" -U "$UUID" -c 0 -i 0 "$LOOP_DEV"
-sudo mount "$LOOP_DEV" "$ROOT_FS_DIR"
+sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${LOOP_DEV}"
+sudo mount "${LOOP_DEV}" "${ROOT_FS_DIR}"
 
 # Create stateful partition of the same size as the rootfs.
-STATEFUL_IMG="$OUTPUT_DIR/stateful_partition.image"
-STATEFUL_DIR="$OUTPUT_DIR/stateful_partition"
+STATEFUL_IMG="${OUTPUT_DIR}/stateful_partition.image"
+STATEFUL_DIR="${OUTPUT_DIR}/stateful_partition"
 STATEFUL_LOOP_DEV=$(sudo losetup -f)
-if [ -z "$STATEFUL_LOOP_DEV" ] ; then
+if [ -z "${STATEFUL_LOOP_DEV}" ] ; then
   echo "No free loop device.  Free up a loop device or reboot.  exiting. "
   exit 1
 fi
-dd if=/dev/zero of="$STATEFUL_IMG" bs=1 count=1 seek=$((ROOT_SIZE_BYTES - 1))
-sudo losetup "$STATEFUL_LOOP_DEV" "$STATEFUL_IMG"
-sudo mkfs.ext3 "$STATEFUL_LOOP_DEV"
-sudo tune2fs -L "C-STATE" -U "$UUID" -c 0 -i 0 \
-    "$STATEFUL_LOOP_DEV"
+dd if=/dev/zero of="${STATEFUL_IMG}" bs=1 count=1 seek=$((ROOT_SIZE_BYTES - 1))
+sudo losetup "${STATEFUL_LOOP_DEV}" "${STATEFUL_IMG}"
+sudo mkfs.ext3 "${STATEFUL_LOOP_DEV}"
+sudo tune2fs -L "C-STATE" -U "${UUID}" -c 0 -i 0 \
+    "${STATEFUL_LOOP_DEV}"
 
 # Mount the stateful partition.
-mkdir -p "$STATEFUL_DIR"
-sudo mount "$STATEFUL_LOOP_DEV" "$STATEFUL_DIR"
+mkdir -p "${STATEFUL_DIR}"
+sudo mount "${STATEFUL_LOOP_DEV}" "${STATEFUL_DIR}"
 
-# Set dev image root now that we have mounted the stateful partition we created
-DEV_IMAGE_ROOT="$STATEFUL_DIR/dev_image"
+# Set dev image root now that we have mounted the stateful partition
+# we created.
+DEV_IMAGE_ROOT="${STATEFUL_DIR}/dev_image"
 
 # Turn root file system into bootable image.
-if [[ "$ARCH" = "x86" ]]; then
+if [[ "${ARCH}" = "x86" ]]; then
   # Setup extlinux configuration.
   # TODO: For some reason the /dev/disk/by-uuid is not being generated by udev
-  # in the initramfs. When we figure that out, switch to root=UUID=$UUID.
-  sudo mkdir -p "$ROOT_FS_DIR"/boot
+  # in the initramfs. When we figure that out, switch to root=UUID=${UUID}.
+  sudo mkdir -p "${ROOT_FS_DIR}"/boot
   # TODO(adlr): use initramfs for booting.
-  cat <<EOF | sudo dd of="$ROOT_FS_DIR"/boot/extlinux.conf
+  cat <<EOF | sudo dd of="${ROOT_FS_DIR}"/boot/extlinux.conf
 DEFAULT chromeos-usb
 PROMPT 0
 TIMEOUT 0
@@ -372,7 +373,7 @@ fi
 PKGDIR="/var/lib/portage/pkgs/cross/"
 sudo tar jxvpf \
   "${PKGDIR}/${CHOST}/cross-${CHOST}"/glibc-${LIBC_VERSION}.tbz2 \
-  -C "$ROOT_FS_DIR" --strip-components=3 \
+  -C "${ROOT_FS_DIR}" --strip-components=3 \
   --exclude=usr/include --exclude=sys-include --exclude=*.a --exclude=*.o
 
 # We need to install libstdc++ manually from the cross toolchain.
@@ -381,21 +382,21 @@ sudo cp -a "${BOARD_ROOT}"/lib/libgcc_s.so* "${ROOT_FS_DIR}/lib"
 sudo cp -a "${BOARD_ROOT}"/usr/lib/libstdc++.so* "${ROOT_FS_DIR}/usr/lib"
 
 INSTALL_MASK=""
-if [[ $FLAGS_installmask -eq ${FLAGS_TRUE} ]] ; then
-  INSTALL_MASK="$DEFAULT_INSTALL_MASK"
+if [[ ${FLAGS_installmask} -eq ${FLAGS_TRUE} ]] ; then
+  INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
 fi
 
 # Reduce the size of factory install shim.
 # TODO: Build a separated ebuild for the factory install shim to reduce size.
-if [[ $FLAGS_factory_install -eq ${FLAGS_TRUE} ]] ; then
-  INSTALL_MASK="$INSTALL_MASK $FACTORY_INSTALL_MASK"
+if [[ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]] ; then
+  INSTALL_MASK="${INSTALL_MASK} ${FACTORY_INSTALL_MASK}"
 fi
 
-if [[ $FLAGS_jobs -ne -1 ]]; then
-  EMERGE_JOBS="--jobs=$FLAGS_jobs"
+if [[ ${FLAGS_jobs} -ne -1 ]]; then
+  EMERGE_JOBS="--jobs=${FLAGS_jobs}"
 fi
 
-# Prepare stateful partition with some pre-created directories
+# Prepare stateful partition with some pre-created directories.
 sudo mkdir -p "${DEV_IMAGE_ROOT}"
 sudo mkdir -p "${STATEFUL_DIR}/var"
 
@@ -405,7 +406,7 @@ setup_symlinks_on_root "${DEV_IMAGE_ROOT}" "${STATEFUL_DIR}/var" \
   "${STATEFUL_DIR}"
 
 # Perform binding rather than symlinking because directories must exist
-# on rootfs so that we can bind at run-time since rootfs is read-only
+# on rootfs so that we can bind at run-time since rootfs is read-only.
 echo "Binding directories from stateful partition onto the rootfs"
 sudo mkdir -p "${ROOT_FS_DIR}/usr/local"
 sudo mount --bind "${DEV_IMAGE_ROOT}" "${ROOT_FS_DIR}/usr/local"
@@ -413,13 +414,13 @@ sudo mkdir -p "${ROOT_FS_DIR}/var"
 sudo mount --bind "${STATEFUL_DIR}/var" "${ROOT_FS_DIR}/var"
 sudo mkdir -p "${ROOT_FS_DIR}/dev"
 
-# We "emerge --root=$ROOT_FS_DIR --root-deps=rdeps --usepkgonly" all of the
+# We "emerge --root=${ROOT_FS_DIR} --root-deps=rdeps --usepkgonly" all of the
 # runtime packages for chrome os. This builds up a chrome os image from binary
 # packages with runtime dependencies only.  We use INSTALL_MASK to trim the
 # image size as much as possible.
-sudo INSTALL_MASK="$INSTALL_MASK" ${EMERGE_BOARD_CMD} \
-  --root="$ROOT_FS_DIR" --root-deps=rdeps \
-  --usepkgonly chromeos $EMERGE_JOBS
+sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
+  --root="${ROOT_FS_DIR}" --root-deps=rdeps \
+  --usepkgonly chromeos ${EMERGE_JOBS}
 
 # Create EFI System Partition to boot stock EFI BIOS (but not ChromeOS EFI
 # BIOS). We only need this for x86, but it's simpler and safer to keep the disk
@@ -431,7 +432,7 @@ ESP_BLOCKS=16384
 /usr/sbin/mkfs.vfat -C ${OUTPUT_DIR}/esp.image ${ESP_BLOCKS}
 ESP_DIR=${OUTPUT_DIR}/esp
 ESP_LOOP_DEV=$(sudo losetup -f)
-if [ -z "$ESP_LOOP_DEV" ] ; then
+if [ -z "${ESP_LOOP_DEV}" ] ; then
   echo "No free loop device.  Free up a loop device or reboot.  exiting. "
   exit 1
 fi
@@ -463,12 +464,12 @@ EOF
 
 # FIXME: At the moment, we're working on signed images for x86 only. ARM will
 # support this before shipping, but at the moment they don't.
-if [[ "$ARCH" = "x86" ]]; then
-  
+if [[ "${ARCH}" = "x86" ]]; then
+
   # Legacy BIOS will use the kernel in the rootfs (via syslinux), as will
   # standard EFI BIOS (via grub, from the EFI System Partition). Chrome OS BIOS
   # will use a separate signed kernel partition, which we'll create now.
-  # FIXME: remove serial output, debugging messages
+  # FIXME: remove serial output, debugging messages.
   cat <<'EOF' > "${OUTPUT_DIR}/config.txt"
 earlyprintk=serial,ttyS0,115200
 console=ttyS0,115200
@@ -484,11 +485,11 @@ i915.modeset=1
 loglevel=7
 cros_secure
 EOF
-  
+
   # FIXME: We need to specify the real keys and certs here!
   SIG_DIR="${SRC_ROOT}/platform/vboot_reference/tests/testkeys"
 
-  # Wrap the public keys with VbPublicKey headers
+  # Wrap the public keys with VbPublicKey headers.
   vbutil_key --pack \
     --in "${SIG_DIR}/key_rsa2048.keyb" \
     --version 1 --algorithm 4 \
@@ -503,8 +504,8 @@ EOF
     --datapubkey "${OUTPUT_DIR}/key_alg4.vbpubk" \
     --signprivate "${SIG_DIR}/key_rsa4096.pem" \
     --algorithm 8 --flags 3
-    
-  # Verify the keyblock
+
+  # Verify the keyblock.
   vbutil_keyblock --unpack "${OUTPUT_DIR}/data4_sign8.keyblock" \
     --signpubkey "${OUTPUT_DIR}/key_alg8.vbpubk"
 
@@ -516,8 +517,8 @@ EOF
     --config "${OUTPUT_DIR}/config.txt" \
     --bootloader /lib64/bootstub/bootstub.efi \
     --vmlinuz "${ROOT_FS_DIR}/boot/vmlinuz"
-  
-  # And verify it
+
+  # And verify it.
   vbutil_kernel --verify "${OUTPUT_DIR}/vmlinuz.image" \
     --signpubkey "${OUTPUT_DIR}/key_alg8.vbpubk"
 
@@ -529,16 +530,16 @@ fi
 
 # Perform any customizations on the root file system that are needed.
 "${SCRIPTS_DIR}/customize_rootfs" \
-  --root="$ROOT_FS_DIR" \
-  --target="$ARCH" \
-  --board="$BOARD"
+  --root="${ROOT_FS_DIR}" \
+  --target="${ARCH}" \
+  --board="${BOARD}"
 
 # Don't test the factory install shim.
-if [[ $FLAGS_factory_install -eq ${FLAGS_FALSE} ]] ; then
+if [[ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]] ; then
   # Check that the image has been correctly created.
   "${SCRIPTS_DIR}/test_image" \
-    --root="$ROOT_FS_DIR" \
-    --target="$ARCH"
+    --root="${ROOT_FS_DIR}" \
+    --target="${ARCH}"
 fi
 
 # Clean up symlinks so they work on a running target rooted at "/".
@@ -552,11 +553,11 @@ cleanup
 trap delete_prompt EXIT
 
 RECOVERY="--norecovery"
-if [[ ${FLAGS_recovery} -eq $FLAGS_TRUE ]]; then
+if [[ ${FLAGS_recovery} -eq ${FLAGS_TRUE} ]]; then
   RECOVERY="--recovery"
 fi
 
-# Create the GPT-formatted image
+# Create the GPT-formatted image.
 ${SCRIPTS_DIR}/build_gpt.sh \
   --arch=${ARCH} \
   --board=${FLAGS_board} \
@@ -566,35 +567,35 @@ ${SCRIPTS_DIR}/build_gpt.sh \
   "${OUTPUT_DIR}" \
   "${OUTPUT_IMG}"
 
-# Create a recovery image based on the chromium os base image
-[ "$FLAGS_recovery" -eq "$FLAGS_TRUE" ] && create_mod_image "recovery"
+# Create a recovery image based on the chromium os base image.
+[ "${FLAGS_recovery}" -eq "${FLAGS_TRUE}" ] && create_mod_image "recovery"
 trap - EXIT
 
-# Create a developer image based on the chromium os base image
-[ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ] && create_mod_image "dev"
+# Create a developer image based on the chromium os base image.
+[ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ] && create_mod_image "dev"
 trap - EXIT
 
 # FIXME: only signing things for x86 right now.
-if [[ "$ARCH" = "x86" ]]; then
-  # Verify the final image
+if [[ "${ARCH}" = "x86" ]]; then
+  # Verify the final image.
   load_kernel_test "${OUTPUT_IMG}" "${OUTPUT_DIR}/key_alg8.vbpubk"
 fi
 
 # Clean up temporary files.
 rm -f "${ROOT_FS_IMG}" "${STATEFUL_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \
   "${ESP_IMG}" "${OUTPUT_DIR}/data4_sign8.keyblock" \
-  "${OUTPUT_DIR}/key_alg4.vbpubk" "${OUTPUT_DIR}/key_alg8.vbpubk" 
+  "${OUTPUT_DIR}/key_alg4.vbpubk" "${OUTPUT_DIR}/key_alg8.vbpubk"
 rmdir "${ROOT_FS_DIR}" "${STATEFUL_DIR}" "${ESP_DIR}"
 
 OUTSIDE_OUTPUT_DIR="../build/images/${FLAGS_board}/${IMAGE_SUBDIR}"
 
 echo "Done.  Image created in ${OUTPUT_DIR}"
-echo "Chromium OS image created as $PRISTINE_IMAGE_NAME"
-if [ "$FLAGS_recovery" -eq "$FLAGS_TRUE" ]; then
-  echo "Recovery image created as $PRISTINE_IMAGE_NAME"
+echo "Chromium OS image created as ${PRISTINE_IMAGE_NAME}"
+if [ "${FLAGS_recovery}" -eq "${FLAGS_TRUE}" ]; then
+  echo "Recovery image created as ${PRISTINE_IMAGE_NAME}"
 fi
-if [ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ]; then
-  echo "Developer image created as $DEVELOPER_IMAGE_NAME"
+if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
+  echo "Developer image created as ${DEVELOPER_IMAGE_NAME}"
 fi
 
 print_time_elapsed
