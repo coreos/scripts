@@ -487,21 +487,40 @@ EOF
   
   # FIXME: We need to specify the real keys and certs here!
   SIG_DIR="${SRC_ROOT}/platform/vboot_reference/tests/testkeys"
+
+  # Wrap the public keys with VbPublicKey headers
+  vbutil_key --pack \
+    --in "${SIG_DIR}/key_rsa2048.keyb" \
+    --version 1 --algorithm 4 \
+    --out "${OUTPUT_DIR}/key_alg4.vbpubk"
+
+  vbutil_key --pack \
+    --in "${SIG_DIR}/key_rsa4096.keyb" \
+    --version 1 --algorithm 8 \
+    --out "${OUTPUT_DIR}/key_alg8.vbpubk"
+
+  vbutil_keyblock --pack "${OUTPUT_DIR}/data4_sign8.keyblock" \
+    --datapubkey "${OUTPUT_DIR}/key_alg4.vbpubk" \
+    --signprivate "${SIG_DIR}/key_rsa4096.pem" \
+    --algorithm 8 --flags 3
+    
+  # Verify the keyblock
+  vbutil_keyblock --unpack "${OUTPUT_DIR}/data4_sign8.keyblock" \
+    --signpubkey "${OUTPUT_DIR}/key_alg8.vbpubk"
+
+  # Sign the kernel:
+  vbutil_kernel --pack "${OUTPUT_DIR}/vmlinuz.image" \
+    --keyblock "${OUTPUT_DIR}/data4_sign8.keyblock" \
+    --signprivate "${SIG_DIR}/key_rsa2048.pem" \
+    --version 1 \
+    --config "${OUTPUT_DIR}/config.txt" \
+    --bootloader /lib64/bootstub/bootstub.efi \
+    --vmlinuz "${ROOT_FS_DIR}/boot/vmlinuz"
   
-  # Create the kernel partition image.
-  kernel_utility --generate \
-      --firmware_key "${SIG_DIR}/key_rsa4096.pem" \
-      --kernel_key "${SIG_DIR}/key_rsa1024.pem" \
-      --kernel_key_pub "${SIG_DIR}/key_rsa1024.keyb" \
-      --firmware_sign_algorithm 8 \
-      --kernel_sign_algorithm 2 \
-      --kernel_key_version 1 \
-      --kernel_version 1 \
-      --config "${OUTPUT_DIR}/config.txt" \
-      --bootloader /lib64/bootstub/bootstub.efi \
-      --vmlinuz "${ROOT_FS_DIR}/boot/vmlinuz" \
-      --out "${OUTPUT_DIR}/vmlinuz.image"
-  
+  # And verify it
+  vbutil_kernel --verify "${OUTPUT_DIR}/vmlinuz.image" \
+    --signpubkey "${OUTPUT_DIR}/key_alg8.vbpubk"
+
 else
   # FIXME: For now, ARM just uses the unsigned kernel by itself.
   cp -f "${ROOT_FS_DIR}/boot/vmlinuz" "${OUTPUT_DIR}/vmlinuz.image"
@@ -547,13 +566,6 @@ ${SCRIPTS_DIR}/build_gpt.sh \
   "${OUTPUT_DIR}" \
   "${OUTPUT_IMG}"
 
-# Clean up temporary files.
-rm -f "${ROOT_FS_IMG}" "${STATEFUL_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \
-  "${ESP_IMG}"
-rmdir "${ROOT_FS_DIR}" "${STATEFUL_DIR}" "${ESP_DIR}"
-
-OUTSIDE_OUTPUT_DIR="../build/images/${FLAGS_board}/${IMAGE_SUBDIR}"
-
 # Create a recovery image based on the chromium os base image
 [ "$FLAGS_recovery" -eq "$FLAGS_TRUE" ] && create_mod_image "recovery"
 trap - EXIT
@@ -562,8 +574,19 @@ trap - EXIT
 [ "$FLAGS_withdev" -eq "$FLAGS_TRUE" ] && create_mod_image "dev"
 trap - EXIT
 
-# be quiet again
-set +x
+# FIXME: only signing things for x86 right now.
+if [[ "$ARCH" = "x86" ]]; then
+  # Verify the final image
+  load_kernel_test "${OUTPUT_IMG}" "${OUTPUT_DIR}/key_alg8.vbpubk"
+fi
+
+# Clean up temporary files.
+rm -f "${ROOT_FS_IMG}" "${STATEFUL_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \
+  "${ESP_IMG}" "${OUTPUT_DIR}/data4_sign8.keyblock" \
+  "${OUTPUT_DIR}/key_alg4.vbpubk" "${OUTPUT_DIR}/key_alg8.vbpubk" 
+rmdir "${ROOT_FS_DIR}" "${STATEFUL_DIR}" "${ESP_DIR}"
+
+OUTSIDE_OUTPUT_DIR="../build/images/${FLAGS_board}/${IMAGE_SUBDIR}"
 
 echo "Done.  Image created in ${OUTPUT_DIR}"
 echo "Chromium OS image created as $PRISTINE_IMAGE_NAME"
