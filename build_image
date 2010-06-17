@@ -353,12 +353,12 @@ TIMEOUT 0
 label chromeos-usb
   menu label chromeos-usb
   kernel vmlinuz
-  append quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/sdb3 ro noresume noswap i915.modeset=1 loglevel=1
+  append quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/sdb3 ro noresume noswap i915.modeset=1 loglevel=1 cros_legacy
 
 label chromeos-hd
   menu label chromeos-hd
   kernel vmlinuz
-  append quiet console=tty2 init=/sbin/init boot=local rootwait root=HDROOT ro noresume noswap i915.modeset=1 loglevel=1
+  append quiet console=tty2 init=/sbin/init boot=local rootwait root=HDROOT ro noresume noswap i915.modeset=1 loglevel=1 cros_legacy
 EOF
 
   # Make partition bootable and label it.
@@ -448,15 +448,15 @@ set timeout=2
 # NOTE: These magic grub variables are a Chrome OS hack. They are not portable.
 
 menuentry "local image A" {
-  linux $grubpartA/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/$linuxpartA ro noresume noswap i915.modeset=1 loglevel=1
+  linux $grubpartA/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/$linuxpartA ro noresume noswap i915.modeset=1 loglevel=1 cros_efi
 }
 
 menuentry "local image B" {
-  linux $grubpartB/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/$linuxpartB ro noresume noswap i915.modeset=1 loglevel=1
+  linux $grubpartB/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/$linuxpartB ro noresume noswap i915.modeset=1 loglevel=1 cros_efi
 }
 
 menuentry "Alternate USB Boot" {
-  linux (hd0,3)/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/sdb3 ro noresume noswap i915.modeset=1 loglevel=1
+  linux (hd0,3)/boot/vmlinuz quiet console=tty2 init=/sbin/init boot=local rootwait root=/dev/sdb3 ro noresume noswap i915.modeset=1 loglevel=1 cros_efi
 }
 
 EOF
@@ -482,7 +482,7 @@ noresume
 noswap
 i915.modeset=1
 loglevel=7
-Hi_Mom
+cros_secure
 EOF
   
   # FIXME: We need to specify the real keys and certs here!
