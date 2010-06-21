@@ -99,7 +99,7 @@ commit_depfile() {
   pushd "${DEPPATH}"
 
   git add "${FLAGS_depfile}"
-  git commit -m "Automated buildbot update of pinned DEPS file."
+  git commit -m "Automated buildbot update of pinned DEPS file." --allow-empty
   git reset --hard HEAD
   git clean -f
   git remote update
