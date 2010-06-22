@@ -57,17 +57,9 @@ trap cleanup ERR 0
 # disable this on hardened, since that is where the PIE conflict happens.
 for i in ${TESTS_DIR}/*_{test,unittests}; do
   if [[ "`file -b $i`" = "POSIX shell script text executable" ]]; then
-    if [[ -f /etc/hardened ]]; then
       LD_LIBRARY_PATH=$LD_LIBRARY_PATH /build/${FLAGS_board}/bin/bash $i
-    else
-      LD_LIBRARY_PATH=$LD_LIBRARY_PATH /build/${FLAGS_board}/lib/ld-linux.so.2 /build/${FLAGS_board}/bin/bash $i
-    fi
   else
-    if [[ -f /etc/hardened ]]; then
       LD_LIBRARY_PATH=$LD_LIBRARY_PATH $i
-    else
-      LD_LIBRARY_PATH=$LD_LIBRARY_PATH /build/${FLAGS_board}/lib/ld-linux.so.2 $i
-    fi
   fi
 done
 
