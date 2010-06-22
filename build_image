@@ -239,7 +239,8 @@ update_dev_packages() {
   trap "mount_gpt_cleanup \"${ROOT_FS_DIR}\" \"${STATEFUL_FS_DIR}\"" EXIT
 
   ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
-    --image "${image_name}" -r "${ROOT_FS_DIR}" -s "${STATEFUL_FS_DIR}"
+    --image "$( basename ${image_name} )" -r "${ROOT_FS_DIR}" \
+    -s "${STATEFUL_FS_DIR}"
 
   # Determine the root dir for developer packages.
   local root_dev_dir="${ROOT_FS_DIR}"
@@ -293,7 +294,8 @@ update_recovery_packages() {
   trap "mount_gpt_cleanup \"${ROOT_FS_DIR}\" \"${STATEFUL_FS_DIR}\"" EXIT
 
   ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
-    --image "${image_name}" -r "${ROOT_FS_DIR}" -s "${STATEFUL_FS_DIR}"
+    --image "$( basename ${image_name} )" -r "${ROOT_FS_DIR}" \
+    -s "${STATEFUL_FS_DIR}"
 
   # Install recovery installer.
   sudo ${EMERGE_BOARD_CMD} --root=${ROOT_FS_DIR} --usepkgonly \
