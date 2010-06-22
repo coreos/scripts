@@ -163,7 +163,7 @@ config = [
    'stateimg_image': 'state.gz',
    'stateimg_checksum': '${state_hash}'," > ${OMAHA_DIR}/miniomaha.conf
 
-if [ ! -z ${FLAGS_include_firmware} ] ; then
+if [ ${FLAGS_include_firmware} -eq ${FLAGS_TRUE} ] ; then
   echo -n "
    'firmware_image': 'firmware.gz',
    'firmware_checksum': '${firmware_hash}'," >> ${OMAHA_DIR}/miniomaha.conf
