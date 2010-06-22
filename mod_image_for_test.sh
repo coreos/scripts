@@ -41,6 +41,7 @@ eval set -- "${FLAGS_ARGV}"
 
 EMERGE_CMD="emerge"
 EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
+TOP_SCRIPTS_DIR="$(dirname $0)"
 if [ -e "${TOP_SCRIPTS_DIR}/.emerge" ]; then
   .  "${TOP_SCRIPTS_DIR}/.emerge"
 fi
