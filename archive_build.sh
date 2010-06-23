@@ -37,6 +37,10 @@ DEFINE_boolean factory_test_mod $FLAGS_FALSE \
     "Modify image for factory testing purposes"
 DEFINE_boolean factory_install_mod $FLAGS_FALSE \
     "Modify image for factory install purposes"
+DEFINE_string gsutil "gsutil" \
+    "Location of gsutil"
+DEFINE_string gsutil_archive "" \
+    "Optional datastore archive location"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -182,6 +186,36 @@ then
   HWQUAL_NAME="chromeos-hwqual-${FLAGS_board}-${CHROMEOS_VERSION_STRING}"
   "${SCRIPTS_DIR}/archive_hwqual" --from "${OUTDIR}" \
     --output_tag "${HWQUAL_NAME}"
+  # Optionally archive with gsutil hwqual.
+  if [ $FLAGS_gsutil_archive != "" ]
+  then
+    GS_OUTDIR="${FLAGS_gsutil_archive}/${LAST_CHANGE}"
+    GS_HWQUAL_IN="${OUTDIR}/${HWQUAL_NAME}.tar.bz2"
+    GS_HWQUAL_OUT="${GS_OUTDIR}/${HWQUAL_NAME}.tar.bz2"
+    echo "Using gsutil to archive to ${GS_HWQUAL_OUT}..."
+    ${FLAGS_gsutil} cp ${GS_HWQUAL_IN} ${GS_HWQUAL_OUT}
+  fi
+fi
+
+# Optionally archive to Google Storage for Developers.
+if [ $FLAGS_gsutil_archive != "" ]
+then
+  GS_OUTDIR="${FLAGS_gsutil_archive}/${LAST_CHANGE}"
+  GS_ZIPFILE="${GS_OUTDIR}/${FLAGS_zipname}"
+  GS_FACTORY_ZIPFILE="${GS_OUTDIR}/factory_${FLAGS_zipname}"
+  GS_LATEST="${FLAGS_gsutil_archive}/LATEST"
+  echo "Using gsutil to archive to ${GS_ZIPFILE}..."
+  ${FLAGS_gsutil} cp ${ZIPFILE} ${GS_ZIPFILE}
+
+  if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
+     [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]
+  then
+    echo "Using gsutil to archive to ${GS_FACTORY_ZIPFILE}..."
+    ${FLAGS_gsutil} cp ${FACTORY_ZIPFILE} ${GS_FACTORY_ZIPFILE}
+  fi
+
+  echo "Updating latest ${GS_LATEST}..."
+  ${FLAGS_gsutil} cp ${FLAGS_to}/LATEST ${GS_LATEST}
 fi
 
 # Purge old builds if necessary
