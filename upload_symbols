@@ -30,6 +30,7 @@ DUMP_SYMS="dump_syms.i386"
 SYM_UPLOAD="sym_upload.i386"
 
 CUMULATIVE_SIZE=0
+ANY_ERRORS=0
 
 SYM_FILE=$(mktemp "/tmp/sym.XXXX")
 ERR_FILE=$(mktemp "/tmp/err.XXXX")
@@ -80,6 +81,9 @@ function really_upload {
   return 0
 }
 
+# Dump given debug and text file to SYM_FILE.  Returns 1 if any errors, even
+# if they can be ignored, but only sets ANY_ERRORS if the error should not
+# be ignored (and we should not proceed to upload).
 function dump_file {
   local debug_file="$1"
   local text_file="$2"
@@ -90,10 +94,11 @@ function dump_file {
     # not consider such occurrences as errors.
     if grep -q "file contains no debugging information" "${ERR_FILE}"; then
       warn "No symbols found for ${text_file}"
-      return 0
+      return 1
     fi
     error "Unable to dump symbols for ${text_file}:"
     cat "${ERR_FILE}"
+    ANY_ERRORS=1
     return 1
   fi
   if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
@@ -110,6 +115,7 @@ function dump_file {
     if ! diff "${installed_sym}" "${SYM_FILE}"; then
       error "${installed_sym} differ from current sym file:"
       diff "${installed_sym}" "${SYM_FILE}"
+      ANY_ERRORS=1
       return 1
     fi
   fi
@@ -125,6 +131,7 @@ function upload_file {
       2> "${ERR_FILE}"; then
     error "Unable to upload symbols in ${SYM_FILE}:"
     cat "${ERR_FILE}"
+    ANY_ERRORS=1
     return 1
   fi
   if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
@@ -134,7 +141,8 @@ function upload_file {
   return 0
 }
 
-# Convert and then upload the given debug file to the given URL.
+# Convert and then upload the given debug file to the given URL.  No
+# return value.
 function process_file {
   local debug_file="$1"
   local upload_url="$2"
@@ -162,7 +170,7 @@ function process_file {
     return 0
   fi
 
-  dump_file "${debug_file}" "${text_file}" || return 1
+  dump_file "${debug_file}" "${text_file}" || return 0
 
   [ ${FLAGS_dryrun} -eq ${FLAGS_TRUE} ] && return 0
 
@@ -200,15 +208,12 @@ function main() {
   AUTOTEST_ROOT="${SYSROOT}/usr/local/autotest"
   CUMULATIVE_SIZE=0
 
-  local any_errors=0
   if [ -z "${FLAGS_ARGV}" ]; then
     if [ ${FLAGS_dryrun} -eq ${FLAGS_FALSE} ]; then
       really_upload || exit 1
     fi
     for debug_file in $(find "${DEBUG_ROOT}" -name \*.debug); do
-      if ! process_file "${debug_file}" "${upload_url}"; then
-        any_errors=1
-      fi
+      ! process_file "${debug_file}" "${upload_url}"
     done
   else
     for either_file in ${FLAGS_ARGV}; do
@@ -216,7 +221,7 @@ function main() {
       either_file=${either_file%\'}
       if [ ! -f "${either_file}" ]; then
         error "Specified file ${either_file} does not exist"
-        any_errors=1
+        ANY_ERRORS=1
         continue
       fi
       if [ "${either_file##*.}" == "debug" ]; then
@@ -224,9 +229,7 @@ function main() {
       else
         debug_file="$(get_debug_for_text ${either_file})"
       fi
-      if ! process_file "${debug_file}" "${upload_url}"; then
-        any_errors=1
-      fi
+      ! process_file "${debug_file}" "${upload_url}";
     done
   fi
 
@@ -236,7 +239,9 @@ function main() {
   else
     info "Uploaded ${CUMULATIVE_SIZE}B of debug information"
   fi
-  [ ${any_errors} -ne 0 ] && die "Encountered problems"
+
+  [ ${ANY_ERRORS} -ne 0 ] && die "Encountered problems"
+  return 0
 }
 
 main "$@"
