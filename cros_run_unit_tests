@@ -63,7 +63,13 @@ else
   PACKAGE_LIST=$( ./get_package_list chromeos | egrep '^chromeos-base' )
 fi
 
+BLACK_LIST_FILE="$(dirname "$0")/unit_test_black_list.txt"
+
 for package in ${PACKAGE_LIST}; do
+  if grep -xq "${package}" "${BLACK_LIST_FILE}"; then
+    warn "Skipping package ${package} since it is blacklisted."
+    continue
+  fi
   EBUILD_PATH=$( equery-${FLAGS_board} which ${package} 2> /dev/null )
   if [ -n "${EBUILD_PATH}" ]; then
     if check_src_test "${EBUILD_PATH}"; then
