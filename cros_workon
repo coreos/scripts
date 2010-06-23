@@ -1,0 +1,105 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# This script moves ebuilds between 'stable' and 'live' states.
+# By default 'stable' ebuilds point at and build from source at the
+# last known good commit. Moving an ebuild to 'live' (via cros_workon start)
+# is intended to support development. The current source tip is fetched,
+# source modified and built using the unstable 'live' (9999) ebuild.
+#
+# Usage:
+#    cros_workon <start|stop> <package> [<package> ...] [--board=<board-name]
+#    cros_workon list
+
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+. "$(dirname "$0")/common.sh"
+
+# Script must be run inside the chroot
+restart_in_chroot_if_needed $*
+get_default_board
+
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "The board to set package keywords for."
+
+FLAGS_HELP="usage: $0 [flags]"
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+if [ -z "${FLAGS_board}" ] ; then
+  die "--board is required."
+fi
+
+# eat the workon command keywords: start, stop or list.
+WORKON_CMD=$1
+shift
+
+ATOM_LIST=$@
+
+BOARD_DIR=/build/"${FLAGS_board}"
+KEYWORDS_DIR=${BOARD_DIR}/etc/portage/package.keywords
+KEYWORDS_FILE=${KEYWORDS_DIR}/cros-workon
+
+# Move a stable ebuild to the live development catgeory.  The ebuild
+# src_unpack step fetches the package source for local development.
+ebuild_to_live () {
+
+  local atoms=$1
+
+  echo
+  echo "Moving stable ebuild to live development:"
+
+  if [[ -d "${KEYWORDS_DIR}" ]]; then
+    sudo mkdir -p "${KEYWORDS_DIR}"
+  fi
+
+  for atom in ${atoms}; do
+
+    if [[ -f "${KEYWORDS_FILE}" ]] &&
+          $(grep -qx "${atom}" "${KEYWORDS_FILE}") ; then
+      echo "   '${atom}' already marked for development"
+    else
+      echo "   '${atom}'"
+      sudo bash -c "echo \"${atom}\" >> \"${KEYWORDS_FILE}\""
+    fi
+  done
+}
+
+# Move a live development ebuild back to stable.
+ebuild_to_stable () {
+
+  local atoms=$1
+
+  echo
+  echo "Moving live development ebuild to stable:"
+
+  for atom in ${atoms}; do
+
+    if [[ -f "${KEYWORDS_FILE}" ]] &&
+          $(grep -qx "${atom}" "${KEYWORDS_FILE}") ; then
+      echo "   '${atom}'"
+	  sudo bash -c "grep -v '^${atom}\$' \"${KEYWORDS_FILE}\" > \
+                    \"${KEYWORDS_FILE}+\"" 
+      sudo mv "${KEYWORDS_FILE}+" "${KEYWORDS_FILE}"
+    fi
+  done
+}
+
+# Display ebuilds currently part of the live branch and open for development.
+show_live_ebuilds () {
+  echo
+  echo "Live development ebuilds:"
+
+  cat "${KEYWORDS_FILE}"
+}
+
+case ${WORKON_CMD} in
+  start) ebuild_to_live "${ATOM_LIST}" ;;
+  stop)  ebuild_to_stable "${ATOM_LIST}" ;;
+  list)  show_live_ebuilds ;;
+  *)     die "valid cros_workon commands: start|stop|list" ;;
+esac
+
