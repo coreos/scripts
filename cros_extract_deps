@@ -1,0 +1,192 @@
+#!/usr/bin/python
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+"""Extract dependency tree out of emerge and make it accessible and useful."""
+
+import optparse
+import pprint
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+
+class ParseException(Exception):
+  def __init__(self, reason):
+    Exception.__init__(self)
+    self.reason = reason
+
+  def __str__(self):
+    return self.reason
+
+
+def GetDepLinesFromPortage(options, packages):
+  """Get dependency lines out of emerge.
+
+  This calls emerge -p --debug and extracts the 'digraph' lines which detail
+  the dependencies."
+  """
+  # Use a temporary directory for $ROOT, so that emerge will consider all
+  # packages regardless of current build status.
+  temp_dir = tempfile.mkdtemp()
+
+  emerge = 'emerge'
+  if options.board:
+    emerge += '-' + options.board
+  cmdline = [emerge, '-p', '--debug', '--root=' + temp_dir]
+  if not options.build_time:
+    cmdline.append('--root-deps=rdeps')
+  cmdline += packages
+
+  # Store output in a temp file as it is too big for a unix pipe.
+  stderr_buffer = tempfile.TemporaryFile()
+
+  depsproc = subprocess.Popen(cmdline, stderr=stderr_buffer,
+                              stdout=open('/dev/null', 'w'), bufsize=64*1024)
+  depsproc.wait()
+
+  subprocess.check_call(['sudo', 'rm', '-rf', temp_dir])
+
+  assert(depsproc.returncode==0)
+
+  stderr_buffer.seek(0)
+  lines = []
+  output = False
+  for line in stderr_buffer:
+    stripped = line.rstrip()
+    if output:
+      lines.append(stripped)
+    if stripped == 'digraph:':
+      output = True
+
+  if not output:
+    raise ParseException('Could not find digraph in output from emerge.')
+
+  return lines
+
+
+def ParseDepLines(lines):
+  """Parse the dependency lines into a dependency tree.
+
+  This parses the digraph lines, extract the information and builds the
+  dependency tree (doubly-linked)."
+  """
+  # The digraph output looks like this:
+
+  # hard-host-depends depends on
+  # ('ebuild', '/tmp/root', 'dev-lang/swig-1.3.36', 'merge') depends on
+  #   ('ebuild', '/tmp/root', 'dev-lang/perl-5.8.8-r8', 'merge') (buildtime)
+  # ('binary', '/tmp/root', 'sys-auth/policykit-0.9-r1', 'merge') depends on
+  # ('binary', '/tmp/root', 'x11-misc/xbitmaps-1.1.0', 'merge') (no children)
+
+  re_deps = re.compile(r'(?P<indent>\W*)\(\'(?P<package_type>\w+)\','
+                       r' \'(?P<destination>[\w/\.-]+)\','
+                       r' \'(?P<category>[\w\+-]+)/(?P<package_name>[\w\+-]+)-'
+                       r'(?P<version>\d+[\w\.-]*)\', \'(?P<action>\w+)\'\)'
+                       r' (?P<dep_type>(depends on|\(.*\)))')
+  re_seed_deps = re.compile(r'(?P<package_name>[\w\+/-]+) depends on')
+  # Packages that fail the previous regex should match this one and be noted as
+  # failure.
+  re_failed = re.compile(r'.*depends on.*')
+
+  deps_map = {}
+
+  current_package = None
+  for line in lines:
+    deps_match = re_deps.match(line)
+    if deps_match:
+      package_name = deps_match.group('package_name')
+      category = deps_match.group('category')
+      indent = deps_match.group('indent')
+      action = deps_match.group('action')
+      dep_type = deps_match.group('dep_type')
+      version = deps_match.group('version')
+
+      # Pretty print what we've captured.
+      full_package_name = '%s/%s-%s' % (category, package_name, version)
+
+      try:
+        package_info = deps_map[full_package_name]
+      except KeyError:
+        package_info = {
+          'deps': set(),
+          'rev_deps': set(),
+          'name': package_name,
+          'category': category,
+          'version': version,
+          'full_name': full_package_name,
+          'action': action,
+        }
+        deps_map[full_package_name] = package_info
+
+      if not indent:
+        if dep_type == 'depends on':
+          current_package = package_info
+        else:
+          current_package = None
+      else:
+        if not current_package:
+          raise ParseException('Found a dependency without parent:\n' + line)
+        if dep_type == 'depend on':
+          raise ParseException('Found extra levels of dependencies:\n' + line)
+        current_package['deps'].add(full_package_name)
+        package_info['rev_deps'].add(current_package['full_name'])
+
+    else:
+      seed_match = re_seed_deps.match(line)
+      if seed_match:
+        package_name = seed_match.group('package_name')
+
+        try:
+          current_package = deps_map[package_name]
+        except KeyError:
+          current_package = {
+            'deps': set(),
+            'rev_deps': set(),
+            'name': package_name,
+            'category': '',
+            'version': '',
+            'full_name': package_name,
+            'action': 'seed',
+          }
+          deps_map[package_name] = current_package
+
+      else:
+        # Is this a package that failed to match our huge regex?
+        failed_match = re_failed.match(line)
+        if failed_match:
+          raise ParseException('Couldn\'t understand line:\n' + line)
+
+  return deps_map
+
+
+def main():
+  parser = optparse.OptionParser(usage='usage: %prog [options] package1 ...')
+  parser.add_option('-b', '--board',
+                    help='The board to extract dependencies from.')
+  parser.add_option('-B', '--build-time', action='store_true',
+                    dest='build_time',
+                    help='Also extract build-time dependencies.')
+  parser.add_option('-o', '--output', default=None,
+                    help='Output file.')
+  (options, packages) = parser.parse_args()
+  if not packages:
+    parser.print_usage()
+    sys.exit(1)
+
+  lines = GetDepLinesFromPortage(options, packages)
+  deps_map = ParseDepLines(lines)
+  output = pprint.pformat(deps_map)
+  if options.output:
+    output_file = open(options.output, 'w')
+    output_file.write(output)
+    output_file.close()
+  else:
+    print output
+
+
+if __name__ == '__main__':
+  main()
