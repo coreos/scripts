@@ -23,8 +23,6 @@ DEFINE_string board "$DEFAULT_BOARD" \
   "The board to build an image for."
 DEFINE_string arm_extra_bootargs "" \
   "Additional command line options to pass to the ARM kernel."
-DEFINE_boolean recovery $FLAGS_FALSE \
-  "Build GPT for a recovery image. Default: False."
 DEFINE_integer rootfs_partition_size 1024 \
   "rootfs parition size in MBs."
 
@@ -81,7 +79,6 @@ set -e
 set -u
 
 # Check for missing parts.
-# For recovery image, only populate ROOT-A and KERN-A
 ROOTFS_IMG="${IMAGEDIR}/rootfs.image"
 if [[ ! -s ${ROOTFS_IMG} ]]; then
   error "Can't find ${ROOTFS_IMG}"
@@ -95,13 +92,13 @@ if [[ ! -s ${KERNEL_IMG} ]]; then
 fi
 
 STATEFUL_IMG="${IMAGEDIR}/stateful_partition.image"
-if [ ! -s ${STATEFUL_IMG} ] && [ ${FLAGS_recovery} -eq $FLAGS_FALSE ]; then
+if [ ! -s ${STATEFUL_IMG} ]; then
   error "Can't find ${STATEFUL_IMG}"
   exit 1
 fi
 
 ESP_IMG="${IMAGEDIR}/esp.image"
-if [ ! -s ${ESP_IMG} ] && [ ${FLAGS_recovery} -eq $FLAGS_FALSE ]; then
+if [ ! -s ${ESP_IMG} ]; then
   error "Can't find ${ESP_IMG}"
   exit 1
 fi
@@ -117,7 +114,7 @@ fi
 # Create the GPT. This has the side-effect of setting some global vars
 # describing the partition table entries (see the comments in the source).
 install_gpt $OUTDEV $ROOTFS_IMG $KERNEL_IMG $STATEFUL_IMG $PMBRCODE $ESP_IMG \
-    false $FLAGS_recovery $FLAGS_rootfs_partition_size 
+    false $FLAGS_rootfs_partition_size
 
 if [[ "$ARCH" = "arm" ]]; then
   # assume /dev/mmcblk1. we could not get this from ${OUTDEV}
@@ -151,19 +148,6 @@ $sudo dd if=${KERNEL_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_KERN_A}
 echo "Copying rootfs..."
 $sudo dd if=${ROOTFS_IMG} of=${OUTDEV} conv=notrunc bs=512 \
     seek=${START_ROOTFS_A}
-
-# TODO(tgao): write a script to populate ROOT-B and KERN-B with user-specified
-# rootfs and kernel. Do NOT remove if block below until then (otherwise
-# chromeos-installer will fail b/c it expects to install from partition B)
-if [ ${FLAGS_recovery} -eq $FLAGS_TRUE ]; then
-  echo "Copying kernel B..."
-  $sudo dd if=${KERNEL_IMG} of=${OUTDEV} conv=notrunc bs=512 \
-      seek=${START_KERN_B}
-
-  echo "Copying rootfs B..."
-  $sudo dd if=${ROOTFS_IMG} of=${OUTDEV} conv=notrunc bs=512 \
-      seek=${START_ROOTFS_B}
-fi
 
 echo "Copying EFI system partition..."
 $sudo dd if=${ESP_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_ESP}

@@ -44,8 +44,6 @@ DEFINE_boolean factory_install ${FLAGS_FALSE} \
 is also required in image_to_usb."
 DEFINE_string arm_extra_bootargs "" \
   "Additional command line options to pass to the ARM kernel."
-DEFINE_boolean recovery ${FLAGS_FALSE} \
-  "Build a recovery image. Default: False."
 DEFINE_integer rootfs_partition_size 1024 \
   "rootfs parition size in MBs."
 DEFINE_integer rootfs_size 720 \
@@ -94,11 +92,6 @@ PRISTINE_IMAGE_NAME=chromiumos_image.bin
 if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
   PRISTINE_IMAGE_NAME=chromiumos_base_image.bin
   DEVELOPER_IMAGE_NAME=chromiumos_image.bin
-fi
-
-# If we are creating a recovery image, rename pristine image.
-if [ "${FLAGS_recovery}" -eq "${FLAGS_TRUE}" ]; then
-  PRISTINE_IMAGE_NAME=recovery_image.bin
 fi
 
 OUTPUT_IMG=${FLAGS_to:-${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}}
@@ -278,35 +271,6 @@ update_dev_packages() {
       --target="${ARCH}"
   fi
   echo "Developer image built and stored at ${image_name}"
-
-  trap - EXIT
-  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" -s "${STATEFUL_FS_DIR}"
-}
-
-
-# Modifies an existing image to add recovery packages
-update_recovery_packages() {
-  local image_name=$1
-
-  echo "Adding recovery packages to ${image_name}"
-
-  # Create stateful partition of the same size as the rootfs.
-  trap "mount_gpt_cleanup \"${ROOT_FS_DIR}\" \"${STATEFUL_FS_DIR}\"" EXIT
-
-  ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
-    --image "$( basename ${image_name} )" -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}"
-
-  # Install recovery installer.
-  sudo ${EMERGE_BOARD_CMD} --root=${ROOT_FS_DIR} --usepkg \
-      --root-deps=rdeps --nodeps chromeos-recovery
-
-  # Re-run ldconfig to fix /etc/ldconfig.so.cache.
-  sudo /sbin/ldconfig -r "${ROOT_FS_DIR}"
-
-  # Mark the image as a developer image (input to chromeos_startup).
-  sudo mkdir -p "${ROOT_FS_DIR}/root"
-  sudo touch "${ROOT_FS_DIR}/root/.recovery_installer"
 
   trap - EXIT
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" -s "${STATEFUL_FS_DIR}"
@@ -499,18 +463,12 @@ EOF
 
   trap delete_prompt EXIT
 
-  RECOVERY="--norecovery"
-  if [[ ${FLAGS_recovery} -eq ${FLAGS_TRUE} ]]; then
-    RECOVERY="--recovery"
-  fi
-
   # Create the GPT-formatted image.
   ${SCRIPTS_DIR}/build_gpt.sh \
     --arch=${ARCH} \
     --board=${FLAGS_board} \
     --arm_extra_bootargs="${FLAGS_arm_extra_bootargs}" \
     --rootfs_partition_size=${FLAGS_rootfs_partition_size} \
-    ${RECOVERY} \
     "${OUTPUT_DIR}" \
     "${OUTPUT_IMG}"
 }
@@ -522,13 +480,6 @@ mkdir -p "${STATEFUL_FS_DIR}"
 mkdir -p "${ESP_FS_DIR}"
 
 create_base_image ${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}
-
-# Create a recovery image based on the chromium os base image.
-if [ "${FLAGS_recovery}" -eq "${FLAGS_TRUE}" ] ; then
-  update_recovery_packages ${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}
-fi
-trap - EXIT
-
 
 # Create a developer image based on the chromium os base image.
 if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ] ; then
@@ -554,9 +505,6 @@ rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 
 echo "Done.  Image created in ${OUTPUT_DIR}"
 echo "Chromium OS image created as ${PRISTINE_IMAGE_NAME}"
-if [ "${FLAGS_recovery}" -eq "${FLAGS_TRUE}" ]; then
-  echo "Recovery image created as ${PRISTINE_IMAGE_NAME}"
-fi
 if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
   echo "Developer image created as ${DEVELOPER_IMAGE_NAME}"
 fi
