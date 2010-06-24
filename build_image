@@ -250,7 +250,7 @@ update_dev_packages() {
   # Install developer packages described in chromeos-dev.
   sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
       --root="${root_dev_dir}" --root-deps=rdeps \
-      --usepkgonly chromeos-dev ${EMERGE_JOBS}
+      --usepkg chromeos-dev ${EMERGE_JOBS}
 
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
   sudo /sbin/ldconfig -r "${ROOT_FS_DIR}"
@@ -298,7 +298,7 @@ update_recovery_packages() {
     -s "${STATEFUL_FS_DIR}"
 
   # Install recovery installer.
-  sudo ${EMERGE_BOARD_CMD} --root=${ROOT_FS_DIR} --usepkgonly \
+  sudo ${EMERGE_BOARD_CMD} --root=${ROOT_FS_DIR} --usepkg \
       --root-deps=rdeps --nodeps chromeos-recovery
 
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
@@ -418,13 +418,13 @@ EOF
   sudo mount --bind "${STATEFUL_FS_DIR}/var" "${ROOT_FS_DIR}/var"
   sudo mkdir -p "${ROOT_FS_DIR}/dev"
 
-  # We "emerge --root=${ROOT_FS_DIR} --root-deps=rdeps --usepkgonly" all of the
+  # We "emerge --root=${ROOT_FS_DIR} --root-deps=rdeps --usepkg" all of the
   # runtime packages for chrome os. This builds up a chrome os image from
   # binary packages with runtime dependencies only.  We use INSTALL_MASK to
   # trim the image size as much as possible.
   sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
     --root="${ROOT_FS_DIR}" --root-deps=rdeps \
-    --usepkgonly chromeos ${EMERGE_JOBS}
+    --usepkg chromeos ${EMERGE_JOBS}
 
   # Create EFI System Partition to boot stock EFI BIOS (but not ChromeOS EFI
   # BIOS). We only need this for x86, but it's simpler and safer to keep the
