@@ -11,7 +11,7 @@ testif=eth_test
 # Prevent flimflam from taking control of the backchannel network device.
 ORIG_CONF=${ROOT_FS_DIR}/etc/init/flimflam.conf
 TEMP_CONF=${ORIG_CONF}.tmp
-sed "s/flimflamd -W/flimflamd -I ${testif} -W/" ${ORIG_CONF} > ${TEMP_CONF}
+sed "s,/usr/sbin/flimflamd,/usr/sbin/flimflamd -I ${testif}," ${ORIG_CONF} > ${TEMP_CONF}
 mv -f ${TEMP_CONF} ${ORIG_CONF}
 
 # Arrange to run dhclient on the backchannel device but without
