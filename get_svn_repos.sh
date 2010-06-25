@@ -17,3 +17,4 @@ svn checkout http://src.chromium.org/svn/trunk/src/o3d/tests/selenium@44717 src/
 svn checkout http://src.chromium.org/svn/trunk/src/o3d/samples@46579 src/third_party/autotest/files/client/site_tests/graphics_O3DSelenium/O3D/o3d/samples
 svn checkout http://o3d.googlecode.com/svn/trunk/googleclient/o3d_assets/tests@155 src/third_party/autotest/files/client/site_tests/graphics_O3DSelenium/O3D/o3d/o3d_assets/tests
 svn checkout http://google-gflags.googlecode.com/svn/trunk@29 src/third_party/autotest/files/client/site_tests/graphics_O3DSelenium/O3D/o3d/third_party/gflags
+svn checkout https://cvs.khronos.org/svn/repos/registry/trunk/public/webgl/sdk/tests@11002 src/third_party/autotest/files/client/site_tests/graphics_WebGLConformance/WebGL
