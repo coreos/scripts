@@ -48,6 +48,9 @@ DEFINE_integer rootfs_partition_size 1024 \
   "rootfs parition size in MBs."
 DEFINE_integer rootfs_size 720 \
   "rootfs filesystem size in MBs."
+DEFINE_boolean preserve ${FLAGS_FALSE} \
+  "Attempt to preserve the previous build image if one can be found (unstable, \
+kernel/firmware not updated)"
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -94,7 +97,8 @@ if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
   DEVELOPER_IMAGE_NAME=chromiumos_image.bin
 fi
 
-OUTPUT_IMG=${FLAGS_to:-${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}}
+PRISTINE_IMG="${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}"
+DEVELOPER_IMG="${OUTPUT_DIR}/${DEVELOPER_IMAGE_NAME}"
 
 BOARD="${FLAGS_board}"
 BOARD_ROOT="${FLAGS_build_root}/${BOARD}"
@@ -168,6 +172,9 @@ if [[ -e "${OUTPUT_DIR}" ]]; then
   fi
 fi
 
+# Find previous build, if any...
+PREVIOUS_DIR=$($SCRIPTS_DIR/get_latest_image.sh --board="$BOARD")
+
 cleanup_rootfs_loop() {
   sudo umount -d "${ROOT_FS_DIR}"
 }
@@ -232,7 +239,7 @@ update_dev_packages() {
   trap "mount_gpt_cleanup \"${ROOT_FS_DIR}\" \"${STATEFUL_FS_DIR}\"" EXIT
 
   ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
-    --image "$( basename ${image_name} )" -r "${ROOT_FS_DIR}" \
+    --image "${image_name}" -r "${ROOT_FS_DIR}" \
     -s "${STATEFUL_FS_DIR}"
 
   # Determine the root dir for developer packages.
@@ -243,7 +250,14 @@ update_dev_packages() {
   # Install developer packages described in chromeos-dev.
   sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
       --root="${root_dev_dir}" --root-deps=rdeps \
-      --usepkg chromeos-dev ${EMERGE_JOBS}
+      --usepkg -uDNv chromeos-dev ${EMERGE_JOBS}
+
+  if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
+    # Clean out unused packages
+    sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
+      --root="${ROOT_FS_DIR}" --root-deps=rdeps \
+      --usepkg --depclean ${EMERGE_JOBS}
+  fi
 
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
   sudo /sbin/ldconfig -r "${ROOT_FS_DIR}"
@@ -273,12 +287,44 @@ update_dev_packages() {
   echo "Developer image built and stored at ${image_name}"
 
   trap - EXIT
-  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" -s "${STATEFUL_FS_DIR}"
+  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
+    -s "${STATEFUL_FS_DIR}"
+}
+
+# Update the base package on an existing image.
+update_base_packages() {
+  local image_name=$1
+
+  echo "Updating base packages on ${image_name}"
+
+  # Create stateful partition of the same size as the rootfs.
+  trap "mount_gpt_cleanup \"${ROOT_FS_DIR}\" \"${STATEFUL_FS_DIR}\"" EXIT
+
+  ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
+    --image "${image_name}" -r "${ROOT_FS_DIR}" \
+    -s "${STATEFUL_FS_DIR}"
+
+  # Emerge updated packages, exactly like when creating base image
+  sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
+    --root="${ROOT_FS_DIR}" --root-deps=rdeps \
+    --usepkg -uDNv chromeos ${EMERGE_JOBS}
+
+  # Clean out unused packages
+  sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
+    --root="${ROOT_FS_DIR}" --root-deps=rdeps \
+    --usepkg --depclean ${EMERGE_JOBS}
+
+  trap - EXIT
+  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
+    -s "${STATEFUL_FS_DIR}"
 }
 
 create_base_image() {
+  local image_name=$1
 
   trap "cleanup && delete_prompt" EXIT
+
+  UUID=$(uuidgen)
 
   # Create and format the root file system.
 
@@ -302,7 +348,6 @@ create_base_image() {
   sudo mkfs.ext3 "${LOOP_DEV}"
 
   # Tune and mount rootfs.
-  UUID=$(uuidgen)
   DISK_LABEL="C-KEYFOB"
   sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${LOOP_DEV}"
   sudo mount "${LOOP_DEV}" "${ROOT_FS_DIR}"
@@ -470,7 +515,16 @@ EOF
     --arm_extra_bootargs="${FLAGS_arm_extra_bootargs}" \
     --rootfs_partition_size=${FLAGS_rootfs_partition_size} \
     "${OUTPUT_DIR}" \
-    "${OUTPUT_IMG}"
+    "${OUTPUT_DIR}/${image_name}"
+
+  trap - EXIT
+
+  # FIXME: only signing things for x86 right now.
+  if [[ "${ARCH}" = "x86" ]]; then
+    # Verify the final image.
+    load_kernel_test "${OUTPUT_DIR}/${image_name}" \
+      "${OUTPUT_DIR}/key_alg8.vbpubk"
+  fi
 }
 
 # Create the output directory.
@@ -479,22 +533,35 @@ mkdir -p "${ROOT_FS_DIR}"
 mkdir -p "${STATEFUL_FS_DIR}"
 mkdir -p "${ESP_FS_DIR}"
 
-create_base_image ${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}
+# Preserve old images by copying them forward for --preserve.
+if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
+  if [[ -f ${PREVIOUS_DIR}/${PRISTINE_IMAGE_NAME} ]] ; then
+    # Copy forward pristine image, and associated files
+    cp ${PREVIOUS_DIR}/*.sh ${PREVIOUS_DIR}/config.txt ${OUTPUT_DIR}
+    cp ${PREVIOUS_DIR}/${PRISTINE_IMAGE_NAME} ${OUTPUT_DIR}
+
+    # Copy forward the developer image, if we already copied forward the base.
+    if [[ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]] && \
+       [[ -f ${PREVIOUS_DIR}/${DEVELOPER_IMAGE_NAME} ]] ; then
+      cp ${PREVIOUS_DIR}/${DEVELOPER_IMAGE_NAME} ${OUTPUT_DIR}
+    fi
+  fi
+fi
+
+if [[ -f ${PRISTINE_IMG} ]] ; then
+  update_base_packages ${PRISTINE_IMAGE_NAME}
+else
+  create_base_image ${PRISTINE_IMAGE_NAME}
+fi
 
 # Create a developer image based on the chromium os base image.
 if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ] ; then
-  echo "Creating developer image from base image ${OUTPUT_IMG}"
-  cp ${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME} ${OUTPUT_DIR}/${DEVELOPER_IMAGE_NAME}
-  update_dev_packages ${OUTPUT_DIR}/${DEVELOPER_IMAGE_NAME}
-fi
+  if [[ ! -f ${DEVELOPER_IMG} ]] ; then
+    echo "Creating developer image from base image ${PRISTINE_IMAGE_NAME}"
+    cp ${PRISTINE_IMG} ${DEVELOPER_IMG}
+  fi
 
-trap - EXIT
-
-# FIXME: only signing things for x86 right now.
-if [[ "${ARCH}" = "x86" ]]; then
-  # Verify the final image.
-  # key_alg8.vbpubk is generated by build_kernel_image.sh --keep_work
-  load_kernel_test "${OUTPUT_IMG}" "${OUTPUT_DIR}/key_alg8.vbpubk"
+  update_dev_packages ${DEVELOPER_IMAGE_NAME}
 fi
 
 # Clean up temporary files.
