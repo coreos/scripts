@@ -1,0 +1,176 @@
+#!/usr/bin/python
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+"""Generates pretty dependency graphs for Chrome OS packages."""
+
+import optparse
+import os
+import subprocess
+import sys
+
+
+NORMAL_COLOR = 'black'
+TARGET_COLOR = 'red'
+SEED_COLOR = 'green'
+CHILD_COLOR = 'grey'
+
+
+def GetReverseDependencyClosure(full_name, deps_map):
+  """Gets the closure of the reverse dependencies of a node.
+
+  Walks the tree along all the reverse dependency paths to find all the nodes
+  that transitively depend on the input node."""
+  s = set()
+  def GetClosure(name):
+    s.add(name)
+    node = deps_map[name]
+    for dep in node['rev_deps']:
+      if dep in s:
+        continue
+      GetClosure(dep)
+
+  GetClosure(full_name)
+  return s
+
+
+def GetOutputBaseName(node, options):
+  """Gets the basename of the output file for a node."""
+  return '%s_%s-%s.%s' % (node['category'], node['name'], node['version'],
+                          options.format)
+
+
+def GetNodeLines(node, options, color):
+  """Gets the dot definition for a node."""
+  name = node['full_name']
+  tags = ['label="%s (%s)"' % (name, node['action']),
+          'color="%s"' % color,
+          'fontcolor="%s"' % color]
+  if options.link:
+    filename = GetOutputBaseName(node, options)
+    tags.append('href="%s%s"' % (options.base_url, filename))
+  return ['"%s" [%s];' % (name, ', '.join(tags))]
+
+
+def GetReverseDependencyArcLines(node, options):
+  """Gets the dot definitions for the arcs leading to a node."""
+  lines = []
+  name = node['full_name']
+  for j in node['rev_deps']:
+    lines.append('"%s" -> "%s";' % (j, name))
+  return lines
+
+
+def GenerateDotGraph(package, deps_map, options):
+  """Generates the dot source for the dependency graph leading to a node.
+
+  The output is a list of lines."""
+  deps = GetReverseDependencyClosure(package, deps_map)
+  node = deps_map[package]
+
+  # Keep track of all the emitted nodes so that we don't issue multiple
+  # definitions
+  emitted = set()
+
+  lines = ['digraph dep {',
+           'graph [name="%s"];' % package]
+
+  # Add all the children if we want them, all of them in their own subgraph,
+  # as a sink. Keep the arcs outside of the subgraph though (it generates
+  # better layout).
+  has_children = False
+  if options.children and node['deps']:
+    has_children = True
+    lines += ['subgraph {',
+              'rank=sink;']
+    arc_lines = []
+    for child in node['deps']:
+      child_node = deps_map[child]
+      lines += GetNodeLines(child_node, options, CHILD_COLOR)
+      emitted.add(child)
+      # If child is in the rev_deps, we'll get the arc later.
+      if not child in node['rev_deps']:
+        arc_lines.append('"%s" -> "%s";' % (package, child))
+    lines += ['}']
+    lines += arc_lines
+
+  # Add the package in its own subgraph. If we didn't have children, make it
+  # a sink
+  lines += ['subgraph {']
+  if has_children:
+    lines += ['rank=same;']
+  else:
+    lines += ['rank=sink;']
+  lines += GetNodeLines(node, options, TARGET_COLOR)
+  emitted.add(package)
+  lines += ['}']
+
+  # Add all the other nodes, as well as all the arcs.
+  for dep in deps:
+    dep_node = deps_map[dep]
+    if not dep in emitted:
+      color = NORMAL_COLOR
+      if dep_node['action'] == 'seed':
+        color = SEED_COLOR
+      lines += GetNodeLines(dep_node, options, color)
+    lines += GetReverseDependencyArcLines(dep_node, options)
+
+  lines += ['}']
+  return lines
+
+
+def GenerateImages(input, options):
+  """Generate the output images for all the nodes in the input."""
+  deps_map = eval(input.read())
+
+  for package in deps_map:
+    lines = GenerateDotGraph(package, deps_map, options)
+    data = '\n'.join(lines)
+
+    filename = os.path.join(options.output_dir,
+                            GetOutputBaseName(deps_map[package], options))
+
+    # Send the source to dot.
+    proc = subprocess.Popen(['dot', '-T' + options.format, '-o' + filename],
+                            stdin=subprocess.PIPE)
+    proc.communicate(data)
+
+    if options.save_dot:
+      file = open(filename + '.dot', 'w')
+      file.write(data)
+      file.close()
+
+
+def main():
+  parser = optparse.OptionParser(usage='usage: %prog [options] input')
+  parser.add_option('-f', '--format', default='svg',
+                    help='Dot output format (png, svg, etc.).')
+  parser.add_option('-o', '--output-dir', default='.',
+                    help='Output directory.')
+  parser.add_option('-c', '--children', action='store_true',
+                    help='Also add children.')
+  parser.add_option('-l', '--link', action='store_true',
+                    help='Embed links.')
+  parser.add_option('-b', '--base-url', default='',
+                    help='Base url for links.')
+  parser.add_option('-s', '--save-dot', action='store_true',
+                    help='Save dot files.')
+  (options, inputs) = parser.parse_args()
+
+  try:
+    os.makedirs(options.output_dir)
+  except OSError:
+    # The directory already exists.
+    pass
+
+  if not inputs:
+    GenerateImages(sys.stdin, options)
+  else:
+    for i in inputs:
+      file = open(i)
+      GenerateImages(file, options)
+      file.close()
+
+if __name__ == '__main__':
+  main()
