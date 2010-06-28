@@ -48,6 +48,8 @@ DEFINE_integer rootfs_partition_size 1024 \
   "rootfs parition size in MBs."
 DEFINE_integer rootfs_size 720 \
   "rootfs filesystem size in MBs."
+DEFINE_integer statefulfs_size 1024 \
+  "stateful filesystem size in MBs."
 DEFINE_boolean preserve ${FLAGS_FALSE} \
   "Attempt to preserve the previous build image if one can be found (unstable, \
 kernel/firmware not updated)"
@@ -358,7 +360,9 @@ create_base_image() {
     echo "No free loop device.  Free up a loop device or reboot.  exiting. "
     exit 1
   fi
-  dd if=/dev/zero of="${STATEFUL_FS_IMG}" bs=1 count=1 seek=$((ROOT_SIZE_BYTES - 1))
+  STATEFUL_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_statefulfs_size}))
+  dd if=/dev/zero of="${STATEFUL_FS_IMG}" bs=1 count=1 \
+      seek=$((STATEFUL_SIZE_BYTES - 1))
   sudo losetup "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_IMG}"
   sudo mkfs.ext3 "${STATEFUL_LOOP_DEV}"
   sudo tune2fs -L "C-STATE" -U "${UUID}" -c 0 -i 0 \
