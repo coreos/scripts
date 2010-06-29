@@ -79,6 +79,7 @@ DEFINE_string test "" \
 DEFINE_string top "" \
     "Root directory of your checkout (defaults to determining from your cwd)"
 DEFINE_boolean withdev ${FLAGS_TRUE} "Build development packages"
+DEFINE_boolean usepkg ${FLAGS_TRUE} "Use binary packages"
 DEFINE_boolean unittest ${FLAGS_TRUE} "Run unit tests"
 
 
@@ -516,10 +517,15 @@ function main() {
     if [[ ${FLAGS_build_autotest} -eq ${FLAGS_TRUE} ]]; then
       build_autotest_param="--withautotest"
     fi
+    local pkg_param=""
+    if [[ ${FLAGS_usepkg} -eq ${FLAGS_FALSE} ]]; then
+      pkg_param="--nousepkg"
+    fi
 
     run_phase_in_chroot "Building packages" \
         ./build_packages "${board_param}" \
-        ${jobs_param} ${withdev_param} ${build_autotest_param}
+        ${jobs_param} ${withdev_param} ${build_autotest_param} \
+        ${pkg_param}
 
     run_phase_in_chroot "Building unit tests" ./build_tests.sh ${board_param}
     if [[ "${FLAGS_board}" == "x86-generic" ]]; then
