@@ -154,7 +154,8 @@ if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
     # really want to modify the image; the user gave their assent already with
     # --test-image and the original image is going to be preserved.
     "${SCRIPTS_DIR}/mod_image_for_test.sh" --image \
-      "${FLAGS_from}/chromiumos_test_image.bin" ${EXTRA_ARGS} --yes
+      "${FLAGS_from}/chromiumos_test_image.bin" --board=${FLAGS_board} \
+      ${EXTRA_ARGS} --yes
     echo "Done with mod_image_for_test."
   else
     echo "Using cached test image."
