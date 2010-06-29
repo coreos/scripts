@@ -31,7 +31,6 @@ fi
 set -e
 
 TEST_DIRS="
-  crash
   cryptohome
   metrics
   pam_google
