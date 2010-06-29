@@ -97,6 +97,12 @@ if [ ! -s ${STATEFUL_IMG} ]; then
   exit 1
 fi
 
+OEM_IMG="${IMAGEDIR}/partner_partition.image"
+if [[ ! -s ${OEM_IMG} ]]; then
+  error "Can't find ${OEM_IMG}"
+  exit 1
+fi
+
 ESP_IMG="${IMAGEDIR}/esp.image"
 if [ ! -s ${ESP_IMG} ]; then
   error "Can't find ${ESP_IMG}"
@@ -141,6 +147,9 @@ fi
 echo "Copying stateful partition..."
 $sudo dd if=${STATEFUL_IMG} of=${OUTDEV} conv=notrunc bs=512 \
     seek=${START_STATEFUL}
+
+echo "Copying OEM partition..."
+$sudo dd if=${OEM_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_OEM}
 
 echo "Copying kernel..."
 $sudo dd if=${KERNEL_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_KERN_A}

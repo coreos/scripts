@@ -111,11 +111,15 @@ ROOT_FS_DIR="${OUTPUT_DIR}/rootfs"
 STATEFUL_FS_IMG="${OUTPUT_DIR}/stateful_partition.image"
 STATEFUL_FS_DIR="${OUTPUT_DIR}/stateful_partition"
 
+OEM_FS_IMG="${OUTPUT_DIR}/partner_partition.image"
+OEM_FS_DIR="${OUTPUT_DIR}/partner_partition"
+
 ESP_FS_IMG=${OUTPUT_DIR}/esp.image
 ESP_FS_DIR=${OUTPUT_DIR}/esp
 
 LOOP_DEV=
 STATEFUL_LOOP_DEV=
+OEM_LOOP_DEV=
 ESP_LOOP_DEV=
 
 # ${DEV_IMAGE_ROOT} specifies the location of where developer packages will
@@ -187,6 +191,11 @@ cleanup_stateful_fs_loop() {
   sudo umount -d "${STATEFUL_FS_DIR}"
 }
 
+cleanup_oem_fs_loop() {
+  sudo umount -d "${OEM_FS_DIR}"
+}
+
+
 cleanup_esp_loop() {
   sudo umount -d "${ESP_FS_DIR}"
 }
@@ -197,6 +206,10 @@ cleanup() {
 
   if [[ -n "${STATEFUL_LOOP_DEV}" ]]; then
     cleanup_stateful_fs_loop
+  fi
+
+  if [[ -n "${OEM_LOOP_DEV}" ]]; then
+    cleanup_oem_fs_loop
   fi
 
   if [[ -n "${LOOP_DEV}" ]]; then
@@ -363,13 +376,31 @@ create_base_image() {
   STATEFUL_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_statefulfs_size}))
   dd if=/dev/zero of="${STATEFUL_FS_IMG}" bs=1 count=1 \
       seek=$((STATEFUL_SIZE_BYTES - 1))
+
+  # Tune and mount the stateful partition.
+  UUID=$(uuidgen)
+  DISK_LABEL="C-STATE"
   sudo losetup "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_IMG}"
   sudo mkfs.ext3 "${STATEFUL_LOOP_DEV}"
-  sudo tune2fs -L "C-STATE" -U "${UUID}" -c 0 -i 0 \
-      "${STATEFUL_LOOP_DEV}"
-
-  # Mount the stateful partition.
+  sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${STATEFUL_LOOP_DEV}"
   sudo mount "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"
+
+  # Create OEM partner partition.
+  OEM_LOOP_DEV=$(sudo losetup -f)
+  if [ -z "${OEM_LOOP_DEV}" ] ; then
+    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
+    exit 1
+  fi
+  OEM_SIZE_BYTES=$((1024 * 1024 * 16))
+  dd if=/dev/zero of="${OEM_FS_IMG}" bs=1 count=1 seek=$((OEM_SIZE_BYTES - 1))
+
+  # Tune and mount OEM partner partition.
+  UUID=$(uuidgen)
+  DISK_LABEL="C-OEM"
+  sudo losetup "${OEM_LOOP_DEV}" "${OEM_FS_IMG}"
+  sudo mkfs.ext3 "${OEM_LOOP_DEV}"
+  sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${OEM_LOOP_DEV}"
+  sudo mount "${OEM_LOOP_DEV}" "${OEM_FS_DIR}"
 
   # Turn root file system into bootable image.
   if [[ "${ARCH}" = "x86" ]]; then
@@ -535,6 +566,7 @@ EOF
 mkdir -p "${OUTPUT_DIR}"
 mkdir -p "${ROOT_FS_DIR}"
 mkdir -p "${STATEFUL_FS_DIR}"
+mkdir -p "${OEM_FS_DIR}"
 mkdir -p "${ESP_FS_DIR}"
 
 # Preserve old images by copying them forward for --preserve.
@@ -571,8 +603,9 @@ fi
 # Clean up temporary files.
 rm -f "${ROOT_FS_IMG}" "${STATEFUL_FS_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \
   "${ESP_FS_IMG}" "${OUTPUT_DIR}/data4_sign8.keyblock" \
-  "${OUTPUT_DIR}/key_alg4.vbpubk" "${OUTPUT_DIR}/key_alg8.vbpubk"
-rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
+  "${OUTPUT_DIR}/key_alg4.vbpubk" "${OUTPUT_DIR}/key_alg8.vbpubk" \
+  "${OEM_FS_IMG}"
+rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${OEM_FS_DIR}" "${ESP_FS_DIR}"
 
 echo "Done.  Image created in ${OUTPUT_DIR}"
 echo "Chromium OS image created as ${PRISTINE_IMAGE_NAME}"
