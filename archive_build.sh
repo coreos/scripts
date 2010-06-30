@@ -20,23 +20,20 @@ DEFAULT_FROM="${IMAGES_DIR}/$DEFAULT_BOARD/$(ls -t1 \
               $IMAGES_DIR/$DEFAULT_BOARD 2>&-| head -1)"
 
 # Flags
+DEFINE_boolean archive_debug $FLAGS_TRUE \
+    "Archive debug information for build"
 DEFINE_string board "$DEFAULT_BOARD" \
     "The board to build packages for."
-DEFINE_string chroot "$DEFAULT_CHROOT_DIR" \
-    "The chroot of the build to archive."
-DEFINE_string from "$DEFAULT_FROM" \
-    "Directory to archive"
-DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
-DEFINE_integer keep_max 0 "Maximum builds to keep in archive (0=all)"
-DEFINE_string zipname "image.zip" "Name of zip file to create."
-DEFINE_boolean official_build $FLAGS_FALSE "Set CHROMEOS_OFFICIAL=1 for release builds."
 DEFINE_string build_number "" \
     "The build-bot build number (when called by buildbot only)." "b"
-DEFINE_boolean test_mod $FLAGS_TRUE "Modify image for testing purposes"
-DEFINE_boolean factory_test_mod $FLAGS_FALSE \
-    "Modify image for factory testing purposes"
+DEFINE_string chroot "$DEFAULT_CHROOT_DIR" \
+    "The chroot of the build to archive."
 DEFINE_boolean factory_install_mod $FLAGS_FALSE \
     "Modify image for factory install purposes"
+DEFINE_boolean factory_test_mod $FLAGS_FALSE \
+    "Modify image for factory testing purposes"
+DEFINE_string from "$DEFAULT_FROM" \
+    "Directory to archive"
 DEFINE_string gsutil "gsutil" \
     "Location of gsutil"
 DEFINE_string gsd_gen_index "" \
@@ -45,6 +42,11 @@ DEFINE_string acl "private" \
     "ACL to set on GSD archives"
 DEFINE_string gsutil_archive "" \
     "Optional datastore archive location"
+DEFINE_integer keep_max 0 "Maximum builds to keep in archive (0=all)"
+DEFINE_boolean official_build $FLAGS_FALSE "Set CHROMEOS_OFFICIAL=1 for release builds."
+DEFINE_boolean test_mod $FLAGS_TRUE "Modify image for testing purposes"
+DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
+DEFINE_string zipname "image.zip" "Name of zip file to create."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -188,7 +190,7 @@ chmod 755 "$OUTDIR"
 function gsutil_archive() {
   IN_PATH="$1"
   OUT_PATH="$2"
-  if [ $FLAGS_gsutil_archive != "" ]
+  if [ -n "$FLAGS_gsutil_archive" ]
   then
     FULL_OUT_PATH="${FLAGS_gsutil_archive}/${OUT_PATH}"
     echo "Using gsutil to archive to ${OUT_PATH}..."
@@ -213,6 +215,17 @@ then
     --output_tag "${HWQUAL_NAME}"
   gsutil_archive "${OUTDIR}/${HWQUAL_NAME}.tar.bz2" \
     "${LAST_CHANGE}/${HWQUAL_NAME}.tar.bz2"
+fi
+
+if [ $FLAGS_archive_debug -eq $FLAGS_TRUE ]
+then
+  echo "Creating debug archive"
+  pushd "${FLAGS_chroot}/build/${FLAGS_board}/usr/lib"
+  sudo tar czf "${OUTDIR}/debug.tgz" --exclude debug/usr/local/autotest \
+      --exclude debug/tests debug
+  CMD="chown \${SUDO_UID}:\${SUDO_GID} ${OUTDIR}/debug.tgz"
+  sudo sh -c "${CMD}"
+  popd
 fi
 
 gsutil_archive "${ZIPFILE}" "${LAST_CHANGE}/${FLAGS_zipname}"
