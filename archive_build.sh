@@ -39,6 +39,10 @@ DEFINE_boolean factory_install_mod $FLAGS_FALSE \
     "Modify image for factory install purposes"
 DEFINE_string gsutil "gsutil" \
     "Location of gsutil"
+DEFINE_string gsd_gen_index "" \
+    "Location of gsd_generate_index.py"
+DEFINE_string acl "private" \
+    "ACL to set on GSD archives"
 DEFINE_string gsutil_archive "" \
     "Optional datastore archive location"
 
@@ -180,43 +184,44 @@ echo "$LAST_CHANGE" > "${FLAGS_to}/LATEST"
 chmod 644 "$ZIPFILE" "${FLAGS_to}/LATEST"
 chmod 755 "$OUTDIR"
 
+
+GSUTIL_CP="${FLAGS_gsutil} cp -a ${FLAGS_acl}"
+GSUTIL_GENERATE_INDEX="${FLAGS_gsd_gen_index} -a ${FLAGS_acl}"
+
+function gsutil_archive() {
+  IN_PATH="$1"
+  OUT_PATH="$2"
+  if [ $FLAGS_gsutil_archive != "" ]
+  then
+    FULL_OUT_PATH="${FLAGS_gsutil_archive}/${OUT_PATH}"
+    echo "Using gsutil to archive to ${OUT_PATH}..."
+    ${GSUTIL_CP} ${IN_PATH} ${FULL_OUT_PATH}
+    if [ $FLAGS_gsd_gen_index != "" ]
+    then
+      echo "Updating indexes..."
+      ${GSD_GENERATE_INDEX} -p ${FULL_OUT_PATH} ${FLAGS_gsutil_archive}
+    fi
+  fi
+}
+
 if [ $FLAGS_test_mod -eq $FLAGS_TRUE -a $FLAGS_official_build -eq $FLAGS_TRUE ]
 then
   echo "Creating hwqual archive"
   HWQUAL_NAME="chromeos-hwqual-${FLAGS_board}-${CHROMEOS_VERSION_STRING}"
   "${SCRIPTS_DIR}/archive_hwqual" --from "${OUTDIR}" \
     --output_tag "${HWQUAL_NAME}"
-  # Optionally archive with gsutil hwqual.
-  if [ $FLAGS_gsutil_archive != "" ]
-  then
-    GS_OUTDIR="${FLAGS_gsutil_archive}/${LAST_CHANGE}"
-    GS_HWQUAL_IN="${OUTDIR}/${HWQUAL_NAME}.tar.bz2"
-    GS_HWQUAL_OUT="${GS_OUTDIR}/${HWQUAL_NAME}.tar.bz2"
-    echo "Using gsutil to archive to ${GS_HWQUAL_OUT}..."
-    ${FLAGS_gsutil} cp ${GS_HWQUAL_IN} ${GS_HWQUAL_OUT}
-  fi
+  gsutil_archive "${OUTDIR}/${HWQUAL_NAME}.tar.bz2" \
+    "${LAST_CHANGE}/${HWQUAL_NAME}.tar.bz2"
 fi
 
-# Optionally archive to Google Storage for Developers.
-if [ $FLAGS_gsutil_archive != "" ]
+gsutil_archive "${ZIPFILE}" "${LAST_CHANGE}/${FLAGS_zipname}"
+if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
+   [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]
 then
-  GS_OUTDIR="${FLAGS_gsutil_archive}/${LAST_CHANGE}"
-  GS_ZIPFILE="${GS_OUTDIR}/${FLAGS_zipname}"
-  GS_FACTORY_ZIPFILE="${GS_OUTDIR}/factory_${FLAGS_zipname}"
-  GS_LATEST="${FLAGS_gsutil_archive}/LATEST"
-  echo "Using gsutil to archive to ${GS_ZIPFILE}..."
-  ${FLAGS_gsutil} cp ${ZIPFILE} ${GS_ZIPFILE}
-
-  if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
-     [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]
-  then
-    echo "Using gsutil to archive to ${GS_FACTORY_ZIPFILE}..."
-    ${FLAGS_gsutil} cp ${FACTORY_ZIPFILE} ${GS_FACTORY_ZIPFILE}
-  fi
-
-  echo "Updating latest ${GS_LATEST}..."
-  ${FLAGS_gsutil} cp ${FLAGS_to}/LATEST ${GS_LATEST}
+  gsutil_archive "${FACTORY_ZIPFILE}" \
+    "${LAST_CHANGE}/factory_${FLAGS_zipname}"
 fi
+gsutil_archive "${FLAGS_to}/LATEST" "LATEST"
 
 # Purge old builds if necessary
 if [ $FLAGS_keep_max -gt 0 ]
