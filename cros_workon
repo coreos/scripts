@@ -43,26 +43,16 @@ BOARD_DIR=/build/"${FLAGS_board}"
 KEYWORDS_DIR=${BOARD_DIR}/etc/portage/package.keywords
 KEYWORDS_FILE=${KEYWORDS_DIR}/cros-workon
 
+sudo mkdir -p "${KEYWORDS_DIR}" || die "mkdir -p ${KEYWORDS_DIR}"
+sudo touch "${KEYWORDS_FILE}" || die "touch ${KEYWORDS_FILE}"
+
 # Move a stable ebuild to the live development catgeory.  The ebuild
 # src_unpack step fetches the package source for local development.
 ebuild_to_live () {
-
   local atoms=$1
 
-  echo
-  echo "Moving stable ebuild to live development:"
-
-  if [[ -d "${KEYWORDS_DIR}" ]]; then
-    sudo mkdir -p "${KEYWORDS_DIR}"
-  fi
-
   for atom in ${atoms}; do
-
-    if [[ -f "${KEYWORDS_FILE}" ]] &&
-          $(grep -qx "${atom}" "${KEYWORDS_FILE}") ; then
-      echo "   '${atom}' already marked for development"
-    else
-      echo "   '${atom}'"
+    if ! grep -qx "${atom}" "${KEYWORDS_FILE}" ; then
       sudo bash -c "echo \"${atom}\" >> \"${KEYWORDS_FILE}\""
     fi
   done
@@ -70,29 +60,17 @@ ebuild_to_live () {
 
 # Move a live development ebuild back to stable.
 ebuild_to_stable () {
-
   local atoms=$1
 
-  echo
-  echo "Moving live development ebuild to stable:"
-
   for atom in ${atoms}; do
-
-    if [[ -f "${KEYWORDS_FILE}" ]] &&
-          $(grep -qx "${atom}" "${KEYWORDS_FILE}") ; then
-      echo "   '${atom}'"
-	  sudo bash -c "grep -v '^${atom}\$' \"${KEYWORDS_FILE}\" > \
-                    \"${KEYWORDS_FILE}+\"" 
-      sudo mv "${KEYWORDS_FILE}+" "${KEYWORDS_FILE}"
-    fi
+    sudo bash -c "grep -v '^${atom}\$' \"${KEYWORDS_FILE}\" > \
+        \"${KEYWORDS_FILE}+\""
+    sudo mv "${KEYWORDS_FILE}+" "${KEYWORDS_FILE}"
   done
 }
 
 # Display ebuilds currently part of the live branch and open for development.
 show_live_ebuilds () {
-  echo
-  echo "Live development ebuilds:"
-
   cat "${KEYWORDS_FILE}"
 }
 
@@ -102,4 +80,3 @@ case ${WORKON_CMD} in
   list)  show_live_ebuilds ;;
   *)     die "valid cros_workon commands: start|stop|list" ;;
 esac
-
