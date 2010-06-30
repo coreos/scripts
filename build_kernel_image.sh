@@ -87,7 +87,7 @@ vbutil_keyblock \
   --datapubkey "${FLAGS_working_dir}/key_alg4.vbpubk" \
   --signprivate "${FLAGS_keys_dir}/key_rsa4096.pem" \
   --algorithm 8 \
-  --flags 3
+  --flags 15
 WORK="${WORK} ${FLAGS_working_dir}/data4_sign8.keyblock"
 
 # Verify the keyblock.
