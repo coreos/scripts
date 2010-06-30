@@ -185,8 +185,6 @@ chmod 644 "$ZIPFILE" "${FLAGS_to}/LATEST"
 chmod 755 "$OUTDIR"
 
 
-GSD_GENERATE_INDEX="${FLAGS_gsd_gen_index} -a ${FLAGS_acl}"
-
 function gsutil_archive() {
   IN_PATH="$1"
   OUT_PATH="$2"
@@ -199,7 +197,10 @@ function gsutil_archive() {
     if [ $FLAGS_gsd_gen_index != "" ]
     then
       echo "Updating indexes..."
-      ${GSD_GENERATE_INDEX} -p ${FULL_OUT_PATH} ${FLAGS_gsutil_archive}
+      ${FLAGS_gsd_gen_index} \
+        --gsutil=${FLAGS_gsutil} \
+        -a ${FLAGS_acl} \
+        -p ${FULL_OUT_PATH} ${FLAGS_gsutil_archive}
     fi
   fi
 }
