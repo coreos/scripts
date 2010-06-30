@@ -185,7 +185,7 @@ chmod 644 "$ZIPFILE" "${FLAGS_to}/LATEST"
 chmod 755 "$OUTDIR"
 
 
-GSUTIL_GENERATE_INDEX="${FLAGS_gsd_gen_index} -a ${FLAGS_acl}"
+GSD_GENERATE_INDEX="${FLAGS_gsd_gen_index} -a ${FLAGS_acl}"
 
 function gsutil_archive() {
   IN_PATH="$1"
