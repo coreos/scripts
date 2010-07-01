@@ -185,7 +185,6 @@ def build_autotest(options):
   environ['TEST_LIST'] = test_list
   environ['USE'] = use_flag
   emerge_cmd = ['emerge-%s' % options.board,
-                '-uDn',
                 'chromeos-base/autotest']
   if emerge_jobs:
     emerge_cmd.append(emerge_jobs)
