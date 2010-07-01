@@ -45,12 +45,32 @@ KEYWORDS_FILE=${KEYWORDS_DIR}/cros-workon
 sudo mkdir -p "${KEYWORDS_DIR}" || die "mkdir -p ${KEYWORDS_DIR}"
 sudo touch "${KEYWORDS_FILE}" || die "touch ${KEYWORDS_FILE}"
 
+# Canonicalize package name to category/package.
+canonicalize_name () {
+  equery-${FLAGS_board} which $1 | \
+    awk -F '/' '{ print $(NF-2) "/" $(NF-1) }'
+}
+
+# Canonicalize a list of names.
+canonicalize_names () {
+  local atoms=$1
+  local names=""
+
+  for atom in ${atoms}; do
+    local name=$(canonicalize_name "${atom}")
+    [ -n "${name}" ] || return 1
+    names+=" ${name}"
+  done
+  echo ${names}
+}
+
 # Display ebuilds currently part of the live branch and open for development.
 show_live_ebuilds () {
   cat "${KEYWORDS_FILE}"
 }
 
 ATOM_LIST=$@
+ATOM_LIST=$(canonicalize_names "${ATOM_LIST}") || die "Invalid package name"
 [ -n "${ATOM_LIST}" ] || ATOM_LIST=$(show_live_ebuilds)
 
 # Move a stable ebuild to the live development catgeory.  The ebuild
