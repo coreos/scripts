@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Create a symlink to external_extensions.json to allow autotests
+# to launch a packaged extension at login.
+
+echo "Creating external_extensions.json symlink"
+LINK_TARGET="/home/autotest/tests/external_extensions.json"
+EXT_DIR="${ROOT_FS_DIR}/opt/google/chrome/extensions"
+FILE="${EXT_DIR}/external_extensions.json"
+mkdir -p $EXT_DIR
+ln -sf $LINK_TARGET $FILE
