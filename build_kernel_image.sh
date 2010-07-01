@@ -22,7 +22,7 @@ DEFINE_string working_dir "/tmp/vmlinuz.working" \
 DEFINE_boolean keep_work ${FLAGS_FALSE} \
   "Keep temporary files (*.keyblock, *.vbpubk). (Default: false)"
 DEFINE_string keys_dir "${SRC_ROOT}/platform/vboot_reference/tests/testkeys" \
-  "Directory with the signing keys. (Defaults to test keys)"
+  "Directory with the RSA signing keys. (Defaults to test keys)"
 # Note, to enable verified boot, the caller would pass:
 # --boot_args='dm="... /dev/sd%D%P /dev/sd%D%P ..." \
 # --root=/dev/dm-0
@@ -65,41 +65,64 @@ ${FLAGS_boot_args}
 EOF
 WORK="${FLAGS_working_dir}/config.txt"
 
-# Wrap the public keys with VbPublicKey headers.
+
+# FIX: The .vbprivk files are not encrypted, so we shouldn't just leave them
+# lying around as a general thing.
+
+# Wrap the kernel data keypair, used for the kernel body
 vbutil_key \
-  --pack \
-  --in "${FLAGS_keys_dir}/key_rsa2048.keyb" \
+  --pack "${FLAGS_working_dir}/kernel_data_key.vbpubk" \
+  --key "${FLAGS_keys_dir}/key_rsa2048.keyb" \
   --version 1 \
-  --algorithm 4 \
-  --out "${FLAGS_working_dir}/key_alg4.vbpubk"
-WORK="${WORK} ${FLAGS_working_dir}/key_alg4.vbpubk"
+  --algorithm 4
+WORK="${WORK} ${FLAGS_working_dir}/kernel_data_key.vbpubk"
 
 vbutil_key \
-  --pack \
-  --in "${FLAGS_keys_dir}/key_rsa4096.keyb" \
-  --version 1 \
-  --algorithm 8 \
-  --out "${FLAGS_working_dir}/key_alg8.vbpubk"
-WORK="${WORK} ${FLAGS_working_dir}/key_alg8.vbpubk"
+  --pack "${FLAGS_working_dir}/kernel_data_key.vbprivk" \
+  --key "${FLAGS_keys_dir}/key_rsa2048.pem" \
+  --algorithm 4
+WORK="${WORK} ${FLAGS_working_dir}/kernel_data_key.vbprivk"
 
+
+# Wrap the kernel subkey pair, used for the kernel's keyblock
+vbutil_key \
+  --pack "${FLAGS_working_dir}/kernel_subkey.vbpubk" \
+  --key "${FLAGS_keys_dir}/key_rsa4096.keyb" \
+  --version 1 \
+  --algorithm 8
+WORK="${WORK} ${FLAGS_working_dir}/kernel_subkey.vbpubk"
+
+vbutil_key \
+  --pack "${FLAGS_working_dir}/kernel_subkey.vbprivk" \
+  --key "${FLAGS_keys_dir}/key_rsa4096.pem" \
+  --algorithm 8
+WORK="${WORK} ${FLAGS_working_dir}/kernel_subkey.vbprivk"
+
+
+# Create the kernel keyblock, containing the kernel data key
 vbutil_keyblock \
-  --pack "${FLAGS_working_dir}/data4_sign8.keyblock" \
-  --datapubkey "${FLAGS_working_dir}/key_alg4.vbpubk" \
-  --signprivate "${FLAGS_keys_dir}/key_rsa4096.pem" \
-  --algorithm 8 \
+  --pack "${FLAGS_working_dir}/kernel.keyblock" \
+  --datapubkey "${FLAGS_working_dir}/kernel_data_key.vbpubk" \
+  --signprivate "${FLAGS_working_dir}/kernel_subkey.vbprivk" \
   --flags 15
-WORK="${WORK} ${FLAGS_working_dir}/data4_sign8.keyblock"
+WORK="${WORK} ${FLAGS_working_dir}/kernel.keyblock"
 
 # Verify the keyblock.
 vbutil_keyblock \
-  --unpack "${FLAGS_working_dir}/data4_sign8.keyblock" \
-  --signpubkey "${FLAGS_working_dir}/key_alg8.vbpubk"
+  --unpack "${FLAGS_working_dir}/kernel.keyblock" \
+  --signpubkey "${FLAGS_working_dir}/kernel_subkey.vbpubk"
 
-# Sign the kernel:
+# TODO: We should sign the kernel blob using the recovery root key and recovery
+# kernel data key instead (to create the recovery image), and then re-sign it
+# this way for the install image. But we'll want to keep the install vblock
+# separate, so we can just copy that part over separately when we install it
+# instead of the whole kernel blob.
+
+# Create and sign the kernel blob
 vbutil_kernel \
   --pack "${FLAGS_to}" \
-  --keyblock "${FLAGS_working_dir}/data4_sign8.keyblock" \
-  --signprivate "${FLAGS_keys_dir}/key_rsa2048.pem" \
+  --keyblock "${FLAGS_working_dir}/kernel.keyblock" \
+  --signprivate "${FLAGS_working_dir}/kernel_data_key.vbprivk" \
   --version 1 \
   --config "${FLAGS_working_dir}/config.txt" \
   --bootloader /lib64/bootstub/bootstub.efi \
@@ -108,7 +131,7 @@ vbutil_kernel \
 # And verify it.
 vbutil_kernel \
   --verify "${FLAGS_to}" \
-  --signpubkey "${FLAGS_working_dir}/key_alg8.vbpubk"
+  --signpubkey "${FLAGS_working_dir}/kernel_subkey.vbpubk"
 
 else
   # FIXME: For now, ARM just uses the unsigned kernel by itself.
