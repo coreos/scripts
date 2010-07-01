@@ -217,6 +217,8 @@ then
     "${LAST_CHANGE}/${HWQUAL_NAME}.tar.bz2"
 fi
 
+gsutil_archive "${ZIPFILE}" "${LAST_CHANGE}/${FLAGS_zipname}"
+
 if [ $FLAGS_archive_debug -eq $FLAGS_TRUE ]
 then
   echo "Creating debug archive"
@@ -226,9 +228,9 @@ then
   CMD="chown \${SUDO_UID}:\${SUDO_GID} ${OUTDIR}/debug.tgz"
   sudo sh -c "${CMD}"
   popd
+  gsutil_archive "${OUTDIR}/debug.tgz" "${LAST_CHANGE}/debug.tgz"
 fi
 
-gsutil_archive "${ZIPFILE}" "${LAST_CHANGE}/${FLAGS_zipname}"
 if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
    [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]
 then
