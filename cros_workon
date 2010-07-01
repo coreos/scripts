@@ -9,10 +9,6 @@
 # last known good commit. Moving an ebuild to 'live' (via cros_workon start)
 # is intended to support development. The current source tip is fetched,
 # source modified and built using the unstable 'live' (9999) ebuild.
-#
-# Usage:
-#    cros_workon <start|stop> <package> [<package> ...] [--board=<board-name]
-#    cros_workon list
 
 # Load common constants.  This should be the first executable line.
 # The path to common.sh should be relative to your script's location.
@@ -24,20 +20,23 @@ get_default_board
 
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to set package keywords for."
+DEFINE_string command "git status" \
+  "The command to be run by forall."
 
-FLAGS_HELP="usage: $0 [flags]"
+FLAGS_HELP="usage: $0 <command> [flags]
+commands:
+  start:  Moves an ebuild to live (intended to support development)
+  stop:  Moves an ebuild to stable (use last known good)
+  list:  List of all live ebuilds
+  forall:  For each ebuild, cd to the source dir and run a commond"
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
-if [ -z "${FLAGS_board}" ] ; then
-  die "--board is required."
-fi
+[ -n "${FLAGS_board}" ] || die "--board is required."
 
 # eat the workon command keywords: start, stop or list.
 WORKON_CMD=$1
 shift
-
-ATOM_LIST=$@
 
 BOARD_DIR=/build/"${FLAGS_board}"
 KEYWORDS_DIR=${BOARD_DIR}/etc/portage/package.keywords
@@ -45,6 +44,14 @@ KEYWORDS_FILE=${KEYWORDS_DIR}/cros-workon
 
 sudo mkdir -p "${KEYWORDS_DIR}" || die "mkdir -p ${KEYWORDS_DIR}"
 sudo touch "${KEYWORDS_FILE}" || die "touch ${KEYWORDS_FILE}"
+
+# Display ebuilds currently part of the live branch and open for development.
+show_live_ebuilds () {
+  cat "${KEYWORDS_FILE}"
+}
+
+ATOM_LIST=$@
+[ -n "${ATOM_LIST}" ] || ATOM_LIST=$(show_live_ebuilds)
 
 # Move a stable ebuild to the live development catgeory.  The ebuild
 # src_unpack step fetches the package source for local development.
@@ -69,14 +76,21 @@ ebuild_to_stable () {
   done
 }
 
-# Display ebuilds currently part of the live branch and open for development.
-show_live_ebuilds () {
-  cat "${KEYWORDS_FILE}"
+# Run a command on all or a set of repos.
+ebuild_forall() {
+  local atoms=$1
+
+  for atom in ${atoms}; do
+    info "Running \"${FLAGS_command}\" on ${atom}"
+    eval $(ebuild-${FLAGS_board} $(equery-${FLAGS_board} which ${atom}) info)
+    (cd "${CROS_WORKON_SRCDIR}" && bash -c "${FLAGS_command}")
+  done
 }
 
 case ${WORKON_CMD} in
-  start) ebuild_to_live "${ATOM_LIST}" ;;
-  stop)  ebuild_to_stable "${ATOM_LIST}" ;;
-  list)  show_live_ebuilds ;;
-  *)     die "valid cros_workon commands: start|stop|list" ;;
+  start)  ebuild_to_live "${ATOM_LIST}" ;;
+  stop)   ebuild_to_stable "${ATOM_LIST}" ;;
+  list)   show_live_ebuilds ;;
+  forall) ebuild_forall "${ATOM_LIST}" ;;
+  *)      die "invalid cros_workon command" ;;
 esac
