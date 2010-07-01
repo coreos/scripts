@@ -53,6 +53,9 @@ DEFINE_integer statefulfs_size 1024 \
 DEFINE_boolean preserve ${FLAGS_FALSE} \
   "Attempt to preserve the previous build image if one can be found (unstable, \
 kernel/firmware not updated)"
+DEFINE_boolean fast ${FLAGS_FALSE} \
+  "Call many emerges in parallel (unstable)"
+
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -72,12 +75,10 @@ if [ "${FLAGS_rootfs_size}" -gt "${FLAGS_rootfs_partition_size}" ] ; then
   exit 1
 fi
 
-EMERGE_CMD="emerge"
 EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
-TOP_SCRIPTS_DIR="$(dirname $0)"
-if [ -e "${TOP_SCRIPTS_DIR}/.emerge" ]; then
+if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
   echo "Using alternate emerge"
-  .  "${TOP_SCRIPTS_DIR}/.emerge"
+  EMERGE_BOARD_CMD="${SCRIPTS_DIR}/parallel_emerge --board=${FLAGS_board}"
 fi
 
 # Determine build version.
