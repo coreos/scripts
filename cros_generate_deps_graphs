@@ -5,9 +5,9 @@
 
 """Generates pretty dependency graphs for Chrome OS packages."""
 
+import dot_helper
 import optparse
 import os
-import subprocess
 import sys
 
 
@@ -41,25 +41,15 @@ def GetOutputBaseName(node, options):
                           options.format)
 
 
-def GetNodeLines(node, options, color):
+def AddNodeToSubgraph(subgraph, node, options, color):
   """Gets the dot definition for a node."""
   name = node['full_name']
-  tags = ['label="%s (%s)"' % (name, node['action']),
-          'color="%s"' % color,
-          'fontcolor="%s"' % color]
+  href = None
   if options.link:
     filename = GetOutputBaseName(node, options)
-    tags.append('href="%s%s"' % (options.base_url, filename))
-  return ['"%s" [%s];' % (name, ', '.join(tags))]
+    href = '%s%s' % (options.base_url, filename)
+  subgraph.AddNode(name, name, color, href)
 
-
-def GetReverseDependencyArcLines(node, options):
-  """Gets the dot definitions for the arcs leading to a node."""
-  lines = []
-  name = node['full_name']
-  for j in node['rev_deps']:
-    lines.append('"%s" -> "%s";' % (j, name))
-  return lines
 
 
 def GenerateDotGraph(package, deps_map, options):
@@ -73,38 +63,29 @@ def GenerateDotGraph(package, deps_map, options):
   # definitions
   emitted = set()
 
-  lines = ['digraph dep {',
-           'graph [name="%s"];' % package]
+  graph = dot_helper.Graph(package)
 
   # Add all the children if we want them, all of them in their own subgraph,
   # as a sink. Keep the arcs outside of the subgraph though (it generates
   # better layout).
-  has_children = False
+  children_subgraph = None
   if options.children and node['deps']:
-    has_children = True
-    lines += ['subgraph {',
-              'rank=sink;']
-    arc_lines = []
+    children_subgraph = graph.AddNewSubgraph('sink')
     for child in node['deps']:
       child_node = deps_map[child]
-      lines += GetNodeLines(child_node, options, CHILD_COLOR)
+      AddNodeToSubgraph(children_subgraph, child_node, options, CHILD_COLOR)
       emitted.add(child)
-      # If child is in the rev_deps, we'll get the arc later.
-      if not child in node['rev_deps']:
-        arc_lines.append('"%s" -> "%s";' % (package, child))
-    lines += ['}']
-    lines += arc_lines
+      graph.AddArc(package, child)
 
   # Add the package in its own subgraph. If we didn't have children, make it
   # a sink
-  lines += ['subgraph {']
-  if has_children:
-    lines += ['rank=same;']
+  if children_subgraph:
+    rank = 'same'
   else:
-    lines += ['rank=sink;']
-  lines += GetNodeLines(node, options, TARGET_COLOR)
+    rank = 'sink'
+  package_subgraph = graph.AddNewSubgraph(rank)
+  AddNodeToSubgraph(package_subgraph, node, options, TARGET_COLOR)
   emitted.add(package)
-  lines += ['}']
 
   # Add all the other nodes, as well as all the arcs.
   for dep in deps:
@@ -113,11 +94,11 @@ def GenerateDotGraph(package, deps_map, options):
       color = NORMAL_COLOR
       if dep_node['action'] == 'seed':
         color = SEED_COLOR
-      lines += GetNodeLines(dep_node, options, color)
-    lines += GetReverseDependencyArcLines(dep_node, options)
+      AddNodeToSubgraph(graph, dep_node, options, color)
+    for j in dep_node['rev_deps']:
+      graph.AddArc(j, dep)
 
-  lines += ['}']
-  return lines
+  return graph.Gen()
 
 
 def GenerateImages(input, options):
@@ -126,20 +107,15 @@ def GenerateImages(input, options):
 
   for package in deps_map:
     lines = GenerateDotGraph(package, deps_map, options)
-    data = '\n'.join(lines)
 
     filename = os.path.join(options.output_dir,
                             GetOutputBaseName(deps_map[package], options))
 
-    # Send the source to dot.
-    proc = subprocess.Popen(['dot', '-T' + options.format, '-o' + filename],
-                            stdin=subprocess.PIPE)
-    proc.communicate(data)
-
+    save_dot_filename = None
     if options.save_dot:
-      file = open(filename + '.dot', 'w')
-      file.write(data)
-      file.close()
+      save_dot_filename = filename + '.dot'
+
+    dot_helper.GenerateImage(lines, filename, options.format, save_dot_filename)
 
 
 def main():
