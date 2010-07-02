@@ -6,8 +6,7 @@
 
 # Start the Dev Server after making sure we are running under a chroot.
 
-COMMON_SH="$(dirname "$0")/common.sh"
-. "$COMMON_SH"
+. "$(dirname "$0")/common.sh"
 
 # Script must be run inside the chroot if not in 'always serve' mode.
 if [[ "$1" != "--archive_dir" ]]
@@ -15,4 +14,23 @@ then
   restart_in_chroot_if_needed $*
 fi
 
-cd ${GCLIENT_ROOT}/src/platform/dev && python devserver.py $*
+# Temporary workaround to support requests from update_engine daemon
+DEFINE_boolean update_engine $FLAGS_FALSE \
+  "Start devserver to handle update_engine requests. Default: False"
+
+# Parse command line.
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+set -e
+
+CLIENT_PREFIX=
+if [ "${FLAGS_update_engine}" -eq "${FLAGS_TRUE}" ] ; then
+  echo "!!! devserver will only handle request from update_engine"
+  # --client_prefix flag is defined in devserver.py
+  CLIENT_PREFIX="--client_prefix ChromeOSUpdateEngine"
+else
+  echo "!!! devserver will only handle request from memento_updater"
+fi
+
+cd ${GCLIENT_ROOT}/src/platform/dev && python devserver.py ${CLIENT_PREFIX} $*
