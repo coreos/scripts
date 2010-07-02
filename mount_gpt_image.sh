@@ -88,7 +88,8 @@ function get_gpt_partitions() {
 function mount_image() {
   mkdir -p "${FLAGS_rootfs_mountpt}"
   mkdir -p "${FLAGS_stateful_mountpt}"
-  mkdir -p "${FLAGS_esp_mountpt}"
+  test -n "${FLAGS_esp_mountpt}" && \
+    mkdir -p "${FLAGS_esp_mountpt}"
 
   # Get the partitions for the image / device.
   if [ -b ${FLAGS_from} ] ; then
