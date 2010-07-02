@@ -27,6 +27,8 @@ DEFINE_string image "chromiumos_image.bin"\
 DEFINE_string "rootfs_mountpt" "/tmp/m" "Mount point for rootfs" "r"
 DEFINE_string "stateful_mountpt" "/tmp/s" \
     "Mount point for stateful partition" "s"
+DEFINE_string "esp_mountpt" "" \
+    "Mount point for esp partition" "e"
 DEFINE_boolean most_recent ${FLAGS_FALSE} "Use the most recent image dir" m
 
 # Parse flags
@@ -48,6 +50,7 @@ function unmount_image() {
   fix_broken_symlinks "${FLAGS_rootfs_mountpt}"
   sudo umount "${FLAGS_rootfs_mountpt}/usr/local"
   sudo umount "${FLAGS_rootfs_mountpt}/var"
+  test -n "${FLAGS_esp_mountpt}" && sudo umount -d "${FLAGS_esp_mountpt}"
   sudo umount -d "${FLAGS_stateful_mountpt}"
   sudo umount -d "${FLAGS_rootfs_mountpt}"
   set -e
@@ -56,6 +59,8 @@ function unmount_image() {
 function get_usb_partitions() {
   sudo mount "${FLAGS_from}3" "${FLAGS_rootfs_mountpt}"
   sudo mount "${FLAGS_from}1" "${FLAGS_stateful_mountpt}"
+  test -n "${FLAGS_esp_mountpt}" && \
+    sudo mount "${FLAGS_from}12" "${FLAGS_esp_mountpt}"
 }
 
 function get_gpt_partitions() {
@@ -70,12 +75,20 @@ function get_gpt_partitions() {
   offset=$(partoffset "${FLAGS_from}/${filename}" 1)
   sudo mount -o loop,offset=$(( offset * 512 )) "${FLAGS_from}/${filename}" \
     "${FLAGS_stateful_mountpt}"
+
+  # Mount the stateful partition using a loopback device.
+  if [[ -n "${FLAGS_esp_mountpt}" ]]; then
+    offset=$(partoffset "${FLAGS_from}/${filename}" 12)
+    sudo mount -o loop,offset=$(( offset * 512 )) "${FLAGS_from}/${filename}" \
+      "${FLAGS_esp_mountpt}"
+  fi
 }
 
 # Mount a gpt based image.
 function mount_image() {
   mkdir -p "${FLAGS_rootfs_mountpt}"
   mkdir -p "${FLAGS_stateful_mountpt}"
+  mkdir -p "${FLAGS_esp_mountpt}"
 
   # Get the partitions for the image / device.
   if [ -b ${FLAGS_from} ] ; then
