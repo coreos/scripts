@@ -13,6 +13,9 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
+. "$(dirname "$0")/chromeos-common.sh"  # for partoffset
+locate_gpt
+
 # Script must be run inside the chroot.
 restart_in_chroot_if_needed $*
 
@@ -56,6 +59,20 @@ kernel/firmware not updated)"
 DEFINE_boolean fast ${FLAGS_FALSE} \
   "Call many emerges in parallel (unstable)"
 
+DEFINE_string usb_disk /dev/sdb3 \
+  "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
+
+DEFINE_boolean use_vboot ${FLAGS_FALSE} \
+  "Default the bootloaders to booting a verifying kernel. Default: False."
+DEFINE_integer vboot_behavior 2 \
+  "Verified boot error behavior (0: I/O errors, 1: reboot, 2: nothing) \
+Default: 2"
+DEFINE_integer vboot_depth 1 \
+  "Verified boot hash tree depth. Default: 1"
+DEFINE_integer vboot_max_ios 1024 \
+  "Number of outstanding I/O operations dm-verity caps at. Default: 1024"
+DEFINE_string vboot_algorithm "sha1" \
+  "Cryptographic hash algorithm used for vboot. Default : sha1"
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -108,6 +125,7 @@ BOARD_ROOT="${FLAGS_build_root}/${BOARD}"
 
 ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
 ROOT_FS_DIR="${OUTPUT_DIR}/rootfs"
+ROOT_FS_HASH="${OUTPUT_DIR}/rootfs.hash"
 
 STATEFUL_FS_IMG="${OUTPUT_DIR}/stateful_partition.image"
 STATEFUL_FS_DIR="${OUTPUT_DIR}/stateful_partition"
@@ -207,6 +225,7 @@ cleanup() {
 
   if [[ -n "${STATEFUL_LOOP_DEV}" ]]; then
     cleanup_stateful_fs_loop
+    STATEFUL_LOOP_DEV=
   fi
 
   if [[ -n "${OEM_LOOP_DEV}" ]]; then
@@ -215,10 +234,12 @@ cleanup() {
 
   if [[ -n "${LOOP_DEV}" ]]; then
     cleanup_rootfs_loop
+    LOOP_DEV=
   fi
 
   if [[ -n "${ESP_LOOP_DEV}" ]]; then
     cleanup_esp_loop
+    ESP_LOOP_DEV=
   fi
 
   # Turn die on error back on.
@@ -241,9 +262,94 @@ delete_prompt() {
 
 # $1 - Directory where developer rootfs is mounted.
 # $2 - Directory where developer stateful_partition is mounted.
+# $3 - Directory where the ESP partition is mounted.
 mount_gpt_cleanup() {
-  "${SCRIPTS_DIR}/mount_gpt_image.sh" -u -r "$1" -s "$2"
+  local rootfs="${1-$ROOT_FS_DIR}"
+  local statefs="${2-$STATEFUL_FS_DIR}"
+  local espfs="${3-$ESP_FS_DIR}"
+  "${SCRIPTS_DIR}/mount_gpt_image.sh" \
+    -u -r "${rootfs}" -s "${statefs}" -e "${espfs}"
   delete_prompt
+}
+
+make_image_bootable() {
+  local image_name="$1"
+  cros_root=/dev/sd%D%P
+  if [[ "${ARCH}" = "arm" ]]; then
+    # TODO(wad) assumed like in build_gpt for now.
+    cros_root=/dev/mmcblk1p3
+  fi
+  if [[ ${FLAGS_use_vboot} -eq ${FLAGS_TRUE} ]]; then
+    cros_root=/dev/dm-0
+  fi
+
+  # TODO(wad) mount the root fs to LOOP_DEV from the image
+  trap "mount_gpt_cleanup" EXIT
+  ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
+    --image "${image_name}" -r "${ROOT_FS_DIR}" \
+    -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
+
+  sudo mount -o remount,ro "${ROOT_FS_DIR}"
+  root_dev=$(mount | grep -- "${ROOT_FS_DIR}" | cut -f1 -d' ' | tail -1)
+
+  # Builds the kernel partition image.  The temporary files are kept around
+  # so that we can perform a load_kernel_test later on the final image.
+  ${SCRIPTS_DIR}/build_kernel_image.sh \
+    --arch="${ARCH}" \
+    --to="${OUTPUT_DIR}/vmlinuz.image" \
+    --vmlinuz="${OUTPUT_DIR}/boot/vmlinuz" \
+    --working_dir="${OUTPUT_DIR}" \
+    --keep_work \
+    --rootfs_image=${root_dev} \
+    --rootfs_hash=${OUTPUT_DIR}/rootfs.hash \
+    --vboot_hash_alg=${FLAGS_vboot_algorithm} \
+    --vboot_tree_depth=${FLAGS_vboot_depth} \
+    --vboot_max_ios=${FLAGS_vboot_max_ios} \
+    --vboot_error_behavior=${FLAGS_vboot_behavior} \
+    --root=${cros_root} \
+    --keys_dir="${SRC_ROOT}/platform/vboot_reference/tests/testkeys"
+
+  # START_KERN_A is set by the first call to install the gpt.
+  local koffset="$(partoffset ${OUTPUT_DIR}/${image_name} 2)"
+  sudo dd if="${OUTPUT_DIR}/vmlinuz.image" of="${OUTPUT_DIR}/${image_name}" \
+    conv=notrunc bs=512 seek=${koffset}
+
+  # Populate the legacy/efi bootloader partition.
+  local kernel_part="--kernel_partition='${OUTPUT_DIR}/vmlinuz.image'"
+  local bootloader_to="${ESP_FS_IMG}"
+  local usb_disk="${FLAGS_usb_disk}"
+  local bootloader_to="$(mount | grep ${ESP_FS_DIR} | cut -f1 -d' ')"
+  if [[ "${ARCH}" == "arm" ]]; then
+    # TODO(wad) mmcblk1p3 is hardcoded for arm for now!
+    usb_disk="/dev/mmcblk1p3"
+    kernel_part="--kernel_cmdline='"
+    kernel_part="${kernel_part}\
+$(cat ${OUTPUT_DIR}/boot.config | tr -s '\n' ' ')"
+    kernel_part="${kernel_part} ${FLAGS_arm_extra_bootargs}'"
+    local kpart_offset="--kernel_partition_offset=${koffset}"
+    local kpart_size="--kernel_partition_sectors=$(partsize ${image_name} 2)"
+    kernel_part="${kernel_part} ${kpart_size} ${kpart_offset}"
+    bootloader_to="${OUTPUT_DIR}/arm.mbr"
+  fi
+
+  # Update partition 12 / legacy bootloaders and arm.
+  ${SCRIPTS_DIR}/update_bootloaders.sh \
+    --arch=${ARCH} \
+    --to="${bootloader_to}" \
+    --from="${OUTPUT_DIR}"/boot \
+    --vmlinuz="${OUTPUT_DIR}"/boot/vmlinuz \
+    --usb_disk="${usb_disk}" \
+    $kernel_part
+
+  if [[ "${ARCH}" == "arm" ]]; then
+    sudo dd bs=1 conv=notrunc  if="${bootloader_to}" \
+      of="${OUTPUT_DIR}/${image_name}"
+    sudo rm "${bootloader_to}"
+  fi
+
+  trap - EXIT
+  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
+    -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
 }
 
 # Modifies an existing image to add development packages
@@ -252,11 +358,11 @@ update_dev_packages() {
 
   echo "Adding developer packages to ${image_name}"
 
-  trap "mount_gpt_cleanup \"${ROOT_FS_DIR}\" \"${STATEFUL_FS_DIR}\"" EXIT
+  trap "mount_gpt_cleanup" EXIT
 
   ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
     --image "${image_name}" -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}"
+    -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
 
   # Determine the root dir for developer packages.
   local root_dev_dir="${ROOT_FS_DIR}"
@@ -304,7 +410,7 @@ update_dev_packages() {
 
   trap - EXIT
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}"
+    -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
 }
 
 # Update the base package on an existing image.
@@ -314,11 +420,11 @@ update_base_packages() {
   echo "Updating base packages on ${image_name}"
 
   # Create stateful partition of the same size as the rootfs.
-  trap "mount_gpt_cleanup \"${ROOT_FS_DIR}\" \"${STATEFUL_FS_DIR}\"" EXIT
+  trap "mount_gpt_cleanup" EXIT
 
   ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
     --image "${image_name}" -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}"
+    -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
 
   # Emerge updated packages, exactly like when creating base image
   sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
@@ -332,7 +438,7 @@ update_base_packages() {
 
   trap - EXIT
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}"
+    -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
 }
 
 create_base_image() {
@@ -444,20 +550,11 @@ create_base_image() {
     --root="${ROOT_FS_DIR}" --root-deps=rdeps \
     --usepkg chromeos ${EMERGE_JOBS}
 
-  # Create EFI System Partition to boot stock EFI BIOS (but not ChromeOS EFI
-  # BIOS). We only need this for x86, but it's simpler and safer to keep the
-  # disk images the same for both x86 and ARM.
-  # NOTE: The size argument for mkfs.vfat is in 1024-byte blocks.
-  # We'll hard-code it to 16M for now.
-  ESP_BLOCKS=16384
-  /usr/sbin/mkfs.vfat -C ${OUTPUT_DIR}/esp.image ${ESP_BLOCKS}
-  ESP_LOOP_DEV=$(sudo losetup -f)
-  if [ -z "${ESP_LOOP_DEV}" ] ; then
-    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
-    exit 1
-  fi
-  sudo losetup "${ESP_LOOP_DEV}" "${ESP_FS_IMG}"
-  sudo mount "${ESP_LOOP_DEV}" "${ESP_FS_DIR}"
+  # Perform any customizations on the root file system that are needed.
+  "${SCRIPTS_DIR}/customize_rootfs" \
+    --root="${ROOT_FS_DIR}" \
+    --target="${ARCH}" \
+    --board="${BOARD}"
 
   # Populates the root filesystem with legacy bootloader templates
   # appropriate for the platform.  The autoupdater and installer will
@@ -465,6 +562,7 @@ create_base_image() {
   # on update.
   # (This script does not populate vmlinuz.A and .B needed by syslinux.)
   use_vboot=
+  [[ ${FLAGS_use_vboot} -eq ${FLAGS_TRUE} ]] && use_vboot="--use_vboot"
   ${SCRIPTS_DIR}/create_legacy_bootloader_templates.sh \
     --arch=${ARCH} \
     --to="${ROOT_FS_DIR}"/boot \
@@ -476,27 +574,6 @@ create_base_image() {
   # This will include any built files dropped in /boot as well.
   # Like the current vmlinuz.
   sudo cp -r "${ROOT_FS_DIR}"/boot/. "${OUTPUT_DIR}"/boot/
-
-  # Until bootloader management is unified, copy EFI in here.
-  sudo mkdir -p "${ESP_FS_IMG}"/efi
-  sudo cp -r "${ROOT_FS_DIR}"/boot/efi/. "${ESP_FS_IMG}"/efi
-
-  # Builds the kernel partition image.  The temporary files are kept around
-  # so that we can perform a load_kernel_test later on the final image.
-  # TODO(wad) add dm-verity boot args (--boot_args, --root)
-  ${SCRIPTS_DIR}/build_kernel_image.sh \
-    --arch="${ARCH}" \
-    --to="${OUTPUT_DIR}/vmlinuz.image" \
-    --vmlinuz="${ROOT_FS_DIR}/boot/vmlinuz" \
-    --working_dir="${OUTPUT_DIR}" \
-    --keep_work \
-    --keys_dir="${SRC_ROOT}/platform/vboot_reference/tests/testkeys"
-
-  # Perform any customizations on the root file system that are needed.
-  "${SCRIPTS_DIR}/customize_rootfs" \
-    --root="${ROOT_FS_DIR}" \
-    --target="${ARCH}" \
-    --board="${BOARD}"
 
   # Don't test the factory install shim.
   if [[ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]] ; then
@@ -511,7 +588,15 @@ create_base_image() {
   # create /usr/local or /var on host (already exist on target).
   setup_symlinks_on_root "/usr/local" "/var" "${STATEFUL_FS_DIR}"
 
-  # Cleanup loop devices.
+  # make_image_bootable will clobber vmlinuz.image for x86.
+  # Until then, just copy the kernel to vmlinuz.image. It is
+  # expected in build_gpt.sh and needed by ARM until it supports the
+  # full, signed kernel partition format.
+  cp "${ROOT_FS_DIR}/boot/vmlinuz" "${OUTPUT_DIR}/vmlinuz.image"
+
+  # Create an empty esp image to be updated in by update_bootloaders.sh.
+  ${SCRIPTS_DIR}/create_esp.sh --to="${ESP_FS_IMG}"
+
   cleanup
 
   trap delete_prompt EXIT
@@ -526,13 +611,6 @@ create_base_image() {
     "${OUTPUT_DIR}/${image_name}"
 
   trap - EXIT
-
-  # FIXME: only signing things for x86 right now.
-  if [[ "${ARCH}" = "x86" ]]; then
-    # Verify the final image.
-    load_kernel_test "${OUTPUT_DIR}/${image_name}" \
-      "${OUTPUT_DIR}/kernel_subkey.vbpubk"
-  fi
 }
 
 # Create the output directory.
@@ -548,6 +626,7 @@ if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
     # Copy forward pristine image, and associated files
     cp ${PREVIOUS_DIR}/*.sh ${PREVIOUS_DIR}/config.txt ${OUTPUT_DIR}
     cp ${PREVIOUS_DIR}/${PRISTINE_IMAGE_NAME} ${OUTPUT_DIR}
+    cp -r ${PREVIOUS_DIR}/boot ${OUTPUT_DIR}/boot
 
     # Copy forward the developer image, if we already copied forward the base.
     if [[ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]] && \
@@ -562,6 +641,14 @@ if [[ -f ${PRISTINE_IMG} ]] ; then
 else
   create_base_image ${PRISTINE_IMAGE_NAME}
 fi
+make_image_bootable ${PRISTINE_IMAGE_NAME}
+
+# FIXME: only signing things for x86 right now.
+if [[ "${ARCH}" = "x86" ]]; then
+  # Verify the final image.
+  load_kernel_test "${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}" \
+    "${OUTPUT_DIR}/kernel_subkey.vbpubk"
+fi
 
 # Create a developer image based on the chromium os base image.
 if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ] ; then
@@ -571,6 +658,7 @@ if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ] ; then
   fi
 
   update_dev_packages ${DEVELOPER_IMAGE_NAME}
+  make_image_bootable ${DEVELOPER_IMAGE_NAME}
 fi
 
 # Clean up temporary files.
