@@ -575,7 +575,7 @@ create_base_image() {
   # This will include any built files dropped in /boot as well.
   # Like the current vmlinuz.
   sudo cp -r "${ROOT_FS_DIR}"/boot/. "${OUTPUT_DIR}"/boot/
-  sudo chmod -R a+r "${ROOT_FS_DIR}"/boot/
+  sudo chmod -R a+r "${OUTPUT_DIR}"/boot/
 
   # Don't test the factory install shim.
   if [[ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]] ; then
