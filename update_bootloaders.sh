@@ -54,7 +54,10 @@ if ! type -p update_x86_bootloaders; then
     local template_dir="$4"
 
     # Pull out the dm="" values
-    dm_table=$(echo "$kernel_cmdline" | sed -s 's/.*dm="\([^"]*\)".*/\1/')
+    dm_table=
+    if echo "$kernel_cmdline" | grep -q 'dm="'; then
+      dm_table=$(echo "$kernel_cmdline" | sed -s 's/.*dm="\([^"]*\)".*/\1/')
+    fi
 
     # Rewrite grub table
     grub_dm_table_a=${dm_table//${old_root}/\$linuxpartA}
@@ -177,7 +180,10 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
     info "Extracting the kernel command line from ${FLAGS_kernel_partition}"
     kernel_cfg=$(dump_kernel_config "${kernel_partition}")
   fi
-  dm_table=$(echo "$kernel_cfg" | sed -s 's/.*dm="\([^"]*\)".*/\1/')
+  dm_table=
+  if echo "$kernel_cfg" | grep -q 'dm="'; then
+    dm_table=$(echo "$kernel_cfg" | sed -s 's/.*dm="\([^"]*\)".*/\1/')
+  fi
   # TODO(wad) assume usb_disk contains the arm boot location for now.
   new_root="${FLAGS_usb_disk}"
   info "Replacing dm slave devices with /dev/${new_root}"
@@ -194,7 +200,7 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
     ${device} \
     "'dm=\"${dm_table}\"'")
   sudo dd bs=1 count=`stat --printf="%s" ${MBR_SCRIPT_UIMG}` \
-     if="$MBR_SCRIPT_UIMG" of=${FLAGS_to} conv=notrunc
+     if="$MBR_SCRIPT_UIMG" of=${FLAGS_to}
   info "Emitted new ARM MBR to ${FLAGS_to}"
 fi
 

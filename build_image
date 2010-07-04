@@ -322,14 +322,14 @@ make_image_bootable() {
   if [[ "${ARCH}" == "arm" ]]; then
     # TODO(wad) mmcblk1p3 is hardcoded for arm for now!
     usb_disk="/dev/mmcblk1p3"
-    kernel_part="--kernel_cmdline='"
-    kernel_part="${kernel_part}\
-$(cat ${OUTPUT_DIR}/boot.config | tr -s '\n' ' ')"
-    kernel_part="${kernel_part} ${FLAGS_arm_extra_bootargs}'"
+    kernel_part="--kernel_cmdline=\"${FLAGS_arm_extra_bootargs}\" "
+    # TODO(wad) Integrate dmtable extraction into the arm build
+    # E.g.  $(cat ${OUTPUT_DIR}/boot.config | tr -s '\n' ' ')"
     local kpart_offset="--kernel_partition_offset=${koffset}"
-    local kpart_size="\
-      --kernel_partition_sectors=$(partsize ${OUTPUT_DIR}/${image_name} 2)"
+    local kpart_size="--kernel_partition_sectors="
+    kpart_size="${kpart_size}$(partsize ${OUTPUT_DIR}/${image_name} 2)"
     kernel_part="${kernel_part} ${kpart_size} ${kpart_offset}"
+    info "Using addition bootloader arguments: ${kernel_part}"
     bootloader_to="${OUTPUT_DIR}/arm.mbr"
   fi
 
