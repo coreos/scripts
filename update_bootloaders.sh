@@ -193,8 +193,8 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
   warn "FIXME: cannot replace root= here for the arm bootloader yet."
   dm_table=""  # TODO(wad) Clear it until we can fix root=/dev/dm-0
 
-  local device=1
-  local MBR_SCRIPT_UIMG=$(make_arm_mbr \
+  device=1
+  MBR_SCRIPT_UIMG=$(make_arm_mbr \
     ${FLAGS_kernel_partition_offset} \
     ${FLAGS_kernel_partition_sectors} \
     ${device} \
