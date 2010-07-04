@@ -327,7 +327,8 @@ make_image_bootable() {
 $(cat ${OUTPUT_DIR}/boot.config | tr -s '\n' ' ')"
     kernel_part="${kernel_part} ${FLAGS_arm_extra_bootargs}'"
     local kpart_offset="--kernel_partition_offset=${koffset}"
-    local kpart_size="--kernel_partition_sectors=$(partsize ${image_name} 2)"
+    local kpart_size="\
+      --kernel_partition_sectors=$(partsize ${OUTPUT_DIR}/${image_name} 2)"
     kernel_part="${kernel_part} ${kpart_size} ${kpart_offset}"
     bootloader_to="${OUTPUT_DIR}/arm.mbr"
   fi

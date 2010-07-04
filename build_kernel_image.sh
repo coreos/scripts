@@ -78,6 +78,9 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
                         ${FLAGS_rootfs_image} \
                         ${root_fs_blocks} \
                         ${FLAGS_rootfs_hash})
+  if [[ -f "${FLAGS_rootfs_hash}" ]]; then
+    sudo chmod a+r "${FLAGS_rootfs_hash}"
+  fi
   # Don't claim the root device unless the root= flag is pointed to
   # the verified boot device.  Doing so will claim /dev/sdDP out from
   # under the system.
