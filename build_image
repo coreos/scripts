@@ -292,11 +292,14 @@ make_image_bootable() {
   sudo mount -o remount,ro "${ROOT_FS_DIR}"
   root_dev=$(mount | grep -- "${ROOT_FS_DIR}" | cut -f1 -d' ' | tail -1)
 
+  DEVKEYSDIR="${SRC_ROOT}/platform/vboot_reference/tests/devkeys"
+
   # Builds the kernel partition image.  The temporary files are kept around
   # so that we can perform a load_kernel_test later on the final image.
   ${SCRIPTS_DIR}/build_kernel_image.sh \
     --arch="${ARCH}" \
     --to="${OUTPUT_DIR}/vmlinuz.image" \
+    --hd_vblock="${OUTPUT_DIR}/vmlinuz_hd.vblock" \
     --vmlinuz="${OUTPUT_DIR}/boot/vmlinuz" \
     --working_dir="${OUTPUT_DIR}" \
     --keep_work \
@@ -307,7 +310,7 @@ make_image_bootable() {
     --vboot_max_ios=${FLAGS_vboot_max_ios} \
     --vboot_error_behavior=${FLAGS_vboot_behavior} \
     --root=${cros_root} \
-    --keys_dir="${SRC_ROOT}/platform/vboot_reference/tests/testkeys"
+    --keys_dir="${DEVKEYSDIR}"
 
   # START_KERN_A is set by the first call to install the gpt.
   local koffset="$(partoffset ${OUTPUT_DIR}/${image_name} 2)"
@@ -599,6 +602,10 @@ create_base_image() {
   # Create an empty esp image to be updated in by update_bootloaders.sh.
   ${SCRIPTS_DIR}/create_esp.sh --to="${ESP_FS_IMG}"
 
+  # Move the verification block needed for the hard disk install to the
+  # stateful partition.
+  sudo cp "${OUTPUT_DIR}/vmlinuz_hd.vblock" "${STATEFUL_FS_DIR}"
+
   cleanup
 
   trap delete_prompt EXIT
@@ -649,7 +656,7 @@ make_image_bootable ${PRISTINE_IMAGE_NAME}
 if [[ "${ARCH}" = "x86" ]]; then
   # Verify the final image.
   load_kernel_test "${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}" \
-    "${OUTPUT_DIR}/kernel_subkey.vbpubk"
+    "${DEVKEYSDIR}/recovery_key.vbpubk"
 fi
 
 # Create a developer image based on the chromium os base image.
@@ -665,12 +672,7 @@ fi
 
 # Clean up temporary files.
 rm -f "${ROOT_FS_IMG}" "${STATEFUL_FS_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \
-  "${ESP_FS_IMG}" "${OUTPUT_DIR}/kernel.keyblock" \
-  "${OUTPUT_DIR}/kernel_subkey.vbpubk" \
-  "${OUTPUT_DIR}/kernel_subkey.vbprivk" \
-  "${OUTPUT_DIR}/kernel_data_key.vbpubk" \
-  "${OUTPUT_DIR}/kernel_data_key.vbprivk" \
-  "${OEM_FS_IMG}"
+  "${ESP_FS_IMG}" "${OEM_FS_IMG}" "${OUTPUT_DIR}/vmlinuz_hd.vblock"
 rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${OEM_FS_DIR}" "${ESP_FS_DIR}"
 
 echo "Done.  Image created in ${OUTPUT_DIR}"

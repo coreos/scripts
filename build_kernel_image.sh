@@ -15,6 +15,8 @@ DEFINE_string arch "x86" \
   "The boot architecture: arm or x86. (Default: x86)"
 DEFINE_string to "/tmp/vmlinuz.image" \
   "The path to the kernel image to be created. (Default: /tmp/vmlinuz.image)"
+DEFINE_string hd_vblock "/tmp/vmlinuz_hd.vblock" \
+  "The path to the installed kernel's vblock (Default: /tmp/vmlinuz_hd.vblock)"
 DEFINE_string vmlinuz "vmlinuz" \
   "The path to the kernel (Default: vmlinuz)"
 DEFINE_string working_dir "/tmp/vmlinuz.working" \
@@ -130,64 +132,14 @@ cros_secure
 EOF
   WORK="${WORK} ${FLAGS_working_dir}/config.txt"
 
-
-  # FIX: The .vbprivk files are not encrypted, so we shouldn't just leave them
-  # lying around as a general thing.
-
-  # Wrap the kernel data keypair, used for the kernel body
-  vbutil_key \
-    --pack "${FLAGS_working_dir}/kernel_data_key.vbpubk" \
-    --key "${FLAGS_keys_dir}/key_rsa2048.keyb" \
-    --version 1 \
-    --algorithm 4
-  WORK="${WORK} ${FLAGS_working_dir}/kernel_data_key.vbpubk"
-
-  vbutil_key \
-    --pack "${FLAGS_working_dir}/kernel_data_key.vbprivk" \
-    --key "${FLAGS_keys_dir}/key_rsa2048.pem" \
-    --algorithm 4
-  WORK="${WORK} ${FLAGS_working_dir}/kernel_data_key.vbprivk"
-
-
-  # Wrap the kernel subkey pair, used for the kernel's keyblock
-  vbutil_key \
-    --pack "${FLAGS_working_dir}/kernel_subkey.vbpubk" \
-    --key "${FLAGS_keys_dir}/key_rsa4096.keyb" \
-    --version 1 \
-    --algorithm 8
-  WORK="${WORK} ${FLAGS_working_dir}/kernel_subkey.vbpubk"
-
-  vbutil_key \
-    --pack "${FLAGS_working_dir}/kernel_subkey.vbprivk" \
-    --key "${FLAGS_keys_dir}/key_rsa4096.pem" \
-    --algorithm 8
-  WORK="${WORK} ${FLAGS_working_dir}/kernel_subkey.vbprivk"
-
-
-  # Create the kernel keyblock, containing the kernel data key
-  vbutil_keyblock \
-    --pack "${FLAGS_working_dir}/kernel.keyblock" \
-    --datapubkey "${FLAGS_working_dir}/kernel_data_key.vbpubk" \
-    --signprivate "${FLAGS_working_dir}/kernel_subkey.vbprivk" \
-    --flags 15
-  WORK="${WORK} ${FLAGS_working_dir}/kernel.keyblock"
-
-  # Verify the keyblock.
-  vbutil_keyblock \
-    --unpack "${FLAGS_working_dir}/kernel.keyblock" \
-    --signpubkey "${FLAGS_working_dir}/kernel_subkey.vbpubk"
-
-  # TODO: We should sign the kernel blob using the recovery root key and
-  # recovery kernel data key instead (to create the recovery image), and then
-  # re-sign it this way for the install image. But we'll want to keep the
-  # install vblock separate, so we can just copy that part over separately when
-  # we install it instead of the whole kernel blob.
+  # We sign the image with the recovery_key, because this is what goes onto the
+  # USB key. We can only boot from the USB drive in recovery mode.
 
   # Create and sign the kernel blob
   vbutil_kernel \
     --pack "${FLAGS_to}" \
-    --keyblock "${FLAGS_working_dir}/kernel.keyblock" \
-    --signprivate "${FLAGS_working_dir}/kernel_data_key.vbprivk" \
+    --keyblock "${FLAGS_keys_dir}/recovery_kernel.keyblock" \
+    --signprivate "${FLAGS_keys_dir}/recovery_kernel_data_key.vbprivk" \
     --version 1 \
     --config "${FLAGS_working_dir}/config.txt" \
     --bootloader /lib64/bootstub/bootstub.efi \
@@ -196,7 +148,33 @@ EOF
   # And verify it.
   vbutil_kernel \
     --verify "${FLAGS_to}" \
-    --signpubkey "${FLAGS_working_dir}/kernel_subkey.vbpubk"
+    --signpubkey "${FLAGS_keys_dir}/recovery_key.vbpubk"
+
+
+  # Now we re-sign the same image using the normal keys. This is the kernel
+  # image that is put on the hard disk by the installer. Note: To save space on
+  # the USB image, we're only emitting the new verfication block, and the
+  # installer just replaces that part of the hard disk's kernel partition.
+  vbutil_kernel \
+    --repack "${FLAGS_hd_vblock}" \
+    --vblockonly \
+    --keyblock "${FLAGS_keys_dir}/kernel.keyblock" \
+    --signprivate "${FLAGS_keys_dir}/kernel_data_key.vbprivk" \
+    --oldblob "${FLAGS_to}"
+
+
+  # To verify it, we have to replace the vblock from the original image.
+  tempfile=$(mktemp)
+  trap "rm -f $tempfile" EXIT
+  cat "${FLAGS_hd_vblock}" > $tempfile
+  dd if="${FLAGS_to}" bs=65536 skip=1 >> $tempfile
+
+  vbutil_kernel \
+    --verify $tempfile \
+    --signpubkey "${FLAGS_keys_dir}/kernel_subkey.vbpubk"
+
+  rm -f $tempfile
+  trap - EXIT
 
 elif [[ "${FLAGS_arch}" = "arm" ]]; then
   # FIXME: For now, ARM just uses the unsigned kernel by itself.
