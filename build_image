@@ -317,16 +317,18 @@ make_image_bootable() {
   # In original CL: http://codereview.chromium.org/2868044, this was done in
   # create_base_image(). However, it could break the build if it is a clean
   # build because vmlinuz_hd.vblock hasn't been created by build_kernel_image.sh
-  STATEFUL_LOOP_DEV=$(sudo losetup -f)
+  if [[ "${ARCH}" = "x86" ]]; then
+    STATEFUL_LOOP_DEV=$(sudo losetup -f)
     if [ -z "${STATEFUL_LOOP_DEV}" ] ; then
-    echo "No free loop device. Free up a loop device or reboot. exiting. "
-    exit 1
+      echo "No free loop device. Free up a loop device or reboot. exiting. "
+      exit 1
+    fi
+    sudo losetup "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_IMG}"
+    sudo mount "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"
+    sudo cp "${OUTPUT_DIR}/vmlinuz_hd.vblock" "${STATEFUL_FS_DIR}"
+    sudo umount -d "${STATEFUL_FS_DIR}"
+    STATEFUL_LOOP_DEV=
   fi
-  sudo losetup "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_IMG}"
-  sudo mount "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"
-  sudo cp "${OUTPUT_DIR}/vmlinuz_hd.vblock" "${STATEFUL_FS_DIR}"
-  sudo umount -d "${STATEFUL_FS_DIR}"
-  STATEFUL_LOOP_DEV=
 
   # START_KERN_A is set by the first call to install the gpt.
   local koffset="$(partoffset ${OUTPUT_DIR}/${image_name} 2)"
