@@ -312,6 +312,22 @@ make_image_bootable() {
     --root=${cros_root} \
     --keys_dir="${DEVKEYSDIR}"
 
+  # Move the verification block needed for the hard disk install to the
+  # stateful partition. Mount stateful fs, copy file, and umount fs.
+  # In original CL: http://codereview.chromium.org/2868044, this was done in
+  # create_base_image(). However, it could break the build if it is a clean
+  # build because vmlinuz_hd.vblock hasn't been created by build_kernel_image.sh
+  STATEFUL_LOOP_DEV=$(sudo losetup -f)
+    if [ -z "${STATEFUL_LOOP_DEV}" ] ; then
+    echo "No free loop device. Free up a loop device or reboot. exiting. "
+    exit 1
+  fi
+  sudo losetup "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_IMG}"
+  sudo mount "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"
+  sudo cp "${OUTPUT_DIR}/vmlinuz_hd.vblock" "${STATEFUL_FS_DIR}"
+  sudo umount -d "${STATEFUL_FS_DIR}"
+  STATEFUL_LOOP_DEV=
+
   # START_KERN_A is set by the first call to install the gpt.
   local koffset="$(partoffset ${OUTPUT_DIR}/${image_name} 2)"
   sudo dd if="${OUTPUT_DIR}/vmlinuz.image" of="${OUTPUT_DIR}/${image_name}" \
@@ -601,10 +617,6 @@ create_base_image() {
 
   # Create an empty esp image to be updated in by update_bootloaders.sh.
   ${SCRIPTS_DIR}/create_esp.sh --to="${ESP_FS_IMG}"
-
-  # Move the verification block needed for the hard disk install to the
-  # stateful partition.
-  sudo cp "${OUTPUT_DIR}/vmlinuz_hd.vblock" "${STATEFUL_FS_DIR}"
 
   cleanup
 
