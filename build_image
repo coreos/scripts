@@ -420,6 +420,14 @@ update_dev_packages() {
     sudo ln -sf vim "${ROOT_FS_DIR}/usr/local/bin/vi"
   fi
 
+  # If pygtk is installed in stateful-dev, then install a path.
+  if [[ -d \
+      "${ROOT_FS_DIR}/usr/local/lib/python2.6/site-packages/gtk-2.0" ]]; then
+    sudo bash -c "\
+        echo gtk-2.0 > \
+        ${ROOT_FS_DIR}/usr/local/lib/python2.6/site-packages/pygtk.pth"
+  fi
+
   # Check that the image has been correctly created.  Only do it if not
   # building a factory install image, as the INSTALL_MASK for it will
   # make test_image fail.
