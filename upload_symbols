@@ -24,6 +24,7 @@ get_default_board
 DEFINE_string board "$DEFAULT_BOARD" "The board to build packages for."
 DEFINE_boolean dryrun ${FLAGS_FALSE} "Run without actually uploading."
 DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
+DEFINE_boolean official_build $FLAGS_FALSE "Point to official symbol server."
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts."
 
 DUMP_SYMS="dump_syms.i386"
@@ -37,14 +38,6 @@ ERR_FILE=$(mktemp "/tmp/err.XXXX")
 
 function cleanup() {
   rm -f "${SYM_FILE}" "${ERR_FILE}"
-}
-
-function is_official() {
-  if [ ${CHROMEOS_OFFICIAL:-0} = 1 ]; then
-    return 0
-  else
-    return 1
-  fi
 }
 
 # Given path to a debug file, return its text file
@@ -193,7 +186,7 @@ function main() {
 
   local upload_url=""
   if [ ${FLAGS_dryrun} -eq ${FLAGS_FALSE} ]; then
-    if is_official; then
+    if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
       upload_url="http://clients2.google.com/cr/symbol"
     else
       upload_url="http://clients2.google.com/cr/staging_symbol"
