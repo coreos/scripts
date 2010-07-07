@@ -114,6 +114,12 @@ install_autotest() {
     sudo mkdir -p "/tmp/autotest"
     sudo rm -rf /tmp/autotest/*
 
+    # Remove excess files from stateful partition.
+    # If these aren't there, that's fine.
+    sudo rm -rf "${stateful_root}${autotest_client}/*" || true
+    sudo rm -rf "${stateful_root}/autotest-pkgs" || true
+    sudo rm -rf "${stateful_root}/lib/icedtea6" || true
+
     sudo cp -fpru ${AUTOTEST_SRC}/client/* \
       "/tmp/autotest"
     # Remove outrageously large tests.
