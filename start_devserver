@@ -33,4 +33,10 @@ else
   echo "!!! devserver will only handle request from memento_updater"
 fi
 
+# Set PKG_INSTALL_MASK if it's not set already.
+if [ -z "${PKG_INSTALL_MASK+x}" ]; then
+  export PKG_INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
+fi
+echo PKG_INSTALL_MASK=$PKG_INSTALL_MASK
+
 cd ${GCLIENT_ROOT}/src/platform/dev && python devserver.py ${CLIENT_PREFIX} $*
