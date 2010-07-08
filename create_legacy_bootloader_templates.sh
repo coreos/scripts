@@ -194,7 +194,8 @@ menuentry "Alternate USB Boot" {
 }
 EOF
   if [[ ${FLAGS_use_vboot} -eq ${FLAGS_TRUE} ]]; then
-    sed -i -e 's/^set default=.*/set default=2/' "${FLAGS_to}/efi/boot/grub.cfg"
+    sudo sed -i -e 's/^set default=.*/set default=2/' \
+        "${FLAGS_to}/efi/boot/grub.cfg"
   fi
   info "Emitted ${FLAGS_to}/efi/boot/grub.cfg"
   exit 0
