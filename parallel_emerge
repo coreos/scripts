@@ -67,6 +67,9 @@ BOARD = None
 VERBOSE = False
 AUTOCLEAN = False
 
+# Global start time
+GLOBAL_START = time.time()
+
 
 def ParseArgs(argv):
   """Set global vars based on command line.
@@ -473,11 +476,18 @@ class EmergeQueue(object):
     self._retry_queue = []
     self._failed = {}
 
+  def _LoadAvg(self):
+    loads = open('/proc/loadavg', 'r').readline().split()[:3]
+    return ' '.join(loads)
+
   def _Status(self):
     """Print status."""
-    print "Pending %s, Ready %s, Running %s, Retrying %s, Total %s" % (
+    seconds = time.time() - GLOBAL_START
+    print "Pending %s, Ready %s, Running %s, Retrying %s, Total %s " \
+        "[Time %dm%ds Load %s]" % (
         len(self._deps_map), len(self._emerge_queue),
-        len(self._jobs), len(self._retry_queue), self._total_jobs)
+        len(self._jobs), len(self._retry_queue), self._total_jobs,
+        seconds / 60, seconds % 60, self._LoadAvg())
 
   def _LaunchOneEmerge(self, target):
     """Run emerge --nodeps to do a single package install.
