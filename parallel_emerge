@@ -31,14 +31,10 @@ Basic operation:
   Caveats:
     * Some ebuild packages have incorrectly specified deps, and running
       them in parallel is more likely to bring out these failures.
-    * Portage "world" is a record of explicitly installed packages. In
-      this parallel scheme, explicitly installed packages are installed
-      twice, once for the real install, and once for world file addition.
     * Some ebuilds (especially the build part) have complex dependencies
       that are not captured well by this script (it may be necessary to
       install an old package to build, but then install a newer version
-      of the same package for a runtime dep). This script is only
-      currently stable for binpkg installs.
+      of the same package for a runtime dep).
 """
 
 import os
@@ -52,7 +48,7 @@ import time
 
 def Usage():
   print "Usage:"
-  print " ./parallel_emerge --board=BOARD [emerge args] package"
+  print " ./parallel_emerge --board=BOARD --jobs=JOBS [emerge args] package"
   sys.exit(1)
 
 
@@ -66,8 +62,8 @@ PACKAGE = None
 EMERGE_ARGS = ""
 BOARD = None
 
-# Runtime flags. TODO(): maybe make these commandline options or
-# environment veriables.
+# Runtime flags. TODO(): Maybe make these command-line options or
+# environment variables.
 VERBOSE = False
 AUTOCLEAN = False
 
@@ -76,12 +72,12 @@ def ParseArgs(argv):
   """Set global vars based on command line.
 
   We need to be compatible with emerge arg format.
-  We scrape --board-XXX, and distinguish between args
+  We scrape --board=XXX and --jobs=XXX, and distinguish between args
   and package names.
-  TODO(): robustify argument processing, as it's possible to
+  TODO(): Robustify argument processing, as it's possible to
   pass in many two argument parameters that are difficult
-  to programmaitcally identify, although we don't currently
-  use any besides --bdeps <y|n>.
+  to programmatically identify, although we don't currently
+  use any besides --with-bdeps <y|n>.
   Args:
     argv: arguments list
   Returns:
@@ -90,36 +86,43 @@ def ParseArgs(argv):
   if VERBOSE:
     print argv
   board_arg = None
+  jobs_arg = 0
   package_args = []
   emerge_passthru_args = ""
-  re_board = re.compile(r"--board=(?P<board>.*)")
   for arg in argv[1:]:
-    # Check if the arg begins with '-'
-    if arg[0] == "-" or arg == "y" or arg == "n":
-      # Specifically match "--board="
-      m = re_board.match(arg)
-      if m:
-        board_arg = m.group("board")
-      else:
-        # Pass through to emerge.
-        emerge_passthru_args = emerge_passthru_args + " " + arg
+    # Specifically match "--board=" and "--jobs=".
+    if arg.startswith("--board="):
+      board_arg = arg.replace("--board=", "")
+    elif arg.startswith("--jobs="):
+      try:
+        jobs_arg = int(arg.replace("--jobs=", ""))
+      except ValueError:
+        print "Unrecognized argument:", arg
+        Usage()
+        sys.exit(1)
+    elif arg.startswith("-") or arg == "y" or arg == "n":
+      # Not a package name, so pass through to emerge.
+      emerge_passthru_args = emerge_passthru_args + " " + arg
     else:
-      # Only non-dashed arg should be the target package.
       package_args.append(arg)
 
-  if not package_args:
+  if not package_args and not emerge_passthru_args:
     Usage()
     sys.exit(1)
 
+  # Default to lots of jobs
+  if jobs_arg <= 0:
+    jobs_arg = 256
+
   # Set globals.
-  return " ".join(package_args), emerge_passthru_args, board_arg
+  return " ".join(package_args), emerge_passthru_args, board_arg, jobs_arg
 
 
 def EmergeCommand():
   """Helper function to return the base emerge commandline.
 
   This is configured for board type, and including pass thru args,
-  using global variables. TODO(): unglobalfy.
+  using global variables. TODO(): Unglobalfy.
   Returns:
     string containing emerge command.
   """
@@ -133,12 +136,12 @@ def GetDepsFromPortage(package):
   """Get dependency tree info by running emerge.
 
   Run 'emerge -p --debug package', and get a text output of all deps.
-  TODO(): Put dep caclation in a library, as cros_extract_deps
+  TODO(): Put dep calculation in a library, as cros_extract_deps
   also uses this code.
   Args:
-    package: string containing the packages to build.
+    package: String containing the packages to build.
   Returns:
-    text output of emerge -p --debug, which can be processed elsewhere.
+    Text output of emerge -p --debug, which can be processed elsewhere.
   """
   print "Calculating deps for package %s" % package
   cmdline = EmergeCommand() + " -p --debug --color=n " + package
@@ -177,10 +180,10 @@ def DepsToTree(lines):
   """Regex the output from 'emerge --debug' to generate a nested dict of deps.
 
   Args:
-    lines: output from 'emerge -p --debug package'
+    lines: Output from 'emerge -p --debug package'.
   Returns:
-    dep_tree: nested dict of dependencies, as specified by emerge.
-              there may be dupes, or circular deps.
+    dep_tree: Nested dict of dependencies, as specified by emerge.
+              There may be dupes, or circular deps.
 
   We need to regex lines as follows:
   hard-host-depends depends on
@@ -203,7 +206,7 @@ def DepsToTree(lines):
       r"(?P<version>\d+[\w\.-]*)( \["
       r"(?P<oldversion>\d+[\w\.-]*)\])?"
   )
-  re_failed = re.compile(r".*depends on.*")
+  re_failed = re.compile(r".*\) depends on.*")
   deps_tree = {}
   deps_stack = []
   deps_info = {}
@@ -232,7 +235,7 @@ def DepsToTree(lines):
         sys.exit(1)
 
       # Go step by step through stack and tree
-      # until we find our parent. Generate
+      # until we find our parent.
       updatedep = deps_tree
       for i in range(0, depth):
         updatedep = updatedep[deps_stack[i]]["deps"]
@@ -301,6 +304,7 @@ def DepsToTree(lines):
       # Is this a package that failed to match our huge regex?
       m = re_failed.match(line)
       if m:
+        print "\n".join(lines)
         print "FAIL: Couldn't understand line:"
         print line
         sys.exit(1)
@@ -312,8 +316,8 @@ def PrintTree(deps, depth=""):
   """Print the deps we have seen in the emerge output.
 
   Args:
-   deps: dependency tree structure.
-   depth: allows printing the tree recursively, with indentation.
+   deps: Dependency tree structure.
+   depth: Allows printing the tree recursively, with indentation.
   """
   for entry in deps:
     action = deps[entry]["action"]
@@ -325,8 +329,8 @@ def GenDependencyGraph(deps_tree, deps_info):
   """Generate a doubly linked dependency graph.
 
   Args:
-    deps_tree: dependency tree structure.
-    deps_info: more info on the dependencies.
+    deps_tree: Dependency tree structure.
+    deps_info: More details on the dependencies.
   Returns:
     Deps graph in the form of a dict of packages, with each package
     specifying a "needs" list and "provides" list.
@@ -337,11 +341,11 @@ def GenDependencyGraph(deps_tree, deps_info):
     """Convert tree to digraph.
 
     Take the tree of package -> requirements and reverse it to a digraph of
-    buildable packages -> packages they unblock
+    buildable packages -> packages they unblock.
     Args:
-      packages: tree(s) of dependencies
+      packages: Tree(s) of dependencies.
     Returns:
-      unsanitized digraph
+      Unsanitized digraph.
     """
     for pkg in packages:
       action = packages[pkg]["action"]
@@ -359,7 +363,7 @@ def GenDependencyGraph(deps_tree, deps_info):
           this_pkg["needs"].add(dep)
 
   def RemoveInstalledPackages():
-    """Remove installed packages, propagating dependencies"""
+    """Remove installed packages, propagating dependencies."""
 
     rm_pkgs = set(deps_map.keys()) - set(deps_info.keys())
     for pkg in rm_pkgs:
@@ -378,15 +382,14 @@ def GenDependencyGraph(deps_tree, deps_info):
         target_needs.discard(target)
       del deps_map[pkg]
 
-
   def SanitizeDep(basedep, currdep, oldstack, limit):
     """Search for circular deps between basedep and currdep, then recurse.
 
     Args:
-      basedep: original dependency, top of stack.
-      currdep: bottom of our current recursion, bottom of stack.
-      oldstack: current dependency chain.
-      limit: how many more levels of recusion to go through, max.
+      basedep: Original dependency, top of stack.
+      currdep: Bottom of our current recursion, bottom of stack.
+      oldstack: Current dependency chain.
+      limit: How many more levels of recusion to go through, max.
     TODO(): Break RDEPEND preferentially.
     Returns:
       True iff circular dependencies are found.
@@ -397,7 +400,7 @@ def GenDependencyGraph(deps_tree, deps_info):
       stack = oldstack + [dep]
       if basedep in deps_map[dep]["needs"] or dep == basedep:
         if dep != basedep:
-           stack += [basedep]
+          stack += [basedep]
         print "Remove cyclic dependency from:"
         for i in xrange(0, len(stack) - 1):
           print "  %s -> %s " % (stack[i], stack[i+1])
@@ -482,10 +485,10 @@ class EmergeQueue(object):
     If this is a pseudopackage, that means we're done, and can select in in the
     world file.
     Args:
-      target: the full package name of the package to install.
+      target: The full package name of the package to install.
               eg. "sys-apps/portage-2.17"
     Returns:
-      triplet containing (target name, subprocess object, output buffer object)
+      Triplet containing (target name, subprocess object, output buffer object).
     """
     if target.startswith("original-"):
       # "original-" signifies one of the packages we originally requested.
@@ -515,9 +518,9 @@ class EmergeQueue(object):
     portage_env["PORTAGE_LOCKS"] = "false"
     portage_env["UNMERGE_DELAY"] = "0"
     # Autoclean rummages around in the portage database and uninstalls
-    # old packages. Definitely not necessary for build_image. However
-    # it may be necessary for incremental build_packages. It may also
-    # not be parallel safe.
+    # old packages. It's not parallel safe, so we skip it. Instead, we
+    # handle the cleaning ourselves by uninstalling old versions of any
+    # new packages we install.
     if not AUTOCLEAN:
       portage_env["AUTOCLEAN"] = "no"
     # Launch the subprocess.
@@ -551,7 +554,7 @@ class EmergeQueue(object):
     """
     while self._deps_map:
       # If we have packages that are ready, kick them off.
-      if self._emerge_queue:
+      if self._emerge_queue and len(self._jobs) < JOBS:
         target = self._emerge_queue.pop(0)
         action = self._deps_map[target]["action"]
         # We maintain a tree of all deps, if this doesn't need
@@ -576,7 +579,7 @@ class EmergeQueue(object):
       if (not self._emerge_queue and
           not self._jobs and
           self._deps_map):
-        # If we have failed on a package retry it now.
+        # If we have failed on a package, retry it now.
         if self._retry_queue:
           self._Retry()
         # If we have failed a package twice, just give up.
@@ -607,7 +610,7 @@ class EmergeQueue(object):
           self._jobs.remove((target, job, stdout))
 
           # Print if necessary.
-          if VERBOSE:
+          if VERBOSE or job.returncode != 0:
             print output
           if job.returncode != 0:
             # Handle job failure.
@@ -635,10 +638,15 @@ class EmergeQueue(object):
 
 
 # Main control code.
-print "Starting fast-emerge."
-PACKAGE, EMERGE_ARGS, BOARD = ParseArgs(sys.argv)
-print " Building package %s on %s (%s)" % (PACKAGE, EMERGE_ARGS, BOARD)
+PACKAGE, EMERGE_ARGS, BOARD, JOBS = ParseArgs(sys.argv)
 
+if not PACKAGE:
+  # No packages. Pass straight through to emerge.
+  # Allows users to just type ./parallel_emerge --depclean
+  sys.exit(os.system(EmergeCommand()))
+
+print "Starting fast-emerge."
+print " Building package %s on %s (%s)" % (PACKAGE, EMERGE_ARGS, BOARD)
 print "Running emerge to generate deps"
 deps_output = GetDepsFromPortage(PACKAGE)
 print "Processing emerge output"
