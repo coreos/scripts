@@ -27,8 +27,8 @@ DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
 DEFINE_boolean official_build $FLAGS_FALSE "Point to official symbol server."
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts."
 
-DUMP_SYMS="dump_syms.i386"
-SYM_UPLOAD="sym_upload.i386"
+DUMP_SYMS="dump_syms"
+SYM_UPLOAD="sym_upload"
 
 CUMULATIVE_SIZE=0
 ANY_ERRORS=0
