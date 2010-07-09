@@ -50,7 +50,9 @@ function unmount_image() {
   fix_broken_symlinks "${FLAGS_rootfs_mountpt}"
   sudo umount "${FLAGS_rootfs_mountpt}/usr/local"
   sudo umount "${FLAGS_rootfs_mountpt}/var"
-  test -n "${FLAGS_esp_mountpt}" && sudo umount -d "${FLAGS_esp_mountpt}"
+  if [[ -n "${FLAGS_esp_mountpt}" ]]; then
+    sudo umount -d "${FLAGS_esp_mountpt}"
+  fi
   sudo umount -d "${FLAGS_stateful_mountpt}"
   sudo umount -d "${FLAGS_rootfs_mountpt}"
   set -e
@@ -59,8 +61,9 @@ function unmount_image() {
 function get_usb_partitions() {
   sudo mount "${FLAGS_from}3" "${FLAGS_rootfs_mountpt}"
   sudo mount "${FLAGS_from}1" "${FLAGS_stateful_mountpt}"
-  test -n "${FLAGS_esp_mountpt}" && \
+  if [[ -n "${FLAGS_esp_mountpt}" ]]; then
     sudo mount "${FLAGS_from}12" "${FLAGS_esp_mountpt}"
+  fi
 }
 
 function get_gpt_partitions() {
@@ -88,8 +91,9 @@ function get_gpt_partitions() {
 function mount_image() {
   mkdir -p "${FLAGS_rootfs_mountpt}"
   mkdir -p "${FLAGS_stateful_mountpt}"
-  test -n "${FLAGS_esp_mountpt}" && \
+  if [[ -n "${FLAGS_esp_mountpt}" ]]; then
     mkdir -p "${FLAGS_esp_mountpt}"
+  fi
 
   # Get the partitions for the image / device.
   if [ -b ${FLAGS_from} ] ; then
