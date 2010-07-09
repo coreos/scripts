@@ -326,8 +326,10 @@ make_image_bootable() {
   sudo dd if="${OUTPUT_DIR}/vmlinuz.image" of="${OUTPUT_DIR}/${image_name}" \
     conv=notrunc bs=512 seek=${koffset}
 
-  # Populate the legacy/efi bootloader partition.
+  # Update the bootloaders.  For legacy/efi x86, the EFI system partition
+  # will be updated and for arm, the mbr will be updated (for u-boot).
   local kernel_part="--kernel_partition='${OUTPUT_DIR}/vmlinuz.image'"
+  kernel_part="${kernel_part} --install_syslinux"
   local bootloader_to="${ESP_FS_IMG}"
   local usb_disk="${FLAGS_usb_disk}"
   local bootloader_to="$(mount | grep ${ESP_FS_DIR} | cut -f1 -d' ')"
