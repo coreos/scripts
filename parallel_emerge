@@ -552,6 +552,7 @@ class EmergeQueue(object):
     Keep running so long as we have uninstalled packages in the
     dependency graph to merge.
     """
+    secs = 0
     while self._deps_map:
       # If we have packages that are ready, kick them off.
       if self._emerge_queue and len(self._jobs) < JOBS:
@@ -574,6 +575,10 @@ class EmergeQueue(object):
       # Wait a bit to see if maybe some jobs finish. You can't
       # wait on a set of jobs in python, so we'll just poll.
       time.sleep(1)
+      secs += 1
+      if secs % 30 == 0:
+        # Print an update.
+        self._Status()
 
       # Check here that we are actually waiting for something.
       if (not self._emerge_queue and
