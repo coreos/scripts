@@ -60,7 +60,8 @@ set -e
 if [ -n "${FLAGS_packages}" ]; then
   PACKAGE_LIST="${FLAGS_packages}"
 else
-  PACKAGE_LIST=$( ./get_package_list chromeos | egrep '^chromeos-base' )
+  PACKAGE_LIST=$( ./get_package_list chromeos --board="${FLAGS_board}" |
+                  egrep '^chromeos-base' )
 fi
 
 BLACK_LIST_FILE="$(dirname "$0")/unit_test_black_list.txt"
