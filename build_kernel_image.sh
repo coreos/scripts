@@ -38,15 +38,15 @@ DEFINE_string rootfs_image "" \
   "Optional path to the rootfs device or image.(Default: \"\")"
 DEFINE_string rootfs_hash "" \
   "Optional path to output the rootfs hash to. (Default: \"\")"
-DEFINE_integer vboot_error_behavior 2 \
+DEFINE_integer verity_error_behavior 2 \
   "Verified boot error behavior [0: I/O errors, 1: reboot, 2: nothing] \
 (Default: 2)"
-DEFINE_integer vboot_tree_depth 1 \
+DEFINE_integer verity_tree_depth 1 \
   "Optional Verified boot hash tree depth. (Default: 1)"
-DEFINE_integer vboot_max_ios 1024 \
+DEFINE_integer verity_max_ios 1024 \
   "Optional number of outstanding I/O operations. (Default: 1024)"
-DEFINE_string vboot_hash_alg "sha1" \
-  "Cryptographic hash algorithm used for vboot. (Default: sha1)"
+DEFINE_string verity_hash_alg "sha1" \
+  "Cryptographic hash algorithm used for dm-verity. (Default: sha1)"
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -55,7 +55,7 @@ eval set -- "${FLAGS_ARGV}"
 # Die on error
 set -e
 
-vboot_args=
+verity_args=
 # Even with a rootfs_image, root= is not changed unless specified.
 if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
   info "Determining root fs block count."
@@ -75,8 +75,8 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
 
   info "Generating root fs hash tree."
   # Runs as sudo in case the image is a block device.
-  table=$(sudo verity create ${FLAGS_vboot_tree_depth} \
-                        ${FLAGS_vboot_hash_alg} \
+  table=$(sudo verity create ${FLAGS_verity_tree_depth} \
+                        ${FLAGS_verity_hash_alg} \
                         ${FLAGS_rootfs_image} \
                         ${root_fs_blocks} \
                         ${FLAGS_rootfs_hash})
@@ -90,16 +90,16 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
     table=${table//HASH_DEV/\/dev\/sd%D%P}
     table=${table//ROOT_DEV/\/dev\/sd%D%P}
   fi
-  vboot_args="dm=\"${table}\""
-  info "dm-verity configuration: ${vboot_args}"
+  verity_args="dm=\"${table}\""
+  info "dm-verity configuration: ${verity_args}"
 fi
 
 mkdir -p "${FLAGS_working_dir}"
 cat <<EOF > "${FLAGS_working_dir}/boot.config"
 root=${FLAGS_root}
-dm_verity.error_behavior=${FLAGS_vboot_error_behavior}
-dm_verity.max_bios=${FLAGS_vboot_max_ios}
-${vboot_args}
+dm_verity.error_behavior=${FLAGS_verity_error_behavior}
+dm_verity.max_bios=${FLAGS_verity_max_ios}
+${verity_args}
 ${FLAGS_boot_args}
 EOF
 

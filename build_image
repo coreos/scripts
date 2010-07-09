@@ -62,17 +62,17 @@ DEFINE_boolean fast ${FLAGS_FALSE} \
 DEFINE_string usb_disk /dev/sdb3 \
   "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
 
-DEFINE_boolean use_vboot ${FLAGS_FALSE} \
-  "Default the bootloaders to booting a verifying kernel. Default: False."
-DEFINE_integer vboot_behavior 2 \
-  "Verified boot error behavior (0: I/O errors, 1: reboot, 2: nothing) \
+DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
+  "Default all bootloaders to use kernel-based root fs integrity checking."
+DEFINE_integer verity_error_behavior 2 \
+  "Kernel verified boot error behavior (0: I/O errors, 1: reboot, 2: nothing) \
 Default: 2"
-DEFINE_integer vboot_depth 1 \
-  "Verified boot hash tree depth. Default: 1"
-DEFINE_integer vboot_max_ios 1024 \
+DEFINE_integer verity_depth 1 \
+  "Kernel verified boot hash tree depth. Default: 1"
+DEFINE_integer verity_max_ios 1024 \
   "Number of outstanding I/O operations dm-verity caps at. Default: 1024"
-DEFINE_string vboot_algorithm "sha1" \
-  "Cryptographic hash algorithm used for vboot. Default : sha1"
+DEFINE_string verity_algorithm "sha1" \
+  "Cryptographic hash algorithm used for kernel vboot. Default : sha1"
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -279,7 +279,7 @@ make_image_bootable() {
     # TODO(wad) assumed like in build_gpt for now.
     cros_root=/dev/mmcblk1p3
   fi
-  if [[ ${FLAGS_use_vboot} -eq ${FLAGS_TRUE} ]]; then
+  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
     cros_root=/dev/dm-0
   fi
 
@@ -305,10 +305,10 @@ make_image_bootable() {
     --keep_work \
     --rootfs_image=${root_dev} \
     --rootfs_hash=${OUTPUT_DIR}/rootfs.hash \
-    --vboot_hash_alg=${FLAGS_vboot_algorithm} \
-    --vboot_tree_depth=${FLAGS_vboot_depth} \
-    --vboot_max_ios=${FLAGS_vboot_max_ios} \
-    --vboot_error_behavior=${FLAGS_vboot_behavior} \
+    --verity_hash_alg=${FLAGS_verity_algorithm} \
+    --verity_tree_depth=${FLAGS_verity_depth} \
+    --verity_max_ios=${FLAGS_verity_max_ios} \
+    --verity_error_behavior=${FLAGS_verity_error_behavior} \
     --root=${cros_root} \
     --keys_dir="${DEVKEYSDIR}"
 
@@ -582,13 +582,16 @@ create_base_image() {
   # use those templates to update the legacy boot partition (12/ESP)
   # on update.
   # (This script does not populate vmlinuz.A and .B needed by syslinux.)
-  use_vboot=
-  [[ ${FLAGS_use_vboot} -eq ${FLAGS_TRUE} ]] && use_vboot="--use_vboot"
+  enable_rootfs_verification=
+  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
+    enable_rootfs_verification="--enable_rootfs_verification"
+  fi
+
   ${SCRIPTS_DIR}/create_legacy_bootloader_templates.sh \
     --arch=${ARCH} \
     --to="${ROOT_FS_DIR}"/boot \
     --install \
-    ${use_vboot}
+    ${enable_rootfs_verification}
 
   # Create a working copy so we don't need the rootfs mounted
   sudo mkdir -p "${OUTPUT_DIR}"/boot

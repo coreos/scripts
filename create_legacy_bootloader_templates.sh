@@ -22,12 +22,12 @@ DEFINE_string usb_disk /dev/sdb3 \
   "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
 DEFINE_string boot_args "" \
   "Additional boot arguments to pass to the commandline (Default: '')"
-DEFINE_boolean use_vboot ${FLAGS_FALSE} \
-  "Controls whether the default boot targets are verified (Default: false)"
-DEFINE_integer vboot_error_behavior 2 \
+DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
+  "Controls if verity is used for root filesystem checking (Default: false)"
+DEFINE_integer verity_error_behavior 2 \
   "Verified boot error behavior [0: I/O errors, 1: reboot, 2: nothing] \
 (Default: 2)"
-DEFINE_integer vboot_max_ios 1024 \
+DEFINE_integer verity_max_ios 1024 \
   "Optional number of outstanding I/O operations. (Default: 1024)"
 
 # Parse flags
@@ -40,8 +40,8 @@ common_args="quiet console=tty2 init=/sbin/init boot=local rootwait ro noresume"
 common_args="${common_args} noswap loglevel=1"
 
 # Common verified boot command-line args
-vboot_common="dm_verity.error_behavior=${FLAGS_vboot_error_behavior}"
-vboot_common="${vboot_common} dm_verity.max_bios=${FLAGS_vboot_max_ios}"
+verity_common="dm_verity.error_behavior=${FLAGS_verity_error_behavior}"
+verity_common="${verity_common} dm_verity.max_bios=${FLAGS_verity_max_ios}"
 
 # Populate the x86 rootfs to support legacy and EFI bios config templates.
 # The templates are used by the installer to populate partition 12 with
@@ -98,7 +98,7 @@ include /syslinux/root.B.cfg
 EOF
   info "Emitted ${SYSLINUX_DIR}/syslinux.cfg"
 
-  if [[ ${FLAGS_use_vboot} -eq ${FLAGS_TRUE} ]]; then
+  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
     # To change the active target, only this file needs to change.
     cat <<EOF | sudo dd of="${SYSLINUX_DIR}/default.cfg" 2>/dev/null
 DEFAULT chromeos-vusb.A
@@ -119,7 +119,7 @@ label chromeos-usb.A
 label chromeos-vusb.A
   menu label chromeos-vusb.A
   kernel vmlinuz.A
-  append ${common_args} ${vboot_common} root=/dev/dm-0 i915.modeset=1 cros_legacy dm="DMTABLEA"
+  append ${common_args} ${verity_common} root=/dev/dm-0 i915.modeset=1 cros_legacy dm="DMTABLEA"
 EOF
   info "Emitted ${SYSLINUX_DIR}/usb.A.cfg"
 
@@ -135,7 +135,7 @@ label chromeos-hd.A
 label chromeos-vhd.A
   menu label chromeos-vhd.A
   kernel vmlinuz.A
-  append ${common_args} ${vboot_common} root=/dev/dm-0 i915.modeset=1 cros_legacy dm="DMTABLEA"
+  append ${common_args} ${verity_common} root=/dev/dm-0 i915.modeset=1 cros_legacy dm="DMTABLEA"
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.A.cfg"
 
@@ -148,7 +148,7 @@ label chromeos-hd.B
 label chromeos-vhd.B
   menu label chromeos-vhd.B
   kernel vmlinuz.B
-  append ${common_args} ${vboot_common} root=/dev/dm-0 i915.modeset=1 cros_legacy dm="DMTABLEB"
+  append ${common_args} ${verity_common} root=/dev/dm-0 i915.modeset=1 cros_legacy dm="DMTABLEB"
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.B.cfg"
 
@@ -181,11 +181,11 @@ menuentry "local image B" {
 }
 
 menuentry "verified image A" {
-  linux \$grubpartA/boot/vmlinuz ${common_args} ${vboot_common} i915.modeset=1 cros_efi root=/dev/dm-0 dm="DMTABLEA"
+  linux \$grubpartA/boot/vmlinuz ${common_args} ${verity_common} i915.modeset=1 cros_efi root=/dev/dm-0 dm="DMTABLEA"
 }
 
 menuentry "verified image B" {
-  linux \$grubpartB/boot/vmlinuz ${common_args} ${vboot_common} i915.modeset=1 cros_efi root=/dev/dm-0 dm="DMTABLEB"
+  linux \$grubpartB/boot/vmlinuz ${common_args} ${verity_common} i915.modeset=1 cros_efi root=/dev/dm-0 dm="DMTABLEB"
 }
 
 # FIXME: usb doesn't support verified boot for now
@@ -193,9 +193,9 @@ menuentry "Alternate USB Boot" {
   linux (hd0,3)/boot/vmlinuz ${common_args} root=/dev/sdb3 i915.modeset=1 cros_efi
 }
 EOF
-  if [[ ${FLAGS_use_vboot} -eq ${FLAGS_TRUE} ]]; then
+  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
     sudo sed -i -e 's/^set default=.*/set default=2/' \
-        "${FLAGS_to}/efi/boot/grub.cfg"
+       "${FLAGS_to}/efi/boot/grub.cfg"
   fi
   info "Emitted ${FLAGS_to}/efi/boot/grub.cfg"
   exit 0
