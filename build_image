@@ -92,6 +92,11 @@ if [ "${FLAGS_rootfs_size}" -gt "${FLAGS_rootfs_partition_size}" ] ; then
   exit 1
 fi
 
+if [ ${FLAGS_jobs} -ne -1 ]; then
+  EMERGE_JOBS="--jobs=${FLAGS_jobs}"
+  FLAGS_fast=${FLAGS_TRUE}
+fi
+
 EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
 if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
   echo "Using alternate emerge"
@@ -159,10 +164,6 @@ fi
 # TODO: Build a separated ebuild for the factory install shim to reduce size.
 if [[ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]] ; then
   INSTALL_MASK="${INSTALL_MASK} ${FACTORY_INSTALL_MASK}"
-fi
-
-if [[ ${FLAGS_jobs} -ne -1 ]]; then
-  EMERGE_JOBS="--jobs=${FLAGS_jobs}"
 fi
 
 # Figure out ARCH from the given toolchain.
