@@ -292,7 +292,7 @@ make_image_bootable() {
   sudo mount -o remount,ro "${ROOT_FS_DIR}"
   root_dev=$(mount | grep -- "${ROOT_FS_DIR}" | cut -f1 -d' ' | tail -1)
 
-  DEVKEYSDIR="${SRC_ROOT}/platform/vboot_reference/tests/devkeys"
+  DEVKEYSDIR="/usr/share/vboot/devkeys"
 
   # Builds the kernel partition image.  The temporary files are kept around
   # so that we can perform a load_kernel_test later on the final image.
