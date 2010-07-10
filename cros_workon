@@ -39,11 +39,14 @@ WORKON_CMD=$1
 shift
 
 BOARD_DIR=/build/"${FLAGS_board}"
-KEYWORDS_DIR=${BOARD_DIR}/etc/portage/package.keywords
-KEYWORDS_FILE=${KEYWORDS_DIR}/cros-workon
 
-sudo mkdir -p "${KEYWORDS_DIR}" || die "mkdir -p ${KEYWORDS_DIR}"
-sudo touch "${KEYWORDS_FILE}" || die "touch ${KEYWORDS_FILE}"
+KEYWORDS_DIR=${BOARD_DIR}/etc/portage/package.keywords
+UNMASK_DIR=${BOARD_DIR}/etc/portage/package.unmask
+KEYWORDS_FILE=${KEYWORDS_DIR}/cros-workon
+UNMASK_FILE=${UNMASK_DIR}/cros-workon
+
+sudo mkdir -p "${KEYWORDS_DIR}" "${UNMASK_DIR}" || die "mkdir -p ${KEYWORDS_DIR} ${UNMASK_DIR}"
+sudo touch "${KEYWORDS_FILE}" "${UNMASK_FILE}" || die "touch ${KEYWORDS_FILE} ${UNMASK_FILE}"
 
 # Canonicalize package name to category/package.
 canonicalize_name () {
@@ -81,6 +84,7 @@ ebuild_to_live () {
   for atom in ${atoms}; do
     if ! grep -qx "${atom}" "${KEYWORDS_FILE}" ; then
       sudo bash -c "echo \"${atom}\" >> \"${KEYWORDS_FILE}\""
+      sudo bash -c "echo \"~${atom}-9999\" >> \"${UNMASK_FILE}\""
     fi
   done
 }
@@ -90,9 +94,15 @@ ebuild_to_stable () {
   local atoms=$1
 
   for atom in ${atoms}; do
+    # remove the keyword
     sudo bash -c "grep -v '^${atom}\$' \"${KEYWORDS_FILE}\" > \
         \"${KEYWORDS_FILE}+\""
     sudo mv "${KEYWORDS_FILE}+" "${KEYWORDS_FILE}"
+    # remove the unmask
+    sudo bash -c "grep -v '^~${atom}-9999\$' \"${UNMASK_FILE}\" > \
+        \"${UNMASK_FILE}+\""
+    sudo mv "${UNMASK_FILE}+" "${UNMASK_FILE}"
+
   done
 }
 
