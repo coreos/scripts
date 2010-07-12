@@ -14,24 +14,8 @@ then
   restart_in_chroot_if_needed $*
 fi
 
-# Temporary workaround to support requests from update_engine daemon
-DEFINE_boolean update_engine $FLAGS_FALSE \
-  "Start devserver to handle update_engine requests. Default: False"
-
-# Parse command line.
-FLAGS "$@" || exit 1
-eval set -- "${FLAGS_ARGV}"
-
-set -e
-
-CLIENT_PREFIX=
-if [ "${FLAGS_update_engine}" -eq "${FLAGS_TRUE}" ] ; then
-  echo "!!! devserver will only handle request from update_engine"
-  # --client_prefix flag is defined in devserver.py
-  CLIENT_PREFIX="--client_prefix ChromeOSUpdateEngine"
-else
-  echo "!!! devserver will only handle request from memento_updater"
-fi
+# Temporary workaround: to start devserver for update engine, pass in args
+# --client_prefix ChromeOSUpdateEngine
 
 # Set PKG_INSTALL_MASK if it's not set already.
 if [ -z "${PKG_INSTALL_MASK+x}" ]; then
@@ -39,4 +23,4 @@ if [ -z "${PKG_INSTALL_MASK+x}" ]; then
 fi
 echo PKG_INSTALL_MASK=$PKG_INSTALL_MASK
 
-cd ${GCLIENT_ROOT}/src/platform/dev && python devserver.py ${CLIENT_PREFIX} $*
+cd ${GCLIENT_ROOT}/src/platform/dev && python devserver.py $*
