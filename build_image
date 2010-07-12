@@ -74,6 +74,10 @@ DEFINE_integer verity_max_ios 1024 \
 DEFINE_string verity_algorithm "sha1" \
   "Cryptographic hash algorithm used for kernel vboot. Default : sha1"
 
+DEFINE_string oem_customization \
+  "$GCLIENT_ROOT/src/platform/assets/oem_customization" \
+  "Path to directory containing OEM partner partition contents"
+
 # Parse command line.
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -531,6 +535,20 @@ create_base_image() {
   sudo mkfs.ext3 "${OEM_LOOP_DEV}"
   sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${OEM_LOOP_DEV}"
   sudo mount "${OEM_LOOP_DEV}" "${OEM_FS_DIR}"
+
+  # Populate OEM partner partition.
+  if [ -n ${FLAGS_oem_customization} ]; then
+    if [ ! -d ${FLAGS_oem_customization} ]; then
+      echo "Specified OEM content directory does not exist.  exiting."
+      exit 1
+    fi
+    for ITEM in `ls -A ${FLAGS_oem_customization}`
+      do sudo cp -a "${FLAGS_oem_customization}/$ITEM" "${OEM_FS_DIR}"
+    done
+    sudo find "${OEM_FS_DIR}" -type d -exec chmod 755 "{}" \;
+    sudo find "${OEM_FS_DIR}" -type f -exec chmod 644 "{}" \;
+    sudo chown -R root:root "${OEM_FS_DIR}"
+  fi
 
   # -- Install packages into the root file system --
 
