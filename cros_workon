@@ -20,6 +20,8 @@ get_default_board
 
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to set package keywords for."
+DEFINE_boolean host "${FLAGS_FALSE}" \
+  "Uses the host instead of board"
 DEFINE_string command "git status" \
   "The command to be run by forall."
 
@@ -32,25 +34,39 @@ commands:
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
-[ -n "${FLAGS_board}" ] || die "--board is required."
+# board dir config
+[ -n "${FLAGS_board}" ] && [ "${FLAGS_host}" = ${FLAGS_TRUE} ] && \
+  die "Flags --host and --board are mutually exclusive."
+[ -z "${FLAGS_board}" ] && [ "${FLAGS_host}" = ${FLAGS_FALSE} ] && \
+  die "You must specify either --host or --board="
+
+if [ -n "${FLAGS_board}" ]; then
+  BOARD_DIR=/build/"${FLAGS_board}" # --board specified
+  EQUERY=equery-"${FLAGS_board}"
+else
+  BOARD_DIR="" # --host specified
+  EQUERY=equery
+fi
+
 
 # eat the workon command keywords: start, stop or list.
 WORKON_CMD=$1
 shift
 
-BOARD_DIR=/build/"${FLAGS_board}"
 
 KEYWORDS_DIR=${BOARD_DIR}/etc/portage/package.keywords
 UNMASK_DIR=${BOARD_DIR}/etc/portage/package.unmask
 KEYWORDS_FILE=${KEYWORDS_DIR}/cros-workon
 UNMASK_FILE=${UNMASK_DIR}/cros-workon
 
-sudo mkdir -p "${KEYWORDS_DIR}" "${UNMASK_DIR}" || die "mkdir -p ${KEYWORDS_DIR} ${UNMASK_DIR}"
-sudo touch "${KEYWORDS_FILE}" "${UNMASK_FILE}" || die "touch ${KEYWORDS_FILE} ${UNMASK_FILE}"
+sudo mkdir -p "${KEYWORDS_DIR}" "${UNMASK_DIR}" || \
+  die "mkdir -p ${KEYWORDS_DIR} ${UNMASK_DIR}"
+sudo touch "${KEYWORDS_FILE}" "${UNMASK_FILE}" || \
+  die "touch ${KEYWORDS_FILE} ${UNMASK_FILE}"
 
 # Canonicalize package name to category/package.
 canonicalize_name () {
-  equery-${FLAGS_board} which $1 | \
+  ${EQUERY} which $1 | \
     awk -F '/' '{ print $(NF-2) "/" $(NF-1) }'
 }
 
@@ -112,7 +128,7 @@ ebuild_forall() {
 
   for atom in ${atoms}; do
     info "Running \"${FLAGS_command}\" on ${atom}"
-    eval $(ebuild-${FLAGS_board} $(equery-${FLAGS_board} which ${atom}) info)
+    eval $(ebuild-${FLAGS_board} $(${EQUERY} which ${atom}) info)
     (cd "${CROS_WORKON_SRCDIR}" && bash -c "${FLAGS_command}")
   done
 }
