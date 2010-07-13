@@ -66,8 +66,23 @@ sudo touch "${KEYWORDS_FILE}" "${UNMASK_FILE}" || \
 
 # Canonicalize package name to category/package.
 canonicalize_name () {
-  ${EQUERY} which $1 | \
-    awk -F '/' '{ print $(NF-2) "/" $(NF-1) }'
+  local pkgfile
+  local pkgname
+
+  if ! pkgfile=$(${EQUERY} which $1); then
+    warn "error looking up package $1" 1>&2
+    return 1
+  fi
+
+  pkgname=$(\
+    echo "${pkgfile}" |awk -F '/' '{ print $(NF-2) "/" $(NF-1) }')
+
+  if ! grep -q "cros-workon" ${pkgfile}; then
+    warn "${pkgname} is not a cros-workon package" 1>&2
+    return 1
+  fi
+  echo "${pkgname}"
+  return 0
 }
 
 # Canonicalize a list of names.
@@ -80,7 +95,8 @@ canonicalize_names () {
     [ -n "${name}" ] || return 1
     names+=" ${name}"
   done
-  echo ${names}
+
+  echo "${names}"
 }
 
 # Display ebuilds currently part of the live branch and open for development.
@@ -89,8 +105,13 @@ show_live_ebuilds () {
 }
 
 ATOM_LIST=$@
-ATOM_LIST=$(canonicalize_names "${ATOM_LIST}") || die "Invalid package name"
-[ -n "${ATOM_LIST}" ] || ATOM_LIST=$(show_live_ebuilds)
+if [ -z "${ATOM_LIST}" ]; then
+  ATOM_LIST=$(show_live_ebuilds)
+else
+  if ! ATOM_LIST=$(canonicalize_names "${ATOM_LIST}"); then
+    die "Error parsing package list"
+  fi
+fi
 
 # Move a stable ebuild to the live development catgeory.  The ebuild
 # src_unpack step fetches the package source for local development.
