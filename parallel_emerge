@@ -6,7 +6,8 @@
 """Program to run emerge in parallel, for significant speedup.
 
 Usage:
- ./parallel_emerge --board=BOARD [emerge args] package
+ ./parallel_emerge [--board=BOARD] [--workon=PKGS] [--no-workon-deps]
+                   [emerge args] package"
 
 Basic operation:
   Runs 'emerge -p --debug' to display dependencies, and stores a
@@ -44,23 +45,31 @@ import subprocess
 import sys
 import tempfile
 import time
+import _emerge.main
 
 
 def Usage():
+  """Print usage."""
   print "Usage:"
-  print " ./parallel_emerge --board=BOARD --jobs=JOBS [emerge args] package"
+  print " ./parallel_emerge [--board=BOARD] [--workon=PKGS] [--no-workon-deps]"
+  print "                   [emerge args] package"
+  print
+  print "Packages specified as workon packages are always built from source."
+  print "Unless --no-workon-deps is specified, packages that depend on these"
+  print "packages are also built from source."
+  print
+  print "The --workon argument is mainly useful when you want to build and"
+  print "install packages that you are working on unconditionally, but do not"
+  print "to have to rev the package to indicate you want to build it from"
+  print "source. The build_packages script will automatically supply the"
+  print "workon argument to emerge, ensuring that packages selected using"
+  print "cros-workon are rebuilt."
   sys.exit(1)
 
 
 # These are dependencies that are not specified in the package,
 # but will prevent the package from installing.
 secret_deps = {}
-
-# Globals: package we are building, board we are targeting,
-# emerge args we are passing through.
-PACKAGE = None
-EMERGE_ARGS = ""
-BOARD = None
 
 # Runtime flags. TODO(): Maybe make these command-line options or
 # environment variables.
@@ -75,12 +84,8 @@ def ParseArgs(argv):
   """Set global vars based on command line.
 
   We need to be compatible with emerge arg format.
-  We scrape --board=XXX and --jobs=XXX, and distinguish between args
-  and package names.
-  TODO(): Robustify argument processing, as it's possible to
-  pass in many two argument parameters that are difficult
-  to programmatically identify, although we don't currently
-  use any besides --with-bdeps <y|n>.
+  We scrape arguments that are specific to parallel_emerge, and pass through
+  the rest directly to emerge.
   Args:
     argv: arguments list
   Returns:
@@ -88,37 +93,28 @@ def ParseArgs(argv):
   """
   if VERBOSE:
     print argv
-  board_arg = None
-  jobs_arg = 0
-  package_args = []
-  emerge_passthru_args = ""
+  workon_set = set()
+  myopts = {}
+  myopts["workon"] = workon_set
+  emerge_args = []
   for arg in argv[1:]:
-    # Specifically match "--board=" and "--jobs=".
+    # Specifically match arguments that are specific to parallel_emerge, and
+    # pass through the rest.
     if arg.startswith("--board="):
-      board_arg = arg.replace("--board=", "")
-    elif arg.startswith("--jobs="):
-      try:
-        jobs_arg = int(arg.replace("--jobs=", ""))
-      except ValueError:
-        print "Unrecognized argument:", arg
-        Usage()
-        sys.exit(1)
-    elif arg.startswith("-") or arg == "y" or arg == "n":
-      # Not a package name, so pass through to emerge.
-      emerge_passthru_args = emerge_passthru_args + " " + arg
+      myopts["board"] = arg.replace("--board=", "")
+    elif arg.startswith("--workon="):
+      workon_str = arg.replace("--workon=", "")
+      workon_set.update(shlex.split(" ".join(shlex.split(workon_str))))
+    elif arg == "--no-workon-deps":
+      myopts["no-workon-deps"] = True
     else:
-      package_args.append(arg)
+      # Not a package name, so pass through to emerge.
+      emerge_args.append(arg)
 
-  if not package_args and not emerge_passthru_args:
-    Usage()
-    sys.exit(1)
+  emerge_action, emerge_opts, emerge_files = _emerge.main.parse_opts(
+      emerge_args)
 
-  # Default to lots of jobs
-  if jobs_arg <= 0:
-    jobs_arg = 256
-
-  # Set globals.
-  return " ".join(package_args), emerge_passthru_args, board_arg, jobs_arg
+  return myopts, emerge_action, emerge_opts, emerge_files
 
 
 def EmergeCommand():
@@ -130,9 +126,15 @@ def EmergeCommand():
     string containing emerge command.
   """
   emerge = "emerge"
-  if BOARD:
-    emerge += "-" + BOARD
-  return emerge + " " + EMERGE_ARGS
+  if "board" in OPTS:
+    emerge += "-" + OPTS["board"]
+  cmd = [emerge]
+  for key, val in EMERGE_OPTS.items():
+    if val is True:
+      cmd.append(key)
+    else:
+      cmd.extend([key, str(val)])
+  return " ".join(cmd)
 
 
 def GetDepsFromPortage(package):
@@ -147,7 +149,10 @@ def GetDepsFromPortage(package):
     Text output of emerge -p --debug, which can be processed elsewhere.
   """
   print "Calculating deps for package %s" % package
-  cmdline = EmergeCommand() + " -p --debug --color=n " + package
+  cmdline = (EmergeCommand() + " -p --debug --color=n --with-bdeps=y " +
+             "--selective=n " + package)
+  if OPTS["workon"]:
+    cmdline += " " + " ".join(OPTS["workon"])
   print "+ %s" % cmdline
 
   # Store output in a temp file as it is too big for a unix pipe.
@@ -155,11 +160,11 @@ def GetDepsFromPortage(package):
   stdout_buffer = tempfile.TemporaryFile()
   # Launch the subprocess.
   start = time.time()
-  depsproc = subprocess.Popen(shlex.split(cmdline), stderr=stderr_buffer,
+  depsproc = subprocess.Popen(shlex.split(str(cmdline)), stderr=stderr_buffer,
                               stdout=stdout_buffer, bufsize=64*1024)
   depsproc.wait()
   seconds = time.time() - start
-  print "Deps calculated in %d:%04.1fs" % (seconds / 60, seconds % 60)
+  print "Deps calculated in %dm%.1fs" % (seconds / 60, seconds % 60)
   stderr_buffer.seek(0)
   stderr_raw = stderr_buffer.read()
   info_start = stderr_raw.find("digraph")
@@ -259,6 +264,10 @@ def DepsToTree(lines):
       updatedep[fullpkg].setdefault("action", doins)
       # Add the type of dep.
       updatedep[fullpkg].setdefault("deptype", deptype)
+      # Add the long name of the package
+      updatedep[fullpkg].setdefault("pkgpath", "%s/%s" % (pkgdir, pkgname))
+      # Add the short name of the package
+      updatedep[fullpkg].setdefault("pkgname", pkgname)
 
       # Drop any stack entries below our depth.
       deps_stack = deps_stack[0:depth]
@@ -283,6 +292,8 @@ def DepsToTree(lines):
       # Add the type of dep.
       updatedep[pkgname].setdefault("action", "world")
       updatedep[pkgname].setdefault("deptype", "normal")
+      updatedep[pkgname].setdefault("pkgpath", None)
+      updatedep[pkgname].setdefault("pkgname", None)
 
       # Drop any obsolete stack entries.
       deps_stack = deps_stack[0:depth]
@@ -297,12 +308,14 @@ def DepsToTree(lines):
       uninstall = False
       if oldversion and (desc.find("U") != -1 or desc.find("D") != -1):
         uninstall = True
+      replace = desc.find("R") != -1
       fullpkg = "%s/%s-%s" % (pkgdir, pkgname, version)
       deps_info[fullpkg] = {"idx": len(deps_info),
                             "pkgdir": pkgdir,
                             "pkgname": pkgname,
                             "oldversion": oldversion,
-                            "uninstall": uninstall}
+                            "uninstall": uninstall,
+                            "replace": replace}
     else:
       # Is this a package that failed to match our huge regex?
       m = re_failed.match(line)
@@ -328,17 +341,19 @@ def PrintTree(deps, depth=""):
     PrintTree(deps[entry]["deps"], depth=depth + "  ")
 
 
-def GenDependencyGraph(deps_tree, deps_info):
+def GenDependencyGraph(deps_tree, deps_info, package_names):
   """Generate a doubly linked dependency graph.
 
   Args:
     deps_tree: Dependency tree structure.
     deps_info: More details on the dependencies.
+    package_names: Names of packages to add to the world file.
   Returns:
     Deps graph in the form of a dict of packages, with each package
     specifying a "needs" list and "provides" list.
   """
   deps_map = {}
+  pkgpaths = {}
 
   def ReverseTree(packages):
     """Convert tree to digraph.
@@ -352,8 +367,13 @@ def GenDependencyGraph(deps_tree, deps_info):
     """
     for pkg in packages:
       action = packages[pkg]["action"]
+      pkgpath = packages[pkg]["pkgpath"]
+      pkgname = packages[pkg]["pkgname"]
+      pkgpaths[pkgpath] = pkg
+      pkgpaths[pkgname] = pkg
       this_pkg = deps_map.setdefault(
-          pkg, {"needs": set(), "provides": set(), "action": "nomerge"})
+          pkg, {"needs": {}, "provides": set(), "action": "nomerge",
+                "workon": False, "cmdline": False})
       if action != "nomerge":
         this_pkg["action"] = action
         this_pkg["deps_info"] = deps_info.get(pkg)
@@ -363,14 +383,25 @@ def GenDependencyGraph(deps_tree, deps_info):
         dep_type = dep_item["deptype"]
         if dep_type != "(runtime_post)":
           dep_pkg["provides"].add(pkg)
-          this_pkg["needs"].add(dep)
+          this_pkg["needs"][dep] = dep_type
 
   def RemoveInstalledPackages():
     """Remove installed packages, propagating dependencies."""
 
+    if "--selective" in EMERGE_OPTS:
+      selective = EMERGE_OPTS["--selective"] != "n"
+    else:
+      selective = "--noreplace" in EMERGE_OPTS or "--update" in EMERGE_OPTS
     rm_pkgs = set(deps_map.keys()) - set(deps_info.keys())
+    for pkg, info in deps_info.items():
+      if selective and not deps_map[pkg]["workon"] and info["replace"]:
+        rm_pkgs.add(pkg)
     for pkg in rm_pkgs:
       this_pkg = deps_map[pkg]
+      if this_pkg["cmdline"] and "--oneshot" not in EMERGE_OPTS:
+        # If "cmdline" is set, this is a world update that was passed on the
+        # command-line. Keep these unless we're in --oneshot mode.
+        continue
       needs = this_pkg["needs"]
       provides = this_pkg["provides"]
       for dep in needs:
@@ -381,47 +412,52 @@ def GenDependencyGraph(deps_tree, deps_info):
       for target in provides:
         target_needs = deps_map[target]["needs"]
         target_needs.update(needs)
-        target_needs.discard(pkg)
-        target_needs.discard(target)
+        if pkg in target_needs:
+          del target_needs[pkg]
+        if target in target_needs:
+          del target_needs[target]
       del deps_map[pkg]
 
-  def SanitizeDep(basedep, currdep, oldstack, limit):
+  def SanitizeDep(basedep, currdep, visited, cycle):
     """Search for circular deps between basedep and currdep, then recurse.
 
     Args:
       basedep: Original dependency, top of stack.
       currdep: Bottom of our current recursion, bottom of stack.
-      oldstack: Current dependency chain.
-      limit: How many more levels of recusion to go through, max.
+      visited: Nodes visited so far.
+      cycle: Array where cycle of circular dependencies should be stored.
     TODO(): Break RDEPEND preferentially.
     Returns:
       True iff circular dependencies are found.
     """
-    if limit == 0:
-      return
-    for dep in deps_map[currdep]["needs"]:
-      stack = oldstack + [dep]
-      if basedep in deps_map[dep]["needs"] or dep == basedep:
-        if dep != basedep:
-          stack += [basedep]
-        print "Remove cyclic dependency from:"
-        for i in xrange(0, len(stack) - 1):
-          print "  %s -> %s " % (stack[i], stack[i+1])
-        return True
-      if dep not in oldstack and SanitizeDep(basedep, dep, stack, limit - 1):
-        return True
-    return
+    if currdep not in visited:
+      visited.add(currdep)
+      for dep in deps_map[currdep]["needs"]:
+        if dep == basedep or SanitizeDep(basedep, dep, visited, cycle):
+          cycle.insert(0, dep)
+          return True
+    return False
 
   def SanitizeTree():
-    """Remove circular dependencies up to cycle length 32."""
+    """Remove circular dependencies."""
     start = time.time()
     for basedep in deps_map:
-      for dep in deps_map[basedep]["needs"].copy():
-        if deps_info[basedep]["idx"] <= deps_info[dep]["idx"]:
-          if SanitizeDep(basedep, dep, [basedep, dep], 31):
-            print "Breaking", basedep, " -> ", dep
-            deps_map[basedep]["needs"].remove(dep)
-            deps_map[dep]["provides"].remove(basedep)
+      this_pkg = deps_map[basedep]
+      if this_pkg["action"] == "world":
+        # world file updates can't be involved in cycles,
+        # and they don't have deps_info, so skip them.
+        continue
+      for dep in this_pkg["needs"].copy():
+        cycle = []
+        if (deps_info[basedep]["idx"] <= deps_info[dep]["idx"] and
+            SanitizeDep(basedep, dep, set(), cycle)):
+          cycle[:0] = [basedep, dep]
+          print "Breaking cycle:"
+          for i in range(len(cycle) - 1):
+            deptype = deps_map[cycle[i]]["needs"][cycle[i+1]]
+            print "  %s -> %s %s" % (cycle[i], cycle[i+1], deptype)
+          del this_pkg["needs"][dep]
+          deps_map[dep]["provides"].remove(basedep)
     seconds = time.time() - start
     print "Tree sanitized in %d:%04.1fs" % (seconds / 60, seconds % 60)
 
@@ -443,8 +479,49 @@ def GenDependencyGraph(deps_tree, deps_info):
         deps_map[needed_pkg]["provides"].add(bad_pkg)
         deps_map[bad_pkg]["needs"].add(needed_pkg)
 
+  def WorkOnChildren(pkg):
+    """Mark this package and all packages it provides as workon packages."""
+
+    this_pkg = deps_map[pkg]
+    if this_pkg["workon"]:
+      return False
+
+    this_pkg["workon"] = True
+    updated = False
+    for w in this_pkg["provides"]:
+      if WorkOnChildren(w):
+        updated = True
+
+    if this_pkg["action"] == "nomerge":
+      pkgpath = deps_tree[pkg]["pkgpath"]
+      if pkgpath is not None:
+        OPTS["workon"].add(pkgpath)
+        updated = True
+
+    return updated
+
   ReverseTree(deps_tree)
   AddSecretDeps()
+
+  if "no-workon-deps" in OPTS:
+    for pkgpath in OPTS["workon"].copy():
+      pkg = pkgpaths[pkgpath]
+      deps_map[pkg]["workon"] = True
+  else:
+    mergelist_updated = False
+    for pkgpath in OPTS["workon"].copy():
+      pkg = pkgpaths[pkgpath]
+      if WorkOnChildren(pkg):
+        mergelist_updated = True
+    if mergelist_updated:
+      print "List of packages to merge updated. Recalculate dependencies..."
+      return None
+
+  for pkgpath in package_names:
+    dep_pkg = deps_map.get("original-%s" % pkgpath)
+    if dep_pkg and len(dep_pkg["needs"]) == 1:
+      dep_pkg["cmdline"] = True
+
   RemoveInstalledPackages()
   SanitizeTree()
   return deps_map
@@ -477,17 +554,17 @@ class EmergeQueue(object):
     self._failed = {}
 
   def _LoadAvg(self):
-    loads = open('/proc/loadavg', 'r').readline().split()[:3]
-    return ' '.join(loads)
+    loads = open("/proc/loadavg", "r").readline().split()[:3]
+    return " ".join(loads)
 
   def _Status(self):
     """Print status."""
     seconds = time.time() - GLOBAL_START
-    print "Pending %s, Ready %s, Running %s, Retrying %s, Total %s " \
-        "[Time %dm%ds Load %s]" % (
-        len(self._deps_map), len(self._emerge_queue),
-        len(self._jobs), len(self._retry_queue), self._total_jobs,
-        seconds / 60, seconds % 60, self._LoadAvg())
+    line = ("Pending %s, Ready %s, Running %s, Retrying %s, Total %s "
+            "[Time %dm%ds Load %s]")
+    print line % (len(self._deps_map), len(self._emerge_queue),
+                  len(self._jobs), len(self._retry_queue), self._total_jobs,
+                  seconds / 60, seconds % 60, self._LoadAvg())
 
   def _LaunchOneEmerge(self, target):
     """Run emerge --nodeps to do a single package install.
@@ -504,20 +581,35 @@ class EmergeQueue(object):
       # "original-" signifies one of the packages we originally requested.
       # Since we have explicitly installed the versioned package as a dep of
       # this, we only need to tag in "world" that we are done with this
-      # install request. "--select -n" indicates an addition to "world"
-      # without an actual install.
+      # install request.
+      # --nodeps: Ignore dependencies -- we handle them internally.
+      # --noreplace: Don't replace or upgrade any packages. (In this case, the
+      #              package is already installed, so we are just updating the
+      #              world file.)
+      # --selective: Make sure that --noreplace sticks even if --selective=n is
+      #              specified by the user on the command-line.
+      # NOTE: If the user specifies --oneshot on the command-line, this command
+      #       will do nothing. That is desired, since the user requested not to
+      #       update the world file.
       newtarget = target.replace("original-", "")
-      cmdline = EmergeCommand() + " --nodeps --select --noreplace " + newtarget
+      cmdline = (EmergeCommand() + " --nodeps --selective --noreplace " +
+                 newtarget)
     else:
       # This package is a dependency of something we specifically
       # requested. Therefore we should install it but not allow it
-      # in the "world" file, which represents explicit intalls.
-      # "--oneshot" here will prevent it from being tagged in world.
-      cmdline = EmergeCommand() + " --nodeps --oneshot =" + target
-      deps_info = self._deps_map[target]["deps_info"]
+      # in the "world" file, which represents explicit installs.
+      # --oneshot" here will prevent it from being tagged in world.
+      cmdline = EmergeCommand() + " --nodeps --oneshot "
+      this_pkg = self._deps_map[target]
+      if this_pkg["workon"]:
+        # --usepkg=n --getbinpkg=n: Build from source
+        # --selective=n: Re-emerge even if package is already installed.
+        cmdline += "--usepkg=n --getbinpkg=n --selective=n "
+      cmdline += "=" + target
+      deps_info = this_pkg["deps_info"]
       if deps_info["uninstall"]:
         package = "%(pkgdir)s/%(pkgname)s-%(oldversion)s" % deps_info
-        cmdline += " && %s -1C =%s" % (EmergeCommand(), package)
+        cmdline += " && %s -C =%s" % (EmergeCommand(), package)
 
     print "+ %s" % cmdline
 
@@ -543,7 +635,7 @@ class EmergeQueue(object):
   def _Finish(self, target):
     """Mark a target as completed and unblock dependecies."""
     for dep in self._deps_map[target]["provides"]:
-      self._deps_map[dep]["needs"].remove(target)
+      del self._deps_map[dep]["needs"][target]
       if not self._deps_map[dep]["needs"]:
         if VERBOSE:
           print "Unblocking %s" % dep
@@ -563,9 +655,10 @@ class EmergeQueue(object):
     dependency graph to merge.
     """
     secs = 0
+    max_jobs = EMERGE_OPTS.get("--jobs", 256)
     while self._deps_map:
       # If we have packages that are ready, kick them off.
-      if self._emerge_queue and len(self._jobs) < JOBS:
+      if self._emerge_queue and len(self._jobs) < max_jobs:
         target = self._emerge_queue.pop(0)
         action = self._deps_map[target]["action"]
         # We maintain a tree of all deps, if this doesn't need
@@ -653,25 +746,43 @@ class EmergeQueue(object):
 
 
 # Main control code.
-PACKAGE, EMERGE_ARGS, BOARD, JOBS = ParseArgs(sys.argv)
+OPTS, EMERGE_ACTION, EMERGE_OPTS, EMERGE_FILES = ParseArgs(sys.argv)
 
-if not PACKAGE:
-  # No packages. Pass straight through to emerge.
-  # Allows users to just type ./parallel_emerge --depclean
+if EMERGE_ACTION is not None:
+  # Pass action arguments straight through to emerge
+  EMERGE_OPTS["--%s" % EMERGE_ACTION] = True
   sys.exit(os.system(EmergeCommand()))
+elif not EMERGE_FILES:
+  Usage()
+  sys.exit(1)
 
 print "Starting fast-emerge."
-print " Building package %s on %s (%s)" % (PACKAGE, EMERGE_ARGS, BOARD)
-print "Running emerge to generate deps"
-deps_output = GetDepsFromPortage(PACKAGE)
-print "Processing emerge output"
-dependency_tree, dependency_info = DepsToTree(deps_output)
-if VERBOSE:
-  print "Print tree"
-  PrintTree(dependency_tree)
+print " Building package %s on %s" % (" ".join(EMERGE_FILES),
+                                      OPTS.get("board", "root"))
 
-print "Generate dependency graph."
-dependency_graph = GenDependencyGraph(dependency_tree, dependency_info)
+# If the user supplied the --workon option, we may have to run emerge twice
+# to generate a dependency ordering for packages that depend on the workon
+# packages.
+for it in range(2):
+  print "Running emerge to generate deps"
+  deps_output = GetDepsFromPortage(" ".join(EMERGE_FILES))
+
+  print "Processing emerge output"
+  dependency_tree, dependency_info = DepsToTree(deps_output)
+
+  if VERBOSE:
+    print "Print tree"
+    PrintTree(dependency_tree)
+
+  print "Generate dependency graph."
+  dependency_graph = GenDependencyGraph(dependency_tree, dependency_info,
+                                        EMERGE_FILES)
+
+  if dependency_graph is not None:
+    break
+else:
+  print "Can't crack cycle"
+  sys.exit(1)
 
 if VERBOSE:
   PrintDepsMap(dependency_graph)
