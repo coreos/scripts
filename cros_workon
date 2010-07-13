@@ -101,6 +101,8 @@ ebuild_to_live () {
     if ! grep -qx "${atom}" "${KEYWORDS_FILE}" ; then
       sudo bash -c "echo \"${atom}\" >> \"${KEYWORDS_FILE}\""
       sudo bash -c "echo \"~${atom}-9999\" >> \"${UNMASK_FILE}\""
+    else
+      warn "Already working on ${atom}"
     fi
   done
 }
@@ -110,15 +112,18 @@ ebuild_to_stable () {
   local atoms=$1
 
   for atom in ${atoms}; do
-    # remove the keyword
-    sudo bash -c "grep -v '^${atom}\$' \"${KEYWORDS_FILE}\" > \
-        \"${KEYWORDS_FILE}+\""
-    sudo mv "${KEYWORDS_FILE}+" "${KEYWORDS_FILE}"
-    # remove the unmask
-    sudo bash -c "grep -v '^~${atom}-9999\$' \"${UNMASK_FILE}\" > \
-        \"${UNMASK_FILE}+\""
-    sudo mv "${UNMASK_FILE}+" "${UNMASK_FILE}"
-
+    if grep -qx "${atom}" "${KEYWORDS_FILE}" ; then
+      # remove the keyword
+      sudo bash -c "grep -v '^${atom}\$' \"${KEYWORDS_FILE}\" > \
+          \"${KEYWORDS_FILE}+\""
+      sudo mv "${KEYWORDS_FILE}+" "${KEYWORDS_FILE}"
+      # remove the unmask
+      sudo bash -c "grep -v '^~${atom}-9999\$' \"${UNMASK_FILE}\" > \
+          \"${UNMASK_FILE}+\""
+      sudo mv "${UNMASK_FILE}+" "${UNMASK_FILE}"
+    else
+      warn "Not working on ${atom}"
+    fi
   done
 }
 
