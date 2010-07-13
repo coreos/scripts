@@ -566,7 +566,7 @@ class EmergeQueue(object):
                   len(self._jobs), len(self._retry_queue), self._total_jobs,
                   seconds / 60, seconds % 60, self._LoadAvg())
 
-  def _LaunchOneEmerge(self, target):
+  def _LaunchOneEmerge(self, target, action):
     """Run emerge --nodeps to do a single package install.
 
     If this is a pseudopackage, that means we're done, and can select in in the
@@ -594,6 +594,8 @@ class EmergeQueue(object):
       newtarget = target.replace("original-", "")
       cmdline = (EmergeCommand() + " --nodeps --selective --noreplace " +
                  newtarget)
+    elif action == "uninstall":
+      cmdline = EmergeCommand() + " --nodeps --unmerge =" + target
     else:
       # This package is a dependency of something we specifically
       # requested. Therefore we should install it but not allow it
@@ -671,7 +673,7 @@ class EmergeQueue(object):
         else:
           # Kick off the build if it's marked to be built.
           print "Emerging %s (%s)" % (target, action)
-          job = self._LaunchOneEmerge(target)
+          job = self._LaunchOneEmerge(target, action)
           # Append it to the active jobs list.
           self._jobs.append(job)
         continue
