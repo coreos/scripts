@@ -11,6 +11,7 @@ DEFINE_string client_address "" "IP Address of netbook to update"
 DEFINE_string server_address "" "IP Address of upgrade server"
 DEFINE_boolean start_server ${FLAGS_TRUE} "Start up the server"
 DEFINE_boolean stop_server  ${FLAGS_FALSE} "Start up the server"
+DEFINE_boolean no_copy_archive  ${FLAGS_FALSE} "Skip copy of files to server"
 DEFINE_string from "" "Image directory to upload to server"
 
 # Parse command line
@@ -34,7 +35,7 @@ require_latest_image () {
     latest_image=$(readlink -f ${FLAGS_from})
   else
     latest_image=$(env CHROMEOS_BUILD_ROOT=${SCRIPTS_DIR}/../build \
-	${SCRIPTS_DIR}/get_latest_image.sh)
+      ${SCRIPTS_DIR}/get_latest_image.sh)
   fi
 }
 
@@ -52,7 +53,7 @@ create_devserver () {
   validate_devserver_path
 
   echo "Creating dev server in ${FLAGS_upgrade_server}:${FLAGS_dest_path}..."
-  
+
   require_upgrade_server
   # Create new empty directory to hold server components
   ssh "${FLAGS_upgrade_server}" rm -rf "${FLAGS_dest_path}" || true
@@ -103,7 +104,7 @@ create_archive_dir () {
 stop_server () {
   require_upgrade_server
   echo "Stopping remote devserver..."
-  echo "(Fast restart using \"$0 --upgrade_server=${FLAGS_upgrade_server} --dest_path=${FLAGS_dest_path} --archive_dir=${archive_dir}\")"
+  echo "(Fast restart using \"$0 --upgrade_server=${FLAGS_upgrade_server} --dest_path=${FLAGS_dest_path} --no_copy_archive\")"
   ssh ${FLAGS_upgrade_server} pkill -f ${archive_dir} || /bin/true
 }
 
@@ -160,7 +161,8 @@ else
   validate_devserver_path
 fi
 
-if [ ${FLAGS_stop_server} -eq ${FLAGS_FALSE} ] ; then
+if [ ${FLAGS_stop_server} -eq ${FLAGS_FALSE} -a \
+     ${FLAGS_no_copy_archive} -eq ${FLAGS_FALSE} ] ; then
   create_archive_dir "${FLAGS_dest_path}/archive"
   FLAGS_start_server=${FLAGS_TRUE}
 else
@@ -180,14 +182,17 @@ if [ "${FLAGS_start_server}" -eq ${FLAGS_TRUE} ] ; then
   tail -f ${server_logfile} &
 
   # Now tell the client to load from the server
-  if [ -n "${FLAGS_client_address}" ] ; then
-    if [ -z "${FLAGS_server_address}" ] ; then
-      FLAGS_server_address=${FLAGS_upgrade_server}
-    fi
-    live_args="--update_url=http://${FLAGS_server_address}:${server_port}/update \
+  if [ -z "${FLAGS_server_address}" ] ; then
+    FLAGS_server_address=${FLAGS_upgrade_server}
+  fi
+  live_args="--update_url=http://${FLAGS_server_address}:${server_port}/update \
         --remote=${FLAGS_client_address}"
+  if [ -n "${FLAGS_client_address}" ] ; then
    echo "Running ${SCRIPTS_DIR}/image_to_live.sh $live_args"
     ${SCRIPTS_DIR}/image_to_live.sh $live_args &
+  else
+    echo "Start client upgrade using:"
+    echo "    ${SCRIPTS_DIR}/image_to_live.sh ${live_args}<client_ip_address>"
   fi
 
   wait ${server_pid}
