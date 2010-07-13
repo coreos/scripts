@@ -35,7 +35,7 @@ XORG_CONF_FILENAME = os.path.join('etc', 'X11', 'xorg.conf')
 
 EFI_CODE_MARKER_START = r'echo "Updating grub target for EFI BIOS"'
 EFI_CODE_MARKER_END = \
-    r"""gpt -S boot -i $NEW_PART_NUM -b /tmp/oldpmbr.bin ${ROOT_DEV} 2>&1
+    r"""sh "${INSTALL_ROOT}"/usr/sbin/chromeos-firmwareupdate
   fi
 else"""
 

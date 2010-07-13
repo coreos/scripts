@@ -69,6 +69,8 @@ IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
 # Default to the most recent image
 if [ -z "${FLAGS_from}" ] ; then
   FLAGS_from="${IMAGES_DIR}/$(ls -t $IMAGES_DIR | head -1)"
+else
+  pushd "${FLAGS_from}" && FLAGS_from=`pwd` && popd
 fi
 if [ -z "${FLAGS_to}" ] ; then
   FLAGS_to="${FLAGS_from}"
@@ -170,7 +172,7 @@ sudo dd if=/dev/zero of="${TEMP_IMG}" bs=1 count=1 \
 
 # Set up the partition table
 install_gpt "${TEMP_IMG}" "${TEMP_ROOTFS}" "${TEMP_KERN}" "${TEMP_STATE}" \
-  "${TEMP_PMBR}" "${TEMP_ESP}" true false ${FLAGS_rootfs_partition_size}
+  "${TEMP_PMBR}" "${TEMP_ESP}" false ${FLAGS_rootfs_partition_size}
 # Copy into the partition parts of the file
 dd if="${TEMP_ROOTFS}" of="${TEMP_IMG}" conv=notrunc bs=512 \
   seek="${START_ROOTFS_A}"
