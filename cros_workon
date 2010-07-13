@@ -29,10 +29,17 @@ FLAGS_HELP="usage: $0 <command> [flags]
 commands:
   start:  Moves an ebuild to live (intended to support development)
   stop:  Moves an ebuild to stable (use last known good)
-  list:  List of all live ebuilds
+  list:  List of current live ebuilds
+  listall: List all possible cros-workon ebuilds
   forall:  For each ebuild, cd to the source dir and run a commond"
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
+
+
+# eat the workon command keywords: start, stop or list.
+WORKON_CMD=$1
+shift
+
 
 # board dir config
 [ -n "${FLAGS_board}" ] && [ "${FLAGS_host}" = ${FLAGS_TRUE} ] && \
@@ -47,12 +54,6 @@ else
   BOARD_DIR="" # --host specified
   EQUERY=equery
 fi
-
-
-# eat the workon command keywords: start, stop or list.
-WORKON_CMD=$1
-shift
-
 
 KEYWORDS_DIR=${BOARD_DIR}/etc/portage/package.keywords
 UNMASK_DIR=${BOARD_DIR}/etc/portage/package.unmask
@@ -159,10 +160,25 @@ ebuild_forall() {
   done
 }
 
+show_workon_ebuilds() {
+  pushd "${BOARD_DIR}"/etc/ 1> /dev/null
+  source make.conf
+  popd 1> /dev/null
+  local CROS_OVERLAYS="${PORTDIR_OVERLAY}"
+
+  for overlay in ${CROS_OVERLAYS}; do
+    pushd ${overlay} 1> /dev/null
+    find . -name '*.ebuild' | xargs fgrep cros-workon | \
+      awk -F / '{ print $2 "/" $3 }' | uniq | sort
+    popd 1> /dev/null
+  done
+}
+
 case ${WORKON_CMD} in
   start)  ebuild_to_live "${ATOM_LIST}" ;;
   stop)   ebuild_to_stable "${ATOM_LIST}" ;;
   list)   show_live_ebuilds ;;
   forall) ebuild_forall "${ATOM_LIST}" ;;
+  listall)show_workon_ebuilds ;;
   *)      die "invalid cros_workon command" ;;
 esac
