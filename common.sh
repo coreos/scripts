@@ -75,7 +75,7 @@ then
 fi
 
 # Load shflags
-. "$SRC_ROOT/third_party/shflags/files/src/shflags"
+. "${SRC_ROOT}/scripts/lib/shflags/shflags"
 
 # Our local mirror
 DEFAULT_CHROMEOS_SERVER=${CHROMEOS_SERVER:-"http://build.chromium.org/mirror"}
