@@ -118,7 +118,7 @@ start_server () {
   # Find a TCP listen socket that is not in use
   ssh ${FLAGS_upgrade_server} "netstat -lnt" | awk '{ print $4 }' > $portlist
   server_port=8081
-  while grep -q ":${port}$" $portlist; do
+  while grep -q ":${server_port}$" $portlist; do
     server_port=$[server_port + 1]
   done
   rm -f $portlist
