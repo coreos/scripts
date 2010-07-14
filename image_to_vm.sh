@@ -17,7 +17,7 @@ get_default_board
 DEFAULT_VMDK="ide.vmdk"
 DEFAULT_VMX="chromiumos.vmx"
 DEFAULT_VBOX_DISK="os.vdi"
-DEFAULT_QEMU_IMAGE="chromiumos_qemu.image"
+DEFAULT_QEMU_IMAGE="chromiumos_qemu_image.bin"
 
 MOD_SCRIPTS_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
 
