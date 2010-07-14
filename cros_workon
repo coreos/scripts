@@ -24,13 +24,14 @@ DEFINE_boolean host "${FLAGS_FALSE}" \
   "Uses the host instead of board"
 DEFINE_string command "git status" \
   "The command to be run by forall."
+DEFINE_boolean all "${FLAGS_FALSE}" \
+  "Apply to all possible packages for the given command"
 
 FLAGS_HELP="usage: $0 <command> [flags]
 commands:
   start:  Moves an ebuild to live (intended to support development)
   stop:  Moves an ebuild to stable (use last known good)
-  list:  List of current live ebuilds
-  listall: List all possible cros-workon ebuilds
+  list:  List of live ebuilds (workon ebuilds if --all)
   forall:  For each ebuild, cd to the source dir and run a commond"
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -105,15 +106,6 @@ show_live_ebuilds () {
   cat "${KEYWORDS_FILE}"
 }
 
-ATOM_LIST=$@
-if [ -z "${ATOM_LIST}" ]; then
-  ATOM_LIST=$(show_live_ebuilds)
-else
-  if ! ATOM_LIST=$(canonicalize_names "${ATOM_LIST}"); then
-    die "Error parsing package list"
-  fi
-fi
-
 # Move a stable ebuild to the live development catgeory.  The ebuild
 # src_unpack step fetches the package source for local development.
 ebuild_to_live () {
@@ -174,11 +166,37 @@ show_workon_ebuilds() {
   done
 }
 
+# --all makes commands operate on different lists
+if [ ${FLAGS_all} = "${FLAGS_TRUE}" ]; then
+  case ${WORKON_CMD} in
+    start) ATOM_LIST=$(show_workon_ebuilds);;
+    stop) ATOM_LIST=$(show_live_ebuilds);;
+    list) ;;
+    *) die "--all is invalid for the given command";;
+  esac
+else # not selected --all
+  ATOM_LIST=$@
+  case ${WORKON_CMD} in
+    start|stop)
+      if [ -z "${ATOM_LIST}" ]; then
+        die "${WORKON_CMD}: No packages specified"
+      elif ! ATOM_LIST=$(canonicalize_names "${ATOM_LIST}"); then
+        die "Error parsing package list"
+      fi;;
+    forall)
+      if [ -z "${ATOM_LIST}" ]; then
+        ATOM_LIST=$(show_workon_ebuilds)
+      elif ! ATOM_LIST=$(canonicalize_names "${ATOM_LIST}"); then
+        die "Error parsing package list"
+      fi;;
+    *) ;;
+  esac
+fi
+
 case ${WORKON_CMD} in
   start)  ebuild_to_live "${ATOM_LIST}" ;;
   stop)   ebuild_to_stable "${ATOM_LIST}" ;;
-  list)   show_live_ebuilds ;;
+  list)   [ ${FLAGS_all} = "${FLAGS_FALSE}" ] && show_live_ebuilds || show_workon_ebuilds ;;
   forall) ebuild_forall "${ATOM_LIST}" ;;
-  listall)show_workon_ebuilds ;;
   *)      die "invalid cros_workon command" ;;
 esac
