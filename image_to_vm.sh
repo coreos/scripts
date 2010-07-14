@@ -41,6 +41,8 @@ DEFINE_integer rootfs_partition_size 1024 \
   "rootfs parition size in MBs."
 DEFINE_string state_image "" \
   "Stateful partition image (defaults to creating new statful partition)"
+DEFINE_integer statefulfs_size -1 \
+  "Stateful partition size in MBs."
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
   "Copies normal image to chromiumos_test_image.bin, modifies it for test."
 DEFINE_string to "" \
@@ -137,6 +139,31 @@ TEMP_ROOTFS="${TEMP_DIR}"/part_3
 TEMP_STATE="${TEMP_DIR}"/part_1
 if [ -n "${FLAGS_state_image}" ]; then
   TEMP_STATE="${FLAGS_state_image}"
+else
+  # If we have a stateful fs size specified create a new state partition
+  # of the specified size.
+  if [ "${FLAGS_statefulfs_size}" -ne -1 ]; then
+    STATEFUL_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_statefulfs_size}))
+    original_image_size=$(stat -c%s "${TEMP_STATE}")
+    if [ "${original_image_size}" -gt "${STATEFUL_SIZE_BYTES}" ]; then
+      die "Cannot resize stateful image to smaller than original. Exiting."
+    fi
+
+    echo "Resizing stateful partition to ${FLAGS_statefulfs_size}MB"
+    STATEFUL_LOOP_DEV=$(sudo losetup -f)
+    if [ -z "${STATEFUL_LOOP_DEV}" ]; then
+      die "No free loop device. Free up a loop device or reboot. Exiting."
+    fi
+
+    # Extend the original file size to the new size.
+    dd if=/dev/zero of="${TEMP_STATE}" bs=1 count=1 \
+        seek=$((STATEFUL_SIZE_BYTES - 1))
+    # Resize the partition.
+    sudo losetup "${STATEFUL_LOOP_DEV}" "${TEMP_STATE}"
+    sudo e2fsck -f "${STATEFUL_LOOP_DEV}"
+    sudo resize2fs "${STATEFUL_LOOP_DEV}"
+    sudo losetup -d "${STATEFUL_LOOP_DEV}"
+  fi
 fi
 TEMP_KERN="${TEMP_DIR}"/part_2
 TEMP_PMBR="${TEMP_DIR}"/pmbr
