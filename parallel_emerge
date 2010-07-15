@@ -206,7 +206,7 @@ def DepsToTree(lines):
                        r" \'(?P<pkgdir>[\w\+-]+)/(?P<pkgname>[\w\+-]+)-"
                        r"(?P<version>\d+[\w\.-]*)\', \'(?P<action>\w+)\'\) "
                        r"(?P<deptype>(depends on|\(.*\)))")
-  re_origdeps = re.compile(r"(?P<pkgname>[\w\+/-]+) depends on")
+  re_origdeps = re.compile(r"(?P<pkgname>[\w\+/=.<>~*-]+) depends on")
   re_installed_package = re.compile(
       r"\[(?P<desc>[^\]]*)\] "
       r"(?P<pkgdir>[\w\+-]+)/"
