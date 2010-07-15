@@ -50,10 +50,12 @@ shift
 
 if [ -n "${FLAGS_board}" ]; then
   BOARD_DIR=/build/"${FLAGS_board}" # --board specified
-  EQUERY=equery-"${FLAGS_board}"
+  EQUERYCMD=equery-"${FLAGS_board}"
+  EBUILDCMD=ebuild-"${FLAGS_board}"
 else
   BOARD_DIR="" # --host specified
-  EQUERY=equery
+  EQUERYCMD=equery
+  EBUILDCMD=ebuild
 fi
 
 KEYWORDS_DIR=${BOARD_DIR}/etc/portage/package.keywords
@@ -71,7 +73,7 @@ canonicalize_name () {
   local pkgfile
   local pkgname
 
-  if ! pkgfile=$(${EQUERY} which $1); then
+  if ! pkgfile=$(${EQUERYCMD} which $1); then
     warn "error looking up package $1" 1>&2
     return 1
   fi
@@ -147,7 +149,7 @@ ebuild_forall() {
 
   for atom in ${atoms}; do
     info "Running \"${FLAGS_command}\" on ${atom}"
-    eval $(ebuild-${FLAGS_board} $(${EQUERY} which ${atom}) info)
+    eval $(${EBUILDCMD} $(${EQUERYCMD} which ${atom}) info)
     (cd "${CROS_WORKON_SRCDIR}" && bash -c "${FLAGS_command}")
   done
 }
