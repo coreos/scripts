@@ -1,5 +1,11 @@
 #!/bin/sh
 
+# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Script to push the output of build_image.sh to a remote image server
+
 # Load common constants.  This should be the first executable line.
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
