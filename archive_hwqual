@@ -61,13 +61,23 @@ function main() {
   tar --bzip2 -xf autotest.tar.bz2
 
   # Create HTML and PDF test documentation for HWQual Tests.
-  echo "Generating test documentation..."
-  cd "${docgen_dir}"
-  ./CreateDocs.py --docversion ${FLAGS_output_tag} --html ${html_target}
-  make -C latex pdf
-  mv latex/refman.pdf "${html_target}/HWQual.pdf"
-  # Clean up the generated files.
-  rm -rf testsource latex *.log
+  # We need doxygen 1.6.1 or later to run CreateDocs.py
+  doxygen_version=$(doxygen --version)
+  if [[ $? -eq 0 ]]; then
+    if [[ "$doxygen_version" > "1.6.0" ]]; then
+      echo "Generating test documentation..."
+      cd "${docgen_dir}"
+      ./CreateDocs.py --docversion ${FLAGS_output_tag} --html ${html_target}
+      make -C latex pdf
+      mv latex/refman.pdf "${html_target}/HWQual.pdf"
+      # Clean up the generated files.
+      rm -rf testsource latex *.log
+    else
+      warn "doxygen is $doxygen_version, should be 1.6.1 or later."
+    fi
+  else
+    warn "doxygen is not installed. Install version 1.6.1 or later."
+  fi
 
   cd "${TMP}"
 
