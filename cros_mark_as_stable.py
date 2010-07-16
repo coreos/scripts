@@ -23,16 +23,16 @@ import generate_test_report
 gflags.DEFINE_string('board', 'x86-generic',
                      'Board for which the package belongs.', short_name='b')
 gflags.DEFINE_string('commit_ids', '',
-                     '''Optional list of commit ids for each package.
+                     """Optional list of commit ids for each package.
                      This list must either be empty or have the same length as
                      the packages list.  If not set all rev'd ebuilds will have
-                     empty commit id's.''',
+                     empty commit id's.""",
                      short_name='i')
 gflags.DEFINE_string('packages', '',
                      'Space separated list of packages to mark as stable.',
                      short_name='p')
-gflags.DEFINE_boolean('push', False,
-                      'Creates, commits and pushes the stable ebuild.')
+gflags.DEFINE_string('push_options', '',
+                     'Options to use with git-cl push using push command.')
 gflags.DEFINE_boolean('verbose', False,
                       'Prints out verbose information about what is going on.',
                       short_name='v')
@@ -47,6 +47,18 @@ _CHROMIUMOS_OVERLAYS_DIRECTORY = \
 _GIT_COMMIT_MESSAGE = \
   'Marking 9999 ebuild for %s with commit %s as stable.'
 
+# Dictionary of valid commands with usage information.
+_COMMAND_DICTIONARY = {
+                        'clean':
+                          'Cleans up previous calls to either commit or push',
+                        'commit':
+                          'Marks given ebuilds as stable locally',
+                        'push':
+                          'Pushes previous marking of ebuilds to remote repo',
+                      }
+
+# Name used for stabilizing branch.
+_STABLE_BRANCH_NAME = 'stabilizing_branch'
 
 # ======================= Global Helper Functions ========================
 
@@ -56,23 +68,67 @@ def _Print(message):
   if gflags.FLAGS.verbose:
     print message
 
+def _CheckOnStabilizingBranch():
+  """Returns true if the git branch is on the stabilizing branch."""
+  current_branch = _RunCommand('git branch | grep \*').split()[1]
+  return current_branch == _STABLE_BRANCH_NAME
 
-def _CheckSaneArguments(package_list, commit_id_list):
-  """Checks to make sure the flags are sane.  Dies if arguments are not sane"""
-  if not gflags.FLAGS.packages:
-    generate_test_report.Die('Please specify at least one package')
-  if not gflags.FLAGS.board:
-    generate_test_report.Die('Please specify a board')
+def _CheckSaneArguments(package_list, commit_id_list, command):
+  """Checks to make sure the flags are sane.  Dies if arguments are not sane."""
+  if not command in _COMMAND_DICTIONARY.keys():
+    _PrintUsageAndDie('%s is not a valid command' % command)
+  if not gflags.FLAGS.packages and command == 'commit':
+    _PrintUsageAndDie('Please specify at least one package')
+  if not gflags.FLAGS.board and command == 'commit':
+    _PrintUsageAndDie('Please specify a board')
   if commit_id_list and (len(package_list) != len(commit_id_list)):
-    print commit_id_list
-    print len(commit_id_list)
-    generate_test_report.Die(
+    _PrintUsageAndDie(
         'Package list is not the same length as the commit id list')
 
 
-def _PrintUsageAndDie():
-  """Prints the usage and returns an error exit code."""
-  generate_test_report.Die('Usage: %s ARGS\n%s' % (sys.argv[0], gflags.FLAGS))
+def _Clean():
+  """Cleans up uncommitted changes on either stabilizing branch or master."""
+  if _CheckOnStabilizingBranch():
+    _RunCommand('git reset HEAD --hard')
+  _RunCommand('git checkout master')
+  _RunCommand('git reset HEAD --hard')
+
+
+def _PrintUsageAndDie(error_message=''):
+  """Prints optional error_message the usage and returns an error exit code."""
+  command_usage = 'Commands: \n'
+  # Add keys and usage information from dictionary.
+  commands = sorted(_COMMAND_DICTIONARY.keys())
+  for command in commands:
+    command_usage += '  %s: %s\n' % (command, _COMMAND_DICTIONARY[command])
+  commands_str = '|'.join(commands)
+  print 'Usage: %s FLAGS [%s]\n\n%s\nFlags:%s' % (sys.argv[0], commands_str,
+                                                  command_usage, gflags.FLAGS)
+  if error_message:
+    generate_test_report.Die(error_message)
+  else:
+    sys.exit(1)
+
+
+def _PushChange():
+  """Pushes changes to the git repository.
+
+  Pushes locals commits from calls to CommitChange to the remote git
+  repository specified by os.pwd.
+
+  Raises:
+      OSError: Error occurred while pushing.
+  """
+
+  # TODO(sosa) - Add logic for buildbot to check whether other slaves have
+  # completed and push this change only if they have.
+
+  # Sanity check to make sure we're on a stabilizing branch before pushing.
+  if not _CheckOnStabilizingBranch():
+    generate_test_report.Die('Expected %s to be on branch "%s"' %
+                             (_CHROMIUMOS_OVERLAYS_DIRECTORY,
+                              _STABLE_BRANCH_NAME))
+  _RunCommand('git cl push %s' % gflags.FLAGS.push_options)
 
 
 def _RunCommand(command):
@@ -91,23 +147,12 @@ class _GitBranch(object):
   def __init__(self, branch_name):
     """Sets up variables but does not create the branch."""
     self.branch_name = branch_name
-    self._cleaned_up = False
-
-  def __del__(self):
-    """Ensures we're checked back out to the master branch."""
-    if not self._cleaned_up:
-      self.CleanUp()
 
   def CreateBranch(self):
     """Creates a new git branch or replaces an existing one."""
     if self.Exists():
       self.Delete()
     self._Checkout(self.branch_name)
-
-  def CleanUp(self):
-    """Does a git checkout back to the master branch."""
-    self._Checkout('master', create=False)
-    self._cleaned_up = True
 
   def _Checkout(self, target, create=True):
     """Function used internally to create and move between branches."""
@@ -259,69 +304,56 @@ class EBuildStableMarker(object):
     git_commit_cmd = 'git commit -am "%s"' % message
     _RunCommand(git_commit_cmd)
 
-  # TODO(sosa):  This doesn't work yet.  Want to directly push without a prompt.
-  def PushChange(self):
-    """Pushes changes to the git repository.
-
-    Pushes locals commits from calls to CommitChange to the remote git
-    repository specified by os.pwd.
-
-    Raises:
-        OSError: Error occurred while pushing.
-    """
-    print 'Push currently not implemented'
-    # TODO(sosa):  Un-comment once PushChange works.
-    # _Print('Pushing changes for %s' % self._ebuild.package)
-    # git_commit_cmd = 'git push'
-    # _RunCommand(git_commit_cmd)
-
 
 def main(argv):
   try:
     argv = gflags.FLAGS(argv)
-  except gflags.FlagsError:
-    _PrintUsageAndDie()
+    if len(argv) != 2:
+      _PrintUsageAndDie('Must specify a valid command')
+    else:
+      command = argv[1]
+  except gflags.FlagsError, e :
+    _PrintUsageAndDie(str(e))
 
   package_list = gflags.FLAGS.packages.split(' ')
   if gflags.FLAGS.commit_ids:
     commit_id_list = gflags.FLAGS.commit_ids.split(' ')
   else:
     commit_id_list = None
-  _CheckSaneArguments(package_list, commit_id_list)
+  _CheckSaneArguments(package_list, commit_id_list, command)
 
-  pwd = os.curdir
   os.chdir(_CHROMIUMOS_OVERLAYS_DIRECTORY)
 
-  work_branch = _GitBranch('stabilizing_branch')
-  work_branch.CreateBranch()
-  if not work_branch.Exists():
-    generate_test_report.Die('Unable to create stabilizing branch')
-  index = 0
-  try:
-    for index in range(len(package_list)):
-      # Gather the package and optional commit id to work on.
-      package = package_list[index]
-      commit_id = ""
-      if commit_id_list:
-        commit_id = commit_id_list[index]
+  if command == 'clean':
+    _Clean()
+  elif command == 'commit':
+    work_branch = _GitBranch(_STABLE_BRANCH_NAME)
+    work_branch.CreateBranch()
+    if not work_branch.Exists():
+      generate_test_report.Die('Unable to create stabilizing branch in %s' %
+                               _CHROMIUMOS_OVERLAYS_DIRECTORY)
+    index = 0
+    try:
+      for index in range(len(package_list)):
+        # Gather the package and optional commit id to work on.
+        package = package_list[index]
+        commit_id = ""
+        if commit_id_list:
+          commit_id = commit_id_list[index]
 
-      _Print('Working on %s' % package)
-      worker = EBuildStableMarker(_EBuild(package, commit_id))
-      worker.RevEBuild(commit_id)
-      worker.CommitChange(_GIT_COMMIT_MESSAGE % (package, commit_id))
-      if gflags.FLAGS.push:
-        worker.PushChange()
+        _Print('Working on %s' % package)
+        worker = EBuildStableMarker(_EBuild(package, commit_id))
+        worker.RevEBuild(commit_id)
+        worker.CommitChange(_GIT_COMMIT_MESSAGE % (package, commit_id))
 
-  except (OSError, IOError):
-    print 'An exception occurred %s' % sys.exc_info()[0]
-    print 'Only the following packages were revved: %s' % package_list[:index]
-    print '''Note you will have to go into the chromiumos-overlay directory and
-          reset the git repo yourself.
-          '''
-  finally:
-    # Always run the last two cleanup functions.
-    work_branch.CleanUp()
-    os.chdir(pwd)
+    except (OSError, IOError), e:
+      print ('An exception occurred %s\n'
+             'Only the following packages were revved: %s\n'
+             'Note you will have to go into %s'
+             'and reset the git repo yourself.' %
+             (e, package_list[:index], _CHROMIUMOS_OVERLAYS_DIRECTORY))
+  elif command == 'push':
+    _PushChange()
 
 
 if __name__ == '__main__':
