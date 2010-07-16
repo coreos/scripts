@@ -351,6 +351,9 @@ make_image_bootable() {
     bootloader_to="${OUTPUT_DIR}/arm.mbr"
   fi
 
+  # Temporary hack to fix syslinux building:
+  sudo umount ${ESP_FS_DIR}
+
   # Update partition 12 / legacy bootloaders and arm.
   ${SCRIPTS_DIR}/update_bootloaders.sh \
     --arch=${ARCH} \
@@ -367,8 +370,11 @@ make_image_bootable() {
   fi
 
   trap - EXIT
+  # Temporary hack to fix syslinux building, comment out -e ${ESP_FS_DIR}
+  # ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
+  #   -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
+    -s "${STATEFUL_FS_DIR}"
 }
 
 # Modifies an existing image to add development packages
