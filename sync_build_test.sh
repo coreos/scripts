@@ -52,6 +52,9 @@ DEFINE_boolean build ${FLAGS_TRUE} \
 DEFINE_boolean build_autotest ${FLAGS_FALSE} "Build autotest"
 DEFINE_string buildbot_uri "${BUILDBOT_URI}" \
     "Base URI to buildbot build location which contains LATEST file"
+DEFINE_string chrome_root "" \
+    "The root of your chrome browser source. Should contain a 'src' subdir. \
+If this is set, chrome browser will be built from source."
 DEFINE_string chronos_passwd "${CHRONOS_PASSWD}" \
     "Use this as the chronos user passwd (defaults to \$CHRONOS_PASSWD)"
 DEFINE_string chroot "" "Chroot to build/use"
@@ -81,7 +84,6 @@ DEFINE_string top "" \
 DEFINE_boolean withdev ${FLAGS_TRUE} "Build development packages"
 DEFINE_boolean usepkg ${FLAGS_TRUE} "Use binary packages"
 DEFINE_boolean unittest ${FLAGS_TRUE} "Run unit tests"
-
 
 # Returns a heuristic indicating if we believe this to be a google internal
 # development environment.
@@ -124,6 +126,11 @@ function validate_and_set_param_defaults() {
   # If chroot does not exist, force making it
   if [[ ! -d "${FLAGS_chroot}" ]]; then
     FLAGS_force_make_chroot=${FLAGS_TRUE}
+  fi
+
+  # If chrome_root option passed, set as option for ./enter_chroot
+  if [[ -n "${FLAGS_chrome_root}" ]]; then
+    chroot_options="--chrome_root=${FLAGS_chrome_root}"
   fi
 
   if [[ -z "${FLAGS_repo}" ]]; then
@@ -360,7 +367,8 @@ function run_phase() {
 function run_phase_in_chroot() {
   local desc="$1"
   shift
-  run_phase "${desc}" ./enter_chroot.sh "--chroot=${FLAGS_chroot}" -- "$@"
+  run_phase "${desc}" ./enter_chroot.sh "--chroot=${FLAGS_chroot}" \
+    ${chroot_options} -- "$@"
 }
 
 
@@ -531,6 +539,12 @@ function main() {
     if [[ "${FLAGS_board}" == "x86-generic" ]]; then
       run_phase_in_chroot "Running unit tests" ./run_tests.sh ${board_param}
     fi
+  fi
+
+  if [[ ${FLAGS_chrome_root} ]]; then
+      run_phase_in_chroot "Building Chromium browser" \
+        USE="build_tests" FEATURES="-usersandbox" \
+        CHROME_ORIGIN=LOCAL_SOURCE emerge-${FLAGS_board} chromeos-chrome
   fi
 
   if [[ ${FLAGS_master} -eq ${FLAGS_TRUE} ]]; then
