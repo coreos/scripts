@@ -22,6 +22,10 @@ DEFINE_string from "/tmp/boot" \
   "Path the legacy bootloader templates are copied from. (Default /tmp/boot)"
 DEFINE_string to "/tmp/esp.img" \
   "Path to esp image or ARM output MBR (Default: /tmp/esp.img)"
+DEFINE_integer to_offset 0 \
+  "Offset in bytes into 'to' if it is a file (Default: 0)"
+DEFINE_integer to_size -1 \
+  "Size in bytes of 'to' to use if it is a file. -1 is ignored. (Default: -1)"
 DEFINE_string vmlinuz "/tmp/vmlinuz" \
   "Path to the vmlinuz file to use (Default: /tmp/vmlinuz)"
 # The kernel_partition and the kernel_cmdline each are used to supply
@@ -106,13 +110,23 @@ if [[ ! -e "${FLAGS_to}" ]]; then
   ESP_BLOCKS=16384
   /usr/sbin/mkfs.vfat -C "${FLAGS_to}" ${ESP_BLOCKS}
   ESP_DEV=$(sudo losetup -f)
-  test -z "${ESP_DEV}" && error "No free loop devices."
+  if [ -z "${ESP_DEV}" ]; then
+    die "No free loop devices."
+  fi
   sudo losetup "${ESP_DEV}" "${FLAGS_to}"
 else
   if [[ -f "${FLAGS_to}" ]]; then
     ESP_DEV=$(sudo losetup -f)
-    test -z "${ESP_DEV}" && error "No free loop devices."
-    sudo losetup "${ESP_DEV}" "${FLAGS_to}"
+    if [ -z "${ESP_DEV}" ]; then
+      die "No free loop devices."
+    fi
+
+    esp_offset="--offset ${FLAGS_to_offset}"
+    esp_size="--sizelimit ${FLAGS_to_size}"
+    if [ ${FLAGS_to_size} -lt 0 ]; then
+      esp_size=
+    fi
+    sudo losetup ${esp_offset} ${esp_size} "${ESP_DEV}" "${FLAGS_to}"
   else
     # If it is a block device or something else, try to mount it anyway.
     ESP_DEV="${FLAGS_to}"
@@ -167,7 +181,7 @@ if [[ "${FLAGS_arch}" = "x86" ]]; then
   # we cut over from rootfs booting (extlinux).
   if [[ ${FLAGS_install_syslinux} -eq ${FLAGS_TRUE} ]]; then
     sudo umount "${ESP_FS_DIR}"
-    sudo syslinux -d /syslinux "${FLAGS_to}"
+    sudo syslinux -d /syslinux "${ESP_DEV}"
   fi
 elif [[ "${FLAGS_arch}" = "arm" ]]; then
   # Extract kernel flags

@@ -291,7 +291,7 @@ make_image_bootable() {
   trap "mount_gpt_cleanup" EXIT
   ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
     --image "${image_name}" -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
+    -s "${STATEFUL_FS_DIR}"
 
   sudo mount -o remount,ro "${ROOT_FS_DIR}"
   root_dev=$(mount | grep -- "${ROOT_FS_DIR}" | cut -f1 -d' ' | tail -1)
@@ -332,14 +332,27 @@ make_image_bootable() {
 
   # Update the bootloaders.  For legacy/efi x86, the EFI system partition
   # will be updated and for arm, the mbr will be updated (for u-boot).
-  local kernel_part="--kernel_partition='${OUTPUT_DIR}/vmlinuz.image'"
-  kernel_part="${kernel_part} --install_syslinux"
-  local bootloader_to="${ESP_FS_IMG}"
+  local kernel_part=
+  local bootloader_to=
+  local bootloader_to_flags=
   local usb_disk="${FLAGS_usb_disk}"
-  local bootloader_to="$(mount | grep ${ESP_FS_DIR} | cut -f1 -d' ')"
-  if [[ "${ARCH}" == "arm" ]]; then
+
+  if [[ "${ARCH}" = "x86" ]]; then
+    # x86 should update the esp in place in the image.
+    bootloader_to="${OUTPUT_DIR}/${image_name}"
+    local esp_offset="$(partoffset ${OUTPUT_DIR}/${image_name} 12)"
+    esp_offset=$((esp_offset * 512))  # sectors to bytes
+    local esp_size="$(partsize ${OUTPUT_DIR}/${image_name} 12)"
+    esp_size=$((esp_size * 512))  # sectors to bytes
+    bootloader_to_flags="--to_offset=${esp_offset} --to_size=${esp_size}"
+    # Use the kernel partition to acquire configuration flags.
+    kernel_part="--kernel_partition='${OUTPUT_DIR}/vmlinuz.image'"
+    # Install syslinux on the EFI System Partition.
+    kernel_part="${kernel_part} --install_syslinux"
+  elif [[ "${ARCH}" = "arm" ]]; then
     # TODO(wad) mmcblk1p3 is hardcoded for arm for now!
     usb_disk="/dev/mmcblk1p3"
+    # ARM doesn't support using the kernel image for kernel cmdline flags yet.
     kernel_part="--kernel_cmdline=\"${FLAGS_arm_extra_bootargs}\" "
     # TODO(wad) Integrate dmtable extraction into the arm build
     # E.g.  $(cat ${OUTPUT_DIR}/boot.config | tr -s '\n' ' ')"
@@ -351,9 +364,6 @@ make_image_bootable() {
     bootloader_to="${OUTPUT_DIR}/arm.mbr"
   fi
 
-  # Temporary hack to fix syslinux building:
-  sudo umount ${ESP_FS_DIR}
-
   # Update partition 12 / legacy bootloaders and arm.
   ${SCRIPTS_DIR}/update_bootloaders.sh \
     --arch=${ARCH} \
@@ -361,6 +371,7 @@ make_image_bootable() {
     --from="${OUTPUT_DIR}"/boot \
     --vmlinuz="${OUTPUT_DIR}"/boot/vmlinuz \
     --usb_disk="${usb_disk}" \
+    ${bootloader_to_flags} \
     $kernel_part
 
   if [[ "${ARCH}" == "arm" ]]; then
@@ -370,9 +381,6 @@ make_image_bootable() {
   fi
 
   trap - EXIT
-  # Temporary hack to fix syslinux building, comment out -e ${ESP_FS_DIR}
-  # ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
-  #   -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
     -s "${STATEFUL_FS_DIR}"
 }
