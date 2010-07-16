@@ -604,9 +604,11 @@ class EmergeQueue(object):
       cmdline = EmergeCommand() + " --nodeps --oneshot "
       this_pkg = self._deps_map[target]
       if this_pkg["workon"]:
-        # --usepkg=n --getbinpkg=n: Build from source
+        # --usepkg=n --usepkgonly=n --getbinpkg=n
+        # --getbinpkgonly=n: Build from source
         # --selective=n: Re-emerge even if package is already installed.
-        cmdline += "--usepkg=n --getbinpkg=n --selective=n "
+        cmdline += ("--usepkg=n --usepkgonly=n --getbinpkg=n "
+                    "--getbinpkgonly=n --selective=n ")
       cmdline += "=" + target
       deps_info = this_pkg["deps_info"]
       if deps_info["uninstall"]:
@@ -753,7 +755,7 @@ OPTS, EMERGE_ACTION, EMERGE_OPTS, EMERGE_FILES = ParseArgs(sys.argv)
 if EMERGE_ACTION is not None:
   # Pass action arguments straight through to emerge
   EMERGE_OPTS["--%s" % EMERGE_ACTION] = True
-  sys.exit(os.system(EmergeCommand()))
+  sys.exit(os.system(EmergeCommand() + " " + " ".join(EMERGE_FILES)))
 elif not EMERGE_FILES:
   Usage()
   sys.exit(1)
