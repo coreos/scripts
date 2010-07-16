@@ -68,9 +68,10 @@ create_devserver () {
   # Copy server components into place
   (cd ${SCRIPTS_DIR}/../.. && \
       tar zcf - --exclude=.git --exclude=.svn \
+      src/scripts/lib \
       src/scripts/start_devserver \
       src/scripts/{common,get_latest_image,mk_memento_images}.sh \
-      src/third_party/shflags src/platform/dev) | \
+      src/platform/dev) | \
       ssh ${FLAGS_upgrade_server} "cd ${FLAGS_dest_path} && tar zxf -"
 
   # Copy Python web library into place out of the chroot
