@@ -4,22 +4,12 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Assume that we run HWQual test before and generate the system component file.
-# The file is placed in (XXXX is a random number):
-# /tmp/run_remote_tests.XXXX/hardware_Components/results/system_components
-#
-# QUALDB can be a full path of the file, or a specified directory
-# /tmp/run_remote_tests.XXXX, or a default wildcard one /tmp/run_remote_tests.*.
+TEST_DIR="${ROOT_FS_DIR}/usr/local/autotest/site_tests/hardware_Components"
+COMPONENTS_FILE="${TEST_DIR}/qualified_components"
 
-COMPONENTS_FILE="${ROOT_FS_DIR}/usr/local/autotest/site_tests/"\
-"hardware_Components/qualified_components"
-
-# If QUALDB is a default wildcard directory, try to use the most recent one.
-QUALDB=$(ls -dt ${QUALDB} 2>&-| head -1)
-
-# Try to append the full path to the file if QUALDB is a directory.
-if [ ! -z ${QUALDB} ] && [ -d ${QUALDB} ]; then
-  QUALDB="${QUALDB}/hardware_Components/results/system_components"
+# If QUALDB not specified, use the one based on board name.
+if [ -z ${QUALDB} ]; then
+  QUALDB="${TEST_DIR}/qualified_components_${BOARD}"
 fi
 
 if [ ! -z ${QUALDB} ] && [ -f ${QUALDB} ]; then
