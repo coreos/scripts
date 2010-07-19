@@ -275,9 +275,9 @@ class EBuildStableMarker(object):
       elif line.startswith('EAPI'):
         # Always add new commit_id after EAPI definition.
         redirect_file.write(line)
-        redirect_file.write('EGIT_COMMIT="%s"' % commit_id)
-      elif not line.startswith('EGIT_COMMIT'):
-        # Skip old EGIT_COMMIT definition.
+        redirect_file.write('CROS_WORKON_COMMIT="%s"' % commit_id)
+      elif not line.startswith('CROS_WORKON_COMMIT'):
+        # Skip old CROS_WORKON_COMMIT definition.
         redirect_file.write(line)
     fileinput.close()
 

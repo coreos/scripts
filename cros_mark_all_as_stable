@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Wrapper scripts around cros_mark_as_stable that marks all packages as stable
+# that have CROS_WORKON_COMMIT that is different than the current HEAD commit
+# of the corresponding git repository.
+
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+. "$(dirname "$0")/common.sh"
+
+# Load common functions for workon scripts.
+. "$(dirname "$0")/lib/cros_workon_common.sh"
+
+get_default_board
+
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "The board to set package keywords for."
+
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+set -e
+
+BOARD_DIR=/build/"${FLAGS_board}"
+EQUERYCMD=equery-"${FLAGS_board}"
+EBUILDCMD=ebuild-"${FLAGS_board}"
+
+PACKAGES=$( show_workon_ebuilds )
+
+GRAB_HEAD_COMMIT_CMD="git show HEAD | head -1 | cut -f 2 -d ' '"
+
+# Packages to mark as stable.
+PACKAGE_LIST=""
+# List of commit ids corresponding to package list.
+COMMIT_ID_LIST=""
+
+# For each package, compares the head commit id to the commit id in the ebuild.
+# If they do not match, add the package and its commit id into ${PACKAGE_LIST}
+# and ${COMMIT_ID_LIST}
+for package in ${PACKAGES}; do
+  ebuild_path=$(${EQUERYCMD} which ${package}) || continue
+  # Sets ${CROS_WORKON_SRCDIR} from the ebuild.
+  eval $(${EBUILDCMD} ${ebuild_path} info) &> /dev/null || continue
+  head_commit=$( cd "${CROS_WORKON_SRCDIR}" &&\
+    bash -c "${GRAB_HEAD_COMMIT_CMD}" ) || continue
+  egit_commit=\
+    $(eval echo $(grep CROS_WORKON_COMMIT ${ebuild_path} | cut -f 2 -d '=')) ||\
+      echo "No CROS_WORKON_COMMIT found in ${ebuild_path}"
+  if [[ ${head_commit} != ${egit_commit} ]] && \
+    [ -n "${head_commit}" ]; then
+    info\
+      "HEAD ${head_commit} != CROS_WORKON_COMMIT ${egit_commit} for ${package}"
+    PACKAGE_LIST="${PACKAGE_LIST} ${package}"
+    COMMIT_ID_LIST="${COMMIT_ID_LIST} ${head_commit}"
+  fi
+done
+
+info "Candidate package list ${PACKAGE_LIST}"
+info "With commit id list ${COMMIT_ID_LIST}"
+
+./cros_mark_as_stable --board ${FLAGS_board} -p "${PACKAGE_LIST}" \
+  -i "${COMMIT_ID_LIST}" commit  || \
+    die "Could not mark all packages as stable"
