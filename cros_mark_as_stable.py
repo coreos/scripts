@@ -315,9 +315,9 @@ def main(argv):
   except gflags.FlagsError, e :
     _PrintUsageAndDie(str(e))
 
-  package_list = gflags.FLAGS.packages.split(' ')
+  package_list = gflags.FLAGS.packages.split()
   if gflags.FLAGS.commit_ids:
-    commit_id_list = gflags.FLAGS.commit_ids.split(' ')
+    commit_id_list = gflags.FLAGS.commit_ids.split()
   else:
     commit_id_list = None
   _CheckSaneArguments(package_list, commit_id_list, command)
@@ -347,11 +347,12 @@ def main(argv):
         worker.CommitChange(_GIT_COMMIT_MESSAGE % (package, commit_id))
 
     except (OSError, IOError), e:
-      print ('An exception occurred %s\n'
+      print ('An exception occurred\n'
              'Only the following packages were revved: %s\n'
              'Note you will have to go into %s'
              'and reset the git repo yourself.' %
-             (e, package_list[:index], _CHROMIUMOS_OVERLAYS_DIRECTORY))
+             (package_list[:index], _CHROMIUMOS_OVERLAYS_DIRECTORY))
+      raise e
   elif command == 'push':
     _PushChange()
 
