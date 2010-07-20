@@ -27,17 +27,7 @@ import os
 import stat
 import sys
 
-USAGE = "usage: %prog --mounted_dir=directory --for_qemu=[true]"
-
-POST_INST_IN_FILENAME = 'usr/sbin/chromeos-postinst'
-POST_INST_OUT_FILENAME = 'postinst_vm'
-XORG_CONF_FILENAME = os.path.join('etc', 'X11', 'xorg.conf')
-
-EFI_CODE_MARKER_START = r'echo "Updating grub target for EFI BIOS"'
-EFI_CODE_MARKER_END = \
-    r"""sh "${INSTALL_ROOT}"/usr/sbin/chromeos-firmwareupdate
-  fi
-else"""
+USAGE = "usage: %prog --mounted_dir=directory --enable_tablet=[true]"
 
 INPUT_SECTION_MARKER = r'Section "InputDevice"'
 SECTION_END_MARKER = r'EndSection'
@@ -46,8 +36,8 @@ MOUSE_SECTION_IDENTIFIERS = []
 MOUSE_SECTION_IDENTIFIERS += ['Identifier "Mouse']
 MOUSE_SECTION_IDENTIFIERS += ['Identifier "USBMouse']
 
-REPLACE_USB_MOUSE_PAIR = ('InputDevice "USBMouse" "AlwaysCore"',
-                          '')
+REPLACE_USB_MOUSE_PAIR = ('InputDevice "USBMouse" "AlwaysCore"', '')
+XORG_CONF_FILENAME = os.path.join('etc', 'X11', 'xorg.conf')
 
 
 TABLET_DEVICE_CONFIG = """
@@ -100,47 +90,21 @@ def FixXorgConf(mount_point):
   f.write(xorg_conf)
   f.close()
 
-
-# Remove the code that does EFI processing from the postinst script
-def FixPostInst(mount_point):
-  postinst_in = os.path.join(mount_point, POST_INST_IN_FILENAME)
-  f = open(postinst_in, 'r')
-  postinst = f.read()
-  f.close()
-  m1 = postinst.find(EFI_CODE_MARKER_START)
-  m2 = postinst.find(EFI_CODE_MARKER_END)
-  if (m1 == -1) or (m2 == -1) or (m1 > m2):
-    # basic sanity check
-    return
-  m2 += len(EFI_CODE_MARKER_END)
-  postinst = postinst[0:m1] + postinst[m2:]
-
-  # Write the file back out.
-  postinst_out = os.path.join(mount_point, POST_INST_OUT_FILENAME)
-  f = open(postinst_out, 'w')
-  f.write(postinst)
-  f.close()
-
-  # Mark the file read/execute.
-  os.chmod(postinst_out, stat.S_IEXEC | stat.S_IREAD)
-
-
 def main():
   parser = OptionParser(USAGE)
   parser.add_option('--mounted_dir', dest='mounted_dir',
                     help='directory where the Chromium OS image is mounted')
-  parser.add_option('--for_qemu', dest='for_qemu',
+  parser.add_option('--enable_tablet', dest='enable_tablet',
                     default="true",
                     help='fixup image for qemu')
   (options, args) = parser.parse_args()
 
   if not options.mounted_dir:
     parser.error("Please specify the mount point for the Chromium OS image");
-  if options.for_qemu not in ('true', 'false'):
-    parser.error("Please specify either true or false for --for_qemu")
+  if options.enable_tablet not in ('true', 'false'):
+    parser.error("Please specify either true or false for --enable_tablet")
 
-  FixPostInst(options.mounted_dir)
-  if (options.for_qemu == 'true'):
+  if (options.enable_tablet == 'true'):
     FixXorgConf(options.mounted_dir)
 
 

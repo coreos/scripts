@@ -179,15 +179,15 @@ mkdir -p "${TEMP_MNT}"
 sudo mount -o loop "${TEMP_ROOTFS}" "${TEMP_MNT}"
 if [ "${FLAGS_format}" = "qemu" ]; then
   sudo python ./fixup_image_for_qemu.py --mounted_dir="${TEMP_MNT}" \
-  --for_qemu=true
+  --enable_tablet=true
 else
   sudo python ./fixup_image_for_qemu.py --mounted_dir="${TEMP_MNT}" \
-  --for_qemu=false
+  --enable_tablet=false
 fi
 
 # Change this value if the rootfs partition changes
 ROOTFS_PARTITION=/dev/sda3
-sudo "${TEMP_MNT}"/postinst_vm "${ROOTFS_PARTITION}"
+sudo "${TEMP_MNT}"/postinst "${ROOTFS_PARTITION}" --esp_part_file="${TEMP_ESP}"
 trap - INT TERM EXIT
 cleanup
 
