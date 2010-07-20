@@ -32,6 +32,7 @@ DEFINE_string qualdb "" "Location of qualified component file" d
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" y
 DEFINE_string build_root "/build" \
     "The root location for board sysroots."
+DEFINE_boolean fast ${FLAGS_FALSE} "Call many emerges in parallel"
 
 
 # Parse command line
@@ -40,9 +41,10 @@ eval set -- "${FLAGS_ARGV}"
 
 EMERGE_CMD="emerge"
 EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
-TOP_SCRIPTS_DIR="$(dirname $0)"
-if [ -e "${TOP_SCRIPTS_DIR}/.emerge" ]; then
-  .  "${TOP_SCRIPTS_DIR}/.emerge"
+if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
+  echo "Using alternate emerge"
+  EMERGE_CMD="${SCRIPTS_DIR}/parallel_emerge"
+  EMERGE_BOARD_CMD="${EMERGE_CMD} --board=${FLAGS_board}"
 fi
 
 # No board, no default and no image set then we can't find the image
@@ -95,7 +97,7 @@ emerge_chromeos_test() {
   # Determine the root dir for test packages.
   ROOT_DEV_DIR="$ROOT_FS_DIR/usr/local"
 
-  INSTALL_MASK="$INSTALL_MASK" $EMERGE_BOARD_CMD \
+  sudo INSTALL_MASK="$INSTALL_MASK" $EMERGE_BOARD_CMD \
     --root="$ROOT_DEV_DIR" --root-deps=rdeps \
     --usepkgonly chromeos-test $EMERGE_JOBS
 }
