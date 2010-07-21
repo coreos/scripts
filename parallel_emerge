@@ -277,7 +277,10 @@ class DepGraphGenerator(object):
       os.environ["SYSROOT"] = "/build/" + self.board
       scripts_dir = os.path.dirname(os.path.realpath(__file__))
       toolchain_path = "%s/../overlays/overlay-%s/toolchain.conf"
-      f = open(toolchain_path % (scripts_dir, self.board))
+      # Strip the variant out of the board name to look for the toolchain. This
+      # is similar to what setup_board does.
+      board_no_variant = self.board.split('_')[0]
+      f = open(toolchain_path % (scripts_dir, board_no_variant))
       os.environ["CHOST"] = f.readline().strip()
       f.close()
 
