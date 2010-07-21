@@ -72,8 +72,7 @@ if ! type -p update_x86_bootloaders; then
         sudo dd of="${esp_fs_dir}"/efi/boot/grub.cfg
 
     # Rewrite syslinux DM_TABLE
-    usb_target="${FLAGS_usb_disk//\//\\\/}"
-    syslinux_dm_table_usb=${dm_table//\/dev\/${old_root}/${usb_target}}
+    syslinux_dm_table_usb=${dm_table//\/dev\/${old_root}/${FLAGS_usb_disk}}
     sed -e "s|DMTABLEA|${syslinux_dm_table_usb}|g" \
         "${template_dir}"/syslinux/usb.A.cfg |
         sudo dd of="${esp_fs_dir}"/syslinux/usb.A.cfg
@@ -84,7 +83,7 @@ if ! type -p update_x86_bootloaders; then
         sudo dd of="${esp_fs_dir}"/syslinux/root.A.cfg
 
     syslinux_dm_table_b=${dm_table//\/dev\/${old_root}/HDROOTB}
-    sed -e "s|DMTABLEA|${syslinux_dm_table_a}|g" \
+    sed -e "s|DMTABLEB|${syslinux_dm_table_b}|g" \
         "${template_dir}"/syslinux/root.B.cfg |
         sudo dd of="${esp_fs_dir}"/syslinux/root.B.cfg
 

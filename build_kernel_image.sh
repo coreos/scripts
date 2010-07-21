@@ -58,17 +58,16 @@ set -e
 verity_args=
 # Even with a rootfs_image, root= is not changed unless specified.
 if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
-  info "Determining root fs block count."
   # Gets the number of blocks. 4096 byte blocks _are_ expected.
   root_fs_blocks=$(sudo dumpe2fs "${FLAGS_rootfs_image}" 2> /dev/null |
                    grep "Block count" |
                    tr -d ' ' |
                    cut -f2 -d:)
-  info "Checking root fs block size."
   root_fs_block_sz=$(sudo dumpe2fs "${FLAGS_rootfs_image}" 2> /dev/null |
                      grep "Block size" |
                      tr -d ' ' |
                      cut -f2 -d:)
+  info "rootfs is ${root_fs_blocks} blocks of ${root_fs_block_sz} bytes"
   if [[ ${root_fs_block_sz} -ne 4096 ]]; then
     error "Root file system blocks are not 4k!"
   fi
@@ -87,10 +86,10 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
   # the verified boot device.  Doing so will claim /dev/sdDP out from
   # under the system.
   if [[ ${FLAGS_root} = "/dev/dm-0" ]]; then
-    table=${table//HASH_DEV/\/dev\/sd%D%P}
-    table=${table//ROOT_DEV/\/dev\/sd%D%P}
+    table=${table//HASH_DEV//dev/sd%D%P}
+    table=${table//ROOT_DEV//dev/sd%D%P}
   fi
-  verity_args="dm=\"${table}\""
+  verity_args="dm=\"vroot none ro,${table}\""
   info "dm-verity configuration: ${verity_args}"
 fi
 

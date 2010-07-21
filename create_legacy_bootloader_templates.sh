@@ -99,15 +99,13 @@ EOF
   info "Emitted ${SYSLINUX_DIR}/syslinux.cfg"
 
   if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-    # To change the active target, only this file needs to change.
-    cat <<EOF | sudo dd of="${SYSLINUX_DIR}/default.cfg" 2>/dev/null
-DEFAULT chromeos-vusb.A
-EOF
-  else
-      cat <<EOF | sudo dd of="${SYSLINUX_DIR}/default.cfg" 2>/dev/null
+    # TODO(wad, tgao) enable usb vbooting with initramfs or device probing.
+    warn "USB booting will not use rootfs verification."
+  fi
+  # To change the active target, only this file needs to change.
+  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/default.cfg" 2>/dev/null
 DEFAULT chromeos-usb.A
 EOF
-  fi
   info "Emitted ${SYSLINUX_DIR}/default.cfg"
 
   cat <<EOF | sudo dd of="${SYSLINUX_DIR}/usb.A.cfg" 2>/dev/null
