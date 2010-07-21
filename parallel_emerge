@@ -819,11 +819,12 @@ class DepGraphGenerator(object):
         if pkg not in pkg_db:
           cache[pkg] = False
         else:
+          cache[pkg] = True
           for dep in deps_map[pkg]["needs"]:
             if not PrebuiltsReady(dep, pkg_db, cache):
               cache[pkg] = False
               break
-        return cache.setdefault(pkg, True)
+        return cache[pkg]
 
       def LastModifiedWithDeps(pkg, pkg_db, cache):
         """Calculate the last modified time of a package and its dependencies.
