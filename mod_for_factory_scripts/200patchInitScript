@@ -23,16 +23,15 @@ EOF
 
 patch -d ${ROOT_FS_DIR} -Np1 <<EOF
 diff -Naur old/etc/init/dump-boot-stats.conf new/etc/init/dump-boot-stats.conf
---- old/etc/init/dump-boot-stats.conf	2010-04-28 21:35:33.785340000 -0700
-+++ new/etc/init/dump-boot-stats.conf	2010-04-28 21:36:28.819984000 -0700
+--- old/etc/init/boot-complete.conf	2010-07-21 11:22:30.000000000 +0800
++++ new/etc/init/boot-complete.conf	2010-07-21 22:13:36.000000000 +0800
 @@ -7,7 +7,7 @@
- # when login-prompt-ready is received, grabs the current uptime and
- # disk stats.  Also sends uptime to metrics client for perf dashboard
+ # Processing required during boot after login prompt is displayed.
+ # Primarily, this means calculating boot time statistics.
  
 -start on login-prompt-ready
 +start on stopping startup
  
- # This is run-once rather than a service.
  task
 EOF
 
@@ -82,9 +81,9 @@ index 28c9086..9ebf2b9 100644
 +++ new/etc/init/software-update.conf
 @@ -7,7 +7,7 @@
  #
- # when dump-boot-stats has run, start up software update check.
+ # when boot reaches login prompt, start up software update check.
  
--start on stopped dump-boot-stats
+-start on stopped boot-complete
 +start on never
  
  respawn
