@@ -532,18 +532,15 @@ create_base_image() {
     ROOT_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_rootfs_size}))
   fi
 
-  dd if=/dev/zero of="${ROOT_FS_IMG}" bs=1 count=1 seek=$((ROOT_SIZE_BYTES - 1))
-  sudo losetup "${LOOP_DEV}" "${ROOT_FS_IMG}"
-  sudo mkfs.ext3 "${LOOP_DEV}"
-
-  # Pad out 10% for the hash tree.  This currently _exact_ for
-  # default configuration.  More space may be needed for different options.
+  # Pad out for the hash tree.
   ROOT_HASH_PAD=$((FLAGS_rootfs_hash_pad * 1024 * 1024))
   info "Padding the rootfs image by ${ROOT_HASH_PAD} bytes for hash data"
+
   dd if=/dev/zero of="${ROOT_FS_IMG}" bs=1 count=1 \
      seek=$((ROOT_SIZE_BYTES + ROOT_HASH_PAD - 1))
-  # Update to reflect the new capacity in the loop device.
-  sudo losetup -c "${LOOP_DEV}"
+  sudo losetup "${LOOP_DEV}" "${ROOT_FS_IMG}"
+  # Specify a block size and block count to avoid using the hash pad.
+  sudo mkfs.ext3 -b 4096 "${LOOP_DEV}" "$((ROOT_SIZE_BYTES / 4096))"
 
   # Tune and mount rootfs.
   # TODO(wad) rename the disk label to match the GPT since we
