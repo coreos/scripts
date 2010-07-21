@@ -128,6 +128,8 @@ def _PushChange():
     generate_test_report.Die('Expected %s to be on branch "%s"' %
                              (_CHROMIUMOS_OVERLAYS_DIRECTORY,
                               _STABLE_BRANCH_NAME))
+  _RunCommand('git cl upload --desc_from_logs -m "%s"' %
+    'Marking set of ebuilds as stable')
   _RunCommand('git cl push %s' % gflags.FLAGS.push_options)
 
 
