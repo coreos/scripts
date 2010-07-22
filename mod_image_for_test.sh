@@ -69,6 +69,23 @@ if [ ! -f $FLAGS_image ] ; then
   exit 1
 fi
 
+# What cross-build are we targeting?
+. "${FLAGS_build_root}/${FLAGS_board}/etc/make.conf.board_setup"
+# Figure out ARCH from the given toolchain.
+# TODO: Move to common.sh as a function after scripts are switched over.
+TC_ARCH=$(echo "${CHOST}" | awk -F'-' '{ print $1 }')
+case "${TC_ARCH}" in
+  arm*)
+    ARCH="arm"
+    ;;
+  *86)
+    ARCH="x86"
+    ;;
+  *)
+    error "Unable to determine ARCH from toolchain: ${CHOST}"
+    exit 1
+esac
+
 # Make sure anything mounted in the rootfs/stateful is cleaned up ok on exit.
 cleanup_mounts() {
   # Occasionally there are some daemons left hanging around that have our
@@ -186,7 +203,7 @@ else
   MOD_TEST_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
   # Run test setup script to modify the image
   sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-      STATEFUL_DIR="${STATEFUL_DIR}" "${MOD_TEST_ROOT}/test_setup.sh"
+      STATEFUL_DIR="${STATEFUL_DIR}" ARCH="${ARCH}" "${MOD_TEST_ROOT}/test_setup.sh"
 
   if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
     install_autotest

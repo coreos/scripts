@@ -6,32 +6,53 @@
 
 echo "Adding mock Google Accounts server certs."
 
+case "${ARCH}" in
+  arm*)
+    QEMU="qemu-arm"
+    ;;
+ *86)
+    QEMU="qemu-i386"
+    ;;
+  *)
+    error "Invalid ARCH: ${ARCH}"
+    exit 1
+esac
+cp "/usr/bin/${QEMU}" "${ROOT_FS_DIR}/tmp"
+
 CERT_NAME="mock_server"
-FAKE_CA_DIR="${ROOT_FS_DIR}/etc/fake_root_ca"
+FAKE_CA_DIR="/etc/fake_root_ca"
 FAKE_NSSDB="${FAKE_CA_DIR}/nssdb"
 TMP_KEY=$(mktemp -p /tmp "${CERT_NAME}.key.XXXXX")
 TMP_CERT=$(mktemp -p /tmp "${CERT_NAME}.pem.XXXXX")
 
+mv -f "${TMP_KEY}" "${ROOT_FS_DIR}/${TMP_KEY}"
+mv -f "${TMP_CERT}" "${ROOT_FS_DIR}/${TMP_CERT}"
+
 # Generate testing root cert on the fly.
-openssl req -x509 -days 2 -subj "/CN=www.google.com" \
+sudo chroot "${ROOT_FS_DIR}" "/tmp/${QEMU}" /usr/bin/openssl req -x509 -days 2 \
+  -subj "/CN=www.google.com" \
   -newkey rsa:1024 -nodes -keyout "${TMP_KEY}" -out "${TMP_CERT}"
 
-mkdir -m 0755 -p "${FAKE_NSSDB}"
-nsscertutil -d sql:"${FAKE_NSSDB}" -N -f <(echo "")
-cp "${TMP_KEY}" "${FAKE_CA_DIR}/${CERT_NAME}.key"
-cp "${TMP_CERT}" "${FAKE_CA_DIR}/${CERT_NAME}.pem"
-echo "DO NOT MOVE THIS DATA OFF OF THE ROOTFS!" > "${FAKE_CA_DIR}/README"
-nsscertutil -d sql:"${FAKE_NSSDB}" -A -n FakeCert -t "C,," -a -i "${TMP_CERT}"
-chmod 0644 "${FAKE_NSSDB}"/*
+mkdir -m 0755 -p "${ROOT_FS_DIR}/${FAKE_NSSDB}"
+sudo chroot "${ROOT_FS_DIR}" "/tmp/${QEMU}" \
+  /usr/local/bin/nsscertutil -d sql:"${FAKE_NSSDB}" -N -f <(echo "")
+cp "${ROOT_FS_DIR}/${TMP_KEY}" "${ROOT_FS_DIR}/${FAKE_CA_DIR}/${CERT_NAME}.key"
+cp "${ROOT_FS_DIR}/${TMP_CERT}" "${ROOT_FS_DIR}/${FAKE_CA_DIR}/${CERT_NAME}.pem"
+echo "DO NOT MOVE THIS DATA OFF OF THE ROOTFS!" > "${ROOT_FS_DIR}/${FAKE_CA_DIR}/README"
+sudo chroot "${ROOT_FS_DIR}" "/tmp/${QEMU}" \
+  /usr/local/bin/nsscertutil -d sql:"${FAKE_NSSDB}" -A \
+  -n FakeCert -t "C,," -a -i "${FAKE_CA_DIR}/${CERT_NAME}.pem"
+chmod 0644 "${ROOT_FS_DIR}/${FAKE_NSSDB}"/*
 
 # TODO(cmasone): get rid of this once we're off pam_google for good.
 # Sadly, our fake cert HAS to be first in this file.
 TMPFILE=$(mktemp)
 CERT_FILE="${ROOT_FS_DIR}/etc/login_trust_root.pem"
 PERMS=$(stat --printf="%a" "${CERT_FILE}")
-cat "${TMP_CERT}" "${CERT_FILE}" > "${TMPFILE}"
+cat "${ROOT_FS_DIR}/${TMP_CERT}" "${CERT_FILE}" > "${TMPFILE}"
 mv -f "${TMPFILE}" "${CERT_FILE}"
 chmod "${PERMS}" "${CERT_FILE}"
 
-
-
+rm "${ROOT_FS_DIR}/tmp/${QEMU}"
+rm "${ROOT_FS_DIR}/${TMP_KEY}"
+rm "${ROOT_FS_DIR}/${TMP_CERT}"
