@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Script to resign the kernel partition generated in the output of build_image
+# with SSD keys.
+
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+. "$(dirname "$0")/../common.sh"
+
+. "$(dirname "$0")/../chromeos-common.sh"  # for partoffset and partsize
+
+locate_gpt
+
+DEFINE_string from "chromiumos_image.bin" \
+  "Input file name of Chrome OS image to re-sign."
+
+# Parse command line
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Abort on error
+set -e
+
+if [ -z $FLAGS_from ] || [ ! -f $FLAGS_from ] ; then
+  echo "Error: invalid flag --from"
+  exit 1
+fi
+
+# Example commandline is as follows:
+# ./bin/cros_resign_image.sh \
+#--from ../build/images/x86-generic/b903/chromiumos_ssd_image.bin \
+#--datakey ../platform/vboot_reference/tests/devkeys/kernel_data_key.vbprivk \
+#--keyblock ../platform/vboot_reference/tests/devkeys/kernel.keyblock \
+#--vsubkey ../platform/vboot_reference/tests/devkeys/kernel_subkey.vbpubk \
+#--vbutil_dir /usr/bin/ \
+#--to ../build/images/x86-generic/b903/chromiumos_ssd_test_image.bin
+
+
+TMP_IMAGE=/tmp/image.bin
+VBOOT_KEYS=$(dirname "$0")/../../platform/vboot_reference/tests/devkeys
+cp $FLAGS_from $TMP_IMAGE
+
+$(dirname "$0")/cros_resign_image.sh \
+  --from $TMP_IMAGE \
+  --datakey ${VBOOT_KEYS}/kernel_data_key.vbprivk \
+  --keyblock ${VBOOT_KEYS}/kernel.keyblock \
+  --vsubkey ${VBOOT_KEYS}/kernel_subkey.vbpubk \
+  --vbutil_dir /usr/bin/ \
+  --to $FLAGS_from
+
+rm $TMP_IMAGE
+
