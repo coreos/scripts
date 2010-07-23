@@ -8,16 +8,16 @@ echo "Adding mock Google Accounts server certs."
 
 case "${ARCH}" in
   arm*)
-    QEMU="qemu-arm"
+    QEMU="/tmp/qemu-arm"
+    cp "/usr/bin/qemu-arm" "${ROOT_FS_DIR}/${QEMU}"
     ;;
  *86)
-    QEMU="qemu-i386"
+    QEMU=""
     ;;
   *)
     error "Invalid ARCH: ${ARCH}"
     exit 1
 esac
-cp "/usr/bin/${QEMU}" "${ROOT_FS_DIR}/tmp"
 
 CERT_NAME="mock_server"
 FAKE_CA_DIR="/etc/fake_root_ca"
@@ -29,17 +29,17 @@ mv -f "${TMP_KEY}" "${ROOT_FS_DIR}/${TMP_KEY}"
 mv -f "${TMP_CERT}" "${ROOT_FS_DIR}/${TMP_CERT}"
 
 # Generate testing root cert on the fly.
-sudo chroot "${ROOT_FS_DIR}" "/tmp/${QEMU}" /usr/bin/openssl req -x509 -days 2 \
+sudo chroot "${ROOT_FS_DIR}" ${QEMU} /usr/bin/openssl req -x509 -days 2 \
   -subj "/CN=www.google.com" \
   -newkey rsa:1024 -nodes -keyout "${TMP_KEY}" -out "${TMP_CERT}"
 
 mkdir -m 0755 -p "${ROOT_FS_DIR}/${FAKE_NSSDB}"
-sudo chroot "${ROOT_FS_DIR}" "/tmp/${QEMU}" \
+sudo chroot "${ROOT_FS_DIR}" ${QEMU} \
   /usr/local/bin/nsscertutil -d sql:"${FAKE_NSSDB}" -N -f <(echo "")
 cp "${ROOT_FS_DIR}/${TMP_KEY}" "${ROOT_FS_DIR}/${FAKE_CA_DIR}/${CERT_NAME}.key"
 cp "${ROOT_FS_DIR}/${TMP_CERT}" "${ROOT_FS_DIR}/${FAKE_CA_DIR}/${CERT_NAME}.pem"
 echo "DO NOT MOVE THIS DATA OFF OF THE ROOTFS!" > "${ROOT_FS_DIR}/${FAKE_CA_DIR}/README"
-sudo chroot "${ROOT_FS_DIR}" "/tmp/${QEMU}" \
+sudo chroot "${ROOT_FS_DIR}" ${QEMU} \
   /usr/local/bin/nsscertutil -d sql:"${FAKE_NSSDB}" -A \
   -n FakeCert -t "C,," -a -i "${FAKE_CA_DIR}/${CERT_NAME}.pem"
 chmod 0644 "${ROOT_FS_DIR}/${FAKE_NSSDB}"/*
@@ -53,6 +53,8 @@ cat "${ROOT_FS_DIR}/${TMP_CERT}" "${CERT_FILE}" > "${TMPFILE}"
 mv -f "${TMPFILE}" "${CERT_FILE}"
 chmod "${PERMS}" "${CERT_FILE}"
 
-rm "${ROOT_FS_DIR}/tmp/${QEMU}"
+if [ -n "${QEMU}" ] ; then 
+    rm "${ROOT_FS_DIR}/${QEMU}"
+fi
 rm "${ROOT_FS_DIR}/${TMP_KEY}"
 rm "${ROOT_FS_DIR}/${TMP_CERT}"
