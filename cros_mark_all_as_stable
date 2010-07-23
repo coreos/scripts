@@ -47,8 +47,8 @@ for package in ${PACKAGES}; do
   eval $(${EBUILDCMD} ${ebuild_path} info) &> /dev/null || continue
   head_commit=$( cd "${CROS_WORKON_SRCDIR}" &&\
     bash -c "${GRAB_HEAD_COMMIT_CMD}" ) || continue
-  egit_commit=\
-    $(eval echo $(grep CROS_WORKON_COMMIT ${ebuild_path} | cut -f 2 -d '=')) ||\
+  egit_commit=$(\
+    eval echo $(grep CROS_WORKON_COMMIT ${ebuild_path} | cut -f 2 -d '=')) ||\
       echo "No CROS_WORKON_COMMIT found in ${ebuild_path}"
   if [[ ${head_commit} != ${egit_commit} ]] && \
     [ -n "${head_commit}" ]; then
@@ -56,6 +56,8 @@ for package in ${PACKAGES}; do
       "HEAD ${head_commit} != CROS_WORKON_COMMIT ${egit_commit} for ${package}"
     PACKAGE_LIST="${PACKAGE_LIST} ${package}"
     COMMIT_ID_LIST="${COMMIT_ID_LIST} ${head_commit}"
+  elif [[ ${head_commit}  = ${egit_commit} ]]; then
+    info "Commit id's match for ${package}"
   fi
 done
 
