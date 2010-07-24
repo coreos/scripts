@@ -128,6 +128,7 @@ noswap
 i915.modeset=1
 loglevel=7
 cros_secure
+kern_guid=%U
 EOF
   WORK="${WORK} ${FLAGS_working_dir}/config.txt"
 
