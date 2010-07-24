@@ -137,6 +137,7 @@ TEMP_DIR=$(mktemp -d)
 TEMP_ESP="${TEMP_DIR}"/part_12
 TEMP_ROOTFS="${TEMP_DIR}"/part_3
 TEMP_STATE="${TEMP_DIR}"/part_1
+TEMP_KERN="${TEMP_DIR}"/part_2
 if [ -n "${FLAGS_state_image}" ]; then
   TEMP_STATE="${FLAGS_state_image}"
 else
@@ -170,13 +171,18 @@ TEMP_PMBR="${TEMP_DIR}"/pmbr
 dd if="${SRC_IMAGE}" of="${TEMP_PMBR}" bs=512 count=1
 
 TEMP_MNT=$(mktemp -d)
+TEMP_ESP_MNT=$(mktemp -d)
 cleanup() {
   sudo umount -d "${TEMP_MNT}"
-  rmdir "${TEMP_MNT}"
+  sudo umount -d "${TEMP_ESP_MNT}"
+  rmdir "${TEMP_MNT}" "${TEMP_ESP_MNT}"
 }
 trap cleanup INT TERM EXIT
 mkdir -p "${TEMP_MNT}"
 sudo mount -o loop "${TEMP_ROOTFS}" "${TEMP_MNT}"
+mkdir -p "${TEMP_ESP_MNT}"
+sudo mount -o loop "${TEMP_ESP}" "${TEMP_ESP_MNT}"
+
 if [ "${FLAGS_format}" = "qemu" ]; then
   sudo python ./fixup_image_for_qemu.py --mounted_dir="${TEMP_MNT}" \
   --enable_tablet=true
@@ -184,10 +190,36 @@ else
   sudo python ./fixup_image_for_qemu.py --mounted_dir="${TEMP_MNT}" \
   --enable_tablet=false
 fi
+# Remount read-only so that when we call setimage, it will recreate correct
+# boot hashes for verifying the rootfs integrity.  This is a bit of a cheat
+# but it will have to do.  We don't assume legacy bootloaders are secure so
+# we update the hash too, but the hash in part_2 doesn't change which would
+# cause failures on a Chrome OS boot (without re-running build_kernel_image).
+sudo mount -o remount,ro "${TEMP_MNT}"
+sync
 
-# Change this value if the rootfs partition changes
-ROOTFS_PARTITION=/dev/sda3
-sudo "${TEMP_MNT}"/postinst "${ROOTFS_PARTITION}" --esp_part_file="${TEMP_ESP}"
+# Check if the current image was build with --enable_rootfs_verification
+enable_rootfs_verification=
+if grep -qE '^chromeos-v' "${TEMP_ESP_MNT}"/syslinux/default.cfg; then
+  enable_rootfs_verification=--enable_rootfs_verification
+fi
+
+# Update the bootloader and verified hashes for the given rootfs in the
+# vm and fixup changes.
+DST_DEV=/dev/sda
+BOOT_SLOT=A
+syslinux_cfg="${TEMP_MNT}/boot/syslinux/root.${BOOT_SLOT}.cfg"
+grub_cfg="${TEMP_MNT}/boot/efi/boot/grub.cfg"
+sudo "${TEMP_MNT}"/usr/sbin/chromeos-setimage ${BOOT_SLOT} \
+          --dst=${DST_DEV} --run_as_root \
+          --update_syslinux_cfg="${syslinux_cfg}" \
+          --update_grub_cfg="${grub_cfg}" \
+          --rootfs_image="${TEMP_ROOTFS}" \
+          --esp_mounted_at="${TEMP_ESP_MNT}" \
+          --kernel_image="${TEMP_KERN}" \
+          --update_vmlinuz=${TEMP_MNT}/boot/vmlinuz \
+          ${enable_rootfs_verification}
+
 trap - INT TERM EXIT
 cleanup
 
