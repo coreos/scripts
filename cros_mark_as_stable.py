@@ -33,6 +33,9 @@ gflags.DEFINE_string('packages', '',
                      short_name='p')
 gflags.DEFINE_string('push_options', '',
                      'Options to use with git-cl push using push command.')
+gflags.DEFINE_string('tracking_branch', 'origin',
+                     'Used with commit to specify branch to track against.',
+                     short_name='t')
 gflags.DEFINE_boolean('verbose', False,
                       'Prints out verbose information about what is going on.',
                       short_name='v')
@@ -159,7 +162,7 @@ class _GitBranch(object):
   def _Checkout(self, target, create=True):
     """Function used internally to create and move between branches."""
     if create:
-      git_cmd = 'git checkout -b %s origin' % target
+      git_cmd = 'git checkout -b %s %s' % (target, gflags.FLAGS.tracking_branch)
     else:
       git_cmd = 'git checkout %s' % target
     _RunCommand(git_cmd)
