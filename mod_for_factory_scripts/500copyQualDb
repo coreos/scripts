@@ -5,17 +5,16 @@
 # found in the LICENSE file.
 
 TEST_DIR="${ROOT_FS_DIR}/usr/local/autotest/site_tests/hardware_Components"
-COMPONENTS_FILE="${TEST_DIR}/qualified_components"
 
 # If QUALDB not specified, use the one based on board name.
 if [ -z ${QUALDB} ]; then
-  QUALDB="${TEST_DIR}/qualified_components_${BOARD}"
+  QUALDB="${TEST_DIR}/qualified_components_${BOARD}*"
 fi
 
 if [ ! -z ${QUALDB} ] && [ -f ${QUALDB} ]; then
   # Copy the qualified component file to the image
   echo "Copying ${QUALDB} to the image."
-  cp -f ${QUALDB} ${COMPONENTS_FILE}
+  cp -f ${QUALDB} ${TEST_DIR}/
 else
   echo "No qualified component file found at: ${QUALDB}"
 fi
