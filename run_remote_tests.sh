@@ -268,11 +268,14 @@ function main() {
 
     RAN_ANY_TESTS=${FLAGS_TRUE}
 
+    # HACK: Temporary hack for cros-workon conversion
+    [[ -n "${WORKON_AUTOTEST}" ]] && WORKON_SUFFIX=_workon
+
     local enter_chroot=""
-    local autotest="${GCLIENT_ROOT}/src/scripts/autotest"
+    local autotest="${GCLIENT_ROOT}/src/scripts/autotest${WORKON_SUFFIX}"
     if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
       enter_chroot="./enter_chroot.sh --chroot ${FLAGS_chroot} --"
-      autotest="./autotest"
+      autotest="./autotest${WORKON_SUFFIX}"
     fi
 
     ${enter_chroot} ${autotest} --board "${FLAGS_board}" -m "${FLAGS_remote}" \
