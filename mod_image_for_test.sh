@@ -147,6 +147,9 @@ install_autotest() {
     sudo rm -rf /tmp/autotest/site_tests/graphics_O3DSelenium
     sudo rm -rf /tmp/autotest/realtimecomm_GTalk*
     sudo rm -rf /tmp/autotest/site_tests/platform_StackProtector
+    sudo rm -rf /tmp/autotest/deps/chrome_test
+    sudo rm -rf /tmp/autotest/site_tests/desktopui_BrowserTest
+    sudo rm -rf /tmp/autotest/site_tests/desktopui_UITest
 
     sudo cp -fpru /tmp/autotest/* \
       "${stateful_root}/${autotest_client}"
