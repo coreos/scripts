@@ -133,6 +133,8 @@ def _PushChange():
                               _STABLE_BRANCH_NAME))
   _RunCommand('git cl upload --desc_from_logs -m "%s"' %
     'Marking set of ebuilds as stable')
+  _RunCommand('git remote update')
+  _RunCommand('git rebase origin/master')
   _RunCommand('git cl push %s' % gflags.FLAGS.push_options)
 
 
