@@ -141,7 +141,7 @@ then
 
   pushd "${FLAGS_chroot}/build/${FLAGS_board}/usr/local"
   echo "Archiving autotest build artifacts"
-  tar cjf "${FLAGS_from}/autotest.tar.bz2" autotest
+  tar cjfv "${FLAGS_from}/autotest.tar.bz2" autotest
   popd
 fi
 
@@ -223,7 +223,7 @@ if [ $FLAGS_archive_debug -eq $FLAGS_TRUE ]
 then
   echo "Creating debug archive"
   pushd "${FLAGS_chroot}/build/${FLAGS_board}/usr/lib"
-  sudo tar czf "${OUTDIR}/debug.tgz" --exclude debug/usr/local/autotest \
+  sudo tar czfv "${OUTDIR}/debug.tgz" --exclude debug/usr/local/autotest \
       --exclude debug/tests debug
   CMD="chown \${SUDO_UID}:\${SUDO_GID} ${OUTDIR}/debug.tgz"
   sudo sh -c "${CMD}"
