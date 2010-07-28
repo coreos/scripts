@@ -111,6 +111,50 @@ show_live_ebuilds () {
   cat "${KEYWORDS_FILE}"
 }
 
+find_repo_dir () {
+  curdir=`pwd`
+  while [ $curdir != / ]; do
+    if [ -d "$curdir/.repo" ]; then
+       #echo "Found .repo directory at ${curdir}"
+       REPODIR=${curdir}/.repo
+       return 0
+    fi
+    curdir=`dirname "$curdir"`
+  done
+  echo "Unable to find .repo directory. Did you checkout with repo?"
+  exit 1
+}
+
+
+# This is called only for "cros-workon start". We dont handle the "stop" case since the local changes are ignored anyway since the 9999.ebuild is masked and we dont want to deal with what to do with the user's local changes.
+regen_manifest_and_sync() {
+  find_repo_dir
+  echo Using $REPODIR
+  echo "Trying to generate local manifests for.."
+  rm -f $REPODIR/local_manifest.xml
+  echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" >> $REPODIR/local_manifest.xml
+  echo "<manifest>" >> $REPODIR/local_manifest.xml
+
+  cat ${KEYWORDS_FILE} |
+  {
+    while read line
+    do
+      pkgname=`basename ${line}`
+      echo "Now working on ... ${pkgname}"
+      eval $(${EBUILDCMD} $(${EQUERYCMD} which ${pkgname}) info)
+      echo "Looking for ${CROS_WORKON_PROJECT}.git"
+      REPO_ELEMENT=$(sed -n '/START_MINILAYOUT/,/STOP_MINILAYOUT/p' $REPODIR/manifest.xml | grep "name=\"${CROS_WORKON_PROJECT}\"" | sed -e 's/^[ \t]*//')
+      echo $REPO_ELEMENT
+      if [ -z "${REPO_ELEMENT}" ] ; then
+        echo "Unable to find ${pkgname} in manifest. Aborting."
+        exit 1
+      fi
+      echo ${REPO_ELEMENT} >> $REPODIR/local_manifest.xml
+    done
+  }
+  echo "</manifest>" >> $REPODIR/local_manifest.xml
+}
+
 # Move a stable ebuild to the live development catgeory.  The ebuild
 # src_unpack step fetches the package source for local development.
 ebuild_to_live () {
@@ -120,6 +164,7 @@ ebuild_to_live () {
     if ! grep -qx "${atom}" "${KEYWORDS_FILE}" ; then
       sudo bash -c "echo \"${atom}\" >> \"${KEYWORDS_FILE}\""
       sudo bash -c "echo \"~${atom}-9999\" >> \"${UNMASK_FILE}\""
+      regen_manifest_and_sync
     else
       warn "Already working on ${atom}"
     fi
