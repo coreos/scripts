@@ -744,17 +744,24 @@ class DepGraphGenerator(object):
       if this_pkg["action"] == "nomerge":
         this_pkg["action"] = "merge"
 
-    def RemotePackageDatabase():
+    def RemotePackageDatabase(binhost_url):
       """Grab the latest binary package database from the prebuilt server.
 
       We need to know the modification times of the prebuilt packages so that we
       know when it is OK to use these packages and when we should rebuild them
       instead.
 
+      Args:
+        binhost_url: Base URL of remote packages (PORTAGE_BINHOST).
+
       Returns:
         A dict mapping package identifiers to modification times.
       """
-      url = self.emerge.settings["PORTAGE_BINHOST"] + "/Packages"
+
+      if not binhost_url:
+        return {}
+
+      url = binhost_url + "/Packages"
 
       prebuilt_pkgs = {}
       f = urllib2.urlopen(url)
@@ -953,7 +960,7 @@ class DepGraphGenerator(object):
       cycles = FindCycles()
       if self.rebuild:
         local_pkgs = LocalPackageDatabase()
-        remote_pkgs = RemotePackageDatabase()
+        remote_pkgs = RemotePackageDatabase(emerge.settings["PORTAGE_BINHOST"])
         AutoRebuildDeps(local_pkgs, remote_pkgs, cycles)
 
     # We need to remove installed packages so that we can use the dependency
