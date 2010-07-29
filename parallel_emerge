@@ -356,6 +356,9 @@ class DepGraphGenerator(object):
     if (settings.get("PORTAGE_DEBUG", "") == "1" and
         "python-trace" in settings.features):
       portage.debug.set_trace(True)
+    # Since we don't have locking around merges, the collision-protect
+    # feature doesn't make sense.
+    settings.features.discard("collision-protect")
 
     # Complain about unsupported options
     for opt in ("--ask", "--ask-enter-invalid", "--complete-graph",
