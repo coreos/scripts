@@ -32,7 +32,7 @@ DEFINE_string qualdb "" "Location of qualified component file" d
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" y
 DEFINE_string build_root "/build" \
     "The root location for board sysroots."
-DEFINE_boolean fast ${FLAGS_FALSE} "Call many emerges in parallel"
+DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
 
 
 # Parse command line
