@@ -159,6 +159,13 @@ then
       "--factory_install"
 fi
 
+# Modify for recovery
+if [ $FLAGS_official_build -eq $FLAGS_TRUE ]
+then
+   ./enter_chroot.sh -- ./mod_image_for_recovery.sh --board $FLAGS_board \
+    --image $FLAGS_from/chromiumos_base_image.bin
+fi
+
 # Remove the developer build if test image is also built.
 if [ $FLAGS_test_mod -eq $FLAGS_TRUE ] ; then
   rm -f ${SRC_IMAGE}
