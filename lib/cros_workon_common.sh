@@ -29,6 +29,6 @@ show_workon_ebuilds_files() {
 }
 
 show_workon_ebuilds() {
-  show_workon_ebuilds_sources | \
+  show_workon_ebuilds_files | \
     sed -e 's/.*\/\([^/]*\)\/\([^/]*\)\/.*\.ebuild/\1\/\2/'| sort
 }
