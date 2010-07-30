@@ -160,8 +160,8 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
 
     # Prepare mock fileinput.  This tests to make sure both the commit id
     # and keywords are changed correctly.
-    mock_file = ['EAPI=2', 'EGIT_COMMIT=old_id', 'KEYWORDS=\"~x86 ~arm\"',
-                 'src_unpack(){}']
+    mock_file = ['EAPI=2', 'CROS_WORKON_COMMIT=old_id',
+                 'KEYWORDS=\"~x86 ~arm\"', 'src_unpack(){}']
 
     cros_mark_as_stable.shutil.copyfile(
         self.m_ebuild.ebuild_path_no_version + '-9999.ebuild',
@@ -169,7 +169,7 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     cros_mark_as_stable.fileinput.input(self.revved_ebuild_path,
                                         inplace=1).AndReturn(mock_file)
     m_file.write('EAPI=2')
-    m_file.write('EGIT_COMMIT="my_id"')
+    m_file.write('CROS_WORKON_COMMIT="my_id"')
     m_file.write('KEYWORDS="x86 arm"')
     m_file.write('src_unpack(){}')
     cros_mark_as_stable._RunCommand('git add ' + self.revved_ebuild_path)
