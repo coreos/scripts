@@ -169,7 +169,7 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     cros_mark_as_stable.fileinput.input(self.revved_ebuild_path,
                                         inplace=1).AndReturn(mock_file)
     m_file.write('EAPI=2')
-    m_file.write('CROS_WORKON_COMMIT="my_id"')
+    m_file.write('CROS_WORKON_COMMIT="my_id"\n')
     m_file.write('KEYWORDS="x86 arm"')
     m_file.write('src_unpack(){}')
     cros_mark_as_stable._RunCommand('git add ' + self.revved_ebuild_path)
