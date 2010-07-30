@@ -315,6 +315,20 @@ class DepGraphGenerator(object):
     if "--accept-properties" in opts:
       os.environ["ACCEPT_PROPERTIES"] = opts["--accept-properties"]
 
+    # Portage has two flags for doing collision protection: collision-protect
+    # and protect-owned. The protect-owned feature is enabled by default and
+    # is quite useful: it checks to make sure that we don't have multiple
+    # packages that own the same file. The collision-protect feature is more
+    # strict, and less useful: it fails if it finds a conflicting file, even
+    # if that file was created by an earlier ebuild that failed to install.
+    #
+    # We want to disable collision-protect here because we don't handle
+    # failures during the merge step very well. Sometimes we leave old files
+    # lying around and they cause problems, so for now we disable the flag.
+    # TODO(davidjames): Look for a better solution.
+    features = os.environ.get("FEATURES", "") + " -collision-protect"
+    os.environ["FEATURES"] = features
+
     # Now that we've setup the necessary environment variables, we can load the
     # emerge config from disk.
     settings, trees, mtimedb = load_emerge_config()
@@ -356,9 +370,6 @@ class DepGraphGenerator(object):
     if (settings.get("PORTAGE_DEBUG", "") == "1" and
         "python-trace" in settings.features):
       portage.debug.set_trace(True)
-    # Since we don't have locking around merges, the collision-protect
-    # feature doesn't make sense.
-    settings.features.discard("collision-protect")
 
     # Complain about unsupported options
     for opt in ("--ask", "--ask-enter-invalid", "--complete-graph",
