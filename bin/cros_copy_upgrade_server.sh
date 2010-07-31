@@ -6,9 +6,16 @@
 
 # Script to push the output of build_image.sh to a remote image server
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-. "$(dirname "$0")/common.sh"
+# TODO(pstew): Apparently the script files are in transition from
+# src/scripts to src/scripts/bin.  However this state has existed
+# for months now, therefore we need to look for the common libs in
+# both places
+script_root=$(dirname $0)
+if [ -f ${script_root}/../common.sh ] ; then
+  script_root=${script_root}/..
+fi
+
+. "${script_root}/common.sh"
 
 # Flags
 DEFINE_string upgrade_server "" "SSH-capable host for upgrade server install"
