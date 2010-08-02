@@ -543,9 +543,9 @@ function main() {
   fi
 
   if [[ ${FLAGS_chrome_root} ]]; then
-      run_phase_in_chroot "Building Chromium browser" \
-        USE="build_tests" FEATURES="-usersandbox" \
-        CHROME_ORIGIN=LOCAL_SOURCE emerge-${FLAGS_board} chromeos-chrome
+    run_phase_in_chroot "Building Chromium browser" \
+      BOARD="${FLAGS_board}" USE="build_tests" FEATURES="-usersandbox" \
+      CHROME_ORIGIN=LOCAL_SOURCE emerge-${FLAGS_board} chromeos-chrome
   fi
 
   if [[ ${FLAGS_master} -eq ${FLAGS_TRUE} ]]; then
