@@ -515,19 +515,20 @@ function main() {
   fi
 
   if [[ ${FLAGS_build} -eq ${FLAGS_TRUE} ]]; then
+    local pkg_param=""
+    if [[ ${FLAGS_usepkg} -eq ${FLAGS_FALSE} ]]; then
+      pkg_param="--nousepkg"
+    fi
+
     chdir_relative src/scripts
     # Only setup board target if the directory does not exist
     if [[ ! -d "${FLAGS_top}/chroot/build/${FLAGS_board}" ]]; then
       run_phase_in_chroot "Setting up board target" \
-          ./setup_board "${board_param}"
+          ./setup_board ${pkg_param} "${board_param}"
     fi
     local build_autotest_param=""
     if [[ ${FLAGS_build_autotest} -eq ${FLAGS_TRUE} ]]; then
       build_autotest_param="--withautotest"
-    fi
-    local pkg_param=""
-    if [[ ${FLAGS_usepkg} -eq ${FLAGS_FALSE} ]]; then
-      pkg_param="--nousepkg"
     fi
 
     run_phase_in_chroot "Building packages" \
