@@ -33,6 +33,9 @@ gflags.DEFINE_string('packages', '',
                      short_name='p')
 gflags.DEFINE_string('push_options', '',
                      'Options to use with git-cl push using push command.')
+gflags.DEFINE_string('srcroot',  '%s/trunk/src' % os.environ['HOME'],
+                     'Path to root src directory.',
+                     short_name='r')
 gflags.DEFINE_string('tracking_branch', 'origin',
                      'Used with commit to specify branch to track against.',
                      short_name='t')
@@ -40,11 +43,6 @@ gflags.DEFINE_boolean('verbose', False,
                       'Prints out verbose information about what is going on.',
                       short_name='v')
 
-
-# TODO(sosa):  Remove hard-coding of overlays directory once there is a better
-# way.
-_CHROMIUMOS_OVERLAYS_DIRECTORY = \
-    '%s/trunk/src/third_party/chromiumos-overlay' % os.environ['HOME']
 
 # Takes two strings, package_name and commit_id.
 _GIT_COMMIT_MESSAGE = \
@@ -84,6 +82,8 @@ def _CheckSaneArguments(package_list, commit_id_list, command):
     _PrintUsageAndDie('Please specify at least one package')
   if not gflags.FLAGS.board and command == 'commit':
     _PrintUsageAndDie('Please specify a board')
+  if not os.path.isdir(gflags.FLAGS.srcroot):
+    _PrintUsageAndDie('srcroot is not a valid path')
   if commit_id_list and (len(package_list) != len(commit_id_list)):
     _PrintUsageAndDie(
         'Package list is not the same length as the commit id list')
@@ -129,8 +129,7 @@ def _PushChange():
   # Sanity check to make sure we're on a stabilizing branch before pushing.
   if not _CheckOnStabilizingBranch():
     generate_test_report.Die('Expected %s to be on branch "%s"' %
-                             (_CHROMIUMOS_OVERLAYS_DIRECTORY,
-                              _STABLE_BRANCH_NAME))
+                             (os.getcwd(), _STABLE_BRANCH_NAME))
   _RunCommand('git cl upload --desc_from_logs -m "%s"' %
     'Marking set of ebuilds as stable')
   _RunCommand('git remote update')
@@ -329,7 +328,9 @@ def main(argv):
     commit_id_list = None
   _CheckSaneArguments(package_list, commit_id_list, command)
 
-  os.chdir(_CHROMIUMOS_OVERLAYS_DIRECTORY)
+  overlay_directory = '%s/third_party/chromiumos-overlay' % gflags.FLAGS.srcroot
+
+  os.chdir(overlay_directory)
 
   if command == 'clean':
     _Clean()
@@ -338,7 +339,7 @@ def main(argv):
     work_branch.CreateBranch()
     if not work_branch.Exists():
       generate_test_report.Die('Unable to create stabilizing branch in %s' %
-                               _CHROMIUMOS_OVERLAYS_DIRECTORY)
+                               overlay_directory)
     index = 0
     try:
       for index in range(len(package_list)):
@@ -358,7 +359,7 @@ def main(argv):
              'Only the following packages were revved: %s\n'
              'Note you will have to go into %s'
              'and reset the git repo yourself.' %
-             (package_list[:index], _CHROMIUMOS_OVERLAYS_DIRECTORY))
+             (package_list[:index], overlay_directory))
       raise e
   elif command == 'push':
     _PushChange()
