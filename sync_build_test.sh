@@ -535,9 +535,9 @@ function main() {
         ${jobs_param} ${withdev_param} ${build_autotest_param} \
         ${pkg_param}
 
-    run_phase_in_chroot "Building unit tests" ./build_tests.sh ${board_param}
     if [[ "${FLAGS_board}" == "x86-generic" ]]; then
-      run_phase_in_chroot "Running unit tests" ./run_tests.sh ${board_param}
+      run_phase_in_chroot "Running unit tests" ./cros_run_unit_tests \
+        ${board_param}
     fi
   fi
 
