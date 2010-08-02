@@ -162,8 +162,10 @@ fi
 # Modify for recovery
 if [ $FLAGS_official_build -eq $FLAGS_TRUE ]
 then
+    BUILDVER=$(ls -t1 $IMAGES_DIR/$FLAGS_board 2>&-| head -1)
+    CHROOT_IMAGE_DIR=/home/$USER/trunk/src/build/images/$FLAGS_board/$BUILDVER
    ./enter_chroot.sh -- ./mod_image_for_recovery.sh --board $FLAGS_board \
-    --image $FLAGS_from/chromiumos_base_image.bin
+    --image $CHROOT_IMAGE_DIR/chromiumos_base_image.bin
 fi
 
 # Remove the developer build if test image is also built.
