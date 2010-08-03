@@ -557,6 +557,14 @@ class DepGraphGenerator(object):
     # we're done. It's populated in BuildFinalPackageSet()
     final_pkgs = set()
 
+    # These packages take a really long time to build, so, for expediency, we
+    # are blacklisting them from automatic rebuilds. Instead, these packages
+    # will only be rebuilt when they are explicitly rev'd.
+    rebuild_blacklist = set()
+    for pkg in ("media-plugins/o3d", "dev-java/icedtea"):
+      for match in final_db.match_pkgs(pkg):
+        rebuild_blacklist.add(str(match.cpv))
+
     # deps_map is the actual dependency graph.
     #
     # Each package specifies a "needs" list and a "provides" list. The "needs"
@@ -746,8 +754,9 @@ class DepGraphGenerator(object):
       """Merge this package and all packages it provides."""
 
       this_pkg = deps_map[pkg]
-      if this_pkg[merge_type] or pkg not in final_pkgs:
-        return set()
+      if (this_pkg[merge_type] or pkg not in final_pkgs or
+          pkg in rebuild_blacklist):
+        return
 
       # Mark this package as non-optional
       deps_info[pkg]["optional"] = False
