@@ -60,9 +60,9 @@ import urllib2
 # encounter this case unless they have an old chroot or blow away the
 # environment by running sudo without the -E specifier.
 if "PORTAGE_USERNAME" not in os.environ:
-  homedir = os.environ["HOME"]
-  if homedir.startswith("/home/"):
-    os.environ["PORTAGE_USERNAME"] = homedir.split("/")[2]
+  homedir = os.environ.get("HOME")
+  if homedir:
+    os.environ["PORTAGE_USERNAME"] = os.path.basename(homedir)
 
 # Portage doesn't expose dependency trees in its public API, so we have to
 # make use of some private APIs here. These modules are found under
@@ -1050,6 +1050,8 @@ def EmergeWorker(task_queue, done_queue, emerge, package_db):
   opts, spinner = emerge.opts, emerge.spinner
   opts["--nodeps"] = True
   while True:
+    # Wait for a new item to show up on the queue. This is a blocking wait,
+    # so if there's nothing to do, we just sit here.
     target = task_queue.get()
     print "Emerging", target
     db_pkg = package_db[target]
