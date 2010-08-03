@@ -30,6 +30,16 @@ if [ -z "$FLAGS_board" ] ; then
   exit 1
 fi
 
+if [[ "$FLAGS_board" =~ "_" ]] ; then
+  error "--board name must not contain an underscore (_)."
+  exit 1
+fi
+
+if [[ "$FLAGS_variant" =~ "_" ]] ; then
+  error "--variant name must not contain an underscore (_)."
+  exit 1
+fi
+
 #
 # Check for chromeos-overlay.
 #
