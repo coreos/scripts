@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# This script generates the list of board overlays and variants.
+
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+. "$(dirname "$0")/common.sh"
+
+get_default_board
+
+# Flags
+DEFINE_string board "$DEFAULT_BOARD" "The name of the board to set up."
+DEFINE_string board_overlay "" "Location of the board overlay."
+DEFINE_string variant "" "Board variant."
+
+# Parse command line flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Only now can we die on error.  shflags functions leak non-zero error codes,
+# so will die prematurely if 'set -e' is specified before now.
+set -e
+
+if [ -z "$FLAGS_board" ] ; then
+  error "--board required."
+  exit 1
+fi
+
+#
+# Check for chromeos-overlay.
+#
+CHROMEOS_OVERLAY="${SRC_ROOT}/private-overlays/chromeos-overlay"
+
+if [ -d "${CHROMEOS_OVERLAY}" ]; then
+  echo "${CHROMEOS_OVERLAY}"
+fi
+
+#
+# Check if there are any board overlays.  There should be at least a top
+# level board specific overlay.
+#
+PRIMARY_BOARD_OVERLAY="${SRC_ROOT}/overlays/overlay-${FLAGS_board}"
+
+if [ -d "${PRIMARY_BOARD_OVERLAY}" ]; then
+  echo "${PRIMARY_BOARD_OVERLAY}"
+
+  #
+  # Add the public variant overlay
+  #
+  if [ -n "$FLAGS_variant" ] ; then
+    VARIANT_NAME="overlay-variant-${FLAGS_board}-${FLAGS_variant}"
+    VARIANT_OVERLAY="${SRC_ROOT}/overlays/${VARIANT_NAME}"
+
+    if [ ! -d "$VARIANT_OVERLAY" ] ; then
+      error "Can't find variant overlay directory $VARIANT_OVERLAY"
+      exit 1
+    fi
+
+    echo "${VARIANT_OVERLAY}"
+  fi
+
+  #
+  # Add any private overlays and variant overlays for this board.
+  #
+  if [ -d "${SRC_ROOT}/private-overlays" ] ; then
+    OVERLAY_NAME="overlay-${FLAGS_board}-private"
+    PRIVATE_OVERLAY="${SRC_ROOT}/private-overlays/${OVERLAY_NAME}"
+
+    if [ -d "${PRIVATE_OVERLAY}" ] ; then
+      echo "${PRIVATE_OVERLAY}"
+    fi
+
+    #
+    # Add the public and private variant overlays
+    #
+    if [ -n "$FLAGS_variant" ] ; then
+      VARIANT_NAME="overlay-variant-${FLAGS_board}-${FLAGS_variant}-private"
+      PRIVATE_VARIANT_OVERLAY="${SRC_ROOT}/private-overlays/${VARIANT_NAME}"
+
+      if [ -d "${PRIVATE_VARIANT_OVERLAY}" ] ; then
+        echo "${PRIVATE_VARIANT_OVERLAY}"
+      fi
+    fi
+  fi
+fi
+
+#
+# Finally, add in any user requested board overlays.
+#
+if [ -d "${FLAGS_board_overlay}" ] ; then
+  echo "${FLAGS_board_overlay}"
+fi
