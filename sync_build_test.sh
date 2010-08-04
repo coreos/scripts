@@ -189,8 +189,6 @@ function validate_and_set_param_defaults() {
   if [[ ${FLAGS_mod_image_for_test} -eq ${FLAGS_TRUE} ]]; then
     # Override any specified chronos password with the test one
     FLAGS_chronos_passwd="test0000"
-    # Default to building autotests whenever we mod image for test.
-    FLAGS_build_autotest=${FLAGS_TRUE}
     # If you're modding for test, you also want developer packages.
     FLAGS_withdev=${FLAGS_TRUE}
   fi
