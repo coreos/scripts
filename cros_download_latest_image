@@ -30,19 +30,25 @@ IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
 
 if [ $FLAGS_board = x86-generic ]; then
   if [ "$FLAGS_incremental" -eq "$FLAGS_TRUE" ]; then
-    URL_PREFIX="http://codg174.jail.google.com/archive/x86-generic-inc"
+    URL_PREFIX="https://sandbox.google.com/storage/chromeos-archive/x86-generic-bin"
   else
-    URL_PREFIX="http://codg163.jail.google.com/archive/x86-generic-rel"
+    URL_PREFIX="https://sandbox.google.com/storage/chromeos-archive/x86-generic-rel"
   fi
 else
   die "Unrecognized board: $FLAGS_board"
 fi
 
-LATEST_BUILD=$(curl -s $URL_PREFIX/LATEST)
+read -p "Username [${LOGNAME}]: " GSDCURL_USERNAME
+export GSDCURL_USERNAME
+read -s -p "Password: " GSDCURL_PASSWORD
+export GSDCURL_PASSWORD
+
+LATEST_BUILD=$(bin/cros_gsdcurl.py -s $URL_PREFIX/LATEST)
 LATEST_IMAGE_DIR="$IMAGES_DIR/$LATEST_BUILD"
 if [ ! -e $LATEST_IMAGE_DIR/chromiumos_base_image.bin ]; then
   mkdir -p $LATEST_IMAGE_DIR
-  curl $URL_PREFIX/$LATEST_BUILD/image.zip -o $LATEST_IMAGE_DIR/image.zip \
+  bin/cros_gsdcurl.py $URL_PREFIX/$LATEST_BUILD/image.zip -o \
+      $LATEST_IMAGE_DIR/image.zip \
       || die "Could not download image.zip"
   ( cd $LATEST_IMAGE_DIR && unzip -qo image.zip ) \
       || die "Could not unzip image.zip"
