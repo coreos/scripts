@@ -166,7 +166,6 @@ else
     sudo losetup -d "${STATEFUL_LOOP_DEV}"
   fi
 fi
-TEMP_KERN="${TEMP_DIR}"/part_2
 TEMP_PMBR="${TEMP_DIR}"/pmbr
 dd if="${SRC_IMAGE}" of="${TEMP_PMBR}" bs=512 count=1
 
@@ -230,7 +229,7 @@ sudo dd if=/dev/zero of="${TEMP_IMG}" bs=1 count=1 \
   seek=$((${FLAGS_vdisk_size} * 1024 * 1024 - 1))
 
 # Set up the partition table
-install_gpt "${TEMP_IMG}" "${TEMP_ROOTFS}" "${TEMP_KERN}" "${TEMP_STATE}" \
+install_gpt "${TEMP_IMG}" "${TEMP_ROOTFS}" "${TEMP_STATE}" \
   "${TEMP_PMBR}" "${TEMP_ESP}" false ${FLAGS_rootfs_partition_size}
 # Copy into the partition parts of the file
 dd if="${TEMP_ROOTFS}" of="${TEMP_IMG}" conv=notrunc bs=512 \
