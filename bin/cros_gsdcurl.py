@@ -14,8 +14,7 @@ import urllib
 
 
 def Authenticate():
-  # Authenticate.
-  default_username = os.environ.get('LOGNAME', '')
+  default_username = getpass.getuser()
   username = os.environ.get('GSDCURL_USERNAME')
   if username is None:
     sys.stderr.write('Username [' + default_username + ']: ')
