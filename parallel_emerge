@@ -327,6 +327,13 @@ class DepGraphGenerator(object):
     # lying around and they cause problems, so for now we disable the flag.
     # TODO(davidjames): Look for a better solution.
     features = os.environ.get("FEATURES", "") + " -collision-protect"
+
+    # If we're cross-compiling, updating the environment every time we install
+    # a package isn't necessary, and leads to race conditions. Do environment
+    # updates at the end, instead.
+    if self.board:
+      features = features + " no-env-update"
+
     os.environ["FEATURES"] = features
 
     # Now that we've setup the necessary environment variables, we can load the
@@ -1314,6 +1321,10 @@ def main():
         new_world_pkgs.append(db_pkg.cp)
     if new_world_pkgs:
       world_set.update(new_world_pkgs)
+
+  # Update environment (library cache, symlinks, etc.)
+  if deps.board and "--pretend" not in emerge.opts:
+    portage.env_update()
 
   print "Done"
 
