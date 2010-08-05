@@ -91,10 +91,8 @@ def _CheckSaneArguments(package_list, commit_id_list, command):
 
 def _Clean():
   """Cleans up uncommitted changes on either stabilizing branch or master."""
-  if _CheckOnStabilizingBranch():
-    _RunCommand('git reset HEAD --hard')
-  _RunCommand('git checkout master')
   _RunCommand('git reset HEAD --hard')
+  _RunCommand('git checkout %s' % gflags.FLAGS.tracking_branch)
 
 
 def _PrintUsageAndDie(error_message=''):
@@ -179,7 +177,7 @@ class _GitBranch(object):
 
     Returns True on success.
     """
-    self._Checkout('master', create=False)
+    self._Checkout(gflags.FLAGS.tracking_branch, create=False)
     delete_cmd = 'git branch -D %s' % self.branch_name
     _RunCommand(delete_cmd)
 
