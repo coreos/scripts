@@ -664,16 +664,35 @@ class DepGraphGenerator(object):
     def RemoveInstalledPackages():
       """Remove installed packages, propagating dependencies."""
 
-      # If we're not in selective mode, the packages on the command line are
-      # not optional.
+      # If we're in non-selective mode, the packages specified on the command
+      # line are generally mandatory.
+      #
+      # There are a few exceptions to this rule:
+      #  1. If the package isn't getting installed because it's in
+      #     package.provided, it's not mandatory.
+      #  2. If the package isn't getting installed because we're in --onlydeps
+      #     mode, it's not mandatory either.
       if "--selective" in emerge.opts:
         selective = emerge.opts["--selective"] != "n"
       else:
         selective = "--noreplace" in emerge.opts or "--update" in emerge.opts
+      onlydeps = "--onlydeps" in emerge.opts
       if not selective:
         for pkg in emerge.cmdline_packages:
+          # If the package specified on the command-line is in our install
+          # list, mark it as non-optional.
+          found = False
           for db_pkg in final_db.match_pkgs(pkg):
-            deps_info[db_pkg.cpv]["optional"] = False
+            this_pkg = deps_info.get(db_pkg.cpv)
+            if this_pkg:
+              found = True
+              this_pkg["optional"] = False
+
+          # We didn't find the package in our final db. If we're not in
+          # --onlydeps mode, this likely means that the package was specified
+          # in package.provided.
+          if not found and not onlydeps and "--verbose" in emerge.opts:
+            print "Skipping %s (is it in package.provided?)" % pkg
 
       # Schedule packages that aren't on the install list for removal
       rm_pkgs = set(deps_map.keys()) - set(deps_info.keys())
