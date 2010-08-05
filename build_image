@@ -760,6 +760,10 @@ rm -f "${ROOT_FS_IMG}" "${STATEFUL_FS_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \
   "${ESP_FS_IMG}" "${OEM_FS_IMG}" "${OUTPUT_DIR}/vmlinuz_hd.vblock"
 rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${OEM_FS_DIR}" "${ESP_FS_DIR}"
 
+# Create a 'latest' link
+rm -f ${FLAGS_output_root}/${FLAGS_board}/latest
+ln -s $(basename ${OUTPUT_DIR}) ${FLAGS_output_root}/${FLAGS_board}/latest
+
 echo "Done.  Image created in ${OUTPUT_DIR}"
 echo "Chromium OS image created as ${PRISTINE_IMAGE_NAME}"
 if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then

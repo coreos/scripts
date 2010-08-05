@@ -30,7 +30,11 @@ IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
 # If there are no images, return nothing
 [ -d $IMAGES_DIR ] || exit 0
 
-# Default to the most recent image
-DEFAULT_FROM="${IMAGES_DIR}/`ls -t $IMAGES_DIR | head -1`"
+# Use latest link if it exists, otherwise most recently changed dir
+if [ -L ${IMAGES_DIR}/latest ] ; then
+  DEFAULT_FROM="${IMAGES_DIR}/`readlink ${IMAGES_DIR}/latest`"
+else
+  DEFAULT_FROM="${IMAGES_DIR}/`ls -t $IMAGES_DIR | head -1`"
+fi
 
 echo $DEFAULT_FROM
