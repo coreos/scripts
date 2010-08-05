@@ -26,11 +26,11 @@ def Authenticate():
   passwd = os.environ.get('GSDCURL_PASSWORD')
   if passwd is None:
     sys.stderr.write('Password: ')
-    passwd = urllib.quote_plus(getpass.getpass(prompt=''))
+    passwd = getpass.getpass(prompt='')
   cmd = [
       'curl', '--silent', 'https://www.google.com/accounts/ClientLogin',
       '-d', 'Email=' + username,
-      '-d', 'Passwd=' + passwd,
+      '-d', 'Passwd=' + urllib.quote_plus(passwd),
       '-d', 'accountType=GOOGLE',
       '-d', 'source=Google-gsdcurl-ver1',
       '-d', 'service=cds',
