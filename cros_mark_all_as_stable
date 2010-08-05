@@ -19,6 +19,8 @@ get_default_board
 
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to set package keywords for."
+DEFINE_string tracking_branch "origin" \
+  "Used with commit to specify branch to track against."
 
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -65,5 +67,5 @@ info "Candidate package list ${PACKAGE_LIST}"
 info "With commit id list ${COMMIT_ID_LIST}"
 
 ./cros_mark_as_stable --board ${FLAGS_board} -p "${PACKAGE_LIST}" \
-  -i "${COMMIT_ID_LIST}" commit  || \
+  -i "${COMMIT_ID_LIST}" -t ${FLAGS_tracking_branch} commit  || \
     die "Could not mark all packages as stable"
