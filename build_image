@@ -304,6 +304,7 @@ create_boot_desc() {
   --verity_algorithm="${FLAGS_verity_algorithm}"
   --keys_dir="${DEVKEYSDIR}"
   --usb_disk="${FLAGS_usb_disk}"
+  --arm_extra_bootargs="${FLAGS_arm_extra_bootargs}"
   --nocleanup_dirs
   ${enable_rootfs_verification_flag}
 EOF

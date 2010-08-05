@@ -80,6 +80,9 @@ DEFINE_integer verity_max_ios 1024 \
 DEFINE_string verity_algorithm "sha1" \
   "Cryptographic hash algorithm used for kernel vboot."
 
+DEFINE_string arm_extra_bootargs "" \
+  "Additional command line options to pass to the ARM kernel."
+
 DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
   "Directory containing the signing keys."
 
