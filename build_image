@@ -144,6 +144,8 @@ OEM_FS_DIR="${OUTPUT_DIR}/partner_partition"
 ESP_FS_IMG=${OUTPUT_DIR}/esp.image
 ESP_FS_DIR=${OUTPUT_DIR}/esp
 
+DEVKEYSDIR="/usr/share/vboot/devkeys"
+
 LOOP_DEV=
 STATEFUL_LOOP_DEV=
 OEM_LOOP_DEV=
@@ -171,6 +173,10 @@ fi
 
 if [[ ${FLAGS_jobs} -ne -1 ]]; then
   EMERGE_JOBS="--jobs=${FLAGS_jobs}"
+fi
+
+if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
+  enable_rootfs_verification_flag="--enable_rootfs_verification"
 fi
 
 # Figure out ARCH from the given toolchain.
@@ -280,134 +286,27 @@ mount_gpt_cleanup() {
   delete_prompt
 }
 
-make_image_bootable() {
-  local image_name="$1"
-  cros_root=/dev/sd%D%P
-  if [[ "${ARCH}" = "arm" ]]; then
-    # TODO(wad) assumed like in build_gpt for now.
-    cros_root=/dev/mmcblk1p3
-  fi
-  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-    cros_root=/dev/dm-0
-  fi
-
-  # TODO(wad) mount the root fs to LOOP_DEV from the image
-  trap "mount_gpt_cleanup" EXIT
-  ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
-    --image "${image_name}" -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}"
-
-  # The rootfs should never be mounted rw again after this point without
-  # re-calling make_image_bootable.
-  sudo mount -o remount,ro "${ROOT_FS_DIR}"
-  root_dev=$(mount | grep -- "on ${ROOT_FS_DIR} type" | cut -f1 -d' ' | tail -1)
-
-  DEVKEYSDIR="/usr/share/vboot/devkeys"
-
-  # Builds the kernel partition image.  The temporary files are kept around
-  # so that we can perform a load_kernel_test later on the final image.
-  ${SCRIPTS_DIR}/build_kernel_image.sh \
-    --arch="${ARCH}" \
-    --to="${OUTPUT_DIR}/vmlinuz.image" \
-    --hd_vblock="${OUTPUT_DIR}/vmlinuz_hd.vblock" \
-    --vmlinuz="${OUTPUT_DIR}/boot/vmlinuz" \
-    --working_dir="${OUTPUT_DIR}" \
-    --keep_work \
-    --rootfs_image=${root_dev} \
-    --rootfs_hash=${ROOT_FS_HASH} \
-    --verity_hash_alg=${FLAGS_verity_algorithm} \
-    --verity_tree_depth=${FLAGS_verity_depth} \
-    --verity_max_ios=${FLAGS_verity_max_ios} \
-    --verity_error_behavior=${FLAGS_verity_error_behavior} \
-    --root=${cros_root} \
-    --keys_dir="${DEVKEYSDIR}"
-
-  local rootfs_hash_size=$(stat -c '%s' ${ROOT_FS_HASH})
-  info "Appending rootfs.hash (${rootfs_hash_size} bytes) to the root fs"
-  if [[ ${rootfs_hash_size} -gt $((FLAGS_rootfs_hash_pad * 1024 * 1024)) ]]
-  then
-    die "--rootfs_hash_pad reserves less than the needed ${rootfs_hash_size}"
-  fi
-  # Unfortunately, mount_gpt_image uses mount and not losetup to create the
-  # loop devices.  This means that they are not the correct size.  We have to
-  # write directly to the image to append the hash tree data.
-  local hash_offset="$(partoffset ${OUTPUT_DIR}/${image_name} 3)"
-  hash_offset=$((hash_offset + ((1024 * 1024 * ${FLAGS_rootfs_size}) / 512)))
-  sudo dd bs=512 \
-          seek=${hash_offset} \
-          if="${ROOT_FS_HASH}" \
-          of="${OUTPUT_DIR}/${image_name}" \
-          conv=notrunc
-  # We don't need to keep the file around anymore.
-  sudo rm "${ROOT_FS_HASH}"
-
-  # Move the verification block needed for the hard disk install to the
-  # stateful partition. Mount stateful fs, copy file, and umount fs.
-  # In original CL: http://codereview.chromium.org/2868044, this was done in
-  # create_base_image(). However, it could break the build if it is a clean
-  # build because vmlinuz_hd.vblock hasn't been created by build_kernel_image.sh
-  if [[ "${ARCH}" = "x86" ]]; then
-    sudo cp "${OUTPUT_DIR}/vmlinuz_hd.vblock" "${STATEFUL_FS_DIR}"
-  fi
-
-  # START_KERN_A is set by the first call to install the gpt.
-  local koffset="$(partoffset ${OUTPUT_DIR}/${image_name} 2)"
-  sudo dd if="${OUTPUT_DIR}/vmlinuz.image" of="${OUTPUT_DIR}/${image_name}" \
-    conv=notrunc bs=512 seek=${koffset}
-
-  # Update the bootloaders.  For legacy/efi x86, the EFI system partition
-  # will be updated and for arm, the mbr will be updated (for u-boot).
-  local kernel_part=
-  local bootloader_to=
-  local bootloader_to_flags=
-  local usb_disk="${FLAGS_usb_disk}"
-
-  if [[ "${ARCH}" = "x86" ]]; then
-    # x86 should update the esp in place in the image.
-    bootloader_to="${OUTPUT_DIR}/${image_name}"
-    local esp_offset="$(partoffset ${OUTPUT_DIR}/${image_name} 12)"
-    esp_offset=$((esp_offset * 512))  # sectors to bytes
-    local esp_size="$(partsize ${OUTPUT_DIR}/${image_name} 12)"
-    esp_size=$((esp_size * 512))  # sectors to bytes
-    bootloader_to_flags="--to_offset=${esp_offset} --to_size=${esp_size}"
-    # Use the kernel partition to acquire configuration flags.
-    kernel_part="--kernel_partition='${OUTPUT_DIR}/vmlinuz.image'"
-    # Install syslinux on the EFI System Partition.
-    kernel_part="${kernel_part} --install_syslinux"
-  elif [[ "${ARCH}" = "arm" ]]; then
-    # TODO(wad) mmcblk1p3 is hardcoded for arm for now!
-    usb_disk="/dev/mmcblk1p3"
-    # ARM doesn't support using the kernel image for kernel cmdline flags yet.
-    kernel_part="--kernel_cmdline=\"${FLAGS_arm_extra_bootargs}\" "
-    # TODO(wad) Integrate dmtable extraction into the arm build
-    # E.g.  $(cat ${OUTPUT_DIR}/boot.config | tr -s '\n' ' ')"
-    local kpart_offset="--kernel_partition_offset=${koffset}"
-    local kpart_size="--kernel_partition_sectors="
-    kpart_size="${kpart_size}$(partsize ${OUTPUT_DIR}/${image_name} 2)"
-    kernel_part="${kernel_part} ${kpart_size} ${kpart_offset}"
-    info "Using addition bootloader arguments: ${kernel_part}"
-    bootloader_to="${OUTPUT_DIR}/arm.mbr"
-  fi
-
-  # Update partition 12 / legacy bootloaders and arm.
-  ${SCRIPTS_DIR}/update_bootloaders.sh \
-    --arch=${ARCH} \
-    --to="${bootloader_to}" \
-    --from="${OUTPUT_DIR}"/boot \
-    --vmlinuz="${OUTPUT_DIR}"/boot/vmlinuz \
-    --usb_disk="${usb_disk}" \
-    ${bootloader_to_flags} \
-    $kernel_part
-
-  if [[ "${ARCH}" == "arm" ]]; then
-    sudo dd bs=1 conv=notrunc  if="${bootloader_to}" \
-      of="${OUTPUT_DIR}/${image_name}"
-    sudo rm "${bootloader_to}"
-  fi
-
-  trap - EXIT
-  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}"
+# Takes no arguments and populates the configuration for
+# cros_make_image_bootable.
+create_boot_desc() {
+  cat <<EOF > ${OUTPUT_DIR}/boot.desc
+  --arch="${ARCH}"
+  --output_dir="${OUTPUT_DIR}"
+  --rootfs_size="${FLAGS_rootfs_size}"
+  --rootfs_hash_pad="${FLAGS_rootfs_hash_pad}"
+  --rootfs_hash="${ROOT_FS_HASH}"
+  --rootfs_mountpoint="${ROOT_FS_DIR}"
+  --statefulfs_mountpoint="${STATEFUL_FS_DIR}"
+  --espfs_mountpoint="${ESP_FS_DIR}"
+  --verity_error_behavior="${FLAGS_verity_error_behavior}"
+  --verity_depth="${FLAGS_verity_depth}"
+  --verity_max_ios="${FLAGS_verity_max_ios}"
+  --verity_algorithm="${FLAGS_verity_algorithm}"
+  --keys_dir="${DEVKEYSDIR}"
+  --usb_disk="${FLAGS_usb_disk}"
+  --nocleanup_dirs
+  ${enable_rootfs_verification_flag}
+EOF
 }
 
 # Modifies an existing image to add development packages
@@ -662,13 +561,6 @@ create_base_image() {
     --install \
     ${enable_rootfs_verification}
 
-  # Create a working copy so we don't need the rootfs mounted
-  sudo mkdir -p "${OUTPUT_DIR}"/boot
-  # This will include any built files dropped in /boot as well.
-  # Like the current vmlinuz.
-  sudo cp -r "${ROOT_FS_DIR}"/boot/. "${OUTPUT_DIR}"/boot/
-  sudo chmod -R a+r "${OUTPUT_DIR}"/boot/
-
   # Don't test the factory install shim.
   if [[ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]] ; then
     # Check that the image has been correctly created.
@@ -682,7 +574,7 @@ create_base_image() {
   # create /usr/local or /var on host (already exist on target).
   setup_symlinks_on_root "/usr/local" "/var" "${STATEFUL_FS_DIR}"
 
-  # make_image_bootable will clobber vmlinuz.image for x86.
+  # cros_make_image_bootable will clobber vmlinuz.image for x86.
   # Until then, just copy the kernel to vmlinuz.image. It is
   # expected in build_gpt.sh and needed by ARM until it supports the
   # full, signed kernel partition format.
@@ -720,7 +612,6 @@ if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
     # Copy forward pristine image, and associated files
     cp ${PREVIOUS_DIR}/*.sh ${PREVIOUS_DIR}/config.txt ${OUTPUT_DIR}
     cp ${PREVIOUS_DIR}/${PRISTINE_IMAGE_NAME} ${OUTPUT_DIR}
-    cp -r ${PREVIOUS_DIR}/boot ${OUTPUT_DIR}/boot
 
     # Copy forward the developer image, if we already copied forward the base.
     if [[ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]] && \
@@ -730,12 +621,18 @@ if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
   fi
 fi
 
+# Create the boot.desc file which stores the build-time configuration
+# information needed for making the image bootable after creation with
+# cros_make_image_bootable.
+create_boot_desc
+
 if [[ -f ${PRISTINE_IMG} ]] ; then
   update_base_packages ${PRISTINE_IMAGE_NAME}
 else
   create_base_image ${PRISTINE_IMAGE_NAME}
 fi
-make_image_bootable ${PRISTINE_IMAGE_NAME}
+${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
+                                            "${PRISTINE_IMAGE_NAME}"
 
 # FIXME: only signing things for x86 right now.
 if [[ "${ARCH}" = "x86" ]]; then
@@ -752,7 +649,8 @@ if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ] ; then
   fi
 
   update_dev_packages ${DEVELOPER_IMAGE_NAME}
-  make_image_bootable ${DEVELOPER_IMAGE_NAME}
+  ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
+                                              "${DEVELOPER_IMAGE_NAME}"
 fi
 
 # Clean up temporary files.

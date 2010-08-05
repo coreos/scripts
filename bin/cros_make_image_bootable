@@ -1,0 +1,253 @@
+#!/bin/bash
+#
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Script which ensures that a given image has an up-to-date
+# kernel partition, rootfs integrity hashes, and legacy bootloader configs.
+
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+COMMON_PATH="$(dirname "$0")/../common.sh"
+if [ ! -r "${COMMON_PATH}" ]; then
+  echo "ERROR! Cannot find common.sh: ${COMMON_PATH}" 1>&2
+  exit 1
+fi
+. "$(dirname "$0")/../common.sh"
+
+set -e
+. "$(dirname "$0")/../chromeos-common.sh"  # for partoffset and partsize
+
+if [ ${#} -ne 2 ]; then
+  die "Usage: $0 /path/to/image/dir image_name"
+fi
+
+BOOT_DESC_FILE="${1}/boot.desc"
+IMAGE="${1}/${2}"
+
+if [ ! -r "${BOOT_DESC_FILE}" ]; then
+  warning "${BOOT_DESC_FILE} cannot be read!"
+  warning "Falling back to command line parsing"
+  BOOT_DESC="${@}"
+else
+  BOOT_DESC="$(cat ${BOOT_DESC_FILE} | tr -s '\n' ' ')"
+  info "Boot-time configuration for $(dirname ${IMAGE}): "
+  cat ${BOOT_DESC_FILE} | while read line; do
+    info "  ${line}"
+  done
+fi
+
+if [ ! -r "${IMAGE}" ]; then
+  die "${IMAGE} cannot be read!"
+fi
+
+# Script must be run inside the chroot.
+restart_in_chroot_if_needed $*
+
+locate_gpt
+set +e
+
+# Now parse the build settings from ${OUTPUT_DIR}/boot.desc
+
+DEFINE_string output_dir "/tmp" \
+  "Directory to place output in."
+DEFINE_string image "chromiumos_base.img" \
+  "Full path to the chromiumos image to make bootable."
+DEFINE_string arch "x86" \
+  "Architecture to make bootable for: arm or x86"
+DEFINE_string usb_disk "/dev/sdb3" \
+  "Path syslinux should use to do a usb boot."
+DEFINE_boolean cleanup_dirs ${FLAGS_TRUE} \
+  "Whether the mount dirs should be removed on completion."
+
+DEFINE_integer rootfs_size 720 \
+  "rootfs filesystem size in MBs."
+# ceil(0.1 * rootfs_size) is a good minimum.
+DEFINE_integer rootfs_hash_pad 8 \
+  "MBs reserved at the end of the rootfs image."
+
+DEFINE_string rootfs_hash "/tmp/rootfs.hash" \
+  "Path where the rootfs hash should be stored."
+DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
+  "Default all bootloaders to use kernel-based root fs integrity checking."
+DEFINE_integer verity_error_behavior 2 \
+  "Kernel verified boot error behavior (0: I/O errors, 1: reboot, 2: nothing)"
+DEFINE_integer verity_depth 1 \
+  "Kernel verified boot hash tree depth"
+DEFINE_integer verity_max_ios 1024 \
+  "Number of outstanding I/O operations dm-verity caps at."
+DEFINE_string verity_algorithm "sha1" \
+  "Cryptographic hash algorithm used for kernel vboot."
+
+DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
+  "Directory containing the signing keys."
+
+DEFINE_string rootfs_mountpoint "/tmp/rootfs" \
+  "Path where the rootfs can be safely mounted"
+DEFINE_string statefulfs_mountpoint "/tmp/statefulfs" \
+  "Path where the statefulfs can be safely mounted"
+DEFINE_string espfs_mountpoint "/tmp/espfs" \
+  "Path where the espfs can be safely mounted"
+
+# Parse the boot.desc
+eval set -- "${BOOT_DESC}"
+FLAGS "${@}" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Only now can we die on error.  shflags functions leak non-zero error codes,
+# so will die prematurely if 'set -e' is specified before now.
+set -e -u
+
+# $1 - Directory where developer rootfs is mounted.
+# $2 - Directory where developer stateful_partition is mounted.
+# $3 - Directory where the ESP partition is mounted.
+mount_gpt_cleanup() {
+  local rootfs="${1-$FLAGS_rootfs_mountpoint}"
+  local statefs="${2-$FLAGS_statefulfs_mountpoint}"
+  local espfs="${3-$FLAGS_espfs_mountpoint}"
+  "${SCRIPTS_DIR}/mount_gpt_image.sh" \
+    -u -r "${rootfs}" -s "${statefs}" -e "${espfs}"
+}
+
+make_image_bootable() {
+  local image="$1"
+
+  cros_root=/dev/sd%D%P
+  if [[ "${FLAGS_arch}" = "arm" ]]; then
+    # TODO(wad) assumed like in build_gpt for now.
+    cros_root=/dev/mmcblk1p3
+  fi
+  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
+    cros_root=/dev/dm-0
+  fi
+
+  trap "mount_gpt_cleanup" EXIT
+  ${SCRIPTS_DIR}/mount_gpt_image.sh --from "$(dirname ${image})" \
+    --image "$(basename ${image})" -r "${FLAGS_rootfs_mountpoint}" \
+    -s "${FLAGS_statefulfs_mountpoint}"
+
+  # The rootfs should never be mounted rw again after this point without
+  # re-calling make_image_bootable.
+  sudo mount -o remount,ro "${FLAGS_rootfs_mountpoint}"
+  root_dev=$(mount | grep -- "on ${FLAGS_rootfs_mountpoint} type" |
+             cut -f1 -d' ' | tail -1)
+
+  # Builds the kernel partition image.  The temporary files are kept around
+  # so that we can perform a load_kernel_test later on the final image.
+  ${SCRIPTS_DIR}/build_kernel_image.sh \
+    --arch="${FLAGS_arch}" \
+    --to="${FLAGS_output_dir}/vmlinuz.image" \
+    --hd_vblock="${FLAGS_output_dir}/vmlinuz_hd.vblock" \
+    --vmlinuz="${FLAGS_rootfs_mountpoint}/boot/vmlinuz" \
+    --working_dir="${FLAGS_output_dir}" \
+    --keep_work \
+    --rootfs_image=${root_dev} \
+    --rootfs_hash=${FLAGS_rootfs_hash} \
+    --verity_hash_alg=${FLAGS_verity_algorithm} \
+    --verity_tree_depth=${FLAGS_verity_depth} \
+    --verity_max_ios=${FLAGS_verity_max_ios} \
+    --verity_error_behavior=${FLAGS_verity_error_behavior} \
+    --root=${cros_root} \
+    --keys_dir="${FLAGS_keys_dir}"
+
+  local rootfs_hash_size=$(stat -c '%s' ${FLAGS_rootfs_hash})
+  info "Appending rootfs.hash (${rootfs_hash_size} bytes) to the root fs"
+  if [[ ${rootfs_hash_size} -gt $((FLAGS_rootfs_hash_pad * 1024 * 1024)) ]]
+  then
+    die "--rootfs_hash_pad reserves less than the needed ${rootfs_hash_size}"
+  fi
+  # Unfortunately, mount_gpt_image uses mount and not losetup to create the
+  # loop devices.  This means that they are not the correct size.  We have to
+  # write directly to the image to append the hash tree data.
+  local hash_offset="$(partoffset ${image} 3)"
+  hash_offset=$((hash_offset + ((1024 * 1024 * ${FLAGS_rootfs_size}) / 512)))
+  sudo dd bs=512 \
+          seek=${hash_offset} \
+          if="${FLAGS_rootfs_hash}" \
+          of="${image}" \
+          conv=notrunc
+  # We don't need to keep the file around anymore.
+  sudo rm "${FLAGS_rootfs_hash}"
+
+  # Move the verification block needed for the hard disk install to the
+  # stateful partition. Mount stateful fs, copy file, and umount fs.
+  # In original CL: http://codereview.chromium.org/2868044, this was done in
+  # create_base_image(). However, it could break the build if it is a clean
+  # build because vmlinuz_hd.vblock hasn't been created by build_kernel_image.sh
+  if [[ "${FLAGS_arch}" = "x86" ]]; then
+    sudo cp "${FLAGS_output_dir}/vmlinuz_hd.vblock" \
+            "${FLAGS_statefulfs_mountpoint}"
+  fi
+
+  # START_KERN_A is set by the first call to install the gpt.
+  local koffset="$(partoffset ${image} 2)"
+  sudo dd if="${FLAGS_output_dir}/vmlinuz.image" of="${image}" \
+    conv=notrunc bs=512 seek=${koffset}
+
+  # Update the bootloaders.  For legacy/efi x86, the EFI system partition
+  # will be updated and for arm, the mbr will be updated (for u-boot).
+  local kernel_part=
+  local bootloader_to=
+  local bootloader_to_flags=
+  local usb_disk="${FLAGS_usb_disk}"
+
+  if [[ "${FLAGS_arch}" = "x86" ]]; then
+    # x86 should update the esp in place in the image.
+    bootloader_to="${image}"
+    local esp_offset="$(partoffset ${image} 12)"
+    esp_offset=$((esp_offset * 512))  # sectors to bytes
+    local esp_size="$(partsize ${image} 12)"
+    esp_size=$((esp_size * 512))  # sectors to bytes
+    bootloader_to_flags="--to_offset=${esp_offset} --to_size=${esp_size}"
+    # Use the kernel partition to acquire configuration flags.
+    kernel_part="--kernel_partition='${FLAGS_output_dir}/vmlinuz.image'"
+    # Install syslinux on the EFI System Partition.
+    kernel_part="${kernel_part} --install_syslinux"
+  elif [[ "${FLAGS_arch}" = "arm" ]]; then
+    # TODO(wad) mmcblk1p3 is hardcoded for arm for now!
+    usb_disk="/dev/mmcblk1p3"
+    # ARM doesn't support using the kernel image for kernel cmdline flags yet.
+    kernel_part="--kernel_cmdline=\"${FLAGS_arm_extra_bootargs}\" "
+    # TODO(wad) Integrate dmtable extraction into the arm build
+    # E.g.  $(cat ${FLAGS_output_dir}/boot.config | tr -s '\n' ' ')"
+    local kpart_offset="--kernel_partition_offset=${koffset}"
+    local kpart_size="--kernel_partition_sectors="
+    kpart_size="${kpart_size}$(partsize ${image} 2)"
+    kernel_part="${kernel_part} ${kpart_size} ${kpart_offset}"
+    info "Using addition bootloader arguments: ${kernel_part}"
+    bootloader_to="${FLAGS_output_dir}/arm.mbr"
+  fi
+
+  # Update partition 12 / legacy bootloaders and arm.
+  ${SCRIPTS_DIR}/update_bootloaders.sh \
+    --arch=${FLAGS_arch} \
+    --to="${bootloader_to}" \
+    --from="${FLAGS_rootfs_mountpoint}"/boot \
+    --vmlinuz="${FLAGS_rootfs_mountpoint}"/boot/vmlinuz \
+    --usb_disk="${usb_disk}" \
+    ${bootloader_to_flags} \
+    $kernel_part
+
+  if [[ "${FLAGS_arch}" == "arm" ]]; then
+    sudo dd bs=1 conv=notrunc  if="${bootloader_to}" of="${image}"
+    sudo rm "${bootloader_to}"
+  fi
+
+  trap - EXIT
+  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${FLAGS_rootfs_mountpoint}" \
+    -s "${FLAGS_statefulfs_mountpoint}"
+}
+
+# Create the directories if they don't exist.
+mkdir -p ${FLAGS_rootfs_mountpoint}
+mkdir -p ${FLAGS_statefulfs_mountpoint}
+mkdir -p ${FLAGS_espfs_mountpoint}
+
+make_image_bootable ${IMAGE}
+
+if [ ${FLAGS_cleanup_dirs} -eq ${FLAGS_TRUE} ]; then
+  rmdir ${FLAGS_rootfs_mountpoint}
+  rmdir ${FLAGS_statefulfs_mountpoint}
+  rmdir ${FLAGS_espfs_mountpoint}
+fi

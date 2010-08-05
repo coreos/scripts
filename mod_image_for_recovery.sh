@@ -84,4 +84,9 @@ DST_PATH="${IMAGE_DIR}/${RECOVERY_IMAGE}"
 echo "Making a copy of original image ${FLAGS_image}"
 cp $FLAGS_image $DST_PATH
 update_recovery_packages $DST_PATH
+
+# Now make it bootable with the flags from build_image
+${SCRIPTS_DIR}/bin/cros_make_image_bootable "${IMAGE_DIR}" \
+                                            "${RECOVERY_IMAGE}"
+
 echo "Recovery image created at ${DST_PATH}"

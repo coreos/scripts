@@ -228,6 +228,10 @@ fi
 
 cleanup
 
+# Now make it bootable with the flags from build_image
+${SCRIPTS_DIR}/bin/cros_make_image_bootable $(dirname "${FLAGS_image}") \
+                                            $(basename "${FLAGS_image}")
+
 print_time_elapsed
 
 trap - EXIT
