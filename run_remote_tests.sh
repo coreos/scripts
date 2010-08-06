@@ -269,7 +269,7 @@ function main() {
     RAN_ANY_TESTS=${FLAGS_TRUE}
 
     # HACK: Temporary hack for cros-workon conversion
-    [[ -n "${WORKON_AUTOTEST}" ]] && WORKON_SUFFIX=_workon
+    [[ -n "${CROS_WORKON_SRCROOT}" ]] && WORKON_SUFFIX=_workon
 
     local enter_chroot=""
     local autotest="${GCLIENT_ROOT}/src/scripts/autotest${WORKON_SUFFIX}"

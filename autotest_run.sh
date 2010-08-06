@@ -31,7 +31,6 @@ CHROMEOS_ROOT=/home/${USER}/trunk/
 
 # Ensure the configures run by autotest pick up the right config.site
 CONFIG_SITE=/usr/share/config.site
-AUTOTEST_SRC="${CHROMEOS_ROOT}/src/third_party/autotest/files"
 
 [ -z "${FLAGS_board}" ] && \
   die "You must specify --board="
@@ -46,25 +45,9 @@ function teardown_ssh() {
   ssh-agent -k > /dev/null
 }
 
-function copy_src() {
-  local dst=$1
-  mkdir -p "${dst}"
-  cp -fpru "${AUTOTEST_SRC}"/{client,conmux,server,tko,utils} "${dst}" || die
-  cp -fpru "${AUTOTEST_SRC}/shadow_config.ini" "${dst}" || die
-}
-
 src_test() {
-  # claim ownership of the staging area
-  sudo chown -R ${USER} "${BUILD_RUNTIME}"
-  sudo chmod -R 755 "${BUILD_RUNTIME}"
-
-  local third_party="${CHROMEOS_ROOT}/src/third_party"
-  copy_src "${BUILD_RUNTIME}"
-  cp -fpru "${AUTOTEST_SRC}/global_config.ini" "${BUILD_RUNTIME}"
-
-  # ensure that no tests are ever built
-  sed -e 's/enable_server_prebuild: .*/enable_server_prebuild: False/' -i \
-    "${BUILD_RUNTIME}"/global_config.ini
+  # TODO: These places currently need to be writeable but shouldn't be
+  sudo chmod a+w ${BUILD_RUNTIME}/server/{tests,site_tests}
 
   setup_ssh
   cd "${BUILD_RUNTIME}"
