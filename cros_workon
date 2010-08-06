@@ -76,7 +76,7 @@ canonicalize_name () {
   local pkgfile
   local pkgname
 
-  if ! pkgfile=$(${EQUERYCMD} which $1); then
+  if ! pkgfile=$(ACCEPT_KEYWORDS="**" ${EQUERYCMD} which $1); then
     warn "error looking up package $1" 1>&2
     return 1
   fi
