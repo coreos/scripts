@@ -39,11 +39,28 @@ GRAB_HEAD_COMMIT_CMD="git show HEAD | head -1 | cut -f 2 -d ' '"
 PACKAGE_LIST=""
 # List of commit ids corresponding to package list.
 COMMIT_ID_LIST=""
+# List of IFS-delimited ebuilds to ignore.
+PACKAGE_BLACKLIST=""
+# File containing the names of blacklisted packages.
+BLACKLIST_FILE=$(dirname "${0}")/cros_mark_as_stable_blacklist
+
+[ -f "${BLACKLIST_FILE}" ] && \
+  PACKAGE_BLACKLIST=$(cat "${BLACKLIST_FILE}")
+
+function package_is_blacklisted() {
+  # Makes a list that looks like "\|package1\|package2\|...packagen".
+  local blist_regex=$(for i in ${PACKAGE_BLACKLIST}; do echo -n "\\|${i}"; done)
+  expr "${1}" : "^\(${blist_regex/\\|/}\)$" &> /dev/null && return 0 || return 1
+}
 
 # For each package, compares the head commit id to the commit id in the ebuild.
 # If they do not match, add the package and its commit id into ${PACKAGE_LIST}
 # and ${COMMIT_ID_LIST}
 for package in ${PACKAGES}; do
+  if package_is_blacklisted ${package}; then
+    info "${package} blacklisted, skipping"
+    continue
+  fi
   ebuild_path=$(${EQUERYCMD} which ${package}) || continue
   # Sets ${CROS_WORKON_SRCDIR} from the ebuild.
   eval $(${EBUILDCMD} ${ebuild_path} info) &> /dev/null || continue
