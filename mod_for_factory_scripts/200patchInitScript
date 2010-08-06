@@ -88,3 +88,18 @@ index 28c9086..9ebf2b9 100644
  
  respawn
 EOF
+
+patch -d ${ROOT_FS_DIR} -Np1 <<EOF
+diff -Nau old/etc/init/chrontel.conf new/etc/init/
+--- old/etc/init/chrontel.conf	2010-08-05 16:32:55.000000000 -0700
++++ new/etc/init/chrontel.conf	2010-08-05 16:32:45.000000000 -0700
+@@ -7,7 +7,7 @@
+ 
+ # start as early as possible to allow login screen on hdmi
+ # Need udev to have connected the i2c before we can use it
+-start on started udev
++start on never
+ stop on starting halt or starting reboot
+ 
+ # sadly, these can't reference each other.
+EOF
