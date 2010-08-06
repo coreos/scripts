@@ -169,9 +169,5 @@ info "Attempting to create dev recovery image using dev install shim \
 ${FLAGS_dev_install_shim}"
 create_dev_recovery_image
 
-# Now make it bootable with the flags from build_image
-${SCRIPTS_DIR}/bin/cros_make_image_bootable $(dirname ${TEMP_IMG}) \
-                                            $(basename ${TEMP_IMG})
-
 mv -f $TEMP_IMG $DST_PATH
 info "Dev recovery image created at ${DST_PATH}"
