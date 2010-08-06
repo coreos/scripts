@@ -115,8 +115,9 @@ update_partition_table() {
   dd if="${FLAGS_dev_install_shim}" of="${TEMP_PMBR}" bs=512 count=1
 
   # Set up a new partition table
-  install_gpt "${TEMP_IMG}" "${TEMP_ROOTFS}" "${TEMP_STATE}" "${TEMP_PMBR}" \
-    "${TEMP_ESP}" false $(roundup $(numsectors ${TEMP_ROOTFS}))
+  install_gpt "${TEMP_IMG}" "$(numsectors $TEMP_ROOTFS)" \
+    "$(numsectors $TEMP_STATE)" "${TEMP_PMBR}" "$(numsectors $TEMP_ESP)" \
+    false $(roundup $(numsectors ${TEMP_ROOTFS}))
 
   # Copy into the partition parts of the file
   dd if="${TEMP_ROOTFS}" of="${TEMP_IMG}" conv=notrunc bs=512 \

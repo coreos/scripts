@@ -119,8 +119,8 @@ fi
 
 # Create the GPT. This has the side-effect of setting some global vars
 # describing the partition table entries (see the comments in the source).
-install_gpt $OUTDEV $ROOTFS_IMG $STATEFUL_IMG $PMBRCODE $ESP_IMG \
-    false $FLAGS_rootfs_partition_size
+install_gpt $OUTDEV $(numsectors $ROOTFS_IMG) $(numsectors $STATEFUL_IMG) \
+    $PMBRCODE $(numsectors $ESP_IMG) false $FLAGS_rootfs_partition_size
 
 if [[ "$ARCH" = "arm" ]]; then
   # assume /dev/mmcblk1. we could not get this from ${OUTDEV}
