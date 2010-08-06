@@ -128,11 +128,22 @@ def _PushChange():
   if not _CheckOnStabilizingBranch():
     generate_test_report.Die('Expected %s to be on branch "%s"' %
                              (os.getcwd(), _STABLE_BRANCH_NAME))
-  _RunCommand('git cl upload --desc_from_logs -m "%s"' %
-    'Marking set of ebuilds as stable')
+  description = _RunCommand('git log --format=format:%s%n%n%b ' +
+                            gflags.FLAGS.tracking_branch + '..')
+  description = 'Marking set of ebuilds as stable\n\n%s' % description
+  merge_branch_name = 'merge_branch'
   _RunCommand('git remote update')
-  _RunCommand('git rebase %s' % gflags.FLAGS.tracking_branch)
-  _RunCommand('git cl push %s' % gflags.FLAGS.push_options)
+  _RunCommand('git checkout -b %s %s' % (
+      merge_branch_name, gflags.FLAGS.tracking_branch))
+  try:
+    _RunCommand('git merge --squash %s' % _STABLE_BRANCH_NAME)
+    _RunCommand('git commit -m "%s"' % description)
+    # Ugh. There has got to be an easier way to push to a tracking branch
+    _RunCommand('git config push.default tracking')
+    _RunCommand('git push')
+  finally:
+    _RunCommand('git checkout %s' % _STABLE_BRANCH_NAME)
+    _RunCommand('git branch -D %s' % merge_branch_name)
 
 
 def _RunCommand(command):
