@@ -129,8 +129,6 @@ install_autotest() {
     echo "Install autotest into stateful partition from $AUTOTEST_SRC"
 
     sudo mkdir -p "${stateful_root}${autotest_client}"
-    sudo mkdir -p "/tmp/autotest"
-    sudo rm -rf /tmp/autotest/*
 
     # Remove excess files from stateful partition.
     # If these aren't there, that's fine.
@@ -138,21 +136,18 @@ install_autotest() {
     sudo rm -rf "${stateful_root}/autotest-pkgs" || true
     sudo rm -rf "${stateful_root}/lib/icedtea6" || true
 
-    sudo cp -fpru ${AUTOTEST_SRC}/client/* \
-      "/tmp/autotest"
-    # Remove outrageously large tests.
-    # TODO(nsanders): is there a better way to do this?
-    sudo rm -rf /tmp/autotest/deps/realtimecomm_playground
-    sudo rm -rf /tmp/autotest/tests/ltp
-    sudo rm -rf /tmp/autotest/site_tests/graphics_O3DSelenium
-    sudo rm -rf /tmp/autotest/realtimecomm_GTalk*
-    sudo rm -rf /tmp/autotest/site_tests/platform_StackProtector
-    sudo rm -rf /tmp/autotest/deps/chrome_test
-    sudo rm -rf /tmp/autotest/site_tests/desktopui_BrowserTest
-    sudo rm -rf /tmp/autotest/site_tests/desktopui_UITest
+    sudo rsync --delete --delete-excluded -auvq \
+      --exclude=deps/realtimecomm_playground \
+      --exclude=tests/ltp \
+      --exclude=site_tests/graphics_O3DSelenium \
+      --exclude=site_tests/realtimecomm_GTalk\* \
+      --exclude=site_tests/platform_StackProtector \
+      --exclude=deps/chrome_test \
+      --exclude=site_tests/desktopui_BrowserTest \
+      --exclude=site_tests/desktopui_UITest \
+      --exclude=.svn \
+      ${AUTOTEST_SRC}/client/* "${stateful_root}/${autotest_client}"
 
-    sudo cp -fpru /tmp/autotest/* \
-      "${stateful_root}/${autotest_client}"
     sudo chmod 755 "${stateful_root}/${autotest_client}"
     sudo chown -R 1000:1000 "${stateful_root}/${autotest_client}"
 }
