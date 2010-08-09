@@ -454,5 +454,5 @@ print_time_elapsed() {
   elapsed_seconds="$(( $end_time - $start_time ))"
   minutes="$(( $elapsed_seconds / 60 ))"
   seconds="$(( $elapsed_seconds % 60 ))"
-  echo "Elapsed time: ${minutes}:${seconds}"
+  echo "Elapsed time: ${minutes}m${seconds}s"
 }
