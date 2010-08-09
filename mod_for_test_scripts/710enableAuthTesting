@@ -29,7 +29,7 @@ mv -f "${TMP_KEY}" "${ROOT_FS_DIR}/${TMP_KEY}"
 mv -f "${TMP_CERT}" "${ROOT_FS_DIR}/${TMP_CERT}"
 
 # Generate testing root cert on the fly.
-sudo chroot "${ROOT_FS_DIR}" ${QEMU} /usr/bin/openssl req -x509 -days 2 \
+sudo chroot "${ROOT_FS_DIR}" ${QEMU} /usr/bin/openssl req -x509 -days 21 \
   -subj "/CN=www.google.com" \
   -newkey rsa:1024 -nodes -keyout "${TMP_KEY}" -out "${TMP_CERT}"
 
@@ -53,7 +53,7 @@ cat "${ROOT_FS_DIR}/${TMP_CERT}" "${CERT_FILE}" > "${TMPFILE}"
 mv -f "${TMPFILE}" "${CERT_FILE}"
 chmod "${PERMS}" "${CERT_FILE}"
 
-if [ -n "${QEMU}" ] ; then 
+if [ -n "${QEMU}" ] ; then
     rm "${ROOT_FS_DIR}/${QEMU}"
 fi
 rm "${ROOT_FS_DIR}/${TMP_KEY}"
