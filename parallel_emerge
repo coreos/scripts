@@ -819,7 +819,13 @@ class DepGraphGenerator(object):
       url = binhost_url + "/Packages"
 
       prebuilt_pkgs = {}
-      f = urllib2.urlopen(url)
+      try:
+        f = urllib2.urlopen(url)
+      except urllib2.HTTPError as e:
+        if e.code == 404:
+          return {}
+        else:
+          raise
       for line in f:
         if line.startswith("CPV: "):
           pkg = line.replace("CPV: ", "").rstrip()
