@@ -1,0 +1,176 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Script to generate a Chromium OS update for use by the update engine.
+# If a source .bin is specified, the update is assumed to be a delta update.
+
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+. "$(dirname "$0")/common.sh"
+
+# Load functions and constants for chromeos-install
+. "$(dirname "$0")/chromeos-common.sh"
+
+SRC_MNT=""
+DST_MNT=""
+SRC_KERNEL=""
+SRC_ROOT=""
+DST_KERNEL=""
+DST_ROOT=""
+STATE_MNT=""
+STATE_LOOP_DEV=""
+
+# Pass an arg to not exit 1 at the end
+cleanup() {
+  set +e
+  echo "Cleaning up"
+  if [ -n "$SRC_MNT" ]; then
+    sudo umount -d "$SRC_MNT"
+    [ -d "$SRC_MNT" ] && rmdir "$SRC_MNT"
+    SRC_MNT=""
+  fi
+  if [ -n "$DST_MNT" ]; then
+    sudo umount -d "$DST_MNT"
+    [ -d "$DST_MNT" ] && rmdir "$DST_MNT"
+    DST_MNT=""
+  fi
+  if [ -n "$STATE_MNT" ]; then
+    sudo umount "$STATE_MNT"
+    [ -d "$STATE_MNT" ] && rmdir "$STATE_MNT"
+    STATE_MNT=""
+  fi
+  if [ -n "$STATE_LOOP_DEV" ]; then
+    sudo losetup -d "$STATE_LOOP_DEV"
+    STATE_LOOP_DEV=""
+  fi
+  rm -f "$SRC_KERNEL"
+  rm -f "$SRC_ROOT"
+  rm -f "$DST_KERNEL"
+  rm -f "$DST_ROOT"
+  [ -n "$1" ] || exit 1
+}
+
+extract_partition_to_temp_file() {
+  local filename="$1"
+  local partition="$2"
+  local temp_file=$(mktemp /tmp/generate_update_payload.XXXXXX)
+  
+  local offset=$(partoffset "${filename}" ${partition})  # 512-byte sectors
+  local length=$(partsize "${filename}" ${partition})  # 512-byte sectors
+  local bs=512
+  local sectors_per_two_mib=$((2 * 1024 * 1024 / 512))
+  if [ $(( $offset % $sectors_per_two_mib )) -eq 0 -a \
+       $(( $length % $sectors_per_two_mib )) -eq 0 ]; then
+    bs=$((2 * 1024 * 1024))
+    offset=$(($offset / $sectors_per_two_mib))
+    length=$(($length / $sectors_per_two_mib))
+  else
+    warn "partition offset or length not at 2MiB boundary"
+  fi
+  dd if="$filename" of="$temp_file" bs=$bs count="$length" skip="$offset"
+  echo "$temp_file"
+}
+
+patch_kernel() {
+  local IMAGE="$1"
+  local KERN_FILE="$2"
+
+  STATE_LOOP_DEV=$(sudo losetup -f)
+  [ -n "$STATE_LOOP_DEV" ] || die "no free loop device"
+  local offset=$(partoffset "${IMAGE}" 1)
+  offset=$(($offset * 512))
+  sudo losetup -o "$offset" "$STATE_LOOP_DEV" "$IMAGE"
+  STATE_MNT=$(mktemp -d /tmp/state.XXXXXX)
+  sudo mount "$STATE_LOOP_DEV" "$STATE_MNT"
+  dd if="$STATE_MNT"/vmlinuz_hd.vblock of="$KERN_FILE" conv=notrunc
+  sudo umount "$STATE_MNT"
+  STATE_MNT=""
+  sudo losetup -d "$STATE_LOOP_DEV"
+  STATE_LOOP_DEV=""
+}
+
+# We should be in the chroot.
+assert_inside_chroot
+
+DEFINE_string image "" "The image that should be sent to clients."
+DEFINE_string src_image "" "Optional: a source image. If specified, this makes\
+ a delta update."
+DEFINE_boolean old_style "$FLAGS_TRUE" "Generate an old-style .gz full update."
+DEFINE_string output "" "Output file"
+
+# Parse command line
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+set -e
+
+locate_gpt
+
+DELTA=$FLAGS_TRUE
+[ -n "$FLAGS_output" ] || die \
+    "Error: you must specify an output filename with --output FILENAME"
+
+if [ -z "$FLAGS_src_image" ]; then
+  DELTA=$FLAGS_FALSE
+  if [ "$FLAGS_old_style" = "$FLAGS_TRUE" ]; then
+    echo "Generating an old-style full update"
+  else
+    die "Generating a new-style full update not yet supported"
+  fi
+fi
+
+if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
+  echo "Generating a delta update"
+  
+  # Sanity check that the real generator exists:
+  GENERATOR="$(dirname "$0")/../platform/update_engine/delta_generator"
+  [ -x "$GENERATOR" ] || die "$GENERATOR doesn't exist, or isn't executable"
+
+  trap cleanup INT TERM EXIT
+  SRC_KERNEL=$(extract_partition_to_temp_file "$FLAGS_src_image" 2)
+  patch_kernel "$FLAGS_src_image" "$SRC_KERNEL"
+  SRC_ROOT=$(extract_partition_to_temp_file "$FLAGS_src_image" 3)
+
+  echo md5sum of src kernel:
+  md5sum "$SRC_KERNEL"
+  echo md5sum of src root:
+  md5sum "$SRC_ROOT"
+  
+  DST_KERNEL=$(extract_partition_to_temp_file "$FLAGS_image" 2)
+  patch_kernel "$FLAGS_image" "$DST_KERNEL"
+  DST_ROOT=$(extract_partition_to_temp_file "$FLAGS_image" 3)
+  
+  SRC_MNT=$(mktemp -d /tmp/src_root.XXXXXX)
+  sudo mount -o loop,ro "$SRC_ROOT" "$SRC_MNT"
+
+  DST_MNT=$(mktemp -d /tmp/src_root.XXXXXX)
+  sudo mount -o loop,ro "$DST_ROOT" "$DST_MNT"
+  
+  sudo "$GENERATOR" \
+      -new_dir "$DST_MNT" -new_image "$DST_ROOT" -new_kernel "$DST_KERNEL" \
+      -old_dir "$SRC_MNT" -old_image "$SRC_ROOT" -old_kernel "$SRC_KERNEL" \
+      -out_file "$FLAGS_output"
+  
+  trap - INT TERM EXIT
+  cleanup noexit
+  echo "Done generating delta."
+else
+  echo "Generating full update"
+  
+  trap cleanup INT TERM EXIT
+  DST_KERNEL=$(extract_partition_to_temp_file "$FLAGS_image" 2)
+  patch_kernel "$FLAGS_image" "$DST_KERNEL"
+  DST_ROOT=$(extract_partition_to_temp_file "$FLAGS_image" 3)
+  
+  GENERATOR="$(dirname "$0")/mk_memento_images.sh"
+
+  "$GENERATOR" "$DST_KERNEL" "$DST_ROOT"
+  mv "$(dirname "$DST_KERNEL")/update.gz" "$FLAGS_output"
+  
+  trap - INT TERM EXIT
+  cleanup noexit
+  echo "Done generating full update."
+fi
