@@ -24,8 +24,8 @@ get_default_board
 DEFINE_string board "${DEFAULT_BOARD}" "Board for which the image was built"
 DEFINE_string factory "" \
   "Directory and file containing factory image: /path/chromiumos_test_image.bin"
-DEFINE_boolean include_firmware $FLAGS_FALSE \
-  "If set, include the firmware image to the server configuration"
+DEFINE_string firmware_updater "" \
+  "If set, include the firmware shellball into the server configuration"
 DEFINE_string release "" \
   "Directory and file containing release image: /path/chromiumos_image.bin"
 
@@ -44,11 +44,16 @@ if [ ! -f "${FLAGS_factory}" ] ; then
   exit 1
 fi
 
+if [ ! -z "${FLAGS_firmware_updater}" ] && \
+   [ ! -f "${FLAGS_firmware_updater}" ] ; then
+  echo "Cannot find firmware file ${FLAGS_firmware_updater}"
+  exit 1
+fi
+
 # Convert args to paths.  Need eval to un-quote the string so that shell
 # chars like ~ are processed; just doing FOO=`readlink -f ${FOO}` won't work.
 OMAHA_DIR=${SRC_ROOT}/platform/dev
 OMAHA_DATA_DIR=${OMAHA_DIR}/static/
-FIRMWARE_DIR=${SRC_ROOT}/platform/firmware/${FLAGS_board}
 
 if [ ${INSIDE_CHROOT} -eq 0 ]; then
   echo "Caching sudo authentication"
@@ -133,19 +138,17 @@ echo "state: ${state_hash}"
 
 popd > /dev/null
 
-if [ ${FLAGS_include_firmware} -eq ${FLAGS_TRUE} ] ; then
-  pushd ${FIRMWARE_DIR} > /dev/null
-
-  ./pack_firmware.sh | gzip -9 > firmware.gz
-  if [ "${PIPESTATUS[*]}" != "0 0" ]; then
-    echo "Failed to pack the firmware image."
+if [ ! -z ${FLAGS_firmware_updater} ] ; then
+  SHELLBALL="${FLAGS_firmware_updater}"
+  if [ ! -f  "$SHELLBALL" ]; then
+    echo "Failed to find firmware updater: $SHELLBALL."
     exit 1
   fi
+
+  cat $SHELLBALL | gzip -9 > firmware.gz
   firmware_hash=`cat firmware.gz | openssl sha1 -binary | openssl base64`
   mv firmware.gz ${OMAHA_DATA_DIR}
   echo "firmware: ${firmware_hash}"
-
-  popd > /dev/null
 fi
 
 echo -n "
@@ -163,7 +166,7 @@ config = [
    'stateimg_image': 'state.gz',
    'stateimg_checksum': '${state_hash}'," > ${OMAHA_DIR}/miniomaha.conf
 
-if [ ${FLAGS_include_firmware} -eq ${FLAGS_TRUE} ] ; then
+if [ ! -z "${FLAGS_firmware_updater}" ]  ; then
   echo -n "
    'firmware_image': 'firmware.gz',
    'firmware_checksum': '${firmware_hash}'," >> ${OMAHA_DIR}/miniomaha.conf
