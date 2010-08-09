@@ -132,27 +132,30 @@ regen_manifest_and_sync() {
   echo Using $REPODIR
   echo "Trying to generate local manifests for.."
   rm -f $REPODIR/local_manifest.xml
-  echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" >> $REPODIR/local_manifest.xml
-  echo "<manifest>" >> $REPODIR/local_manifest.xml
 
-  cat ${KEYWORDS_FILE} |
+  MANIFEST_ENTRIES=$(cat ${KEYWORDS_FILE} |
   {
     while read line
     do
       pkgname=`basename ${line}`
-      echo "Now working on ... ${pkgname}"
+      echo "Now working on ... ${pkgname}" 1>&2
       eval $(${EBUILDCMD} $(${EQUERYCMD} which ${pkgname}) info)
-      echo "Looking for ${CROS_WORKON_PROJECT}.git"
+      echo "Looking for ${CROS_WORKON_PROJECT}.git" 1>&2
       REPO_ELEMENT=$(sed -n '/START_MINILAYOUT/,/STOP_MINILAYOUT/p' $REPODIR/manifest.xml | grep "name=\"${CROS_WORKON_PROJECT}\"" | sed -e 's/^[ \t]*//')
-      echo $REPO_ELEMENT
+      echo "$REPO_ELEMENT"
       if [ -z "${REPO_ELEMENT}" ] ; then
-        echo "Unable to find ${pkgname} in manifest. Aborting."
+        echo "Unable to find ${pkgname} in manifest. Aborting." 1>&2
         exit 1
       fi
-      echo ${REPO_ELEMENT} >> $REPODIR/local_manifest.xml
     done
-  }
-  echo "</manifest>" >> $REPODIR/local_manifest.xml
+  })
+
+  if [ -n "${MANIFEST_ENTRIES}" ]; then
+    echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" >> $REPODIR/local_manifest.xml
+    echo "<manifest>" >> $REPODIR/local_manifest.xml
+    echo "${MANIFEST_ENTRIES}"|sort|uniq >> ${REPODIR}/local_manifest.xml
+    echo "</manifest>" >> $REPODIR/local_manifest.xml
+  fi
 }
 
 # Move a stable ebuild to the live development catgeory.  The ebuild
