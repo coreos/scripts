@@ -129,32 +129,33 @@ find_repo_dir () {
 # This is called only for "cros-workon start". We dont handle the "stop" case since the local changes are ignored anyway since the 9999.ebuild is masked and we dont want to deal with what to do with the user's local changes.
 regen_manifest_and_sync() {
   find_repo_dir
-  echo Using $REPODIR
-  echo "Trying to generate local manifests for.."
-  rm -f $REPODIR/local_manifest.xml
+  local_manifest="${REPODIR}/local_manifest.xml"
 
+  # preserve old manifest entries
+  MANIFEST_ENTRIES_OLD=$(cat "${local_manifest}" | grep "^<project")
+
+  rm -f "${local_manifest}"
+
+  # get new manifest entries
   MANIFEST_ENTRIES=$(cat ${KEYWORDS_FILE} |
   {
     while read line
     do
       pkgname=`basename ${line}`
-      echo "Now working on ... ${pkgname}" 1>&2
       eval $(${EBUILDCMD} $(${EQUERYCMD} which ${pkgname}) info)
-      echo "Looking for ${CROS_WORKON_PROJECT}.git" 1>&2
       REPO_ELEMENT=$(sed -n '/START_MINILAYOUT/,/STOP_MINILAYOUT/p' $REPODIR/manifest.xml | grep "name=\"${CROS_WORKON_PROJECT}\"" | sed -e 's/^[ \t]*//')
       echo "$REPO_ELEMENT"
-      if [ -z "${REPO_ELEMENT}" ] ; then
-        echo "Unable to find ${pkgname} in manifest. Aborting." 1>&2
-        exit 1
-      fi
     done
   })
 
-  if [ -n "${MANIFEST_ENTRIES}" ]; then
-    echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" >> $REPODIR/local_manifest.xml
-    echo "<manifest>" >> $REPODIR/local_manifest.xml
-    echo "${MANIFEST_ENTRIES}"|sort|uniq >> ${REPODIR}/local_manifest.xml
-    echo "</manifest>" >> $REPODIR/local_manifest.xml
+  if [ -n "${MANIFEST_ENTRIES}" ] || [ -n "${MANIFEST_ENTRIES_OLD}" ]; then
+    info "Creating local manifest for workon packages.."
+    echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" >> "${local_manifest}"
+    echo "<manifest>" >> "${local_manifest}"
+    echo -e "${MANIFEST_ENTRIES}\n${MANIFEST_ENTRIES_OLD}" \
+      | sort | uniq >> "${local_manifest}"
+    echo "</manifest>" >> "${local_manifest}"
+    echo "Please run \"repo sync\" now."
   fi
 }
 
@@ -167,7 +168,6 @@ ebuild_to_live () {
     if ! grep -qx "${atom}" "${KEYWORDS_FILE}" ; then
       sudo bash -c "echo \"${atom}\" >> \"${KEYWORDS_FILE}\""
       sudo bash -c "echo \"~${atom}-9999\" >> \"${UNMASK_FILE}\""
-      regen_manifest_and_sync
     else
       warn "Already working on ${atom}"
     fi
@@ -227,7 +227,7 @@ else # not selected --all
 fi
 
 case ${WORKON_CMD} in
-  start)  ebuild_to_live "${ATOM_LIST}" ;;
+  start)  ebuild_to_live "${ATOM_LIST}"; regen_manifest_and_sync ;;
   stop)   ebuild_to_stable "${ATOM_LIST}" ;;
   list)   [ ${FLAGS_all} = "${FLAGS_FALSE}" ] && show_live_ebuilds || show_workon_ebuilds ;;
   iterate)ebuild_iterate "${ATOM_LIST}" ;;
