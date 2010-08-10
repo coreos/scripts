@@ -297,6 +297,10 @@ class DepGraphGenerator(object):
 
     # Modify the environment to disable locking.
     os.environ["PORTAGE_LOCKS"] = "false"
+
+    # Turn off interactive delays
+    os.environ["EBEEP_IGNORE"] = "1"
+    os.environ["EPAUSE_IGNORE"] = "1"
     os.environ["UNMERGE_DELAY"] = "0"
 
     # Parse the emerge options.
