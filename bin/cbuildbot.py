@@ -54,7 +54,7 @@ def _FullCheckout(buildroot):
              cwd=buildroot, input='\n\ny\n')
   RunCommand(['repo', 'sync'], cwd=buildroot)
   RunCommand(['repo', 'forall', '-c', 'git', 'config',
-              'url.ssh://gitrw.chromium.org.pushinsteadof',
+              'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof',
               'http://src.chromium.org/git'], cwd=buildroot)
 
 def _IncrementalCheckout(buildroot):
