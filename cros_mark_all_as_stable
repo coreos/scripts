@@ -80,9 +80,13 @@ for package in ${PACKAGES}; do
   fi
 done
 
-info "Candidate package list ${PACKAGE_LIST}"
-info "With commit id list ${COMMIT_ID_LIST}"
+if [ -n "${PACKAGE_LIST}" ] ; then
+  info "Candidate package list ${PACKAGE_LIST}"
+  info "With commit id list ${COMMIT_ID_LIST}"
 
-./cros_mark_as_stable --board ${FLAGS_board} -p "${PACKAGE_LIST}" \
-  -i "${COMMIT_ID_LIST}" -t ${FLAGS_tracking_branch} commit  || \
+  ./cros_mark_as_stable --board ${FLAGS_board} -p "${PACKAGE_LIST}" \
+    -i "${COMMIT_ID_LIST}" -t ${FLAGS_tracking_branch} commit  || \
     die "Could not mark all packages as stable"
+else
+  info "No candidate packages to be marked"
+fi
