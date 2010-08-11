@@ -132,7 +132,8 @@ regen_manifest_and_sync() {
   local_manifest="${REPODIR}/local_manifest.xml"
 
   # preserve old manifest entries
-  MANIFEST_ENTRIES_OLD=$(cat "${local_manifest}" | grep "^<project")
+  [ -f "${local_manifest}" ] && \
+    MANIFEST_ENTRIES_OLD=$(cat "${local_manifest}" | grep "^<project")
 
   rm -f "${local_manifest}"
 
