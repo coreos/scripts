@@ -1,10 +1,15 @@
 #!/usr/bin/python
 
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
 import errno
 import optparse
 import os
 import shutil
 import subprocess
+import sys
 
 from cbuildbot_config import config
 
@@ -13,8 +18,8 @@ from cbuildbot_config import config
 def RunCommand(cmd, error_ok=False, error_message=None, exit_code=False,
                redirect_stdout=False, redirect_stderr=False, cwd=None,
                input=None):
-  # Useful for debugging:
-  # print >>sys.stderr, "RunCommand:", ' '.join(cmd)
+  # Print out the command before running.
+  print >>sys.stderr, "CBUILDBOT -- RunCommand:", ' '.join(cmd)
   if redirect_stdout:
     stdout = subprocess.PIPE
   else:
@@ -104,7 +109,8 @@ def _GetConfig(config_name):
 
 def main():
   # Parse options
-  parser = optparse.OptionParser()
+  usage = "usage: %prog [options] cbuildbot_config"
+  parser = optparse.OptionParser(usage=usage)
   parser.add_option('-r', '--buildroot',
                     help='root directory where build occurs', default=".")
   parser.add_option('-n', '--buildnumber',
@@ -112,8 +118,12 @@ def main():
   (options, args) = parser.parse_args()
 
   buildroot = options.buildroot
-  buildconfig = _GetConfig(args[0])
-
+  if len(args) == 1:
+    buildconfig = _GetConfig(args[0])
+  else:
+    print >>sys.stderr, "Missing configuration description"
+    parser.print_usage()
+    sys.exit(1)
   try:
     if not os.path.isdir(buildroot):
       _FullCheckout(buildroot)
