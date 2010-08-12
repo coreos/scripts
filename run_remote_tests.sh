@@ -282,24 +282,11 @@ function main() {
       --ssh-port ${FLAGS_ssh_port} \
       "${option}" "${control_file}" -r "${results_dir}" ${verbose} \
       "${args[@]}"
-
-    results_dir="${TMP}/${results_dir_name}"
-    local test_status="${results_dir}/status.log"
-    local test_result_dir="${results_dir}/${short_name}"
-    local keyval_file="${test_result_dir}/results/keyval"
-    echo ""
-    if is_successful_test "${test_status}"; then
-      echo_color "green" ">>> SUCCESS: ${control_file}"
-      if [[ -f "${keyval_file}" ]]; then
-        echo ">>> Keyval was:"
-        cat "${keyval_file}"
-      fi
-    else
-      echo_color "red" ">>> FAILED: ${control_file}"
-      cat "${test_status}"
-    fi
-    local end_time=$(date '+%s')
   done
+
+  echo ""
+  echo_color "yellow" ">>> Test results:"
+  $(dirname "$0")/generate_test_report "${TMP}" --strip="${TMP}/"
 }
 
 main $@
