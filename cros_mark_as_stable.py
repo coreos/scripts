@@ -126,8 +126,10 @@ def _PushChange():
 
   # Sanity check to make sure we're on a stabilizing branch before pushing.
   if not _CheckOnStabilizingBranch():
-    generate_test_report.Die('Expected %s to be on branch "%s"' %
-                             (os.getcwd(), _STABLE_BRANCH_NAME))
+    print 'Not on branch %s so no work found to push.  Exiting' % \
+        _STABLE_BRANCH_NAME
+    return
+
   description = _RunCommand('git log --format=format:%s%n%n%b ' +
                             gflags.FLAGS.tracking_branch + '..')
   description = 'Marking set of ebuilds as stable\n\n%s' % description
