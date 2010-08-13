@@ -1294,8 +1294,12 @@ class EmergeQueue(object):
     # to help schedule jobs.
     emerge.scheduler_graph = emerge.depgraph.schedulerGraph()
 
+    # Calculate how many jobs we can run in parallel. We don't want to pass
+    # the --jobs flag over to emerge itself, because that'll tell emerge to
+    # hide its output, and said output is quite useful for debugging hung
+    # jobs.
     procs = min(self._total_jobs,
-                emerge.opts.get("--jobs", multiprocessing.cpu_count()))
+                emerge.opts.pop("--jobs", multiprocessing.cpu_count()))
     self._emerge_queue = multiprocessing.Queue()
     self._job_queue = multiprocessing.Queue()
     self._print_queue = multiprocessing.Queue()
