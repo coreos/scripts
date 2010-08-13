@@ -349,7 +349,7 @@ update_dev_packages() {
   # Additional changes to developer image.
 
   # Leave core files for developers to inspect.
-  sudo touch "${ROOT_FS_DIR}/etc/leave_core"
+  sudo touch "${ROOT_FS_DIR}/root/.leave_core"
 
   # The ldd tool is a useful shell script but lives in glibc; just copy it.
   sudo cp -a "$(which ldd)" "${root_dev_dir}/usr/bin"
