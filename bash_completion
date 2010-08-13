@@ -7,20 +7,16 @@
 
 # Echo a list of -- flags that the current command accepts. The
 # function assumes that the command supports shflags' --help flag.
-#
-_flags()
-{
-  echo $(command "${COMP_WORDS[0]}" --help 2>&1 | \
-    egrep -o -- --\[^\ \]+: | \
-    sed 's/://; s/--\[no\]\(.\+\)/--\1 --no\1/')
+_flags() {
+  echo $(command "${COMP_WORDS[0]}" --help 2>&1 \
+    | egrep -o -- --\[^\ \]+: \
+    | sed 's/://; s/--\[no\]\(.\+\)/--\1 --no\1/')
 }
 
 
 # Complete flags, i.e., current words starting with --. Return 1 if
 # the current word doesn't start with --, 0 otherwise.
-#
-_flag_complete()
-{
+_flag_complete() {
   COMPREPLY=()
   local cur="${COMP_WORDS[COMP_CWORD]}"
   if [[ "${cur}" == --* ]]; then
@@ -33,9 +29,7 @@ _flag_complete()
 
 # Look for "--arg=foo" or "--arg foo" (where foo can be an empty string) in the
 # word to be completed. If found, echo "--arg=foo".
-#
-_argeq()
-{
+_argeq() {
   local arg=$1
   local w0="${COMP_WORDS[COMP_CWORD]}"
   local w1="${COMP_WORDS[COMP_CWORD-1]}"
@@ -64,17 +58,14 @@ _argeq()
 
 
 # echo the existing target board sysroots
-#
-_board_sysroots()
-{
+_board_sysroots() {
   local builddir=/build
   if [ -d ${builddir} ]; then
     echo $(command ls "${builddir}")
   fi
 }
 
-_complete_board_sysroot_flag()
-{
+_complete_board_sysroot_flag() {
   COMPREPLY=()
   local arg=$(_argeq --board)
   if [[ ${arg} == --board=* ]]; then
@@ -85,25 +76,13 @@ _complete_board_sysroot_flag()
 }
 
 # Completion for --board= argument for existing board sysroots
-#
-_board_sysroot()
-{
+_board_sysroot() {
   _flag_complete && return 0
   _complete_board_sysroot_flag && return 0
 }
 
-complete -o bashdefault -o default -F _board_sysroot \
-  build_autotest.sh \
-  build_image \
-  build_packages \
-  image_to_usb.sh \
-  mod_image_for_test.sh
-
-
 # echo the existing target board overlays
-#
-_board_overlays()
-{
+_board_overlays() {
   local overlaydir=../overlays
   if [ -d ${overlaydir} ]; then
     echo $(command ls $overlaydir | grep overlay- | sed s,overlay-,,)
@@ -111,9 +90,7 @@ _board_overlays()
 }
 
 # Completion for --board= argument for existing board overlays
-#
-_board_overlay()
-{
+_board_overlay() {
   _flag_complete && return 0
 
   COMPREPLY=()
@@ -123,17 +100,14 @@ _board_overlay()
   fi
 }
 
-complete -o bashdefault -o default -F _board_overlay setup_board
-
 # Completion for -c and -s argument for autotest script
 _ls_autotest() {
   local autotest_dir=../third_party/autotest/files
-  ls --color=never -dBFH ${autotest_dir}/$1* 2>/dev/null |\
-    sed s/"..\/third_party\/autotest\/files\/"//g
+  ls --color=never -dBFH ${autotest_dir}/$1* 2>/dev/null \
+    | sed s/"..\/third_party\/autotest\/files\/"//g
 }
 
-_autotest_complete()
-{
+_autotest_complete() {
   _flag_complete && return 0
 
   local arg=$(_argeq -c)
@@ -151,7 +125,68 @@ _autotest_complete()
   _complete_board_sysroot_flag && return 0
 }
 
+# Complete the cros_workon <command> argument.
+#
+# TODO(petkov): We should probably extract the list of commands from
+# cros_workon --help, just like we do for flags (see _flag_complete).
+#
+# TODO(petkov): Currently, this assumes that the command is the first
+# argument. In practice, the command is the first non-flag
+# argument. I.e., this should be fixed to support something like
+# "./cros_workon --all list".
+_cros_workon_command_complete() {
+  [ ${COMP_CWORD} -eq 1 ] || return 1
+  local command="${COMP_WORDS[1]}"
+  COMPREPLY=($(compgen -W "start stop list iterate" -- "$command"))
+  return 0
+}
+
+# Lists the workon (or live, if --all is passed in) ebuilds. Lists
+# both the full names (e.g., chromeos-base/metrics) as well as just
+# the ebuild names (e.g., metrics).
+_cros_workon_list() {
+  local cros_workon="${COMP_WORDS[0]}"
+  ${cros_workon} list $1 | sed 's,\(.\+\)/\(.\+\),\1/\2 \2,'
+}
+
+# Completes the current cros_workon argument assuming it's a
+# package/ebuild name.
+_cros_workon_package_complete() {
+  [ ${COMP_CWORD} -gt 1 ] || return 1
+  local package="${COMP_WORDS[COMP_CWORD]}"
+  local command="${COMP_WORDS[1]}"
+  # If "start", complete based on all workon packages.
+  if [[ ${command} == "start" ]]; then
+    COMPREPLY=($(compgen -W "$(_cros_workon_list --all)" -- "$package"))
+    return 0
+  fi
+  # If "stop" or "iterate", complete based on all live packages.
+  if [[ ${command} == "stop" ]] || [[ ${command} == "iterate" ]]; then
+    COMPREPLY=($(compgen -W "$(_cros_workon_list)" -- "$package"))
+    return 0
+  fi
+  return 1
+}
+
+# Complete the cros_workon arguments.
+_cros_workon() {
+  COMPREPLY=()
+  _cros_workon_command_complete && return 0
+  _flag_complete && return 0
+  _complete_board_sysroot_flag && return 0
+  _cros_workon_package_complete && return 0
+  return 0
+}
+
+complete -o bashdefault -o default -F _board_sysroot \
+  build_autotest.sh \
+  build_image \
+  build_packages \
+  image_to_usb.sh \
+  mod_image_for_test.sh
+complete -o bashdefault -o default -F _board_overlay setup_board
 complete -o bashdefault -o default -o nospace -F _autotest_complete autotest
+complete -o bashdefault -o default -F _cros_workon cros_workon
 
 ###  Local Variables:
 ###  mode: shell-script
