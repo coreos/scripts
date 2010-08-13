@@ -171,9 +171,9 @@ _cros_workon_package_complete() {
 # Complete the cros_workon arguments.
 _cros_workon() {
   COMPREPLY=()
-  _cros_workon_command_complete && return 0
   _flag_complete && return 0
   _complete_board_sysroot_flag && return 0
+  _cros_workon_command_complete && return 0
   _cros_workon_package_complete && return 0
   return 0
 }
