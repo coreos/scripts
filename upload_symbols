@@ -22,41 +22,22 @@ get_default_board
 
 # Flags
 DEFINE_string board "$DEFAULT_BOARD" "The board to build packages for."
-DEFINE_boolean dryrun ${FLAGS_FALSE} "Run without actually uploading."
-DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
 DEFINE_boolean official_build $FLAGS_FALSE "Point to official symbol server."
+DEFINE_boolean regenerate $FLAGS_TRUE "Regenerate all symbols."
+DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts."
 
-DUMP_SYMS="dump_syms"
 SYM_UPLOAD="sym_upload"
 
-CUMULATIVE_SIZE=0
 ANY_ERRORS=0
 
-SYM_FILE=$(mktemp "/tmp/sym.XXXX")
 ERR_FILE=$(mktemp "/tmp/err.XXXX")
 
 function cleanup() {
-  rm -f "${SYM_FILE}" "${ERR_FILE}"
+  rm -f "${ERR_FILE}"
 }
 
-# Given path to a debug file, return its text file
-function get_text_for_debug {
-  local debug_file=$1
-  local text_dir=$(dirname ${debug_file#$DEBUG_ROOT})
-  local text_path=${SYSROOT}${text_dir}/$(basename "${debug_file}" .debug)
-  echo ${text_path}
-}
-
-# Given path to a text file, return its debug file
-function get_debug_for_text {
-  local text_file=$1
-  local text_path=${text_file#${SYSROOT}}
-  local debug_path=${DEBUG_ROOT}${text_path}.debug
-  echo ${debug_path}
-}
-
-function really_upload {
+function really_upload() {
   if [ ${FLAGS_yes} -eq ${FLAGS_TRUE} ]; then
     return 0
   fi
@@ -74,100 +55,25 @@ function really_upload {
   return 0
 }
 
-# Dump given debug and text file to SYM_FILE.  Returns 1 if any errors, even
-# if they can be ignored, but only sets ANY_ERRORS if the error should not
-# be ignored (and we should not proceed to upload).
-function dump_file {
-  local debug_file="$1"
-  local text_file="$2"
-  # Dump symbols as root in order to read all files.
-  if ! sudo "${DUMP_SYMS}" "${debug_file}" "${text_file}" > "${SYM_FILE}" \
-       2> "${ERR_FILE}"; then
-    # A lot of files (like kernel files) contain no debug information, do
-    # not consider such occurrences as errors.
-    if grep -q "file contains no debugging information" "${ERR_FILE}"; then
-      warn "No symbols found for ${text_file}"
-      return 1
-    fi
-    error "Unable to dump symbols for ${text_file}:"
-    cat "${ERR_FILE}"
-    ANY_ERRORS=1
-    return 1
-  fi
+# Upload the given symbol file to given URL.
+function upload_file() {
+  local upload_file="$1"
+  local upload_url="$2"
   if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
-    local file_id=$(head -1 ${SYM_FILE} | cut -d' ' -f4)
-    local module_name=$(head -1 ${SYM_FILE} | cut -d' ' -f5)
-    # Show file upload success and symbol info for easier lookup
-    info "Dumped symbols from ${text_file} for ${module_name}|${file_id}."
+    info "Uploading ${upload_file}"
   fi
-  # Sanity check: if we've created the same named file in the /usr/lib/debug
-  # directory during the src_compile stage of an ebuild, verify our sym file
-  # is the same.
-  local installed_sym="${DEBUG_ROOT}"/$(basename "${text_file}").sym
-  if [ -e "${installed_sym}" ]; then
-    if ! diff "${installed_sym}" "${SYM_FILE}"; then
-      error "${installed_sym} differ from current sym file:"
-      diff "${installed_sym}" "${SYM_FILE}"
-      ANY_ERRORS=1
-      return 1
-    fi
-  fi
-  size=$(wc -c "${SYM_FILE}" | cut -d' ' -f1)
-  CUMULATIVE_SIZE=$((CUMULATIVE_SIZE + $size))
-  return 0
-}
-
-# Upload the current symbol file to given URL.
-function upload_file {
-  local upload_url="$1"
-  if ! "${SYM_UPLOAD}" "${SYM_FILE}" "${upload_url}" > /dev/null \
+  if ! "${SYM_UPLOAD}" "${upload_file}" "${upload_url}" > /dev/null \
       2> "${ERR_FILE}"; then
-    error "Unable to upload symbols in ${SYM_FILE}:"
+    error "Unable to upload symbols in ${upload_file}:"
     cat "${ERR_FILE}"
     ANY_ERRORS=1
     return 1
   fi
   if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
-    size=$(wc -c "${SYM_FILE}" | cut -d' ' -f1)
+    size=$(wc -c "${upload_file}" | cut -d' ' -f1)
     info "Successfully uploaded ${size}B."
   fi
   return 0
-}
-
-# Convert and then upload the given debug file to the given URL.  No
-# return value.
-function process_file {
-  local debug_file="$1"
-  local upload_url="$2"
-  local text_file="$(get_text_for_debug ${debug_file})"
-  if [ "${text_file##*.}" == "ko" ]; then
-    # Skip kernel objects.  We can't use their symbols and they sometimes
-    # have objects with empty text sections which trigger errors in dump_sym.
-    if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
-      info "Skipping kernel object: ${text_file}"
-    fi
-    return 0
-  fi
-  if [ "${text_file#${AUTOTEST_ROOT}}" != "${text_file}" ]; then
-    # Skip autotest files, they are not part of the image to debug
-    # and some cause trouble to dump_syms because they are built
-    # externally (with different build options).
-    if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
-      info "Skipping autotest file: ${text_file}"
-    fi
-    return 0
-  fi
-  if [ ! -f "${text_file}" ]; then
-    # Allow files to not exist, for instance if they are in the INSTALL_MASK.
-    warn "Binary does not exist: ${text_file}"
-    return 0
-  fi
-
-  dump_file "${debug_file}" "${text_file}" || return 0
-
-  [ ${FLAGS_dryrun} -eq ${FLAGS_TRUE} ] && return 0
-
-  upload_file "${upload_url}"
 }
 
 function main() {
@@ -185,52 +91,36 @@ function main() {
   SYSROOT="/build/${FLAGS_board}"
 
   local upload_url=""
-  if [ ${FLAGS_dryrun} -eq ${FLAGS_FALSE} ]; then
-    if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
-      upload_url="http://clients2.google.com/cr/symbol"
-    else
-      upload_url="http://clients2.google.com/cr/staging_symbol"
-      warn "This is an unofficial build, uploading to staging server."
-    fi
-    info "Uploading symbols to ${upload_url} from ${SYSROOT}."
+  if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
+    upload_url="http://clients2.google.com/cr/symbol"
   else
-    warn "Will not upload symbols due to --nodryrun."
+    upload_url="http://clients2.google.com/cr/staging_symbol"
+    warn "This is an unofficial build, uploading to staging server."
   fi
+  info "Uploading symbols to ${upload_url} from ${SYSROOT}."
 
-  DEBUG_ROOT="${SYSROOT}/usr/lib/debug"
-  AUTOTEST_ROOT="${SYSROOT}/usr/local/autotest"
-  CUMULATIVE_SIZE=0
+  MINIDUMP_SYMBOLS_ROOT="${SYSROOT}/usr/lib/debug/breakpad"
 
   if [ -z "${FLAGS_ARGV}" ]; then
-    if [ ${FLAGS_dryrun} -eq ${FLAGS_FALSE} ]; then
-      really_upload || exit 1
-    fi
-    for debug_file in $(find "${DEBUG_ROOT}" -name \*.debug); do
-      ! process_file "${debug_file}" "${upload_url}"
-    done
-  else
-    for either_file in ${FLAGS_ARGV}; do
-      either_file=${either_file#\'}
-      either_file=${either_file%\'}
-      if [ ! -f "${either_file}" ]; then
-        error "Specified file ${either_file} does not exist"
+    really_upload || exit 1
+    if [ ${FLAGS_regenerate} -eq ${FLAGS_TRUE} ]; then
+      sudo rm -rf "${MINIDUMP_SYMBOLS_ROOT}"
+      info "Generating all minidump symbol files."
+      local verbosity=""
+      local generate_script="$(dirname $0)/cros_generate_breakpad_symbols"
+      [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ] && verbosity="--verbose"
+      if ! "${generate_script}" --board=${FLAGS_board} ${verbosity}; then
+        error "Some errors while generating symbols; uploading anyway"
         ANY_ERRORS=1
-        continue
       fi
-      if [ "${either_file##*.}" == "debug" ]; then
-        debug_file="${either_file}"
-      else
-        debug_file="$(get_debug_for_text ${either_file})"
-      fi
-      ! process_file "${debug_file}" "${upload_url}";
-    done
-  fi
+    fi
 
-  if [ ${FLAGS_dryrun} -eq ${FLAGS_TRUE} ]; then
-    warn "Did not actually upload, pass --nodryrun to upload"
-    info "Would have uploaded ${CUMULATIVE_SIZE}B of debug information"
+    info "Uploading all minidump symbol files."
+    for sym_file in $(find "${MINIDUMP_SYMBOLS_ROOT}" -name \*.sym); do
+      ! upload_file "${sym_file}" "${upload_url}"
+    done
   else
-    info "Uploaded ${CUMULATIVE_SIZE}B of debug information"
+    error "Unexpected args ${FLAGS_ARGV}"
   fi
 
   [ ${ANY_ERRORS} -ne 0 ] && die "Encountered problems"

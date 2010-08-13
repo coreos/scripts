@@ -1,0 +1,206 @@
+#!/bin/bash
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Script to generate minidump symbols in the format required by
+# minidump_stackwalk to dump stack information.
+#
+# NOTE: This script must be run from the chromeos build chroot environment.
+#
+
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+. "$(dirname "$0")/common.sh"
+
+# Script must be run inside the chroot
+restart_in_chroot_if_needed $*
+
+get_default_board
+
+# Flags
+DEFINE_string board "$DEFAULT_BOARD" "The board to build packages for."
+DEFINE_string minidump_symbol_root "" \
+  "Symbol root (defaults to /usr/lib/debug/breakpad for board)"
+DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
+
+DUMP_SYMS="dump_syms"
+
+CUMULATIVE_SIZE=0
+ANY_ERRORS=0
+
+SYM_FILE=$(mktemp "/tmp/sym.XXXX")
+ERR_FILE=$(mktemp "/tmp/err.XXXX")
+
+function cleanup() {
+  rm -f "${SYM_FILE}" "${ERR_FILE}"
+}
+
+# Given path to a debug file, return its text file
+function get_text_for_debug() {
+  local debug_file=$1
+  local text_dir=$(dirname ${debug_file#$DEBUG_ROOT})
+  local text_path=${SYSROOT}${text_dir}/$(basename "${debug_file}" .debug)
+  echo ${text_path}
+}
+
+# Given path to a text file, return its debug file
+function get_debug_for_text() {
+  local text_file=$1
+  local text_path=${text_file#${SYSROOT}}
+  local debug_path=${DEBUG_ROOT}${text_path}.debug
+  echo ${debug_path}
+}
+
+# Verify the file given is not a 64-bit ELF file.  For now all targets
+# are 32-bit, we'll need to determine the correct bit automatically
+# once we release 64-bit versions.  Allow files in /usr/lib64 to exist
+# on the image and only give warnings.
+function verify_not_64b_elf() {
+  local elf="$1"
+  if file "${elf}" | grep -q "ELF 64-bit"; then
+    # Allow with a warning if in /usr/lib64
+    if echo "${elf}" | grep -q /usr/lib64; then
+      warn "64-bit usr/lib64 file ${elf} ignored."
+    else
+      error "File ${elf} is a 64b executable"
+      ANY_ERRORS=1
+    fi
+    return 1
+  fi
+  return 0
+}
+
+# Dump given debug and text file.  Returns 1 if any errors, even
+# if they can be ignored, but only sets ANY_ERRORS if the error should not
+# be ignored (and we should not proceed to upload).
+function dump_file() {
+  local debug_file="$1"
+  local text_file="$2"
+  # 64b ELF files may be installed on the target in PERL directories
+  verify_not_64b_elf "${debug_file}" || return 1
+  verify_not_64b_elf "${text_file}" || return 1
+  # Dump symbols as root in order to read all files.
+  if ! sudo "${DUMP_SYMS}" "${debug_file}" "${text_file}" > "${SYM_FILE}" \
+       2> "${ERR_FILE}"; then
+    # A lot of files (like kernel files) contain no debug information, do
+    # not consider such occurrences as errors.
+    if grep -q "file contains no debugging information" "${ERR_FILE}"; then
+      warn "No symbols found for ${text_file}"
+      return 1
+    fi
+    error "Unable to dump symbols for ${text_file}:"
+    cat "${ERR_FILE}"
+    ANY_ERRORS=1
+    return 1
+  fi
+  local file_id=$(head -1 ${SYM_FILE} | cut -d' ' -f4)
+  local module_name=$(head -1 ${SYM_FILE} | cut -d' ' -f5)
+  if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
+    # Show file upload success and symbol info for easier lookup
+    info "Dumped symbols from ${text_file} for ${module_name}|${file_id}."
+  fi
+  # Sanity check: if we've created the same named file in the /usr/lib/debug
+  # directory during the src_compile stage of an ebuild, verify our sym file
+  # is the same.
+  local installed_sym="${DEBUG_ROOT}"/$(basename "${text_file}").sym
+  if [ -e "${installed_sym}" ]; then
+    if ! diff "${installed_sym}" "${SYM_FILE}"; then
+      error "${installed_sym} differ from current sym file:"
+      diff "${installed_sym}" "${SYM_FILE}"
+      ANY_ERRORS=1
+      return 1
+    fi
+  fi
+  size=$(wc -c "${SYM_FILE}" | cut -d' ' -f1)
+  CUMULATIVE_SIZE=$((CUMULATIVE_SIZE + $size))
+
+  local container_dir="${FLAGS_minidump_symbol_root}/${module_name}/${file_id}"
+  sudo mkdir -p "${container_dir}"
+  sudo mv "${SYM_FILE}" "${container_dir}/${module_name}.sym"
+  return 0
+}
+
+# Convert the given debug file.  No return value.
+function process_file() {
+  local debug_file="$1"
+  local text_file="$(get_text_for_debug ${debug_file})"
+  if [ "${text_file##*.}" == "ko" ]; then
+    # Skip kernel objects.  We can't use their symbols and they sometimes
+    # have objects with empty text sections which trigger errors in dump_sym.
+    if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
+      info "Skipping kernel object: ${text_file}"
+    fi
+    return 0
+  fi
+  if [ "${text_file#${AUTOTEST_ROOT}}" != "${text_file}" ]; then
+    # Skip autotest files, they are not part of the image to debug
+    # and some cause trouble to dump_syms because they are built
+    # externally (with different build options).
+    if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
+      info "Skipping autotest file: ${text_file}"
+    fi
+    return 0
+  fi
+  if [ ! -f "${text_file}" ]; then
+    # Allow files to not exist, for instance if they are in the INSTALL_MASK.
+    warn "Binary does not exist: ${text_file}"
+    return 0
+  fi
+
+  dump_file "${debug_file}" "${text_file}"
+}
+
+function main() {
+  trap cleanup EXIT
+
+  # Parse command line
+  FLAGS_HELP="usage: $0 [flags] [<files...>]"
+  FLAGS "$@" || exit 1
+  eval set -- "${FLAGS_ARGV}"
+
+  set -e
+
+  [ -n "$FLAGS_board" ] ||  die "--board is required."
+
+  SYSROOT="/build/${FLAGS_board}"
+
+  if [[ -z "${FLAGS_minidump_symbol_root}" ]]; then
+    FLAGS_minidump_symbol_root="${SYSROOT}/usr/lib/debug/breakpad"
+  fi
+
+  info "Writing minidump symbols to ${FLAGS_minidump_symbol_root}"
+
+  DEBUG_ROOT="${SYSROOT}/usr/lib/debug"
+  AUTOTEST_ROOT="${SYSROOT}/usr/local/autotest"
+  CUMULATIVE_SIZE=0
+
+  if [ -z "${FLAGS_ARGV}" ]; then
+    for debug_file in $(find "${DEBUG_ROOT}" -name \*.debug); do
+      ! process_file "${debug_file}"
+    done
+  else
+    for either_file in ${FLAGS_ARGV}; do
+      either_file=${either_file#\'}
+      either_file=${either_file%\'}
+      if [ ! -f "${either_file}" ]; then
+        error "Specified file ${either_file} does not exist"
+        ANY_ERRORS=1
+        continue
+      fi
+      if [ "${either_file##*.}" == "debug" ]; then
+        debug_file="${either_file}"
+      else
+        debug_file="$(get_debug_for_text ${either_file})"
+      fi
+      ! process_file "${debug_file}"
+    done
+  fi
+
+  info "Generated ${CUMULATIVE_SIZE}B of debug information"
+
+  [ ${ANY_ERRORS} -ne 0 ] && die "Encountered problems"
+  return 0
+}
+
+main "$@"
