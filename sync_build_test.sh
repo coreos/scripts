@@ -533,17 +533,18 @@ function main() {
         ./build_packages "${board_param}" \
         ${jobs_param} ${withdev_param} ${build_autotest_param} \
         ${pkg_param}
-
-    if [[ "${FLAGS_board}" == "x86-generic" ]]; then
-      run_phase_in_chroot "Running unit tests" ./cros_run_unit_tests \
-        ${board_param}
-    fi
   fi
 
   if [[ ${FLAGS_chrome_root} ]]; then
     run_phase_in_chroot "Building Chromium browser" \
       BOARD="${FLAGS_board}" USE="build_tests" FEATURES="-usersandbox" \
       CHROME_ORIGIN=LOCAL_SOURCE emerge-${FLAGS_board} chromeos-chrome
+  fi
+
+  if [[ ${FLAGS_unittest} -eq ${FLAGS_TRUE} ]] && [[ "${FLAGS_board}" == \
+    "x86-generic" ]] ; then
+    run_phase_in_chroot "Running unit tests" ./cros_run_unit_tests \
+      ${board_param}
   fi
 
   if [[ ${FLAGS_master} -eq ${FLAGS_TRUE} ]]; then
