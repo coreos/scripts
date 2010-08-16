@@ -50,12 +50,46 @@ set -e
 # Constants
 IMAGE_DIR="$(dirname "$FLAGS_image")"
 IMAGE_NAME="$(basename "$FLAGS_image")"
-ROOT_FS_DIR="$IMAGE_DIR/rootfs"
-STATEFUL_DIR="$IMAGE_DIR/stateful_partition"
 RECOVERY_IMAGE="recovery_image.bin"
 
-mount_gpt_cleanup() {
-  "${SCRIPTS_DIR}/mount_gpt_image.sh" -u -r "$1" -s "$2"
+# loop device utility methods mostly duplicated from
+#   src/platform/installer/chromeos-install
+# TODO(tgao): minimize duplication by refactoring these methods into a separate
+# library script which both scripts can reference
+
+# Set up loop device for an image file at specified offset
+loop_offset_setup() {
+  local filename=$1
+  local offset=$2  # 512-byte sectors
+
+  LOOP_DEV=$(sudo losetup -f)
+  if [ -z "$LOOP_DEV" ]
+  then
+    echo "No free loop device. Free up a loop device or reboot. Exiting."
+    exit 1
+  fi
+
+  sudo losetup -o $(($offset * 512)) ${LOOP_DEV} ${filename}
+}
+
+loop_offset_cleanup() {
+  sudo losetup -d ${LOOP_DEV} || /bin/true
+}
+
+mount_on_loop_dev() {
+  TMPMNT=$(mktemp -d)
+  sudo mount ${LOOP_DEV} ${TMPMNT}
+}
+
+# Unmount loop-mounted device.
+umount_from_loop_dev() {
+  mount | grep -q " on ${TMPMNT} " && sudo umount ${TMPMNT}
+}
+
+# Undo both mount and loop.
+my_cleanup() {
+  umount_from_loop_dev
+  loop_offset_cleanup
 }
 
 # Modifies an existing image for recovery use
@@ -64,18 +98,16 @@ update_recovery_packages() {
 
   echo "Modifying image ${image_name} for recovery use"
 
-  trap "mount_gpt_cleanup \"${ROOT_FS_DIR}\" \"${STATEFUL_DIR}\"" EXIT
-
-  ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${IMAGE_DIR}" \
-    --image "$( basename ${image_name} )" -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_DIR}"
-
-  # Mark the image as a recovery image (needed for recovery boot)
-  sudo touch "${STATEFUL_DIR}/.recovery"
-
+  locate_gpt  # set $GPT env var
+  loop_offset_setup ${image_name} $(partoffset "${image_name}" 1)
+  trap loop_offset_cleanup EXIT
+  mount_on_loop_dev "readwrite"
+  trap my_cleanup EXIT
+  sudo touch ${TMPMNT}/.recovery
+  umount_from_loop_dev
+  trap loop_offset_cleanup EXIT
+  loop_offset_cleanup
   trap - EXIT
-  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
-      -s "${STATEFUL_DIR}"
 }
 
 # Main
@@ -84,9 +116,5 @@ DST_PATH="${IMAGE_DIR}/${RECOVERY_IMAGE}"
 echo "Making a copy of original image ${FLAGS_image}"
 cp $FLAGS_image $DST_PATH
 update_recovery_packages $DST_PATH
-
-# Now make it bootable with the flags from build_image
-${SCRIPTS_DIR}/bin/cros_make_image_bootable "${IMAGE_DIR}" \
-                                            "${RECOVERY_IMAGE}"
 
 echo "Recovery image created at ${DST_PATH}"
