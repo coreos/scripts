@@ -167,7 +167,7 @@ else
   
   GENERATOR="$(dirname "$0")/mk_memento_images.sh"
 
-  "$GENERATOR" "$DST_KERNEL" "$DST_ROOT"
+  CROS_GENERATE_UPDATE_PAYLOAD_CALLED=1 "$GENERATOR" "$DST_KERNEL" "$DST_ROOT"
   mv "$(dirname "$DST_KERNEL")/update.gz" "$FLAGS_output"
   
   trap - INT TERM EXIT

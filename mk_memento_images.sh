@@ -15,6 +15,12 @@ if [ -z "$2" -o -z "$1" ]; then
   exit 1
 fi
 
+if [ "$CROS_GENERATE_UPDATE_PAYLOAD_CALLED" != "1" ]; then
+  echo "This script should only be called from cros_generate_update_payload"
+  echo "Please run that script with --help to see how to use it."
+  exit 1
+fi
+
 if [ $(whoami) = "root" ]; then
   echo "running $0 as root which is unneccessary"
 fi
@@ -51,19 +57,8 @@ if [ $(stat -c%s "$UNCOMPRESSED_OUT_FILE") -ne $((8 + $KPART_SIZE)) ]; then
   exit 1
 fi
 
-# Copy rootfs aside
-TMP_ROOTFS=$(mktemp)
-cp "$ROOT_PART" "$TMP_ROOTFS"
-ORIGINAL_LABEL=$(/sbin/e2label "$TMP_ROOTFS")
-NEW_LABEL="A${ORIGINAL_LABEL}"
-/sbin/tune2fs -L "$NEW_LABEL" "$TMP_ROOTFS"
-
-# TODO(adlr): Sign TMP_ROOTFS w/ OS vendor's private key
-
 # Put rootfs into the out file
-cat "$TMP_ROOTFS" >> "$UNCOMPRESSED_OUT_FILE"
-
-rm "$TMP_ROOTFS"
+cat "$ROOT_PART" >> "$UNCOMPRESSED_OUT_FILE"
 
 # compress and hash
 CS_AND_RET_CODES=$(gzip -c "$UNCOMPRESSED_OUT_FILE" | \
