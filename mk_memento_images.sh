@@ -16,9 +16,9 @@ if [ -z "$2" -o -z "$1" ]; then
 fi
 
 if [ "$CROS_GENERATE_UPDATE_PAYLOAD_CALLED" != "1" ]; then
+  echo "WARNING:"
   echo "This script should only be called from cros_generate_update_payload"
   echo "Please run that script with --help to see how to use it."
-  exit 1
 fi
 
 if [ $(whoami) = "root" ]; then
