@@ -67,7 +67,7 @@ DEFINE_boolean fast ${DEFAULT_FAST} \
 DEFINE_string usb_disk /dev/sdb3 \
   "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
 
-DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
+DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
 DEFINE_integer verity_error_behavior 2 \
   "Kernel verified boot error behavior (0: I/O errors, 1: reboot, 2: nothing) \
@@ -201,10 +201,6 @@ if [[ ${FLAGS_jobs} -ne -1 ]]; then
   EMERGE_JOBS="--jobs=${FLAGS_jobs}"
 fi
 
-if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-  enable_rootfs_verification_flag="--enable_rootfs_verification"
-fi
-
 # Figure out ARCH from the given toolchain.
 # TODO: Move to common.sh as a function after scripts are switched over.
 TC_ARCH=$(echo "${CHOST}" | awk -F'-' '{ print $1 }')
@@ -219,6 +215,17 @@ case "${TC_ARCH}" in
     error "Unable to determine ARCH from toolchain: ${CHOST}"
     exit 1
 esac
+
+if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
+  enable_rootfs_verification_flag="--enable_rootfs_verification"
+  # Comment out this section if you need to start testing vboot on arm.
+  if [[ "${ARCH}" = "arm" ]]; then
+    warn "ARM does not yet support --enable_rootfs_verification"
+    warn "Root filesystem verification has been disabled."
+    enable_rootfs_verification_flag=
+    FLAGS_enable_rootfs_verification_flag=${FLAGS_FALSE}
+  fi
+fi
 
 # Hack to fix bug where x86_64 CHOST line gets incorrectly added.
 # ToDo(msb): remove this hack.
