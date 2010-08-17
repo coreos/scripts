@@ -646,22 +646,22 @@ class DepGraphGenerator(object):
         to a list of the cycles the package is involved in.
       """
 
-      def FindCyclesAtNode(pkg, cycles, unresolved, resolved):
+      def FindCyclesAtNode(pkg, cycles, unresolved):
         """Find cycles in cyclic dependencies starting at specified package.
 
         Args:
           pkg: Package identifier.
           cycles: Set of cycles so far.
           unresolved: Nodes that have been visited but are not fully processed.
-          resolved: Nodes that have been visited and are fully processed.
-        Returns:
-          Whether a cycle was found.
         """
-        if pkg in resolved:
-          return
         unresolved.append(pkg)
+        mycycles = cycles.get(pkg)
+        if mycycles:
+          mycycles = mycycles.get("pkgs")
         for dep in deps_map[pkg]["needs"]:
-          if dep in unresolved:
+          if mycycles and dep in mycycles:
+            continue
+          elif dep in unresolved:
             idx = unresolved.index(dep)
             mycycle = unresolved[idx:] + [dep]
             for cycle_pkg in mycycle:
@@ -669,13 +669,12 @@ class DepGraphGenerator(object):
               info.setdefault("pkgs", set()).update(mycycle)
               info.setdefault("cycles", []).append(mycycle)
           else:
-            FindCyclesAtNode(dep, cycles, unresolved, resolved)
+            FindCyclesAtNode(dep, cycles, unresolved)
         unresolved.pop()
-        resolved.add(pkg)
 
-      cycles, unresolved, resolved = {}, [], set()
+      cycles, unresolved = {}, []
       for pkg in deps_map:
-        FindCyclesAtNode(pkg, cycles, unresolved, resolved)
+        FindCyclesAtNode(pkg, cycles, unresolved)
       return cycles
 
     def RemoveInstalledPackages():
@@ -740,9 +739,9 @@ class DepGraphGenerator(object):
     def SanitizeTree(cycles):
       """Remove circular dependencies.
 
-      We only prune circular dependencies that go against the emerge ordering.
-      This has a nice property: we're guaranteed to merge dependencies in the
-      same order that portage does.
+      We prune all dependencies involved in cycles that go against the emerge
+      ordering. This has a nice property: we're guaranteed to merge
+      dependencies in the same order that portage does.
 
       Because we don't treat any dependencies as "soft" unless they're killed
       by a cycle, we pay attention to a larger number of dependencies when
@@ -753,20 +752,25 @@ class DepGraphGenerator(object):
         package to a list of the cycles the package is involved in. Produced
         by FindCycles().
       """
-      for basedep in set(cycles).intersection(deps_map):
-        this_pkg = deps_map[basedep]
-        for dep in this_pkg["provides"].intersection(cycles[basedep]["pkgs"]):
-          if deps_info[basedep]["idx"] >= deps_info[dep]["idx"]:
-            for mycycle in cycles[basedep]["cycles"]:
-              if dep in mycycle:
-                print "Breaking %s -> %s in cycle:" % (dep, basedep)
-                for i in range(len(mycycle) - 1):
-                  needs = deps_map[mycycle[i]]["needs"]
-                  deptype = needs.get(mycycle[i+1], "deleted")
-                  print "  %s -> %s (%s)" % (mycycle[i], mycycle[i+1], deptype)
-                del deps_map[dep]["needs"][basedep]
-                this_pkg["provides"].remove(dep)
-                break
+      for basedep, cycle_info in cycles.iteritems():
+        for mycycle in cycle_info["cycles"]:
+          info = []
+          broken = False
+          for i in range(len(mycycle) - 1):
+            pkg1, pkg2 = mycycle[i], mycycle[i+1]
+            needs = deps_map[pkg1]["needs"]
+            depinfo = needs.get(pkg2, "deleted")
+            bad = False
+            if (deps_info[pkg1]["idx"] >= deps_info[pkg2]["idx"] and
+                depinfo != "deleted"):
+              depinfo = depinfo + ", deleting"
+              broken = True
+              del deps_map[pkg1]["needs"][pkg2]
+              deps_map[pkg2]["provides"].remove(pkg1)
+            info.append("  %s -> %s (%s)" % (pkg1, pkg2, depinfo))
+          if broken:
+            print "Breaking cycle:"
+            print "\n".join(info)
 
     def AddSecretDeps():
       """Find these tagged packages and add extra dependencies.
@@ -1069,15 +1073,23 @@ class DepGraphGenerator(object):
           plan.add(item)
           install_plan.append(self.package_db[item])
 
+    for pkg in plan:
+      del deps_map[pkg]
+
+    if deps_map:
+      print "Cyclic dependencies:", " ".join(deps_map)
+      PrintDepsMap(deps_map)
+      sys.exit(1)
+
     self.emerge.depgraph.display(install_plan)
 
 
 def PrintDepsMap(deps_map):
   """Print dependency graph, for each package list it's prerequisites."""
-  for i in deps_map:
+  for i in sorted(deps_map):
     print "%s: (%s) needs" % (i, deps_map[i]["action"])
     needs = deps_map[i]["needs"]
-    for j in needs:
+    for j in sorted(needs):
       print "    %s" % (j)
     if not needs:
       print "    no dependencies"
