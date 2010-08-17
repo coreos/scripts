@@ -25,6 +25,8 @@ DEFINE_boolean keep_work ${FLAGS_FALSE} \
   "Keep temporary files (*.keyblock, *.vbpubk). (Default: false)"
 DEFINE_string keys_dir "${SRC_ROOT}/platform/vboot_reference/tests/testkeys" \
   "Directory with the RSA signing keys. (Defaults to test keys)"
+DEFINE_boolean use_dev_keys ${FLAGS_FALSE} \
+  "Use developer keys for signing. (Default: false)"
 # Note, to enable verified boot, the caller would manually pass:
 # --boot_args='dm="... /dev/sd%D%P /dev/sd%D%P ..." \
 # --root=/dev/dm-0
@@ -134,11 +136,20 @@ EOF
 
   # We sign the image with the recovery_key, because this is what goes onto the
   # USB key. We can only boot from the USB drive in recovery mode.
+  # For dev install shim, we need to use the installer keyblock instead of
+  # the recovery keyblock because of the difference in flags.
+  if [ ${FLAGS_use_dev_keys} -eq ${FLAGS_TRUE} ]; then
+    USB_KEYBLOCK=installer_kernel.keyblock
+    info "DEBUG: use dev install signing key"
+  else
+    USB_KEYBLOCK=recovery_kernel.keyblock
+    info "DEBUG: use recovery signing key"
+  fi
 
   # Create and sign the kernel blob
   vbutil_kernel \
     --pack "${FLAGS_to}" \
-    --keyblock "${FLAGS_keys_dir}/recovery_kernel.keyblock" \
+    --keyblock "${FLAGS_keys_dir}/${USB_KEYBLOCK}" \
     --signprivate "${FLAGS_keys_dir}/recovery_kernel_data_key.vbprivk" \
     --version 1 \
     --config "${FLAGS_working_dir}/config.txt" \

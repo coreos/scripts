@@ -45,6 +45,8 @@ DEFINE_string to "" \
 DEFINE_boolean factory_install ${FLAGS_FALSE} \
   "Build a smaller image to overlay the factory install shim on; this argument \
 is also required in image_to_usb."
+DEFINE_boolean dev_install ${FLAGS_FALSE} \
+  "Build a smaller image to overlay the dev recovery install shim on"
 DEFINE_string arm_extra_bootargs "" \
   "Additional command line options to pass to the ARM kernel."
 DEFINE_integer rootfs_partition_size 1024 \
@@ -100,6 +102,24 @@ bigger than partition (${FLAGS_rootfs_partition_size} MB)."
   exit 1
 fi
 
+# Verify user didn't specify incompatible flags for dev install shim
+if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] &&
+   [ ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
+  error "Incompatible flags: --factory_install and --dev_install cannot be \
+both set to True. Please specify one or none."
+  exit 1
+fi
+
+# Disable --withdev flag when --dev_install is set to True. Otherwise, the
+# dev image produced will be based on dev install shim, rather than a pristine
+# image
+if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ] &&
+   [ ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
+  info "Incompatible flags: --withdev and --dev_install cannot be both set to \
+True. Reset --withdev to False."
+  FLAGS_withdev=${FLAGS_FALSE}
+fi
+
 EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
 if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
   echo "Using alternate emerge"
@@ -123,6 +143,11 @@ PRISTINE_IMAGE_NAME=chromiumos_image.bin
 if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
   PRISTINE_IMAGE_NAME=chromiumos_base_image.bin
   DEVELOPER_IMAGE_NAME=chromiumos_image.bin
+fi
+
+# Rename pristine image for dev install shim
+if [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ]; then
+  PRISTINE_IMAGE_NAME=dev_install_shim.bin
 fi
 
 PRISTINE_IMG="${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}"
@@ -167,7 +192,8 @@ fi
 
 # Reduce the size of factory install shim.
 # TODO: Build a separated ebuild for the factory install shim to reduce size.
-if [[ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]] ; then
+if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ||
+   [ ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
   INSTALL_MASK="${INSTALL_MASK} ${FACTORY_INSTALL_MASK}"
 fi
 
@@ -368,9 +394,10 @@ update_dev_packages() {
   fi
 
   # Check that the image has been correctly created.  Only do it if not
-  # building a factory install image, as the INSTALL_MASK for it will
-  # make test_image fail.
-  if [[ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]] ; then
+  # building a factory install image and not a dev install shim, as the
+  # INSTALL_MASK for it will make test_image fail.
+  if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ] &&
+     [ ${FLAGS_dev_install} -eq ${FLAGS_FALSE} ] ; then
     "${SCRIPTS_DIR}/test_image" \
       --root="${ROOT_FS_DIR}" \
       --target="${ARCH}"
@@ -428,7 +455,9 @@ create_base_image() {
 
   # Create root file system disk image to fit on a 1GB memory stick.
   # 1 GB in hard-drive-manufacturer-speak is 10^9, not 2^30.  950MB < 10^9 bytes.
-  if [[ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]] ; then
+  # Minimize rootfs size for dev install shim and factory installer
+  if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ||
+     [ ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
     ROOT_SIZE_BYTES=$((1024 * 1024 * 300))
   else
     ROOT_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_rootfs_size}))
@@ -565,8 +594,9 @@ create_base_image() {
     --install \
     ${enable_rootfs_verification}
 
-  # Don't test the factory install shim.
-  if [[ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]] ; then
+  # Don't test the factory install shim or the dev install shim
+  if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ] &&
+     [ ${FLAGS_dev_install} -eq ${FLAGS_FALSE} ]; then
     # Check that the image has been correctly created.
     "${SCRIPTS_DIR}/test_image" \
       --root="${ROOT_FS_DIR}" \
@@ -635,14 +665,28 @@ if [[ -f ${PRISTINE_IMG} ]] ; then
 else
   create_base_image ${PRISTINE_IMAGE_NAME}
 fi
+
+USE_DEV_KEYS=
+if [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ]; then
+  USE_DEV_KEYS="--use_dev_keys"
+fi
+
+# Place flags before positional args
 ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
-                                            "${PRISTINE_IMAGE_NAME}"
+                                            "${PRISTINE_IMAGE_NAME}" \
+                                            ${USE_DEV_KEYS}
 
 # FIXME: only signing things for x86 right now.
 if [[ "${ARCH}" = "x86" ]]; then
+  BOOT_FLAG=
+  if [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ] ; then
+    BOOT_FLAG="-b 1"  # BOOT_FLAG_DEVELOPER value defined in load_kernel_fw.h
+    info "--dev_install set, pass BOOT_FLAG_DEVELOPER flag to load_kernel_test"
+  fi
+
   # Verify the final image.
   load_kernel_test "${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}" \
-    "${DEVKEYSDIR}/recovery_key.vbpubk"
+    "${DEVKEYSDIR}/recovery_key.vbpubk" ${BOOT_FLAG}
 fi
 
 # Create a developer image based on the chromium os base image.

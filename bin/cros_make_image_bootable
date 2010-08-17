@@ -19,10 +19,6 @@ fi
 set -e
 . "$(dirname "$0")/../chromeos-common.sh"  # for partoffset and partsize
 
-if [ ${#} -ne 2 ]; then
-  die "Usage: $0 /path/to/image/dir image_name"
-fi
-
 BOOT_DESC_FILE="${1}/boot.desc"
 IMAGE="${1}/${2}"
 
@@ -93,10 +89,16 @@ DEFINE_string statefulfs_mountpoint "/tmp/statefulfs" \
 DEFINE_string espfs_mountpoint "/tmp/espfs" \
   "Path where the espfs can be safely mounted"
 
+DEFINE_boolean use_dev_keys ${FLAGS_FALSE} \
+  "Use developer keys for signing. (Default: false)"
+
+# Parse command-line flags present after positional args, if any. This needs
+# to happen before we parse boot.desc (otherwise the flags would be lost)
+FLAGS "${@}" || exit 1
+
 # Parse the boot.desc
 eval set -- "${BOOT_DESC}"
 FLAGS "${@}" || exit 1
-eval set -- "${FLAGS_ARGV}"
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
 # so will die prematurely if 'set -e' is specified before now.
@@ -115,6 +117,7 @@ mount_gpt_cleanup() {
 
 make_image_bootable() {
   local image="$1"
+  local use_dev_keys=
 
   cros_root=/dev/sd%D%P
   if [[ "${FLAGS_arch}" = "arm" ]]; then
@@ -136,6 +139,10 @@ make_image_bootable() {
   root_dev=$(mount | grep -- "on ${FLAGS_rootfs_mountpoint} type" |
              cut -f1 -d' ' | tail -1)
 
+  if [ ${FLAGS_use_dev_keys} -eq ${FLAGS_TRUE} ]; then
+    use_dev_keys="--use_dev_keys"
+  fi
+
   # Builds the kernel partition image.  The temporary files are kept around
   # so that we can perform a load_kernel_test later on the final image.
   ${SCRIPTS_DIR}/build_kernel_image.sh \
@@ -152,7 +159,8 @@ make_image_bootable() {
     --verity_max_ios=${FLAGS_verity_max_ios} \
     --verity_error_behavior=${FLAGS_verity_error_behavior} \
     --root=${cros_root} \
-    --keys_dir="${FLAGS_keys_dir}"
+    --keys_dir="${FLAGS_keys_dir}" \
+    ${use_dev_keys}
 
   local rootfs_hash_size=$(stat -c '%s' ${FLAGS_rootfs_hash})
   info "Appending rootfs.hash (${rootfs_hash_size} bytes) to the root fs"
