@@ -50,14 +50,14 @@ DEFINE_boolean dev_install ${FLAGS_FALSE} \
 DEFINE_string arm_extra_bootargs "" \
   "Additional command line options to pass to the ARM kernel."
 DEFINE_integer rootfs_partition_size 1024 \
-  "rootfs parition size in MBs."
+  "rootfs partition size in MiBs."
 DEFINE_integer rootfs_size 720 \
-  "rootfs filesystem size in MBs."
+  "rootfs filesystem size in MiBs."
 # ceil(0.1 * rootfs_size) is a good minimum.
 DEFINE_integer rootfs_hash_pad 8 \
-  "MBs reserved at the end of the rootfs image."
+  "MiBs reserved at the end of the rootfs image."
 DEFINE_integer statefulfs_size 1024 \
-  "stateful filesystem size in MBs."
+  "stateful filesystem size in MiBs."
 DEFINE_boolean preserve ${FLAGS_FALSE} \
   "Attempt to preserve the previous build image if one can be found (unstable, \
 kernel/firmware not updated)"
@@ -97,8 +97,8 @@ fi
 
 if [ "$((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad))" -gt \
      "${FLAGS_rootfs_partition_size}" ] ; then
-  error "rootfs ($((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) MB) is \
-bigger than partition (${FLAGS_rootfs_partition_size} MB)."
+  error "rootfs ($((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) MiB) is \
+bigger than partition (${FLAGS_rootfs_partition_size} MiB)."
   exit 1
 fi
 
@@ -453,15 +453,8 @@ create_base_image() {
     exit 1
   fi
 
-  # Create root file system disk image to fit on a 1GB memory stick.
-  # 1 GB in hard-drive-manufacturer-speak is 10^9, not 2^30.  950MB < 10^9 bytes.
-  # Minimize rootfs size for dev install shim and factory installer
-  if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ||
-     [ ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
-    ROOT_SIZE_BYTES=$((1024 * 1024 * 300))
-  else
-    ROOT_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_rootfs_size}))
-  fi
+  # Create root file system disk image.
+  ROOT_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_rootfs_size}))
 
   # Pad out for the hash tree.
   ROOT_HASH_PAD=$((FLAGS_rootfs_hash_pad * 1024 * 1024))
@@ -653,6 +646,13 @@ if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
       cp ${PREVIOUS_DIR}/${DEVELOPER_IMAGE_NAME} ${OUTPUT_DIR}
     fi
   fi
+fi
+
+# Minimize rootfs size for dev install shim and factory installer
+if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} -o \
+     ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
+  info "Fixing the rootfs size at 300 MiB for the factory installer"
+  FLAGS_rootfs_size=300
 fi
 
 # Create the boot.desc file which stores the build-time configuration
