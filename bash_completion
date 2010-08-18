@@ -134,24 +134,34 @@ _autotest_complete() {
 # argument. In practice, the command is the first non-flag
 # argument. I.e., this should be fixed to support something like
 # "./cros_workon --all list".
-_cros_workon_command_complete() {
+_complete_cros_workon_command() {
   [ ${COMP_CWORD} -eq 1 ] || return 1
   local command="${COMP_WORDS[1]}"
   COMPREPLY=($(compgen -W "start stop list iterate" -- "$command"))
   return 0
 }
 
+# Prints the full path to the cros_workon executable, handling tilde
+# expansion for the current user.
+_cros_workon_executable() {
+  local cros_workon="${COMP_WORDS[0]}"
+  if [[ "$cros_workon" == '~/'* ]]; then
+    cros_workon="$HOME/${cros_workon#'~/'}"
+  fi
+  echo "$cros_workon"
+}
+
 # Lists the workon (or live, if --all is passed in) ebuilds. Lists
 # both the full names (e.g., chromeos-base/metrics) as well as just
 # the ebuild names (e.g., metrics).
 _cros_workon_list() {
-  local cros_workon="${COMP_WORDS[0]}"
+  local cros_workon=$(_cros_workon_executable)
   ${cros_workon} list $1 | sed 's,\(.\+\)/\(.\+\),\1/\2 \2,'
 }
 
 # Completes the current cros_workon argument assuming it's a
 # package/ebuild name.
-_cros_workon_package_complete() {
+_complete_cros_workon_package() {
   [ ${COMP_CWORD} -gt 1 ] || return 1
   local package="${COMP_WORDS[COMP_CWORD]}"
   local command="${COMP_WORDS[1]}"
@@ -173,8 +183,8 @@ _cros_workon() {
   COMPREPLY=()
   _flag_complete && return 0
   _complete_board_sysroot_flag && return 0
-  _cros_workon_command_complete && return 0
-  _cros_workon_package_complete && return 0
+  _complete_cros_workon_command && return 0
+  _complete_cros_workon_package && return 0
   return 0
 }
 
@@ -186,7 +196,7 @@ complete -o bashdefault -o default -F _board_sysroot \
   mod_image_for_test.sh
 complete -o bashdefault -o default -F _board_overlay setup_board
 complete -o bashdefault -o default -o nospace -F _autotest_complete autotest
-complete -o bashdefault -o default -F _cros_workon cros_workon
+complete -F _cros_workon cros_workon
 
 ###  Local Variables:
 ###  mode: shell-script
