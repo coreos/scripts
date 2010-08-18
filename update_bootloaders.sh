@@ -206,15 +206,9 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
   warn "FIXME: cannot replace root= here for the arm bootloader yet."
   dm_table=""  # TODO(wad) Clear it until we can fix root=/dev/dm-0
 
-  device=1
-  MBR_SCRIPT_UIMG=$(make_arm_mbr \
-    ${FLAGS_kernel_partition_offset} \
-    ${FLAGS_kernel_partition_sectors} \
-    ${device} \
-    "'dm=\"${dm_table}\"'")
-  sudo dd bs=1 count=`stat --printf="%s" ${MBR_SCRIPT_UIMG}` \
-     if="$MBR_SCRIPT_UIMG" of=${FLAGS_to}
-  info "Emitted new ARM MBR to ${FLAGS_to}"
+  # Copy u-boot script to ESP partition
+  sudo mkdir -p "${ESP_FS_DIR}/u-boot"
+  sudo cp "${FLAGS_from}/boot-A.scr.uimg" "${ESP_FS_DIR}/u-boot/boot.scr.uimg"
 fi
 
 set +e

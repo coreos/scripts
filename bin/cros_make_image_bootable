@@ -199,18 +199,17 @@ make_image_bootable() {
   # Update the bootloaders.  For legacy/efi x86, the EFI system partition
   # will be updated and for arm, the mbr will be updated (for u-boot).
   local kernel_part=
-  local bootloader_to=
-  local bootloader_to_flags=
   local usb_disk="${FLAGS_usb_disk}"
 
+  # We should update the esp in place in the image.
+  local bootloader_to="${image}"
+  local esp_offset="$(partoffset ${image} 12)"
+  esp_offset=$((esp_offset * 512))  # sectors to bytes
+  local esp_size="$(partsize ${image} 12)"
+  esp_size=$((esp_size * 512))  # sectors to bytes
+  local bootloader_to_flags="--to_offset=${esp_offset} --to_size=${esp_size}"
+
   if [[ "${FLAGS_arch}" = "x86" ]]; then
-    # x86 should update the esp in place in the image.
-    bootloader_to="${image}"
-    local esp_offset="$(partoffset ${image} 12)"
-    esp_offset=$((esp_offset * 512))  # sectors to bytes
-    local esp_size="$(partsize ${image} 12)"
-    esp_size=$((esp_size * 512))  # sectors to bytes
-    bootloader_to_flags="--to_offset=${esp_offset} --to_size=${esp_size}"
     # Use the kernel partition to acquire configuration flags.
     kernel_part="--kernel_partition='${FLAGS_output_dir}/vmlinuz.image'"
     # Install syslinux on the EFI System Partition.
@@ -227,10 +226,9 @@ make_image_bootable() {
     kpart_size="${kpart_size}$(partsize ${image} 2)"
     kernel_part="${kernel_part} ${kpart_size} ${kpart_offset}"
     info "Using addition bootloader arguments: ${kernel_part}"
-    bootloader_to="${FLAGS_output_dir}/arm.mbr"
   fi
 
-  # Update partition 12 / legacy bootloaders and arm.
+  # Update partition 12
   ${SCRIPTS_DIR}/update_bootloaders.sh \
     --arch=${FLAGS_arch} \
     --to="${bootloader_to}" \
@@ -239,11 +237,6 @@ make_image_bootable() {
     --usb_disk="${usb_disk}" \
     ${bootloader_to_flags} \
     $kernel_part
-
-  if [[ "${FLAGS_arch}" == "arm" ]]; then
-    sudo dd bs=1 conv=notrunc  if="${bootloader_to}" of="${image}"
-    sudo rm "${bootloader_to}"
-  fi
 
   trap - EXIT
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${FLAGS_rootfs_mountpoint}" \
