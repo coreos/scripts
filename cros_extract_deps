@@ -5,8 +5,8 @@
 
 """Extract dependency tree out of emerge and make it accessible and useful."""
 
+import json
 import optparse
-import pprint
 import re
 import shutil
 import subprocess
@@ -21,6 +21,14 @@ class ParseException(Exception):
 
   def __str__(self):
     return self.reason
+
+
+class SetEncoder(json.JSONEncoder):
+  """Custom json encoder class, doesn't hate set types."""
+  def default(self, o):
+    if isinstance(o, set):
+      return list(o)
+    return json.JSONEncoder.default(self, o)
 
 
 def GetDepLinesFromPortage(options, packages):
@@ -179,7 +187,7 @@ def main():
 
   lines = GetDepLinesFromPortage(options, packages)
   deps_map = ParseDepLines(lines)
-  output = pprint.pformat(deps_map)
+  output = json.dumps(deps_map, sort_keys=True, indent=2, cls=SetEncoder)
   if options.output:
     output_file = open(options.output, 'w')
     output_file.write(output)
