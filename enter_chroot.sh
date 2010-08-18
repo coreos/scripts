@@ -80,7 +80,7 @@ function setup_env {
     flock 200
     echo $$ >> "$LOCKFILE"
 
-    echo "Mounting chroot environment."
+    echo >&2 "Mounting chroot environment."
 
     # Mount only if not already mounted
     MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/proc")"
@@ -127,10 +127,10 @@ function setup_env {
           2>/dev/null)"
       fi
       if [[ ( -z "$CHROME_ROOT" ) || ( ! -d "${CHROME_ROOT}/src" ) ]]; then
-        echo "Not mounting chrome source"
+        echo >&2 "Not mounting chrome source"
         sudo rm -f "${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
       else
-        echo "Mounting chrome source at: $INNER_CHROME_ROOT"
+        echo >&2 "Mounting chrome source at: $INNER_CHROME_ROOT"
         echo "$CHROME_ROOT" | \
           sudo dd of="${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
         mkdir -p "$MOUNTED_PATH"
@@ -143,12 +143,12 @@ function setup_env {
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
     then
       if [ $(which gclient 2>/dev/null) ]; then
-        echo "Mounting depot_tools"
+        echo >&2 "Mounting depot_tools"
         DEPOT_TOOLS=$(dirname $(which gclient) )
         mkdir -p "$MOUNTED_PATH"
         if ! sudo mount --bind "$DEPOT_TOOLS" "$MOUNTED_PATH"; then
-          echo "depot_tools failed to mount; perhaps it's on NFS?"
-          echo "This may impact chromium build."
+          echo >&2 "depot_tools failed to mount; perhaps it's on NFS?"
+          echo >&2 "This may impact chromium build."
         fi
       fi
     fi
@@ -156,7 +156,7 @@ function setup_env {
     # Install fuse module.
     if [ -c "${FUSE_DEVICE}" ] ; then
       sudo modprobe fuse 2> /dev/null ||\
-        echo "-- Note: modprobe fuse failed.  gmergefs will not work"
+        echo >&2 "-- Note: modprobe fuse failed.  gmergefs will not work"
     fi
 
     # Turn off automounting of external media when we enter the
@@ -166,10 +166,10 @@ function setup_env {
       gconftool-2 -g ${AUTOMOUNT_PREF} > \
         "${FLAGS_chroot}${SAVED_AUTOMOUNT_PREF_FILE}"
       if [ $(gconftool-2 -s --type=boolean ${AUTOMOUNT_PREF} false) ]; then
-        echo "-- Note: USB sticks may be automounted by your host OS."
-        echo "-- Note: If you plan to burn bootable media, you may need to"
-        echo "-- Note: unmount these devices manually, or run image_to_usb.sh"
-        echo "-- Note: outside the chroot."
+        echo >&2 "-- Note: USB sticks may be automounted by your host OS."
+        echo >&2 "-- Note: If you plan to burn bootable media, you may need to"
+        echo >&2 "-- Note: unmount these devices manually, or run image_to_usb.sh"
+        echo >&2 "-- Note: outside the chroot."
       fi
     fi
 
@@ -204,15 +204,15 @@ function teardown_env {
     if [ $(which gconftool-2 2>/dev/null) ]; then
       SAVED_PREF=$(cat "${FLAGS_chroot}${SAVED_AUTOMOUNT_PREF_FILE}")
       gconftool-2 -s --type=boolean ${AUTOMOUNT_PREF} ${SAVED_PREF} || \
-        echo "could not re-set your automount preference."
+        echo >&2 "could not re-set your automount preference."
     fi
 
     if [ -s "$LOCKFILE" ]; then
-      echo "At least one other pid is running in the chroot, so not"
-      echo "tearing down env."
+      echo >&2 "At least one other pid is running in the chroot, so not"
+      echo >&2 "tearing down env."
     else
       MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
-      echo "Unmounting chroot environment."
+      echo >&2 "Unmounting chroot environment."
       # sort the list of mounts in reverse order, to ensure umount of
       # cascading mounts in proper order
       for i in \
@@ -226,10 +226,10 @@ function teardown_env {
 if [ $FLAGS_mount -eq $FLAGS_TRUE ]
 then
   setup_env
-  echo "Make sure you run"
-  echo "    $0 --unmount"
-  echo "before deleting $FLAGS_chroot"
-  echo "or you'll end up deleting $FLAGS_trunk too!"
+  echo >&2 "Make sure you run"
+  echo >&2 "    $0 --unmount"
+  echo >&2 "before deleting $FLAGS_chroot"
+  echo >&2 "or you'll end up deleting $FLAGS_trunk too!"
   exit 0
 fi
 

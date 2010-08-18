@@ -320,15 +320,15 @@ V_BOLD_RED="\e[1;31m"
 V_BOLD_YELLOW="\e[1;33m"
 
 function info {
-  echo -e "${V_BOLD_GREEN}INFO   : $1${V_VIDOFF}"
+  echo -e >&2 "${V_BOLD_GREEN}INFO   : $1${V_VIDOFF}"
 } 
 
 function warn {
-  echo -e "${V_BOLD_YELLOW}WARNING: $1${V_VIDOFF}"
+  echo -e >&2 "${V_BOLD_YELLOW}WARNING: $1${V_VIDOFF}"
 }
 
 function error {
-  echo -e    "${V_BOLD_RED}ERROR  : $1${V_VIDOFF}"
+  echo -e >&2   "${V_BOLD_RED}ERROR  : $1${V_VIDOFF}"
 }
 
 function die {
