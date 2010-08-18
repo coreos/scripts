@@ -125,7 +125,7 @@ _autotest_complete() {
   _complete_board_sysroot_flag && return 0
 }
 
-# Complete the cros_workon <command> argument.
+# Complete cros_workon's <command> argument.
 #
 # TODO(petkov): We should probably extract the list of commands from
 # cros_workon --help, just like we do for flags (see _flag_complete).
@@ -178,13 +178,72 @@ _complete_cros_workon_package() {
   return 1
 }
 
-# Complete the cros_workon arguments.
+# Complete cros_workon arguments.
 _cros_workon() {
   COMPREPLY=()
   _flag_complete && return 0
   _complete_board_sysroot_flag && return 0
   _complete_cros_workon_command && return 0
   _complete_cros_workon_package && return 0
+  return 0
+}
+
+_list_repo_commands() {
+  local repo=${COMP_WORDS[0]}
+  "$repo" help --all | grep -E '^  ' | sed 's/  \([^ ]\+\) .\+/\1/'
+}
+
+_list_repo_branches() {
+  local repo=${COMP_WORDS[0]}
+  "$repo" branches 2>&1 | grep \| | sed 's/[ *][Pp ] *\([^ ]\+\) .*/\1/'
+}
+
+_list_repo_projects() {
+  local repo=${COMP_WORDS[0]}
+  local manifest=$(mktemp)
+  "$repo" manifest -o "$manifest" >& /dev/null
+  grep 'project name=' "$manifest" | sed 's/.\+name="\([^"]\+\)".\+/\1/'
+  rm -f "$manifest" >& /dev/null
+}
+
+# Complete repo's <command> argument.
+_complete_repo_command() {
+  [ ${COMP_CWORD} -eq 1 ] || return 1
+  local command=${COMP_WORDS[1]}
+  COMPREPLY=($(compgen -W "$(_list_repo_commands)" -- "$command"))
+  return 0
+}
+
+_complete_repo_arg() {
+  [ ${COMP_CWORD} -gt 1 ] || return 1
+  local command=${COMP_WORDS[1]}
+  local current=${COMP_WORDS[COMP_CWORD]}
+  if [[ ${command} == "abandon" ]]; then
+    if [[ ${COMP_CWORD} -eq 2 ]]; then
+      COMPREPLY=($(compgen -W "$(_list_repo_branches)" -- "$current"))
+    else
+      COMPREPLY=($(compgen -W "$(_list_repo_projects)" -- "$current"))
+    fi
+    return 0
+  fi
+  if [[ ${command} == "help" ]]; then
+    [ ${COMP_CWORD} -eq 2 ] && \
+      COMPREPLY=($(compgen -W "$(_list_repo_commands)" -- "$current"))
+    return 0
+  fi
+  if [[ ${command} == "start" ]]; then
+    [ ${COMP_CWORD} -gt 2 ] && \
+      COMPREPLY=($(compgen -W "$(_list_repo_projects)" -- "$current"))
+    return 0
+  fi
+  return 1
+}
+
+# Complete repo arguments.
+_complete_repo() {
+  COMPREPLY=()
+  _complete_repo_command && return 0
+  _complete_repo_arg && return 0
   return 0
 }
 
@@ -197,6 +256,7 @@ complete -o bashdefault -o default -F _board_sysroot \
 complete -o bashdefault -o default -F _board_overlay setup_board
 complete -o bashdefault -o default -o nospace -F _autotest_complete autotest
 complete -F _cros_workon cros_workon
+complete -F _complete_repo repo
 
 ###  Local Variables:
 ###  mode: shell-script
