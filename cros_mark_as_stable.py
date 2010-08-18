@@ -36,7 +36,7 @@ gflags.DEFINE_string('push_options', '',
 gflags.DEFINE_string('srcroot',  '%s/trunk/src' % os.environ['HOME'],
                      'Path to root src directory.',
                      short_name='r')
-gflags.DEFINE_string('tracking_branch', 'origin',
+gflags.DEFINE_string('tracking_branch', 'cros/master',
                      'Used with commit to specify branch to track against.',
                      short_name='t')
 gflags.DEFINE_boolean('verbose', False,
