@@ -15,5 +15,18 @@
 
 get_default_board
 
-./autotest --build=all --board="${DEFAULT_BOARD}" $@
+DEFINE_string board "$DEFAULT_BOARD" \
+    "The board for which you are building autotest"
+
+FLAGS "$@" || exit 1
+
+if [[ -n "${CROS_WORKON_SRCROOT}" ]]; then
+  if [[ -z "${FLAGS_board}" ]]; then
+    setup_board_warning
+    exit 1
+  fi
+  emerge-${FLAGS_board} autotest-tests
+else
+  ./autotest --noprompt --build=all --board="${DEFAULT_BOARD}" $@
+fi
 

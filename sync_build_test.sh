@@ -83,6 +83,7 @@ DEFINE_string top "" \
     "Root directory of your checkout (defaults to determining from your cwd)"
 DEFINE_boolean withdev ${FLAGS_TRUE} "Build development packages"
 DEFINE_boolean usepkg ${FLAGS_TRUE} "Use binary packages"
+DEFINE_boolean useworkon ${FLAGS_FALSE} "Use cros_workon/repo workflow"
 DEFINE_boolean unittest ${FLAGS_TRUE} "Run unit tests"
 
 # Returns a heuristic indicating if we believe this to be a google internal
@@ -101,7 +102,7 @@ function validate_and_set_param_defaults() {
   if [[ -z "${FLAGS_top}" ]]; then
     local test_dir=$(pwd)
     while [[ "${test_dir}" != "/" ]]; do
-      if [[ -d "${test_dir}/src/platform/pam_google" ]]; then
+      if [[ -d "${test_dir}/src/platform/dev" ]]; then
         FLAGS_top="${test_dir}"
         break
       fi
@@ -119,6 +120,15 @@ function validate_and_set_param_defaults() {
     FLAGS_top=$(readlink -f "${FLAGS_top}")
   fi
 
+  if [[ -d "${FLAGS_top}" ]]; then
+    # Auto detect the right workflow.
+    if [[ -d "${FLAGS_top}/.git" ]]; then
+      FLAGS_useworkon=${FLAGS_FALSE}
+    else
+      FLAGS_useworkon=${FLAGS_TRUE}
+    fi
+  fi
+
   if [[ -z "${FLAGS_chroot}" ]]; then
     FLAGS_chroot="${FLAGS_top}/chroot"
   fi
@@ -127,7 +137,6 @@ function validate_and_set_param_defaults() {
   if [[ ! -d "${FLAGS_chroot}" ]]; then
     FLAGS_force_make_chroot=${FLAGS_TRUE}
   fi
-
   # If chrome_root option passed, set as option for ./enter_chroot
   if [[ -n "${FLAGS_chrome_root}" ]]; then
     chroot_options="--chrome_root=${FLAGS_chrome_root}"
@@ -148,6 +157,12 @@ function validate_and_set_param_defaults() {
     # If you specify that tests should be run, we assume you want
     # to live update the image.
     FLAGS_image_to_live=${FLAGS_TRUE}
+    if [[ ${FLAGS_useworkon} -eq ${FLAGS_TRUE} ]]; then
+      # Currently the workon flow does not enable tests to be dynamically
+      # built during run_remote_tests, so we need to build them all
+      # beforehand.
+      FLAGS_build_autotest=${FLAGS_TRUE}
+    fi
   fi
 
   # If they gave us a remote host, then we assume they want us to do a live
@@ -211,7 +226,11 @@ function validate_and_set_param_defaults() {
 # Prints a description of what we are doing or did
 function describe_steps() {
   if [[ ${FLAGS_sync} -eq ${FLAGS_TRUE} ]]; then
-    echo " * Sync client (gclient sync)"
+    if [[ ${FLAGS_useworkon} -eq ${FLAGS_TRUE} ]]; then
+      echo " * Sync client (repo sync)"
+    else
+      echo " * Sync client (gclient sync)"
+    fi
     if is_google_environment; then
       echo " * Create proper src/scripts/.chromeos_dev"
     fi
@@ -284,24 +303,6 @@ function interactive() {
     exit 1
   fi
 }
-
-
-# Runs gclient config on a new checkout directory.
-function config_new_checkout() {
-  # We only know how to check out to a pattern like ~/foo/chromeos so
-  # make sure that's the pattern the user has given.
-  echo "Checking out ${FLAGS_top}"
-  if [[ $(basename "${FLAGS_top}") != "chromeos" ]]; then
-    echo "The --top directory does not exist and to check it out requires"
-    echo "the name to end in chromeos (try --top=${FLAGS_top}/chromeos)"
-    exit 1
-  fi
-  local top_parent=$(dirname "${FLAGS_top}")
-  mkdir -p "${top_parent}"
-  cd "${top_parent}"
-  gclient config "${FLAGS_repo}"
-}
-
 
 # Changes to a directory relative to the top/root directory of
 # the checkout.
@@ -385,22 +386,58 @@ function show_duration() {
   printf "Total time: %d:%02ds\n" "${minutes_duration}" "${seconds_duration}"
 }
 
+# Runs gclient config on a new checkout directory.
+function config_new_gclient_checkout() {
+  # We only know how to check out to a pattern like ~/foo/chromeos so
+  # make sure that's the pattern the user has given.
+  if [[ $(basename "${FLAGS_top}") != "chromeos" ]]; then
+    echo "The --top directory does not exist and to check it out requires"
+    echo "the name to end in chromeos (try --top=${FLAGS_top}/chromeos)"
+    exit 1
+  fi
+  local top_parent=$(dirname "${FLAGS_top}")
+  mkdir -p "${top_parent}"
+  cd "${top_parent}"
+  gclient config "${FLAGS_repo}"
+}
+
+# Runs repo init on a new checkout directory.
+function config_new_repo_checkout() {
+  mkdir -p "${FLAGS_top}"
+  cd "${FLAGS_top}"
+  repo init -u http://src.chromium.org/git/manifest -m minilayout.xml
+}
+
+# Configures/initializes a new checkout
+function config_new_checkout() {
+  echo "Checking out ${FLAGS_top}"
+  if [[ ${FLAGS_useworkon} ]]; then
+    config_new_repo_checkout
+  else
+    config_new_gclient_checkout
+  fi
+}
 
 # Runs gclient sync, setting up .chromeos_dev and preparing for
 # local repo setup
 function sync() {
   # cd to the directory below
-  chdir_relative ..
-  run_phase "Synchronizing client" gclient sync
+  if [[ ${FLAGS_useworkon} -eq ${FLAGS_TRUE} ]]; then
+    chdir_relative .
+    run_phase "Synchronizing client" repo sync
+    # Change to a directory that is definitely a git repo
+    chdir_relative src/third_party/chromiumos-overlay
+    git cl config "file://$(pwd)/../../../codereview.settings"
+  else
+    chdir_relative ..
+    run_phase "Synchronizing client" gclient sync
+    chdir_relative .
+    git cl config "file://$(pwd)/codereview.settings"
+  fi
   chdir_relative .
-  git cl config "file://$(pwd)/codereview.settings"
   if is_google_environment; then
     local base_dir=$(dirname $(dirname "${FLAGS_top}"))
     echo <<EOF > src/scripts/.chromeos_dev
-# Use internal chromeos-deb repository
-CHROMEOS_EXT_MIRROR="http://chromeos-deb/ubuntu"
-CHROMEOS_EXT_SUITE="karmic"
-
 # Assume Chrome is checked out nearby
 CHROMEOS_CHROME_DIR="${base_dir}/chrome"
 EOF
@@ -508,7 +545,9 @@ function main() {
 
   if [[ ${FLAGS_force_make_chroot} -eq ${FLAGS_TRUE} ]]; then
     chdir_relative src/scripts
-    run_phase "Replacing chroot" ./make_chroot --replace \
+    local extra_flags="--nouseworkon"
+    [[ ${FLAGS_useworkon} -eq ${FLAGS_TRUE} ]] && extra_flags="--useworkon"
+    run_phase "Replacing chroot" ./make_chroot ${extra_flags} --replace \
         "--chroot=${FLAGS_chroot}" ${jobs_param}
   fi
 
