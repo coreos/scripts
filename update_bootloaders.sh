@@ -207,8 +207,11 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
   dm_table=""  # TODO(wad) Clear it until we can fix root=/dev/dm-0
 
   # Copy u-boot script to ESP partition
-  sudo mkdir -p "${ESP_FS_DIR}/u-boot"
-  sudo cp "${FLAGS_from}/boot-A.scr.uimg" "${ESP_FS_DIR}/u-boot/boot.scr.uimg"
+  if [ -r "${FLAGS_from}/boot-A.scr.uimg" ]; then
+    sudo mkdir -p "${ESP_FS_DIR}/u-boot"
+    sudo cp "${FLAGS_from}/boot-A.scr.uimg" \
+      "${ESP_FS_DIR}/u-boot/boot.scr.uimg"
+  fi
 fi
 
 set +e
