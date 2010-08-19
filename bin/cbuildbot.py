@@ -64,6 +64,11 @@ def _FullCheckout(buildroot):
 
 def _IncrementalCheckout(buildroot):
   RunCommand(['repo', 'sync'], cwd=buildroot)
+  # Always re-run in case of new git repos or repo sync
+  # failed in a previous run because of a forced Stop Build.
+  RunCommand(['repo', 'forall', '-c', 'git', 'config',
+              'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof',
+              'http://src.chromium.org/git'], cwd=buildroot)
 
 def _MakeChroot(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
