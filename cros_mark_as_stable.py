@@ -137,15 +137,11 @@ def _PushChange():
   _RunCommand('git remote update')
   _RunCommand('git checkout -b %s %s' % (
       merge_branch_name, gflags.FLAGS.tracking_branch))
-  try:
-    _RunCommand('git merge --squash %s' % _STABLE_BRANCH_NAME)
-    _RunCommand('git commit -m "%s"' % description)
-    # Ugh. There has got to be an easier way to push to a tracking branch
-    _RunCommand('git config push.default tracking')
-    _RunCommand('git push')
-  finally:
-    _RunCommand('git checkout %s' % _STABLE_BRANCH_NAME)
-    _RunCommand('git branch -D %s' % merge_branch_name)
+  _RunCommand('git merge --squash %s' % _STABLE_BRANCH_NAME)
+  _RunCommand('git commit -m "%s"' % description)
+  # Ugh. There has got to be an easier way to push to a tracking branch
+  _RunCommand('git config push.default tracking')
+  _RunCommand('git push')
 
 
 def _RunCommand(command):
