@@ -53,10 +53,16 @@ def MakeDir(path, parents=False):
     else:
       raise
 
-def RepoSync(buildroot, retries=_DEFAULT_RETRIES):
+def RepoSync(buildroot, rw_checkout, retries=_DEFAULT_RETRIES):
   while retries > 0:
     try:
       RunCommand(['repo', 'sync'], cwd=buildroot)
+      if rw_checkout:
+        # Always re-run in case of new git repos or repo sync
+        # failed in a previous run because of a forced Stop Build.
+        RunCommand(['repo', 'forall', '-c', 'git', 'config',
+                    'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof',
+                    'http://src.chromium.org/git'], cwd=buildroot)
       retries = 0
     except:
       retries -= 1
@@ -73,19 +79,11 @@ def _FullCheckout(buildroot, rw_checkout=True, retries=_DEFAULT_RETRIES):
   MakeDir(buildroot, parents=True)
   RunCommand(['repo', 'init', '-u', 'http://src.chromium.org/git/manifest'],
              cwd=buildroot, input='\n\ny\n')
-  RepoSync(buildroot, retries)
-  if rw_checkout:
-    RunCommand(['repo', 'forall', '-c', 'git', 'config',
-                'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof',
-               'http://src.chromium.org/git'], cwd=buildroot)
+  RepoSync(buildroot, rw_checkout, retries)
 
-def _IncrementalCheckout(buildroot, retries=_DEFAULT_RETRIES):
-  RepoSync(buildroot, retries)
-  # Always re-run in case of new git repos or repo sync
-  # failed in a previous run because of a forced Stop Build.
-  RunCommand(['repo', 'forall', '-c', 'git', 'config',
-              'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof',
-              'http://src.chromium.org/git'], cwd=buildroot)
+def _IncrementalCheckout(buildroot, rw_checkout=True,
+                         retries=_DEFAULT_RETRIES):
+  RepoSync(buildroot, rw_checkout, retries)
 
 def _MakeChroot(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')

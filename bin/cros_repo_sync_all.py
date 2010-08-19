@@ -25,7 +25,7 @@ def main():
       cbuildbot._FullCheckout(options.buildroot, rw_checkout=False,
           retries=_NUMBER_OF_RETRIES)
     else:
-      cbuildbot._IncrementalCheckout(options.buildroot,
+      cbuildbot._IncrementalCheckout(options.buildroot, rw_checkout=False,
           retries=_NUMBER_OF_RETRIES)
   else:
     print >>sys.stderr, 'ERROR:  Must set buildroot'
