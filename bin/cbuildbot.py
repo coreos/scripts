@@ -13,6 +13,8 @@ import sys
 
 from cbuildbot_config import config
 
+_DEFAULT_RETRIES=3
+
 # Utility functions
 
 def RunCommand(cmd, error_ok=False, error_message=None, exit_code=False,
@@ -51,19 +53,34 @@ def MakeDir(path, parents=False):
     else:
       raise
 
+def RepoSync(buildroot, retries=_DEFAULT_RETRIES):
+  while retries > 0:
+    try:
+      RunCommand(['repo', 'sync'], cwd=buildroot)
+      retries = 0
+    except:
+      retries -= 1
+      if retries > 0:
+        print >>sys.stderr, 'CBUILDBOT -- Repo Sync Failed, retrying'
+      else:
+        print >>sys.stderr, 'CBUILDBOT -- Retries exhausted'
+        raise
+
 # Main functions
 
-def _FullCheckout(buildroot):
+def _FullCheckout(buildroot, rw_checkout=True, retries=_DEFAULT_RETRIES):
+  RunCommand(['sudo', 'rm', '-rf', buildroot])
   MakeDir(buildroot, parents=True)
   RunCommand(['repo', 'init', '-u', 'http://src.chromium.org/git/manifest'],
              cwd=buildroot, input='\n\ny\n')
-  RunCommand(['repo', 'sync'], cwd=buildroot)
-  RunCommand(['repo', 'forall', '-c', 'git', 'config',
-              'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof',
-              'http://src.chromium.org/git'], cwd=buildroot)
+  RepoSync(buildroot, retries)
+  if rw_checkout:
+    RunCommand(['repo', 'forall', '-c', 'git', 'config',
+                'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof',
+               'http://src.chromium.org/git'], cwd=buildroot)
 
-def _IncrementalCheckout(buildroot):
-  RunCommand(['repo', 'sync'], cwd=buildroot)
+def _IncrementalCheckout(buildroot, retries=_DEFAULT_RETRIES):
+  RepoSync(buildroot, retries)
   # Always re-run in case of new git repos or repo sync
   # failed in a previous run because of a forced Stop Build.
   RunCommand(['repo', 'forall', '-c', 'git', 'config',
