@@ -107,7 +107,7 @@ def _UprevAllPackages(buildroot):
 
 def _UprevPackages(buildroot, revisionfile):
   revisions = None
-  if (revision_file):
+  if (revisionfile):
     rev_file = revisionfile.open(revisionfile)
     revisions = rev_file.read()
     rev_file.close()
