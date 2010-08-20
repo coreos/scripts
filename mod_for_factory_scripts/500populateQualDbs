@@ -12,11 +12,11 @@ if [ -z ${QUALDB} ]; then
   # If QUALDB not specified, check the existence of the qualified components
   # belonging to the board.
   QUALDB="qualified_components_${BOARD}*"
-  FIRST_QUALDB=$(ls $QUALDB | head -1)
+  FIRST_QUALDB=$(ls $QUALDB 2> /dev/null | head -1)
   if [ ! -z ${FIRST_QUALDB} ]; then
     # Remove qualified components belonging to other boards
-    ls qualified_components* | grep -v qualified_components_${BOARD} \
-      | xargs rm -f
+    ls qualified_components* 2> /dev/null | grep -v \
+        qualified_components_${BOARD} | xargs rm -f
   else
     echo "No qualified component file found at: ${QUALDB}"
   fi
