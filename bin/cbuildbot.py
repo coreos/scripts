@@ -13,7 +13,7 @@ import sys
 
 from cbuildbot_config import config
 
-_DEFAULT_RETRIES=3
+_DEFAULT_RETRIES = 3
 
 # Utility functions
 
@@ -68,9 +68,9 @@ def RepoSync(buildroot, rw_checkout, retries=_DEFAULT_RETRIES):
     except:
       retries -= 1
       if retries > 0:
-        print >>sys.stderr, 'CBUILDBOT -- Repo Sync Failed, retrying'
+        print >> sys.stderr, 'CBUILDBOT -- Repo Sync Failed, retrying'
       else:
-        print >>sys.stderr, 'CBUILDBOT -- Retries exhausted'
+        print >> sys.stderr, 'CBUILDBOT -- Retries exhausted'
         raise
 
 # Main functions
@@ -108,9 +108,13 @@ def _UprevAllPackages(buildroot):
 def _UprevPackages(buildroot, revisionfile):
   revisions = None
   if (revisionfile):
-    rev_file = revisionfile.open(revisionfile)
-    revisions = rev_file.read()
-    rev_file.close()
+    try:
+      rev_file = open(revisionfile)
+      revisions = rev_file.read()
+      rev_file.close()
+    except:
+      print >> sys.stderr, 'Error reading %s' % revisionfile
+      revisions = None
 
   # Note:  Revisions == "None" indicates a Force Build.
   if revisions and revisions != 'None':
