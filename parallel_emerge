@@ -642,39 +642,44 @@ class DepGraphGenerator(object):
       """Find cycles in the dependency tree.
 
       Returns:
-        Dict of packages involved in cyclic dependencies, mapping each package
-        to a list of the cycles the package is involved in.
+        A dict mapping cyclic packages to a dict of the deps that cause
+        cycles. For each dep that causes cycles, it returns an example
+        traversal of the graph that shows the cycle.
       """
 
-      def FindCyclesAtNode(pkg, cycles, unresolved):
+      def FindCyclesAtNode(pkg, cycles, unresolved, resolved):
         """Find cycles in cyclic dependencies starting at specified package.
 
         Args:
           pkg: Package identifier.
-          cycles: Set of cycles so far.
+          cycles: A dict mapping cyclic packages to a dict of the deps that
+                  cause cycles. For each dep that causes cycles, it returns an
+                  example traversal of the graph that shows the cycle.
           unresolved: Nodes that have been visited but are not fully processed.
+          resolved: Nodes that have been visited and are fully processed.
         """
+        pkg_cycles = cycles.get(pkg)
+        if pkg in resolved and not pkg_cycles:
+          # If we already looked at this package, and found no cyclic
+          # dependencies, we can stop now.
+          return
         unresolved.append(pkg)
-        mycycles = cycles.get(pkg)
-        if mycycles:
-          mycycles = mycycles.get("pkgs")
         for dep in deps_map[pkg]["needs"]:
-          if mycycles and dep in mycycles:
-            continue
-          elif dep in unresolved:
+          if dep in unresolved:
             idx = unresolved.index(dep)
             mycycle = unresolved[idx:] + [dep]
-            for cycle_pkg in mycycle:
-              info = cycles.setdefault(cycle_pkg, {})
-              info.setdefault("pkgs", set()).update(mycycle)
-              info.setdefault("cycles", []).append(mycycle)
-          else:
-            FindCyclesAtNode(dep, cycles, unresolved)
+            for i in range(len(mycycle) - 1):
+              pkg1, pkg2 = mycycle[i], mycycle[i+1]
+              cycles.setdefault(pkg1, {}).setdefault(pkg2, mycycle)
+          elif not pkg_cycles or dep not in pkg_cycles:
+            # Looks like we haven't seen this edge before.
+            FindCyclesAtNode(dep, cycles, unresolved, resolved)
         unresolved.pop()
+        resolved.add(pkg)
 
-      cycles, unresolved = {}, []
+      cycles, unresolved, resolved = {}, [], set()
       for pkg in deps_map:
-        FindCyclesAtNode(pkg, cycles, unresolved)
+        FindCyclesAtNode(pkg, cycles, unresolved, resolved)
       return cycles
 
     def RemoveInstalledPackages():
@@ -736,6 +741,31 @@ class DepGraphGenerator(object):
           target_needs.pop(target, None)
         del deps_map[pkg]
 
+    def PrintCycleBreak(basedep, dep, mycycle):
+      """Print details about a cycle that we are planning on breaking.
+
+         We are breaking a cycle where dep needs basedep. mycycle is an
+         example cycle which contains dep -> basedep."""
+
+      # If it's an optional dependency, there's no need to spam the user with
+      # warning messages.
+      needs = deps_map[dep]["needs"]
+      depinfo = needs.get(basedep, "deleted")
+      if depinfo == "optional":
+        return
+
+      # Notify the user that we're breaking a cycle.
+      print "Breaking %s -> %s (%s)" % (dep, basedep, depinfo)
+
+      # Show cycle.
+      for i in range(len(mycycle) - 1):
+        pkg1, pkg2 = mycycle[i], mycycle[i+1]
+        needs = deps_map[pkg1]["needs"]
+        depinfo = needs.get(pkg2, "deleted")
+        if pkg1 == dep and pkg2 == basedep:
+          depinfo = depinfo + ", deleting"
+        print "  %s -> %s (%s)" % (pkg1, pkg2, depinfo)
+
     def SanitizeTree(cycles):
       """Remove circular dependencies.
 
@@ -752,25 +782,12 @@ class DepGraphGenerator(object):
         package to a list of the cycles the package is involved in. Produced
         by FindCycles().
       """
-      for basedep, cycle_info in cycles.iteritems():
-        for mycycle in cycle_info["cycles"]:
-          info = []
-          broken = False
-          for i in range(len(mycycle) - 1):
-            pkg1, pkg2 = mycycle[i], mycycle[i+1]
-            needs = deps_map[pkg1]["needs"]
-            depinfo = needs.get(pkg2, "deleted")
-            bad = False
-            if (deps_info[pkg1]["idx"] >= deps_info[pkg2]["idx"] and
-                depinfo != "deleted"):
-              depinfo = depinfo + ", deleting"
-              broken = True
-              del deps_map[pkg1]["needs"][pkg2]
-              deps_map[pkg2]["provides"].remove(pkg1)
-            info.append("  %s -> %s (%s)" % (pkg1, pkg2, depinfo))
-          if broken:
-            print "Breaking cycle:"
-            print "\n".join(info)
+      for dep, mycycles in cycles.iteritems():
+        for basedep, mycycle in mycycles.iteritems():
+          if deps_info[basedep]["idx"] >= deps_info[dep]["idx"]:
+            PrintCycleBreak(basedep, dep, mycycle)
+            del deps_map[dep]["needs"][basedep]
+            deps_map[basedep]["provides"].remove(dep)
 
     def AddSecretDeps():
       """Find these tagged packages and add extra dependencies.
