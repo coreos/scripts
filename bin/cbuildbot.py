@@ -17,11 +17,12 @@ _DEFAULT_RETRIES=3
 
 # Utility functions
 
-def RunCommand(cmd, error_ok=False, error_message=None, exit_code=False,
-               redirect_stdout=False, redirect_stderr=False, cwd=None,
-               input=None):
+def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
+               exit_code=False, redirect_stdout=False, redirect_stderr=False,
+               cwd=None, input=None):
   # Print out the command before running.
-  print >>sys.stderr, "CBUILDBOT -- RunCommand:", ' '.join(cmd)
+  if print_cmd:
+    print >> sys.stderr, "CBUILDBOT -- RunCommand:", ' '.join(cmd)
   if redirect_stdout:
     stdout = subprocess.PIPE
   else:
@@ -47,7 +48,7 @@ def RunCommand(cmd, error_ok=False, error_message=None, exit_code=False,
 def MakeDir(path, parents=False):
   try:
     os.makedirs(path)
-  except OSError,e:
+  except OSError, e:
     if e.errno == errno.EEXIST and parents:
       pass
     else:
@@ -98,11 +99,25 @@ def _Build(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./build_packages'], cwd=cwd)
 
-def _UprevPackages(buildroot):
+def _UprevAllPackages(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./enter_chroot.sh', '--', './cros_mark_all_as_stable',
               '--tracking_branch="cros/master"'],
              cwd=cwd)
+
+def _UprevPackages(buildroot, revisionfile):
+  revisions = None
+  if (revision_file):
+    rev_file = revisionfile.open(revisionfile)
+    revisions = rev_file.read()
+    rev_file.close()
+
+  # Note:  Revisions == "None" indicates a Force Build.
+  if revisions and revisions != 'None':
+    print 'CBUILDBOT - Revision list found %s' % revisions
+    print 'Revision list not yet propagating to build, marking all instead'
+
+  _UprevAllPackages(buildroot)
 
 def _UprevCleanup(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
@@ -135,13 +150,21 @@ def main():
                     help='root directory where build occurs', default=".")
   parser.add_option('-n', '--buildnumber',
                     help='build number', type='int', default=0)
+  parser.add_option('-f', '--revisionfile',
+                    help='file where new revisions are stored')
+  parser.add_option('--noclobber', action='store_false', dest='clobber',
+                    default=True,
+                    help='Disables clobbering the buildroot on failure')
   (options, args) = parser.parse_args()
 
   buildroot = options.buildroot
+  revisionfile = options.revisionfile
+  clobber = options.clobber
+
   if len(args) == 1:
     buildconfig = _GetConfig(args[0])
   else:
-    print >>sys.stderr, "Missing configuration description"
+    print >> sys.stderr, "Missing configuration description"
     parser.print_usage()
     sys.exit(1)
   try:
@@ -156,14 +179,15 @@ def main():
     if not os.path.isdir(boardpath):
       _SetupBoard(buildroot, board=buildconfig['board'])
     if buildconfig['uprev']:
-      _UprevPackages(buildroot)
+      _UprevPackages(buildroot, revisionfile)
     _Build(buildroot)
     if buildconfig['uprev']:
       _UprevPush(buildroot)
       _UprevCleanup(buildroot)
   except:
     # something went wrong, cleanup (being paranoid) for next build
-    RunCommand(['sudo', 'rm', '-rf', buildroot])
+    if clobber:
+      RunCommand(['sudo', 'rm', '-rf', buildroot], print_cmd=False)
     raise
 
 if __name__ == '__main__':
