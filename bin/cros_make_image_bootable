@@ -19,12 +19,20 @@ fi
 set -e
 . "$(dirname "$0")/../chromeos-common.sh"  # for partoffset and partsize
 
+if [ $# -lt 2 ]; then
+  echo "Usage: ${0} /PATH/TO/IMAGE IMAGE.BIN [shflags overrides]"
+  exit 1
+fi
+
 BOOT_DESC_FILE="${1}/boot.desc"
 IMAGE="${1}/${2}"
+shift
+shift
+FLAG_OVERRIDES="${@}"
 
 if [ ! -r "${BOOT_DESC_FILE}" ]; then
-  warning "${BOOT_DESC_FILE} cannot be read!"
-  warning "Falling back to command line parsing"
+  warn "${BOOT_DESC_FILE} cannot be read!"
+  warn "Falling back to command line parsing"
   BOOT_DESC="${@}"
 else
   BOOT_DESC="$(cat ${BOOT_DESC_FILE} | tr -s '\n' ' ')"
@@ -92,12 +100,8 @@ DEFINE_string espfs_mountpoint "/tmp/espfs" \
 DEFINE_boolean use_dev_keys ${FLAGS_FALSE} \
   "Use developer keys for signing. (Default: false)"
 
-# Parse command-line flags present after positional args, if any. This needs
-# to happen before we parse boot.desc (otherwise the flags would be lost)
-FLAGS "${@}" || exit 1
-
-# Parse the boot.desc
-eval set -- "${BOOT_DESC}"
+# Parse the boot.desc and any overrides
+eval set -- "${BOOT_DESC} ${FLAG_OVERRIDES}"
 FLAGS "${@}" || exit 1
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,

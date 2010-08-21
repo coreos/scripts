@@ -115,8 +115,7 @@ fi
 
 # Memory units are in MBs
 DEFAULT_MEM="1024"
-TEMP_IMAGE="${IMAGES_DIR}/temp_image.img"
-
+TEMP_IMG="$(dirname ${SRC_IMAGE})/vm_temp_image.bin"
 
 # If we're not building for VMWare, don't build the vmx
 if [ "${FLAGS_format}" != "vmware" ]; then
@@ -189,43 +188,18 @@ else
   sudo python ./fixup_image_for_qemu.py --mounted_dir="${TEMP_MNT}" \
   --enable_tablet=false
 fi
-# Remount read-only so that when we call setimage, it will recreate correct
-# boot hashes for verifying the rootfs integrity.  This is a bit of a cheat
-# but it will have to do.  We don't assume legacy bootloaders are secure so
-# we update the hash too, but the hash in part_2 doesn't change which would
-# cause failures on a Chrome OS boot (without re-running build_kernel_image).
-sudo mount -o remount,ro "${TEMP_MNT}"
+
+# Modify the unverified usb template which uses a default usb_disk of sdb3
+sudo sed -i -e 's/sdb3/sda3/g' "${TEMP_MNT}/boot/syslinux/usb.A.cfg"
+
+# Unmount everything prior to building a final image
 sync
-
-# Check if the current image was build with --enable_rootfs_verification
-enable_rootfs_verification=
-if grep -qE '^chromeos-v' "${TEMP_ESP_MNT}"/syslinux/default.cfg; then
-  enable_rootfs_verification=--enable_rootfs_verification
-fi
-
-# Update the bootloader and verified hashes for the given rootfs in the
-# vm and fixup changes.
-DST_DEV=/dev/sda
-BOOT_SLOT=A
-syslinux_cfg="${TEMP_MNT}/boot/syslinux/root.${BOOT_SLOT}.cfg"
-grub_cfg="${TEMP_MNT}/boot/efi/boot/grub.cfg"
-sudo "${TEMP_MNT}"/usr/sbin/chromeos-setimage ${BOOT_SLOT} \
-          --dst=${DST_DEV} --run_as_root \
-          --update_syslinux_cfg="${syslinux_cfg}" \
-          --update_grub_cfg="${grub_cfg}" \
-          --rootfs_image="${TEMP_ROOTFS}" \
-          --esp_mounted_at="${TEMP_ESP_MNT}" \
-          --kernel_image="${TEMP_KERN}" \
-          --update_vmlinuz=${TEMP_MNT}/boot/vmlinuz \
-          ${enable_rootfs_verification}
-
 trap - INT TERM EXIT
 cleanup
 
 # Make 3 GiB output image
-TEMP_IMG=$(mktemp)
 # TOOD(adlr): pick a size that will for sure accomodate the partitions
-sudo dd if=/dev/zero of="${TEMP_IMG}" bs=1 count=1 \
+dd if=/dev/zero of="${TEMP_IMG}" bs=1 count=1 \
   seek=$((${FLAGS_vdisk_size} * 1024 * 1024 - 1))
 
 # Set up the partition table
@@ -241,6 +215,14 @@ dd if="${TEMP_KERN}"   of="${TEMP_IMG}" conv=notrunc bs=512 \
   seek="${START_KERN_A}"
 dd if="${TEMP_ESP}"    of="${TEMP_IMG}" conv=notrunc bs=512 \
   seek="${START_ESP}"
+
+# Make the built-image bootable and ensure that the legacy default usb boot
+# uses /dev/sda instead of /dev/sdb3.
+# NOTE: The TEMP_IMG must live in the same image dir as the original image
+#       to operate automatically below.
+${SCRIPTS_DIR}/bin/cros_make_image_bootable $(dirname "${TEMP_IMG}") \
+                                            $(basename "${TEMP_IMG}") \
+                                            --usb_disk /dev/sda3
 
 echo Creating final image
 # Convert image to output format
