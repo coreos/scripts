@@ -655,11 +655,18 @@ if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
   fi
 fi
 
-# Minimize rootfs size for dev install shim and factory installer
-if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} -o \
-     ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
+# Minimize rootfs size for factory installer
+if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   info "Fixing the rootfs size at 300 MiB for the factory installer"
   FLAGS_rootfs_size=300
+fi
+
+# Minimize rootfs size and statefulfs size for dev install shim
+if [ ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
+  info "Fixing the rootfs size at 300 MiB for dev install shim"
+  FLAGS_rootfs_size=300
+  info "Fixing the statefulfs size at 140 MiB for dev install shim"
+  FLAGS_statefulfs_size=140
 fi
 
 # Create the boot.desc file which stores the build-time configuration
