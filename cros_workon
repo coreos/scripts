@@ -68,8 +68,13 @@ UNMASK_FILE=${UNMASK_DIR}/cros-workon
 
 sudo mkdir -p "${KEYWORDS_DIR}" "${UNMASK_DIR}" || \
   die "mkdir -p ${KEYWORDS_DIR} ${UNMASK_DIR}"
-sudo touch "${KEYWORDS_FILE}" "${UNMASK_FILE}" || \
-  die "touch ${KEYWORDS_FILE} ${UNMASK_FILE}"
+if [ ! -L "${KEYWORDS_FILE}" ]; then
+  sudo rm -f "${KEYWORDS_FILE}"
+  sudo ln -s "${UNMASK_FILE}" "${KEYWORDS_FILE}" || \
+    die "ln -s ${UNMASK_FILE} ${KEYWORDS_FILE}"
+fi
+sudo touch "${UNMASK_FILE}" || \
+  die "touch ${UNMASK_FILE}"
 
 # Canonicalize package name to category/package.
 canonicalize_name () {
@@ -108,7 +113,7 @@ canonicalize_names () {
 
 # Display ebuilds currently part of the live branch and open for development.
 show_live_ebuilds () {
-  cat "${KEYWORDS_FILE}"
+  sed -n 's/^[~=]\(.*\)-9999$/\1/p' "${UNMASK_FILE}"
 }
 
 find_repo_dir () {
@@ -138,7 +143,7 @@ regen_manifest_and_sync() {
   rm -f "${local_manifest}"
 
   # get new manifest entries
-  MANIFEST_ENTRIES=$(cat ${KEYWORDS_FILE} |
+  MANIFEST_ENTRIES=$(show_live_ebuilds |
   {
     while read line
     do
@@ -166,9 +171,8 @@ ebuild_to_live () {
   local atoms=$1
 
   for atom in ${atoms}; do
-    if ! grep -qx "${atom}" "${KEYWORDS_FILE}" ; then
-      sudo bash -c "echo \"${atom}\" >> \"${KEYWORDS_FILE}\""
-      sudo bash -c "echo \"~${atom}-9999\" >> \"${UNMASK_FILE}\""
+    if ! grep -qx "[~=]${atom}-9999" "${UNMASK_FILE}" ; then
+      sudo bash -c "echo \"=${atom}-9999\" >> \"${UNMASK_FILE}\""
     else
       warn "Already working on ${atom}"
     fi
@@ -180,13 +184,8 @@ ebuild_to_stable () {
   local atoms=$1
 
   for atom in ${atoms}; do
-    if grep -qx "${atom}" "${KEYWORDS_FILE}" ; then
-      # remove the keyword
-      sudo bash -c "grep -v '^${atom}\$' \"${KEYWORDS_FILE}\" > \
-          \"${KEYWORDS_FILE}+\""
-      sudo mv "${KEYWORDS_FILE}+" "${KEYWORDS_FILE}"
-      # remove the unmask
-      sudo bash -c "grep -v '^~${atom}-9999\$' \"${UNMASK_FILE}\" > \
+    if grep -qx "[~=]${atom}-9999" "${UNMASK_FILE}" ; then
+      sudo bash -c "grep -v '^[~=]${atom}-9999\$' \"${UNMASK_FILE}\" > \
           \"${UNMASK_FILE}+\""
       sudo mv "${UNMASK_FILE}+" "${UNMASK_FILE}"
     else
