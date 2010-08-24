@@ -26,7 +26,7 @@ if [[ -n "${CROS_WORKON_SRCROOT}" ]]; then
     exit 1
   fi
   $(dirname "$0")/cros_workon --board=${FLAGS_board} start \
-      autotest autotest-tests
+      autotest autotest-tests autotest-deps
   emerge-${FLAGS_board} autotest-tests
 else
   ./autotest --noprompt --build=all --board="${FLAGS_board}" $@
