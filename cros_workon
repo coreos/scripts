@@ -231,5 +231,5 @@ case ${WORKON_CMD} in
   stop)   ebuild_to_stable "${ATOM_LIST}" ;;
   list)   [ ${FLAGS_all} = "${FLAGS_FALSE}" ] && show_live_ebuilds || show_workon_ebuilds ;;
   iterate)ebuild_iterate "${ATOM_LIST}" ;;
-  *)      die "invalid cros_workon command" ;;
+  *)      die "$(basename $0): command '${WORKON_CMD}' not recognized" ;;
 esac
