@@ -103,7 +103,7 @@ if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
     # Modify it.  Pass --yes so that mod_image_for_test.sh won't ask us if we
     # really want to modify the image; the user gave their assent already with
     # --test-image and the original image is going to be preserved.
-    "${SCRIPTS_DIR}/mod_image_for_test.sh" --image \
+    "${SCRIPTS_DIR}/mod_image_for_test.sh" --board=${FLAGS_board} --image \
       "${FLAGS_from}/chromiumos_test_image.bin" ${EXTRA_ARGS} --yes
     echo "Done with mod_image_for_test."
   else
