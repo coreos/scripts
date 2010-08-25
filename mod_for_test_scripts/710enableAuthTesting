@@ -44,17 +44,12 @@ sudo chroot "${ROOT_FS_DIR}" ${QEMU} \
   -n FakeCert -t "C,," -a -i "${FAKE_CA_DIR}/${CERT_NAME}.pem"
 chmod 0644 "${ROOT_FS_DIR}/${FAKE_NSSDB}"/*
 
-# TODO(cmasone): get rid of this once we're off pam_google for good.
-# Sadly, our fake cert HAS to be first in this file.
-TMPFILE=$(mktemp)
 CERT_FILE="${ROOT_FS_DIR}/etc/login_trust_root.pem"
-PERMS=$(stat --printf="%a" "${CERT_FILE}")
-cat "${ROOT_FS_DIR}/${TMP_CERT}" "${CERT_FILE}" > "${TMPFILE}"
-mv -f "${TMPFILE}" "${CERT_FILE}"
-chmod "${PERMS}" "${CERT_FILE}"
+mv -f "${ROOT_FS_DIR}/${TMP_CERT}" "${CERT_FILE}"
+chmod 0644 "${CERT_FILE}"
 
 if [ -n "${QEMU}" ] ; then
     rm "${ROOT_FS_DIR}/${QEMU}"
 fi
-rm "${ROOT_FS_DIR}/${TMP_KEY}"
-rm "${ROOT_FS_DIR}/${TMP_CERT}"
+rm -f "${ROOT_FS_DIR}/${TMP_KEY}"
+rm -f "${ROOT_FS_DIR}/${TMP_CERT}"
