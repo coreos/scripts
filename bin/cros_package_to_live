@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Script to update a running device with an optionally built package out
+# of your build directory
+
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+
+script_root=$(dirname $0)
+if [ -f ${script_root}/../common.sh ] ; then
+  script_root=${script_root}/..
+fi
+
+. "${script_root}/common.sh"
+. "${script_root}/remote_access.sh"
+
+get_default_board
+
+DEFINE_boolean verbose ${FLAGS_FALSE} \
+  "Whether to output verbose information for debugging."
+DEFINE_boolean build ${FLAGS_FALSE} "Build package before installing"
+DEFINE_string board "$DEFAULT_BOARD" \
+    "Board for which the package should be built/found"
+DEFINE_string build_root "/build" \
+    "The root location for board sysroots."
+
+FLAGS "$@" || exit 1
+
+TMP=$(mktemp -d /tmp/cros_package_to_live.XXXX)
+
+function cleanup {
+  cleanup_remote_access
+  rm -rf "${TMP}"
+}
+
+# Make sure we have a package name
+if [ -z "${FLAGS_ARGV}" ]; then
+    echo "Please specify packages to install.  For example:"
+    echo "  $0 --remote=MyMachine flimflam"
+    exit 1
+fi
+
+if [ -z "${FLAGS_board}" ]; then
+    echo "Please specify a board using the --board=MyBoard argument"
+    exit 1
+fi
+
+set -e
+trap cleanup EXIT
+
+remote_access_init
+
+eval set -- "${FLAGS_ARGV}"
+
+if [ ${FLAGS_build} -eq ${FLAGS_TRUE} ]; then
+    emerge-${FLAGS_board} $@
+fi
+
+PKGROOT="${FLAGS_build_root}/${FLAGS_board}/packages"
+
+for pkg in $@; do
+    latest_pkg=$(ls -tr $PKGROOT/*/${pkg}-[0-9]* | tail -1)
+    if [ -z "${latest_pkg}" ]; then
+        echo "Could not find latest built version of ${pkg}"
+        exit 1
+    fi
+    pkg_dir=$(basename $(dirname $latest_pkg))
+    pkg_name=$(basename $latest_pkg)
+    echo "Installing ${latest_pkg}..."
+
+    remote_sh "mktemp -d /tmp/cros_package_to_live.XXXX"
+    temp_dir=$REMOTE_OUT
+    remote_cp "${latest_pkg}" "${temp_dir}"
+    remote_sh "mount -o remount,rw /"
+    remote_sh "mkdir -p /usr/portage/packages/${pkg_dir} &&
+               mv ${temp_dir}/${pkg_name} /usr/portage/packages/${pkg_dir} &&
+               env FEATURES=-sandbox emerge --usepkg \
+                    /usr/portage/packages/${pkg_dir}/${pkg_name} 1>&2"
+    echo "${pkg} has been installed"
+    remote_sh "rm -rf ${temp_dir}"
+    remote_sh "mount -o remount,ro /" || /bin/true
+done
