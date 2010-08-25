@@ -41,7 +41,7 @@ fi
 read -p "Username [${LOGNAME}]: " GSDCURL_USERNAME
 export GSDCURL_USERNAME
 read -s -p "Password: " GSDCURL_PASSWORD
-echo   # ... because read -s didn't print a newline
+echo >&2   # ... because read -s didn't print a newline
 export GSDCURL_PASSWORD
 
 LATEST_BUILD=$(bin/cros_gsdcurl.py -s $URL_PREFIX/LATEST)
