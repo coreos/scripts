@@ -230,6 +230,8 @@ gsutil_archive "${ZIPFILE}" "${LAST_CHANGE}/${FLAGS_zipname}"
 
 if [ $FLAGS_archive_debug -eq $FLAGS_TRUE ]
 then
+  echo "Generating Breakpad symbols"
+  ! ${SCRIPTS_DIR}/cros_generate_breakpad_symbols --board=${FLAGS_board}
   echo "Creating debug archive"
   pushd "${FLAGS_chroot}/build/${FLAGS_board}/usr/lib"
   sudo tar czf "${OUTDIR}/debug.tgz" --checkpoint=1000 --exclude\

@@ -22,8 +22,9 @@ get_default_board
 
 # Flags
 DEFINE_string board "$DEFAULT_BOARD" "The board to build packages for."
-DEFINE_boolean official_build $FLAGS_FALSE "Point to official symbol server."
-DEFINE_boolean regenerate $FLAGS_TRUE "Regenerate all symbols."
+DEFINE_string breakpad_root "" "Root directory for breakpad symbols."
+DEFINE_boolean official_build ${FLAGS_FALSE} "Point to official symbol server."
+DEFINE_boolean regenerate ${FLAGS_FALSE} "Regenerate all symbols."
 DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts."
 
@@ -99,13 +100,22 @@ function main() {
   fi
   info "Uploading symbols to ${upload_url} from ${SYSROOT}."
 
-  MINIDUMP_SYMBOLS_ROOT="${SYSROOT}/usr/lib/debug/breakpad"
+  DEFAULT_BREAKPAD_ROOT="${SYSROOT}/usr/lib/debug/breakpad"
+  if [ -z "${FLAGS_breakpad_root}" ]; then
+    FLAGS_breakpad_root="${DEFAULT_BREAKPAD_ROOT}"
+  else
+    if [ ${FLAGS_regenerate} -eq ${FLAGS_TRUE} ]; then
+      warn "Assuming --noregenerate when --breakpad_root is specified"
+      FLAGS_regenerate=${FLAGS_FALSE}
+    fi
+  fi
 
   if [ -z "${FLAGS_ARGV}" ]; then
-    really_upload || exit 1
     if [ ${FLAGS_regenerate} -eq ${FLAGS_TRUE} ]; then
-      sudo rm -rf "${MINIDUMP_SYMBOLS_ROOT}"
-      info "Generating all minidump symbol files."
+      really_upload || exit 1
+      info "Clearing ${DEFAULT_BREAKPAD_ROOT}"
+      sudo rm -rf "${DEFAULT_BREAKPAD_ROOT}"
+      info "Generating all breakpad symbol files."
       local verbosity=""
       local generate_script="$(dirname $0)/cros_generate_breakpad_symbols"
       [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ] && verbosity="--verbose"
@@ -115,8 +125,8 @@ function main() {
       fi
     fi
 
-    info "Uploading all minidump symbol files."
-    for sym_file in $(find "${MINIDUMP_SYMBOLS_ROOT}" -name \*.sym); do
+    info "Uploading all breakpad symbol files."
+    for sym_file in $(find "${FLAGS_breakpad_root}" -name \*.sym); do
       ! upload_file "${sym_file}" "${upload_url}"
     done
   else
