@@ -16,8 +16,12 @@ restart_in_chroot_if_needed $*
 
 get_default_board
 
+RECOVERY_IMAGE="recovery_image.bin"
+
 DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built"
 DEFINE_string image "" "Location of the rootfs raw image file"
+DEFINE_string output "${RECOVERY_IMAGE}" \
+  "(optional) output image name. Default: ${RECOVERY_IMAGE}"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -50,7 +54,6 @@ set -e
 # Constants
 IMAGE_DIR="$(dirname "$FLAGS_image")"
 IMAGE_NAME="$(basename "$FLAGS_image")"
-RECOVERY_IMAGE="recovery_image.bin"
 
 # loop device utility methods mostly duplicated from
 #   src/platform/installer/chromeos-install
@@ -112,7 +115,7 @@ update_recovery_packages() {
 
 # Main
 
-DST_PATH="${IMAGE_DIR}/${RECOVERY_IMAGE}"
+DST_PATH="${IMAGE_DIR}/${FLAGS_output}"
 echo "Making a copy of original image ${FLAGS_image}"
 cp $FLAGS_image $DST_PATH
 update_recovery_packages $DST_PATH
