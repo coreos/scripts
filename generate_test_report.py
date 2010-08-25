@@ -247,6 +247,9 @@ class ReportGenerator(object):
     """Runs report generation."""
     self._CollectResults()
     self._GenerateReportText()
+    for v in self._results.itervalues():
+      if v['status'] != 'PASS':
+        sys.exit(1)
 
 
 def main():
