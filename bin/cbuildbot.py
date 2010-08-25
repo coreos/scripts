@@ -63,7 +63,7 @@ def RepoSync(buildroot, rw_checkout, retries=_DEFAULT_RETRIES):
         # failed in a previous run because of a forced Stop Build.
         RunCommand(['repo', 'forall', '-c', 'git', 'config',
                     'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof',
-                    'http://src.chromium.org/git'], cwd=buildroot)
+                    'http://git.chromium.org/git'], cwd=buildroot)
       retries = 0
     except:
       retries -= 1
