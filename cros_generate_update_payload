@@ -100,6 +100,8 @@ DEFINE_string src_image "" "Optional: a source image. If specified, this makes\
  a delta update."
 DEFINE_boolean old_style "$FLAGS_TRUE" "Generate an old-style .gz full update."
 DEFINE_string output "" "Output file"
+DEFINE_boolean patch_kernel "$FLAGS_FALSE" "Whether or not to patch the kernel \
+with the patch from the stateful partition (default: false)"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -131,7 +133,9 @@ if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
 
   trap cleanup INT TERM EXIT
   SRC_KERNEL=$(extract_partition_to_temp_file "$FLAGS_src_image" 2)
-  patch_kernel "$FLAGS_src_image" "$SRC_KERNEL"
+  if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
+    patch_kernel "$FLAGS_src_image" "$SRC_KERNEL"
+  fi
   SRC_ROOT=$(extract_partition_to_temp_file "$FLAGS_src_image" 3)
 
   echo md5sum of src kernel:
@@ -140,7 +144,9 @@ if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
   md5sum "$SRC_ROOT"
   
   DST_KERNEL=$(extract_partition_to_temp_file "$FLAGS_image" 2)
-  patch_kernel "$FLAGS_image" "$DST_KERNEL"
+  if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
+    patch_kernel "$FLAGS_image" "$DST_KERNEL"
+  fi
   DST_ROOT=$(extract_partition_to_temp_file "$FLAGS_image" 3)
   
   SRC_MNT=$(mktemp -d /tmp/src_root.XXXXXX)
@@ -162,7 +168,9 @@ else
   
   trap cleanup INT TERM EXIT
   DST_KERNEL=$(extract_partition_to_temp_file "$FLAGS_image" 2)
-  patch_kernel "$FLAGS_image" "$DST_KERNEL"
+  if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
+    patch_kernel "$FLAGS_image" "$DST_KERNEL"
+  fi
   DST_ROOT=$(extract_partition_to_temp_file "$FLAGS_image" 3)
   
   GENERATOR="$(dirname "$0")/mk_memento_images.sh"
