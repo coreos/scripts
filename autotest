@@ -155,7 +155,6 @@ def build_autotest(options):
   else:
     blacklist = []
 
-  blacklist.append("graphics_WebGLConformance")
   all_tests = ('compilebench,dbench,disktest,fsx,hackbench,iperf,netperf2,'
                'netpipe,unixbench')
   site_tests = '../third_party/autotest/files/client/site_tests'
