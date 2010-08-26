@@ -29,6 +29,7 @@ class CBuildBotTest(mox.MoxTestBase):
                        'cros' : ['chromos-base/libcros']
                       }
     self._test_string = "kernel.git@12345test cros.git@12333test"
+    self._test_string += " crosutils.git@blahblah"
     self._revision_file = 'test-revisions.pfq'
     self._test_parsed_string_array = [
                                       ['chromeos-base/kernel', '12345test'],

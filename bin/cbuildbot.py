@@ -209,6 +209,9 @@ def _ParseRevisionString(revision_string, repo_dictionary):
 
 def _UprevFromRevisionList(buildroot, revision_list):
   """Uprevs based on revision list."""
+  if not revision_list:
+    print >> sys.stderr, 'No packages found to uprev'
+    return
   package_str = ''
   commit_str = ''
   for package, revision in revision_list:
