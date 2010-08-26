@@ -199,9 +199,11 @@ def _ParseRevisionString(revision_string, repo_dictionary):
     if len(revision_tuple) != 2:
       print >> sys.stderr, 'Incorrectly formatted revision %s' % revision
     repo_name = revision_tuple[0].replace('.git', '')
-    # May be many corresponding packages to a given git repo e.g. kernel)
-    for package in repo_dictionary[repo_name]:
-      revisions[package] = revision_tuple[1]
+    # Might not have entry if no matching ebuild.
+    if repo_dictionary.has_key(repo_name):
+      # May be many corresponding packages to a given git repo e.g. kernel).
+      for package in repo_dictionary[repo_name]:
+        revisions[package] = revision_tuple[1]
   return revisions.items()
 
 
