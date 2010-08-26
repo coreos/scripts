@@ -6,6 +6,7 @@
 
 """Stop gap sync function until cbuildbot is integrated into all builders"""
 
+import cbuildbot_comm
 import cbuildbot
 import optparse
 import sys
