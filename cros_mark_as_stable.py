@@ -110,10 +110,6 @@ def _PrintUsageAndDie(error_message=''):
   else:
     sys.exit(1)
 
-def _BranchExists(name):
-  """Returns True is the branch exists"""
-  return _RunCommand('git branch').split().count(name) != 0
-
 def _PushChange():
   """Pushes changes to the git repository.
 
@@ -142,8 +138,6 @@ def _PushChange():
   merge_branch.CreateBranch()
   if not merge_branch.Exists():
     generate_test_report.Die('Unable to create merge branch.')
-  _RunCommand('git checkout -b %s %s' % (
-      merge_branch_name, gflags.FLAGS.tracking_branch))
   _RunCommand('git merge --squash %s' % _STABLE_BRANCH_NAME)
   _RunCommand('git commit -m "%s"' % description)
   # Ugh. There has got to be an easier way to push to a tracking branch
