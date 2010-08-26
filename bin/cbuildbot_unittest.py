@@ -10,6 +10,8 @@ import __builtin__
 import mox
 import unittest
 
+# Fixes circular dependency error.
+import cbuildbot_comm
 import cbuildbot
 
 class CBuildBotTest(mox.MoxTestBase):

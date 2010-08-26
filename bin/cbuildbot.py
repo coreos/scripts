@@ -7,13 +7,13 @@
 """CBuildbot is wrapper around the build process used by the pre-flight queue"""
 
 import errno
+import re
 import optparse
 import os
-import re
-import shutil
 import subprocess
 import sys
 
+import cbuildbot_comm
 from cbuildbot_config import config
 
 _DEFAULT_RETRIES = 3
@@ -376,12 +376,27 @@ def main():
       _UprevPackages(buildroot, revisionfile, board=buildconfig['board'])
     _Build(buildroot)
     if buildconfig['uprev']:
-      _UprevPush(buildroot)
-      _UprevCleanup(buildroot)
+      if buildconfig['master']:
+        # Master bot needs to check if the other slaves completed.
+        if cbuildbot_comm.HaveSlavesCompleted(config):
+          _UprevPush(buildroot)
+          _UprevCleanup(buildroot)
+        else:
+          # At least one of the slaves failed or we timed out.
+          _UprevCleanup(buildroot)
+          sys.stderr('CBUILDBOT - One of the slaves has failed!!!')
+          sys.exit(1)
+      else:
+        # Publish my status to the master.
+        cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
+        _UprevCleanup(buildroot)
   except:
-    # something went wrong, cleanup (being paranoid) for next build
+    # Something went wrong, cleanup (being paranoid) for next build.
     if clobber:
       RunCommand(['sudo', 'rm', '-rf', buildroot], print_cmd=False)
+    # Send failure to master bot.
+    if not buildconfig['master']:
+      cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_FAILED)
     raise
 
 
