@@ -45,9 +45,13 @@ WORKON_CMD=$1
 shift
 
 
-# board dir config
+# Board dir config
+
+# If both are specified, just use host, because board does not
+# have to be specified and may come from default, in which case
+# there's no way to override.
 [ -n "${FLAGS_board}" ] && [ "${FLAGS_host}" = ${FLAGS_TRUE} ] && \
-  die "Flags --host and --board are mutually exclusive."
+  FLAGS_board="" # kill board
 [ -z "${FLAGS_board}" ] && [ "${FLAGS_host}" = ${FLAGS_FALSE} ] && \
   die "You must specify either --host or --board="
 
