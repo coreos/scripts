@@ -284,7 +284,7 @@ def _Build(buildroot):
 
 def _BuildImage(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./build_image'], cwd=cwd, enter_chroot=True)
+  RunCommand(['./build_image', '--replace'], cwd=cwd, enter_chroot=True)
 
 def _RunUnitTests(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
