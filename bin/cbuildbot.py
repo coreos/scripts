@@ -274,7 +274,7 @@ def _SetupBoard(buildroot, board='x86-generic'):
   """Wrapper around setup_board."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./setup_board', '--fast', '--default', '--board=%s' % board],
-             cwd=cwd)
+             cwd=cwd, enter_chroot=True)
 
 
 def _Build(buildroot):
@@ -284,11 +284,11 @@ def _Build(buildroot):
 
 def _BuildImage(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./build_image'], cwd=cwd)
+  RunCommand(['./build_image'], cwd=cwd, enter_chroot=True)
 
 def _RunUnitTests(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./cros_run_unit_tests'], cwd=cwd)
+  RunCommand(['./cros_run_unit_tests'], cwd=cwd, enter_chroot=True)
 
 
 def _UprevPackages(buildroot, revisionfile, board):
