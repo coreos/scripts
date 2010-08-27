@@ -57,9 +57,11 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
   (output, error) = proc.communicate(input)
   if exit_code:
     return proc.returncode
+
   if not error_ok and proc.returncode != 0:
     raise Exception('Command "%s" failed.\n' % (' '.join(cmd)) +
                     (error_message or error or output or ''))
+
   return output
 
 
@@ -97,6 +99,7 @@ def RepoSync(buildroot, rw_checkout=False, retries=_DEFAULT_RETRIES):
         RunCommand(['repo', 'forall', '-c', 'git', 'config',
                     'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof',
                     'http://git.chromium.org/git'], cwd=buildroot)
+
       retries = 0
     except:
       retries -= 1
@@ -130,6 +133,7 @@ def _GetAllGitRepos(buildroot, debug=False):
     else:
       # Remove pre-pended src directory from manifest.
       manifest_tuples.append([result[0], result[1].replace('src/', '')])
+
   return manifest_tuples
 
 
@@ -149,6 +153,7 @@ def _GetCrosWorkOnSrcPath(buildroot, board, package, debug=False):
     temp = re.findall('CROS_WORKON_SRCDIR="(\S+)"', cros_workon_output)
     if temp:
       return temp[0]
+
   return None
 
 
@@ -156,7 +161,8 @@ def _CreateRepoDictionary(buildroot, board, debug=False):
   """Returns the repo->list_of_ebuilds dictionary."""
   repo_dictionary = {}
   manifest_tuples = _GetAllGitRepos(buildroot)
-  print >> sys.stderr, 'Creating dictionary of git repos to portage packages ...'
+  print >> sys.stderr, (
+               'Creating dictionary of git repos to portage packages ...')
 
   cwd = os.path.join(buildroot, 'src', 'scripts')
   get_all_workon_pkgs_cmd = './cros_workon list --all'.split()
@@ -175,6 +181,7 @@ def _CreateRepoDictionary(buildroot, board, debug=False):
             repo_dictionary[tuple[0]] += [package]
           else:
             repo_dictionary[tuple[0]] = [package]
+
   return repo_dictionary
 
 
@@ -198,12 +205,14 @@ def _ParseRevisionString(revision_string, repo_dictionary):
     revision_tuple = revision.split('@')
     if len(revision_tuple) != 2:
       print >> sys.stderr, 'Incorrectly formatted revision %s' % revision
+
     repo_name = revision_tuple[0].replace('.git', '')
     # Might not have entry if no matching ebuild.
     if repo_dictionary.has_key(repo_name):
       # May be many corresponding packages to a given git repo e.g. kernel).
       for package in repo_dictionary[repo_name]:
         revisions[package] = revision_tuple[1]
+
   return revisions.items()
 
 
@@ -212,11 +221,13 @@ def _UprevFromRevisionList(buildroot, revision_list):
   if not revision_list:
     print >> sys.stderr, 'No packages found to uprev'
     return
+
   package_str = ''
   commit_str = ''
   for package, revision in revision_list:
     package_str += package + ' '
     commit_str += revision + ' '
+
   package_str = package_str.strip()
   commit_str = commit_str.strip()
 
@@ -269,7 +280,15 @@ def _SetupBoard(buildroot, board='x86-generic'):
 def _Build(buildroot):
   """Wrapper around build_packages."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./build_packages'], cwd=cwd)
+  RunCommand(['./build_packages'], cwd=cwd, enter_chroot=True)
+
+def _BuildImage(buildroot):
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  RunCommand(['./build_image'], cwd=cwd)
+
+def _RunUnitTests(buildroot):
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  RunCommand(['./cros_run_unit_tests'], cwd=cwd)
 
 
 def _UprevPackages(buildroot, revisionfile, board):
@@ -328,11 +347,21 @@ def _GetConfig(config_name):
   """Gets the configuration for the build"""
   default = config['default']
   buildconfig = {}
-  if config.has_key(config_name):
-    buildconfig = config[config_name]
+  if not config.has_key(config_name):
+    print >> sys.stderr, 'Non-existent configuration specified.'
+    print >> sys.stderr, 'Please specify one of:'
+    config_names = config.keys()
+    config_names.sort()
+    for name in config_names:
+      print >> sys.stderr, '  %s' % name
+    sys.exit(1)
+
+  buildconfig = config[config_name]
+
   for key in default.iterkeys():
     if not buildconfig.has_key(key):
       buildconfig[key] = default[key]
+
   return buildconfig
 
 
@@ -361,20 +390,29 @@ def main():
     print >> sys.stderr, "Missing configuration description"
     parser.print_usage()
     sys.exit(1)
+
   try:
     if not os.path.isdir(buildroot):
       _FullCheckout(buildroot)
     else:
       _IncrementalCheckout(buildroot)
+
     chroot_path = os.path.join(buildroot, 'chroot')
     if not os.path.isdir(chroot_path):
       _MakeChroot(buildroot)
+
     boardpath = os.path.join(chroot_path, 'build', buildconfig['board'])
     if not os.path.isdir(boardpath):
       _SetupBoard(buildroot, board=buildconfig['board'])
+
     if buildconfig['uprev']:
       _UprevPackages(buildroot, revisionfile, board=buildconfig['board'])
+
     _Build(buildroot)
+    if buildconfig['unittests']:
+      _RunUnitTests(buildroot)
+
+    _BuildImage(buildroot)
     if buildconfig['uprev']:
       if buildconfig['master']:
         # Master bot needs to check if the other slaves completed.
@@ -387,16 +425,20 @@ def main():
           sys.stderr('CBUILDBOT - One of the slaves has failed!!!')
           sys.exit(1)
       else:
-        # Publish my status to the master.
-        cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
+        # Publish my status to the master if its expecting it.
+        if buildconfig['important']:
+          cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
+
         _UprevCleanup(buildroot)
   except:
     # Something went wrong, cleanup (being paranoid) for next build.
     if clobber:
       RunCommand(['sudo', 'rm', '-rf', buildroot], print_cmd=False)
+
     # Send failure to master bot.
-    if not buildconfig['master']:
+    if not buildconfig['master'] and buildconfig['important']:
       cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_FAILED)
+
     raise
 
 
