@@ -25,9 +25,7 @@ if [[ -n "${CROS_WORKON_SRCROOT}" ]]; then
     setup_board_warning
     exit 1
   fi
-  $(dirname "$0")/cros_workon --board=${FLAGS_board} start \
-      autotest autotest-tests autotest-deps
-  emerge-${FLAGS_board} autotest-tests
+  emerge-${FLAGS_board} autotest-all
 else
   ./autotest --noprompt --build=all --board="${FLAGS_board}" $@
 fi
