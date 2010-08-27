@@ -72,6 +72,7 @@ DEFINE_boolean interactive ${FLAGS_FALSE} \
     "Tell user what we plan to do and wait for input to proceed" i
 DEFINE_integer jobs -1 "Concurrent build jobs"
 DEFINE_boolean master ${FLAGS_TRUE} "Master an image from built code"
+DEFINE_boolean minilayout ${FLAGS_FALSE} "Use minimal code checkout"
 DEFINE_boolean mod_image_for_test ${FLAGS_FALSE} "Modify the image for testing"
 DEFINE_string remote "" \
     "Use this hostname/IP for live updating and running tests"
@@ -83,7 +84,7 @@ DEFINE_string top "" \
     "Root directory of your checkout (defaults to determining from your cwd)"
 DEFINE_boolean withdev ${FLAGS_TRUE} "Build development packages"
 DEFINE_boolean usepkg ${FLAGS_TRUE} "Use binary packages"
-DEFINE_boolean useworkon ${FLAGS_FALSE} "Use cros_workon/repo workflow"
+DEFINE_boolean useworkon ${FLAGS_TRUE} "Use cros_workon/repo workflow"
 DEFINE_boolean unittest ${FLAGS_TRUE} "Run unit tests"
 
 # Returns a heuristic indicating if we believe this to be a google internal
@@ -405,7 +406,9 @@ function config_new_gclient_checkout() {
 function config_new_repo_checkout() {
   mkdir -p "${FLAGS_top}"
   cd "${FLAGS_top}"
-  repo init -u http://src.chromium.org/git/manifest -m minilayout.xml
+  local minilayout=""
+  [ ${FLAGS_minilayout} -eq ${FLAGS_TRUE} ] && minilayout="-m minilayout.xml"
+  repo init -u http://src.chromium.org/git/manifest ${minilayout}
 }
 
 # Configures/initializes a new checkout
@@ -566,6 +569,16 @@ function main() {
     local build_autotest_param=""
     if [[ ${FLAGS_build_autotest} -eq ${FLAGS_TRUE} ]]; then
       build_autotest_param="--withautotest"
+      if [[ ${FLAGS_useworkon} -eq ${FLAGS_TRUE} ]]; then
+        # In workon flow, you must workon packages to run tests
+        run_phase_in_chroot "Setting workon for autotest" \
+          ./cros_workon --board=${FLAGS_board} start autotest \
+          autotest-tests autotest-deps
+        # In minilayout you may not yet have autotest.
+        if [[ ! -d "${FLAGS_top}/src/third_party/autotest/files" ]]; then
+          run_phase "Syncing autotest repo" repo sync autotest
+        fi
+      fi
     fi
 
     run_phase_in_chroot "Building packages" \
