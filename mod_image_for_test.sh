@@ -136,7 +136,7 @@ install_autotest() {
     sudo rm -rf "${stateful_root}/autotest-pkgs" || true
     sudo rm -rf "${stateful_root}/lib/icedtea6" || true
 
-    sudo rsync --delete --delete-excluded -auvq \
+    sudo rsync --delete --delete-excluded -auv \
       --exclude=deps/realtimecomm_playground \
       --exclude=tests/ltp \
       --exclude=site_tests/graphics_O3DSelenium \
