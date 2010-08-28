@@ -315,15 +315,16 @@ def _UprevPackages(buildroot, revisionfile, board):
 
   revisions = revisions.strip()
 
+  # TODO(sosa): Un-comment once we close individual trees.
   # Revisions == "None" indicates a Force Build.
-  if revisions != 'None':
-    print >> sys.stderr, 'CBUILDBOT Revision list found %s' % revisions
-    revision_list = _ParseRevisionString(revisions,
-        _CreateRepoDictionary(buildroot, board))
-    _UprevFromRevisionList(buildroot, revision_list)
-  else:
-    print >> sys.stderr, 'CBUILDBOT Revving all'
-    _UprevAllPackages(buildroot)
+  #if revisions != 'None':
+  #  print >> sys.stderr, 'CBUILDBOT Revision list found %s' % revisions
+  #  revision_list = _ParseRevisionString(revisions,
+  #      _CreateRepoDictionary(buildroot, board))
+  #  _UprevFromRevisionList(buildroot, revision_list)
+  #else:
+  print >> sys.stderr, 'CBUILDBOT Revving all'
+  _UprevAllPackages(buildroot)
 
 
 def _UprevCleanup(buildroot):
