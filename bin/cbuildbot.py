@@ -376,14 +376,17 @@ def main():
                     help='build number', type='int', default=0)
   parser.add_option('-f', '--revisionfile',
                     help='file where new revisions are stored')
-  parser.add_option('--noclobber', action='store_false', dest='clobber',
-                    default=True,
-                    help='Disables clobbering the buildroot on failure')
+  parser.add_option('--clobber', action='store_true', dest='clobber',
+                    default=False,
+                    help='Clobbers an old checkout before syncing')
   (options, args) = parser.parse_args()
 
   buildroot = options.buildroot
   revisionfile = options.revisionfile
-  clobber = options.clobber
+
+  # Passed option to clobber.
+  if options.clobber:
+    RunCommand(['sudo', 'rm', '-rf', buildroot])
 
   if len(args) == 1:
     buildconfig = _GetConfig(args[0])
@@ -432,10 +435,6 @@ def main():
 
         _UprevCleanup(buildroot)
   except:
-    # Something went wrong, cleanup (being paranoid) for next build.
-    if clobber:
-      RunCommand(['sudo', 'rm', '-rf', buildroot], print_cmd=False)
-
     # Send failure to master bot.
     if not buildconfig['master'] and buildconfig['important']:
       cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_FAILED)
