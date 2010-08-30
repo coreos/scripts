@@ -17,49 +17,10 @@ import os
 import re
 import sys
 
+sys.path.append(os.path.join(os.path.dirname(__file__), 'lib'))
+from cros_build_lib import Color, Die
 
 _STDOUT_IS_TTY = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
-
-
-class Color(object):
-  """Conditionally wraps text in ANSI color escape sequences."""
-  BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
-  BOLD = -1
-  COLOR_START = '\033[1;%dm'
-  BOLD_START = '\033[1m'
-  RESET = '\033[0m'
-
-  def __init__(self, enabled=True):
-    self._enabled = enabled
-
-  def Color(self, color, text):
-    """Returns text with conditionally added color escape sequences.
-
-    Args:
-      color: Text color -- one of the color constants defined in this class.
-      text: The text to color.
-
-    Returns:
-      If self._enabled is False, returns the original text. If it's True,
-      returns text with color escape sequences based on the value of color.
-    """
-    if not self._enabled:
-      return text
-    if color == self.BOLD:
-      start = self.BOLD_START
-    else:
-      start = self.COLOR_START % (color + 30)
-    return start + text + self.RESET
-
-
-def Die(message):
-  """Emits a red error message and halts execution.
-
-  Args:
-    message: The message to be emitted before exiting.
-  """
-  print Color(_STDOUT_IS_TTY).Color(Color.RED, '\nERROR: ' + message)
-  sys.exit(1)
 
 
 class ReportGenerator(object):

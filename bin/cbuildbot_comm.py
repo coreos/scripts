@@ -6,11 +6,13 @@
 
 import Queue
 import SocketServer
+import os
 import socket
 import sys
 import time
 
-from cbuildbot import RunCommand
+sys.path.append(os.path.join(os.path.dirname(__file__), '../lib'))
+from cros_build_lib import Info, Warning, RunCommand
 
 # Communication port for master to slave communication.
 _COMM_PORT = 32890
@@ -52,15 +54,14 @@ class _SlaveCommandHandler(SocketServer.BaseRequestHandler):
 
     def _HandleCommand(self, command, args):
       """Handles command and returns status for master."""
-      print >> sys.stderr, ('(Slave) - Received command %s with args %s' %
-                            (command, args))
+      Info('(Slave) - Received command %s with args %s' % (command, args))
       command_to_expect = _command_queue.get()
       # Check status also adds an entry on the status queue.
       if command_to_expect == _COMMAND_CHECK_STATUS:
         slave_status = _status_queue.get()
       # Safety check to make sure the server is in a good state.
       if command_to_expect != command:
-        print >> sys.stderr, (
+        Warning(
             '(Slave) - Rejecting command %s.  Was expecting %s.' % (command,
                 command_to_expect))
         return _STATUS_COMMAND_REJECTED
@@ -91,7 +92,7 @@ def _GetSlaveNames(configuration):
 def _SendCommand(hostname, command, args):
   """Returns response from host or _STATUS_TIMEOUT on error."""
   data = '%s\n%s\n' % (command, args)
-  print '(Master) - Sending %s %s to %s' % (command, args, hostname)
+  Info('(Master) - Sending %s %s to %s' % (command, args, hostname))
 
   # Create a socket (SOCK_STREAM means a TCP socket).
   sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -124,10 +125,10 @@ def _CheckSlavesLeftStatus(slaves_to_check):
   for slave in slaves_to_check:
     status = _SendCommand(slave, _COMMAND_CHECK_STATUS, 'empty')
     if status == STATUS_BUILD_FAILED:
-      print >> sys.stderr, '(Master) - Slave %s failed' % slave
+      Warning('(Master) - Slave %s failed' % slave)
       return False
     elif status == STATUS_BUILD_COMPLETE:
-      print >> sys.stderr, '(Master) - Slave %s completed' % slave
+      Info('(Master) - Slave %s completed' % slave)
       slaves_to_remove.append(slave)
   for slave in slaves_to_remove:
     slaves_to_check.remove(slave)
@@ -185,11 +186,10 @@ def PublishStatus(status):
       try:
         response = _receive_queue.get_nowait()
       except Queue.Empty:
-        print >> sys.stderr, ('(Slave) - Waiting for master to accept %s' % (
-                                  status))
+        Info('(Slave) - Waiting for master to accept %s' % status)
         timeout += _HEARTBEAT_TIMEOUT
         response = None
   except Exception, e:
-    print >> sys.stderr, '%s' % e
+    Warning('%s' % e)
   server.server_close()
   return response != None

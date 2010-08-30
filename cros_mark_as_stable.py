@@ -15,9 +15,8 @@ import shutil
 import subprocess
 import sys
 
-# TODO(sosa):  Refactor Die into common library.
-sys.path.append(os.path.dirname(__file__))
-import generate_test_report
+sys.path.append(os.path.join(os.path.dirname(__file__), 'lib'))
+from cros_build_lib import Info, Warning, Die
 
 
 gflags.DEFINE_string('board', 'x86-generic',
@@ -33,7 +32,7 @@ gflags.DEFINE_string('packages', '',
                      short_name='p')
 gflags.DEFINE_string('push_options', '',
                      'Options to use with git-cl push using push command.')
-gflags.DEFINE_string('srcroot',  '%s/trunk/src' % os.environ['HOME'],
+gflags.DEFINE_string('srcroot', '%s/trunk/src' % os.environ['HOME'],
                      'Path to root src directory.',
                      short_name='r')
 gflags.DEFINE_string('tracking_branch', 'cros/master',
@@ -67,11 +66,11 @@ _STABLE_BRANCH_NAME = 'stabilizing_branch'
 def _Print(message):
   """Verbose print function."""
   if gflags.FLAGS.verbose:
-    print message
+    Info(message)
 
 def _CheckOnStabilizingBranch():
   """Returns true if the git branch is on the stabilizing branch."""
-  current_branch = _RunCommand('git branch | grep \*').split()[1]
+  current_branch = _SimpleRunCommand('git branch | grep \*').split()[1]
   return current_branch == _STABLE_BRANCH_NAME
 
 def _CheckSaneArguments(package_list, commit_id_list, command):
@@ -91,8 +90,8 @@ def _CheckSaneArguments(package_list, commit_id_list, command):
 
 def _Clean():
   """Cleans up uncommitted changes on either stabilizing branch or master."""
-  _RunCommand('git reset HEAD --hard')
-  _RunCommand('git checkout %s' % gflags.FLAGS.tracking_branch)
+  _SimpleRunCommand('git reset HEAD --hard')
+  _SimpleRunCommand('git checkout %s' % gflags.FLAGS.tracking_branch)
 
 
 def _PrintUsageAndDie(error_message=''):
@@ -103,10 +102,10 @@ def _PrintUsageAndDie(error_message=''):
   for command in commands:
     command_usage += '  %s: %s\n' % (command, _COMMAND_DICTIONARY[command])
   commands_str = '|'.join(commands)
-  print 'Usage: %s FLAGS [%s]\n\n%s\nFlags:%s' % (sys.argv[0], commands_str,
-                                                  command_usage, gflags.FLAGS)
+  Warning('Usage: %s FLAGS [%s]\n\n%s\nFlags:%s' % (sys.argv[0], commands_str,
+                                                  command_usage, gflags.FLAGS))
   if error_message:
-    generate_test_report.Die(error_message)
+    Die(error_message)
   else:
     sys.exit(1)
 
@@ -125,27 +124,27 @@ def _PushChange():
 
   # Sanity check to make sure we're on a stabilizing branch before pushing.
   if not _CheckOnStabilizingBranch():
-    print 'Not on branch %s so no work found to push.  Exiting' % \
-        _STABLE_BRANCH_NAME
+    Info('Not on branch %s so no work found to push.  Exiting' % \
+        _STABLE_BRANCH_NAME)
     return
 
-  description = _RunCommand('git log --format=format:%s%n%n%b ' +
+  description = _SimpleRunCommand('git log --format=format:%s%n%n%b ' +
                             gflags.FLAGS.tracking_branch + '..')
   description = 'Marking set of ebuilds as stable\n\n%s' % description
   merge_branch_name = 'merge_branch'
-  _RunCommand('git remote update')
+  _SimpleRunCommand('git remote update')
   merge_branch = _GitBranch(merge_branch_name)
   merge_branch.CreateBranch()
   if not merge_branch.Exists():
-    generate_test_report.Die('Unable to create merge branch.')
-  _RunCommand('git merge --squash %s' % _STABLE_BRANCH_NAME)
-  _RunCommand('git commit -m "%s"' % description)
+    Die('Unable to create merge branch.')
+  _SimpleRunCommand('git merge --squash %s' % _STABLE_BRANCH_NAME)
+  _SimpleRunCommand('git commit -m "%s"' % description)
   # Ugh. There has got to be an easier way to push to a tracking branch
-  _RunCommand('git config push.default tracking')
-  _RunCommand('git push')
+  _SimpleRunCommand('git config push.default tracking')
+  _SimpleRunCommand('git push')
 
 
-def _RunCommand(command):
+def _SimpleRunCommand(command):
   """Runs a shell command and returns stdout back to caller."""
   _Print('  + %s' % command)
   proc_handle = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
@@ -174,12 +173,12 @@ class _GitBranch(object):
       git_cmd = 'git checkout -b %s %s' % (target, gflags.FLAGS.tracking_branch)
     else:
       git_cmd = 'git checkout %s' % target
-    _RunCommand(git_cmd)
+    _SimpleRunCommand(git_cmd)
 
   def Exists(self):
     """Returns True if the branch exists."""
     branch_cmd = 'git branch'
-    branches = _RunCommand(branch_cmd)
+    branches = _SimpleRunCommand(branch_cmd)
     return self.branch_name in branches.split()
 
   def Delete(self):
@@ -189,7 +188,7 @@ class _GitBranch(object):
     """
     self._Checkout(gflags.FLAGS.tracking_branch, create=False)
     delete_cmd = 'git branch -D %s' % self.branch_name
-    _RunCommand(delete_cmd)
+    _SimpleRunCommand(delete_cmd)
 
 
 class _EBuild(object):
@@ -214,7 +213,7 @@ class _EBuild(object):
     _Print('Looking for unstable ebuild for %s' % package)
     equery_cmd = 'equery-%s which %s 2> /dev/null' \
       % (gflags.FLAGS.board, package)
-    path = _RunCommand(equery_cmd)
+    path = _SimpleRunCommand(equery_cmd)
     if path:
       _Print('Unstable ebuild found at %s' % path)
     return path
@@ -270,7 +269,7 @@ class EBuildStableMarker(object):
     """
     # TODO(sosa):  Change to a check.
     if not self._ebuild:
-      generate_test_report.Die('Invalid ebuild given to EBuildStableMarker')
+      Die('Invalid ebuild given to EBuildStableMarker')
 
     new_ebuild_path = '%s-r%d.ebuild' % (self._ebuild.ebuild_path_no_revision,
                                          self._ebuild.current_revision + 1)
@@ -296,10 +295,10 @@ class EBuildStableMarker(object):
     fileinput.close()
 
     _Print('Adding new stable ebuild to git')
-    _RunCommand('git add %s' % new_ebuild_path)
+    _SimpleRunCommand('git add %s' % new_ebuild_path)
 
     _Print('Removing old ebuild from git')
-    _RunCommand('git rm %s' % self._ebuild.ebuild_path)
+    _SimpleRunCommand('git rm %s' % self._ebuild.ebuild_path)
 
   def CommitChange(self, message):
     """Commits current changes in git locally.
@@ -316,7 +315,7 @@ class EBuildStableMarker(object):
     _Print('Committing changes for %s with commit message %s' % \
            (self._ebuild.package, message))
     git_commit_cmd = 'git commit -am "%s"' % message
-    _RunCommand(git_commit_cmd)
+    _SimpleRunCommand(git_commit_cmd)
 
 
 def main(argv):
@@ -346,7 +345,7 @@ def main(argv):
     work_branch = _GitBranch(_STABLE_BRANCH_NAME)
     work_branch.CreateBranch()
     if not work_branch.Exists():
-      generate_test_report.Die('Unable to create stabilizing branch in %s' %
+      Die('Unable to create stabilizing branch in %s' %
                                overlay_directory)
     index = 0
     try:
@@ -363,11 +362,11 @@ def main(argv):
         worker.CommitChange(_GIT_COMMIT_MESSAGE % (package, commit_id))
 
     except (OSError, IOError), e:
-      print ('An exception occurred\n'
-             'Only the following packages were revved: %s\n'
-             'Note you will have to go into %s'
-             'and reset the git repo yourself.' %
-             (package_list[:index], overlay_directory))
+      Warning('An exception occurred\n'
+              'Only the following packages were revved: %s\n'
+              'Note you will have to go into %s'
+              'and reset the git repo yourself.' %
+              (package_list[:index], overlay_directory))
       raise e
   elif command == 'push':
     _PushChange()

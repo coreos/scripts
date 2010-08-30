@@ -10,60 +10,17 @@ import errno
 import re
 import optparse
 import os
-import subprocess
 import sys
 
 import cbuildbot_comm
 from cbuildbot_config import config
 
+sys.path.append(os.path.join(os.path.dirname(__file__), '../lib'))
+from cros_build_lib import Die, Info, RunCommand, Warning
+
 _DEFAULT_RETRIES = 3
 
 # ======================== Utility functions ================================
-
-def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
-               exit_code=False, redirect_stdout=False, redirect_stderr=False,
-               cwd=None, input=None, enter_chroot=False):
-  """Runs a shell command.
-
-  Keyword arguments:
-  print_cmd -- prints the command before running it.
-  error_ok -- does not raise an exception on error.
-  error_message -- prints out this message when an error occurrs.
-  exit_code -- returns the return code of the shell command.
-  redirect_stdout -- returns the stdout.
-  redirect_stderr -- holds stderr output until input is communicated.
-  cwd -- the working directory to run this cmd.
-  input -- input to pipe into this command through stdin.
-  enter_chroot -- this command should be run from within the chroot.
-
-  """
-  # Set default for variables.
-  stdout = None
-  stderr = None
-  stdin = None
-
-  # Modify defaults based on parameters.
-  if redirect_stdout:  stdout = subprocess.PIPE
-  if redirect_stderr:  stderr = subprocess.PIPE
-  if input:  stdin = subprocess.PIPE
-  if enter_chroot:  cmd = ['./enter_chroot.sh', '--'] + cmd
-
-  # Print out the command before running.
-  if print_cmd:
-    print >> sys.stderr, 'CBUILDBOT -- RunCommand: ', ' '.join(cmd)
-
-  proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
-                          stdout=stdout, stderr=stderr)
-  (output, error) = proc.communicate(input)
-  if exit_code:
-    return proc.returncode
-
-  if not error_ok and proc.returncode != 0:
-    raise Exception('Command "%s" failed.\n' % (' '.join(cmd)) +
-                    (error_message or error or output or ''))
-
-  return output
-
 
 def MakeDir(path, parents=False):
   """Basic wrapper around os.mkdirs.
@@ -104,9 +61,9 @@ def RepoSync(buildroot, rw_checkout=False, retries=_DEFAULT_RETRIES):
     except:
       retries -= 1
       if retries > 0:
-        print >> sys.stderr, 'CBUILDBOT -- Repo Sync Failed, retrying'
+        Warning('CBUILDBOT -- Repo Sync Failed, retrying')
       else:
-        print >> sys.stderr, 'CBUILDBOT -- Retries exhausted'
+        Warning('CBUILDBOT -- Retries exhausted')
         raise
 
 # =========================== Command Helpers =================================
@@ -129,7 +86,7 @@ def _GetAllGitRepos(buildroot, debug=False):
   # Create the array.
   for result in result_array:
     if len(result) != 2:
-      print >> sys.stderr, 'Found in correct xml object %s', result
+      Warning('Found incorrect xml object %s' % result)
     else:
       # Remove pre-pended src directory from manifest.
       manifest_tuples.append([result[0], result[1].replace('src/', '')])
@@ -161,8 +118,7 @@ def _CreateRepoDictionary(buildroot, board, debug=False):
   """Returns the repo->list_of_ebuilds dictionary."""
   repo_dictionary = {}
   manifest_tuples = _GetAllGitRepos(buildroot)
-  print >> sys.stderr, (
-               'Creating dictionary of git repos to portage packages ...')
+  Info('Creating dictionary of git repos to portage packages ...')
 
   cwd = os.path.join(buildroot, 'src', 'scripts')
   get_all_workon_pkgs_cmd = './cros_workon list --all'.split()
@@ -175,8 +131,7 @@ def _CreateRepoDictionary(buildroot, board, debug=False):
       for tuple in manifest_tuples:
         # This path tends to have the user's home_dir prepended to it.
         if cros_workon_src_path.endswith(tuple[1]):
-          print >> sys.stderr, ('For %s found matching package %s' %
-              (tuple[0], package))
+          Info('For %s found matching package %s' % (tuple[0], package))
           if repo_dictionary.has_key(tuple[0]):
             repo_dictionary[tuple[0]] += [package]
           else:
@@ -204,7 +159,7 @@ def _ParseRevisionString(revision_string, repo_dictionary):
     # Format 'package@commit-id'.
     revision_tuple = revision.split('@')
     if len(revision_tuple) != 2:
-      print >> sys.stderr, 'Incorrectly formatted revision %s' % revision
+      Warning('Incorrectly formatted revision %s' % revision)
 
     repo_name = revision_tuple[0].replace('.git', '')
     # Might not have entry if no matching ebuild.
@@ -219,7 +174,7 @@ def _ParseRevisionString(revision_string, repo_dictionary):
 def _UprevFromRevisionList(buildroot, revision_list):
   """Uprevs based on revision list."""
   if not revision_list:
-    print >> sys.stderr, 'No packages found to uprev'
+    Info('No packages found to uprev')
     return
 
   package_str = ''
@@ -309,21 +264,20 @@ def _UprevPackages(buildroot, revisionfile, board):
       revisions = rev_file.read()
       rev_file.close()
     except Exception, e:
-      print >> sys.stderr, 'Error reading %s, revving all' % revisionfile
-      print e
+      Warning('Error reading %s, revving all' % revisionfile)
       revisions = 'None'
 
   revisions = revisions.strip()
 
   # TODO(sosa): Un-comment once we close individual trees.
-  # Revisions == "None" indicates a Force Build.
+  # revisions == "None" indicates a Force Build.
   #if revisions != 'None':
   #  print >> sys.stderr, 'CBUILDBOT Revision list found %s' % revisions
   #  revision_list = _ParseRevisionString(revisions,
   #      _CreateRepoDictionary(buildroot, board))
   #  _UprevFromRevisionList(buildroot, revision_list)
   #else:
-  print >> sys.stderr, 'CBUILDBOT Revving all'
+  Info('CBUILDBOT Revving all')
   _UprevAllPackages(buildroot)
 
 
@@ -349,12 +303,12 @@ def _GetConfig(config_name):
   default = config['default']
   buildconfig = {}
   if not config.has_key(config_name):
-    print >> sys.stderr, 'Non-existent configuration specified.'
-    print >> sys.stderr, 'Please specify one of:'
+    Warning('Non-existent configuration specified.')
+    Warning('Please specify one of:')
     config_names = config.keys()
     config_names.sort()
     for name in config_names:
-      print >> sys.stderr, '  %s' % name
+      Warning('  %s' % name)
     sys.exit(1)
 
   buildconfig = config[config_name]
@@ -391,7 +345,7 @@ def main():
   if len(args) == 1:
     buildconfig = _GetConfig(args[0])
   else:
-    print >> sys.stderr, "Missing configuration description"
+    Warning('Missing configuration description')
     parser.print_usage()
     sys.exit(1)
 
@@ -426,8 +380,7 @@ def main():
         else:
           # At least one of the slaves failed or we timed out.
           _UprevCleanup(buildroot)
-          sys.stderr('CBUILDBOT - One of the slaves has failed!!!')
-          sys.exit(1)
+          Die('CBUILDBOT - One of the slaves has failed!!!')
       else:
         # Publish my status to the master if its expecting it.
         if buildconfig['important']:

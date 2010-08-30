@@ -21,7 +21,7 @@ class GitBranchTest(mox.MoxTestBase):
   def setUp(self):
     mox.MoxTestBase.setUp(self)
     # Always stub RunCommmand out as we use it in every method.
-    self.mox.StubOutWithMock(cros_mark_as_stable, '_RunCommand')
+    self.mox.StubOutWithMock(cros_mark_as_stable, '_SimpleRunCommand')
     self._branch = 'test_branch'
 
   def testCreateBranchNoPrevious(self):
@@ -50,7 +50,8 @@ class GitBranchTest(mox.MoxTestBase):
 
   def testCheckoutCreate(self):
     # Test init with no previous branch existing.
-    cros_mark_as_stable._RunCommand('git checkout -b %s origin' % self._branch)
+    cros_mark_as_stable._SimpleRunCommand(
+        'git checkout -b %s cros/master' % self._branch)
     self.mox.ReplayAll()
     branch = cros_mark_as_stable._GitBranch(self._branch)
     branch._Checkout(self._branch)
@@ -58,17 +59,17 @@ class GitBranchTest(mox.MoxTestBase):
 
   def testCheckoutNoCreate(self):
     # Test init with previous branch existing.
-    cros_mark_as_stable._RunCommand('git checkout master')
+    cros_mark_as_stable._SimpleRunCommand('git checkout cros/master')
     self.mox.ReplayAll()
     branch = cros_mark_as_stable._GitBranch(self._branch)
-    branch._Checkout('master', False)
+    branch._Checkout('cros/master', False)
     self.mox.VerifyAll()
 
   def testDelete(self):
     branch = cros_mark_as_stable._GitBranch(self._branch)
     self.mox.StubOutWithMock(branch, '_Checkout')
-    branch._Checkout('master', create=False)
-    cros_mark_as_stable._RunCommand('git branch -D ' + self._branch)
+    branch._Checkout('cros/master', create=False)
+    cros_mark_as_stable._SimpleRunCommand('git branch -D ' + self._branch)
     self.mox.ReplayAll()
     branch.Delete()
     self.mox.VerifyAll()
@@ -77,8 +78,8 @@ class GitBranchTest(mox.MoxTestBase):
     branch = cros_mark_as_stable._GitBranch(self._branch)
 
     # Test if branch exists that is created
-    cros_mark_as_stable._RunCommand('git branch').AndReturn(
-        '%s %s' % (self._branch, 'master'))
+    cros_mark_as_stable._SimpleRunCommand('git branch').AndReturn(
+        '%s %s' % (self._branch, 'cros/master'))
     self.mox.ReplayAll()
     self.assertTrue(branch.Exists())
     self.mox.VerifyAll()
@@ -114,8 +115,8 @@ class EBuildTest(mox.MoxTestBase):
     self.assertEquals(ebuild.commit_id, 'my_id')
 
   def testFindEBuildPath(self):
-    self.mox.StubOutWithMock(cros_mark_as_stable, '_RunCommand')
-    cros_mark_as_stable._RunCommand(
+    self.mox.StubOutWithMock(cros_mark_as_stable, '_SimpleRunCommand')
+    cros_mark_as_stable._SimpleRunCommand(
         'equery-x86-generic which %s 2> /dev/null' % self.package).AndReturn(
             self.ebuild_path)
     self.mox.ReplayAll()
@@ -144,7 +145,7 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
 
   def setUp(self):
     mox.MoxTestBase.setUp(self)
-    self.mox.StubOutWithMock(cros_mark_as_stable, '_RunCommand')
+    self.mox.StubOutWithMock(cros_mark_as_stable, '_SimpleRunCommand')
     self.m_ebuild = self.mox.CreateMock(cros_mark_as_stable._EBuild)
     self.m_ebuild.package = 'test_package'
     self.m_ebuild.current_revision = 1
@@ -172,8 +173,8 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     m_file.write('CROS_WORKON_COMMIT="my_id"\n')
     m_file.write('KEYWORDS="x86 arm"')
     m_file.write('src_unpack(){}')
-    cros_mark_as_stable._RunCommand('git add ' + self.revved_ebuild_path)
-    cros_mark_as_stable._RunCommand('git rm ' + self.m_ebuild.ebuild_path)
+    cros_mark_as_stable._SimpleRunCommand('git add ' + self.revved_ebuild_path)
+    cros_mark_as_stable._SimpleRunCommand('git rm ' + self.m_ebuild.ebuild_path)
 
     self.mox.ReplayAll()
     marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
@@ -183,7 +184,7 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
 
   def testCommitChange(self):
     mock_message = 'Commit me'
-    cros_mark_as_stable._RunCommand(
+    cros_mark_as_stable._SimpleRunCommand(
         'git commit -am "%s"' % mock_message)
     self.mox.ReplayAll()
     marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
@@ -191,7 +192,7 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     self.mox.VerifyAll()
 
   def testPushChange(self):
-    #cros_mark_as_stable._RunCommand('git push')
+    #cros_mark_as_stable._SimpleRunCommand('git push')
     #self.mox.ReplayAll()
     #marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
     #marker.PushChange()

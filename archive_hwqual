@@ -101,6 +101,10 @@ function main() {
   mv autotest "tarball/${FLAGS_output_tag}"
   cp "${script_dir}/generate_test_report.py" \
     "tarball/${FLAGS_output_tag}/generate_test_report"
+  # Copy python lib used in generate_test_report.
+  mkdir -p "tarball/${FLAGS_output_tag}/lib"
+  cp "${script_dir}/lib/cros_build_lib.py" \
+    "tarball/${FLAGS_output_tag}/lib"
   echo "Creating ${FLAGS_to}/${FLAGS_output_tag}.tar.bz2..."
   mkdir -p "${FLAGS_to}"
   cd tarball
