@@ -62,6 +62,9 @@ for package in ${PACKAGES}; do
     continue
   fi
   ebuild_path=$(${EQUERYCMD} which ${package}) || continue
+  # Get 9999 ebuild path to see if it got changed.
+  ebuild_9999_path=$(ACCEPT_KEYWORDS=~* ${EQUERYCMD} which ${package}) \
+      || continue
   # Sets ${CROS_WORKON_SRCDIR} from the ebuild.
   eval $(${EBUILDCMD} ${ebuild_path} info) &> /dev/null || continue
   head_commit=$( cd "${CROS_WORKON_SRCDIR}" &&\
@@ -70,13 +73,20 @@ for package in ${PACKAGES}; do
     eval echo $(grep CROS_WORKON_COMMIT ${ebuild_path} | cut -f 2 -d '=')) ||\
       echo "No CROS_WORKON_COMMIT found in ${ebuild_path}"
   if [[ ${head_commit} != ${egit_commit} ]] && \
-    [ -n "${head_commit}" ]; then
+      [ -n "${head_commit}" ]; then
     info\
       "HEAD ${head_commit} != CROS_WORKON_COMMIT ${egit_commit} for ${package}"
     PACKAGE_LIST="${PACKAGE_LIST} ${package}"
     COMMIT_ID_LIST="${COMMIT_ID_LIST} ${head_commit}"
   elif [[ ${head_commit}  = ${egit_commit} ]]; then
-    info "Commit id's match for ${package}"
+    info "Commit id's match for ${package}, checking for 9999 ebuild change."
+    # egrep succeeds if there are important differences between the ebuilds.
+    if diff "${ebuild_path}" "${ebuild_9999_path}" | \
+        egrep -v "KEYWORDS|CROS_WORKON_COMMIT|^---|^[<>]\ *$|^[0-9]"; then
+      info "Detected 9999 ebuild change for ${package}."
+      PACKAGE_LIST="${PACKAGE_LIST} ${package}"
+      COMMIT_ID_LIST="${COMMIT_ID_LIST} ${egit_commit}"
+    fi
   fi
 done
 
