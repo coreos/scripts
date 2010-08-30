@@ -48,7 +48,7 @@ stop on starting halt or starting reboot
 
 script
 cd /usr/local/autotest
-eval \$(./deps/factory/startx.sh)
+eval \$(./site_tests/suite_Factory/startx.sh)
 date >> /var/log/factory.log
 if [ ! -e factory_started ]; then
   touch factory_started
