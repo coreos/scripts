@@ -286,7 +286,7 @@ function main() {
 
   echo ""
   echo_color "yellow" ">>> Test results:"
-  $(dirname "$0")/generate_test_report "${TMP}" --strip="${TMP}/"
+  ./generate_test_report "${TMP}" --strip="${TMP}/"
 }
 
 main $@

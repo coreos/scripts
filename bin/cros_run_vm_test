@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Runs a given test case under a VM.
+
+. "$(dirname $0)/../common.sh"
+
+DEFINE_string image_path "" "Full path of the VM image"
+DEFINE_boolean no_graphics ${FLAGS_FALSE} "Runs the KVM instance silently"
+DEFINE_integer ssh_port 9222 "Port to tunnel ssh traffic over"
+DEFINE_string test_case "" "Name of the test case to run"
+
+set -e
+
+KVM_PID_FILE=/tmp/kvm.$$.pid
+
+# TODO(rtc): These flags assume that we'll be using KVM on Lucid and won't work
+# on Hardy.
+function start_kvm {
+  echo "Starting the KVM instance"
+  local nographics=""
+  if [ ${FLAGS_no_graphics} -eq ${FLAGS_TRUE} ]; then
+    nographics="-nographic"
+  fi
+  sudo kvm -m 1024 \
+    -vga std \
+    -pidfile "${KVM_PID_FILE}" \
+    -daemonize \
+    -net nic \
+    ${nographics} \
+    -net user,hostfwd=tcp::${FLAGS_ssh_port}-:22 \
+    -hda "${FLAGS_image_path}"
+}
+
+function stop_kvm {
+  echo "Stopping the KVM instance"
+  local pid=$(sudo cat "${KVM_PID_FILE}")
+  echo "Killing ${pid}"
+  sudo kill ${pid}
+  sudo rm "${KVM_PID_FILE}"
+}
+
+# Parse command line
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+[ -n "${FLAGS_image_path}" ] || die "You must specify a path to an image"
+[ -n "${FLAGS_test_case}" ] || die "You must specify a test case"
+
+trap stop_kvm EXIT
+start_kvm
+"$(dirname $0)"/../run_remote_tests.sh \
+  --ssh_port=${FLAGS_ssh_port} \
+  --remote="${HOSTNAME}" \
+  "${FLAGS_test_case}"
