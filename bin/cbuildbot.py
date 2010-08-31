@@ -216,6 +216,7 @@ def _FullCheckout(buildroot, rw_checkout=True, retries=_DEFAULT_RETRIES):
 def _IncrementalCheckout(buildroot, rw_checkout=True,
                          retries=_DEFAULT_RETRIES):
   """Performs a checkout without clobbering previous checkout."""
+  _UprevCleanup(buildroot, error_ok=True)
   RepoSync(buildroot, rw_checkout, retries)
 
 
@@ -281,12 +282,12 @@ def _UprevPackages(buildroot, revisionfile, board):
   _UprevAllPackages(buildroot)
 
 
-def _UprevCleanup(buildroot):
+def _UprevCleanup(buildroot, error_ok=False):
   """Clean up after a previous uprev attempt."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./cros_mark_as_stable', '--srcroot=..',
               '--tracking_branch="cros/master"', 'clean'],
-             cwd=cwd)
+             cwd=cwd, error_ok=error_ok)
 
 
 def _UprevPush(buildroot):

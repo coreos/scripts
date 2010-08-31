@@ -34,6 +34,7 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
   stdout = None
   stderr = None
   stdin = None
+  output = ''
 
   # Modify defaults based on parameters.
   if redirect_stdout:  stdout = subprocess.PIPE
@@ -45,15 +46,21 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
   if print_cmd:
     Info('RunCommand: %s' % ' '.join(cmd))
 
-  proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
-                          stdout=stdout, stderr=stderr)
-  (output, error) = proc.communicate(input)
-  if exit_code:
-    return proc.returncode
+  try:
+    proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
+                            stdout=stdout, stderr=stderr)
+    (output, error) = proc.communicate(input)
+    if exit_code:
+      return proc.returncode
 
-  if not error_ok and proc.returncode:
-    raise Exception('Command "%s" failed.\n' % (' '.join(cmd)) +
-                    (error_message or error or output or ''))
+    if not error_ok and proc.returncode:
+      raise Exception('Command "%s" failed.\n' % (' '.join(cmd)) +
+                      (error_message or error or output or ''))
+  except Exception,e:
+    if not error_ok:
+      raise
+    else:
+      Warning(str(e))
 
   return output
 
