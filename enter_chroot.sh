@@ -259,6 +259,16 @@ setup_env
 # Use git:8 chars of sha1
 REVISION=$(git rev-parse --short=8 HEAD)
 CHROOT_PASSTHRU="CHROMEOS_REVISION=$REVISION BUILDBOT_BUILD=$FLAGS_build_number CHROMEOS_OFFICIAL=$CHROMEOS_OFFICIAL"
+if [ -d "$HOME/.subversion" ]; then
+  # Bind mounting .subversion into chroot
+  echo "mounting ~/.subversion into chroot"
+  MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}/home/${USER}/.subversion")"
+  if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
+    mkdir -p "$MOUNTED_PATH"
+    sudo mount --bind "$HOME/.subversion" "$MOUNTED_PATH" || \
+      die "Could not mount $MOUNTED_PATH"
+  fi
+fi
 
 # Run command or interactive shell.  Also include the non-chrooted path to
 # the source trunk for scripts that may need to print it (e.g.
