@@ -95,13 +95,6 @@ if [ -z "${FLAGS_board}" ] ; then
   exit 1
 fi
 
-if [ "$((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad))" -gt \
-     "${FLAGS_rootfs_partition_size}" ] ; then
-  error "rootfs ($((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) MiB) is \
-bigger than partition (${FLAGS_rootfs_partition_size} MiB)."
-  exit 1
-fi
-
 # Verify user didn't specify incompatible flags for dev install shim
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] &&
    [ ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
@@ -110,14 +103,37 @@ both set to True. Please specify one or none."
   exit 1
 fi
 
-# Disable --withdev flag when --dev_install is set to True. Otherwise, the
-# dev image produced will be based on dev install shim, rather than a pristine
-# image
-if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ] &&
+INSTALL_MASK=""
+if [ ${FLAGS_installmask} -eq ${FLAGS_TRUE} ] ; then
+  INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
+fi
+
+# Reduce the size of factory install shim.
+if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ||
    [ ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
-  info "Incompatible flags: --withdev and --dev_install cannot be both set to \
-True. Reset --withdev to False."
-  FLAGS_withdev=${FLAGS_FALSE}
+  # Disable --withdev flag when --*_install is set to True. Otherwise, the
+  # dev image produced will be based on install shim, rather than a pristine
+  # image
+  if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
+    info "Incompatible flags: --withdev and --dev_install or --factory_install \
+cannot be both set to True. Reset --withdev to False."
+    FLAGS_withdev=${FLAGS_FALSE}
+  fi
+
+  # TODO: Build a separated ebuild for the install shim to reduce size.
+  INSTALL_MASK="${INSTALL_MASK} ${FACTORY_INSTALL_MASK}"
+
+  info "Fixing the rootfs size at 300 MiB for install shim"
+  FLAGS_rootfs_size=280
+  FLAGS_rootfs_partition_size=300
+  info "Fixing the statefulfs size at 140 MiB for install shim"
+  FLAGS_statefulfs_size=140
+fi
+
+if [ "$((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad))" -gt \
+     "${FLAGS_rootfs_partition_size}" ] ; then
+  die "rootfs ($((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) MiB) is \
+bigger than partition (${FLAGS_rootfs_partition_size} MiB)."
 fi
 
 EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
@@ -143,11 +159,11 @@ PRISTINE_IMAGE_NAME=chromiumos_image.bin
 if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
   PRISTINE_IMAGE_NAME=chromiumos_base_image.bin
   DEVELOPER_IMAGE_NAME=chromiumos_image.bin
-fi
-
-# Rename pristine image for dev install shim
-if [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ]; then
+elif [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ]; then
+# Rename pristine images for install shims
   PRISTINE_IMAGE_NAME=dev_install_shim.bin
+elif [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
+  PRISTINE_IMAGE_NAME=factory_install_shim.bin
 fi
 
 PRISTINE_IMG="${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}"
@@ -185,19 +201,7 @@ DEV_IMAGE_ROOT="${STATEFUL_FS_DIR}/dev_image"
 . "${BOARD_ROOT}/etc/make.conf.board_setup"
 LIBC_VERSION=${LIBC_VERSION:-"2.10.1-r1"}
 
-INSTALL_MASK=""
-if [[ ${FLAGS_installmask} -eq ${FLAGS_TRUE} ]] ; then
-  INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
-fi
-
-# Reduce the size of factory install shim.
-# TODO: Build a separated ebuild for the factory install shim to reduce size.
-if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ||
-   [ ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
-  INSTALL_MASK="${INSTALL_MASK} ${FACTORY_INSTALL_MASK}"
-fi
-
-if [[ ${FLAGS_jobs} -ne -1 ]]; then
+if [ ${FLAGS_jobs} -ne -1 ]; then
   EMERGE_JOBS="--jobs=${FLAGS_jobs}"
 fi
 
@@ -655,20 +659,6 @@ if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
   fi
 fi
 
-# Minimize rootfs size for factory installer
-if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
-  info "Fixing the rootfs size at 300 MiB for the factory installer"
-  FLAGS_rootfs_size=300
-fi
-
-# Minimize rootfs size and statefulfs size for dev install shim
-if [ ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
-  info "Fixing the rootfs size at 300 MiB for dev install shim"
-  FLAGS_rootfs_size=300
-  info "Fixing the statefulfs size at 140 MiB for dev install shim"
-  FLAGS_statefulfs_size=140
-fi
-
 # Create the boot.desc file which stores the build-time configuration
 # information needed for making the image bootable after creation with
 # cros_make_image_bootable.
@@ -681,7 +671,8 @@ else
 fi
 
 USE_DEV_KEYS=
-if [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ]; then
+if [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ] || \
+   [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
   USE_DEV_KEYS="--use_dev_keys"
 fi
 
@@ -693,7 +684,8 @@ ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
 # FIXME: only signing things for x86 right now.
 if [[ "${ARCH}" = "x86" ]]; then
   BOOT_FLAG=
-  if [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ] ; then
+  if [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ] ||
+     [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
     BOOT_FLAG="-b 1"  # BOOT_FLAG_DEVELOPER value defined in load_kernel_fw.h
     info "--dev_install set, pass BOOT_FLAG_DEVELOPER flag to load_kernel_test"
   fi
