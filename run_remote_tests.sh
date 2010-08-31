@@ -63,25 +63,6 @@ function cleanup() {
   cleanup_remote_access
 }
 
-# Returns an error if the test_result_file has text which indicates
-# the test was not run successfully.
-# Arguments:
-#   $1 - file name of autotest status for to check for success
-# Returns:
-#   None
-function is_successful_test() {
-  local file="$1"
-  # To be successful, must not have BAD, ERROR or FAIL in the file.
-  if egrep -q "(BAD|ERROR|FAIL)" "${file}"; then
-    return 1
-  fi
-  # To be successful, must have GOOD in the file.
-  if ! grep -q GOOD "${file}"; then
-    return 1
-  fi
-  return 0
-}
-
 # Adds attributes to all tests run
 # Arguments:
 #   $1 - results directory
@@ -100,20 +81,6 @@ function add_test_attribute() {
     echo "Updating ${keyval_file}"
     echo "${attribute_name}=${attribute_value}" >> "${keyval_file}"
   done
-}
-
-
-# Ask the target what board it is
-function learn_board() {
-  if [[ -n "${FLAGS_board}" ]]; then
-    return
-  fi
-  remote_sh grep CHROMEOS_RELEASE_BOARD /etc/lsb-release
-  FLAGS_board=$(echo "${REMOTE_OUT}" | cut -d= -f2)
-  if [[ -z "${FLAGS_board}" ]]; then
-    check_board
-  fi
-  echo "Target reports board is ${FLAGS_board}"
 }
 
 

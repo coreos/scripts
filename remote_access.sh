@@ -14,10 +14,18 @@ DEFINE_integer ssh_port 22 \
   "SSH port of the remote machine running Chromium OS instance"
 
 # Copies $1 to $2 on remote host
-function remote_cp() {
+function remote_cp_to() {
   REMOTE_OUT=$(scp  -o StrictHostKeyChecking=no -o \
     UserKnownHostsFile=$TMP_KNOWN_HOSTS $1 root@$FLAGS_remote:$2)
   return ${PIPESTATUS[0]}
+}
+
+# Copies a list of remote files specified in file $1 to local location
+# $2.  Directory paths in $1 are collapsed into $2.
+function remote_rsync_from() {
+  rsync -e "ssh -o StrictHostKeyChecking=no -o \
+            UserKnownHostsFile=$TMP_KNOWN_HOSTS" --no-R \
+    --files-from=$1 root@${FLAGS_remote}:/ $2
 }
 
 function remote_sh() {
@@ -46,6 +54,18 @@ function set_up_remote_access() {
   echo "Initiating first contact with remote host"
   remote_sh "true"
   echo "Connection OK"
+}
+
+# Ask the target what board it is
+function learn_board() {
+  [ -n "${FLAGS_board}" ] && return
+  remote_sh grep CHROMEOS_RELEASE_BOARD /etc/lsb-release
+  FLAGS_board=$(echo "${REMOTE_OUT}" | cut -d '=' -f 2)
+  if [ -z "${FLAGS_board}" ]; then
+    error "Board required"
+    exit 1
+  fi
+  info "Target reports board is ${FLAGS_board}"
 }
 
 function cleanup_remote_access() {

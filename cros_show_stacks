@@ -1,0 +1,171 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Script to generate stackdumps from a machine or dmp files.
+
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+
+. "$(dirname $0)/common.sh"
+. "$(dirname $0)/remote_access.sh"
+
+restart_in_chroot_if_needed $*
+
+MINIDUMP_DUMP=/usr/bin/minidump_dump
+MINIDUMP_STACKWALK=/usr/bin/minidump_stackwalk
+USING_REMOTE=0
+
+get_default_board
+
+DEFINE_string board "${DEFAULT_BOARD}" \
+    "The board for which you are building autotest"
+DEFINE_string breakpad_root "" \
+    "Path to root of breakpad symbols if pre-existing symbols should be used"
+DEFINE_boolean clean ${FLAGS_FALSE} \
+    "Remove crash reports from remote system after showing stacks"
+
+function usage() {
+  echo "usage: $(basename $0) [--remote=<IP>] [dump...]"
+  echo "Specify either a remote IP of a ChromeOS device to gather "
+  echo "all crash reports from, or list crash reports"
+  exit 1
+}
+
+# Clean up remote access and temp files.
+function cleanup() {
+  [ ${USING_REMOTE} -eq 1 ] && cleanup_remote_access
+  rm -rf "${TMP}"
+}
+
+# Echoes kind of crash (minidump or kcrash).
+function get_kind() {
+  local kind="${1##*.}"
+  if [ "${kind}" = "dmp" ]; then
+    kind="minidump"
+  fi
+  echo ${kind}
+}
+
+# Generate symbols for the given module list.
+# Args:
+#   $1 - file with a "module" per line.  A module is the full target's
+#   path to a DSO or executable that was loaded during a crash.
+function generate_symbols() {
+  local modules_file="$1"
+  local modules=""
+  local any_missing=0
+  local module_count=0
+  for module in $(sort -u "${modules_file}"); do
+    local text_file="/build/${FLAGS_board}/${module}"
+    local debug_file="/build/${FLAGS_board}/usr/lib/debug/${module}.debug"
+    if [ -f "${text_file}" ] && [ -f "${debug_file}" ]; then
+      modules="${modules} ${text_file}"
+      module_count=$((module_count + 1))
+    else
+      if [ ${any_missing} -eq 0 ]; then
+        warn "Some modules are missing debug information:"
+        any_missing=1
+      fi
+      warn "* ${text_file}"
+    fi
+  done
+  if [ ${module_count} -gt 0 ]; then
+    info "Generating breakpad symbols for ${module_count} modules"
+    ${SCRIPTS_DIR}/cros_generate_breakpad_symbols --board=${FLAGS_board} \
+      ${modules}
+  fi
+}
+
+function main() {
+  FLAGS "$@" || usage
+  local basename=$(basename "$0")
+  TMP=$(mktemp -d /tmp/${basename}.XXXX)
+  trap cleanup EXIT INT TERM
+  if [ -n "${FLAGS_remote}" ]; then
+    remote_access_init
+    USING_REMOTE=1
+    learn_board
+    local crashes=""
+    # File spec of all interesting crashes.  /home/chronos... is
+    # listed separately from /mnt/stateful_partition/home/chronos/...
+    # because the former may be a mount point for the cryptohome.
+    # This allows us to get crashes from the currently logged in
+    # user as well as from non-logged in users at once.  We remove
+    # duplicate crashes (in case cryptohome is not mounted) below.
+    local remote_crash_dirs=" \
+        /var/spool/crash \
+        /home/chronos/user/crash \
+        /mnt/stateful_partition/home/chronos/user/crash"
+    local remote_crash_patterns=""
+    for remote_crash_dir in ${remote_crash_dirs}; do
+      remote_crash_patterns="${remote_crash_patterns} \
+                             ${remote_crash_dir}/*.{dmp,kcrash}"
+    done
+    remote_sh "ls -1 ${remote_crash_patterns}" 2> /dev/null
+    local crashes=${REMOTE_OUT}
+    # Remove duplicates.
+    local unique_crashes=""
+    local crash_count=0
+    for crash in ${crashes}; do
+      local crash_short=$(basename ${crash})
+      if echo "${unique_crashes}" | grep -v -q "${crash_short}"; then
+        unique_crashes="${unique_crashes} ${crash}"
+        crash_count=$((crash_count + 1))
+      fi
+    done
+    if [ ${crash_count} -eq 0 ]; then
+      info "No crashes found on device."
+      exit 0
+    fi
+    info "Copying back ${crash_count} crashes."
+    crashes="${unique_crashes}"
+    local filesfrom="${TMP}/filesfrom"
+    FLAGS_ARGV=""
+    for crash in ${crashes}; do
+      echo "${crash}" >> "${filesfrom}"
+      FLAGS_ARGV="${FLAGS_ARGV} '${TMP}/$(basename ${crash})'"
+    done
+    remote_rsync_from "${filesfrom}" "${TMP}"
+    if [ ${FLAGS_clean} -eq ${FLAGS_TRUE} ]; then
+      remote_sh "rm -rf ${remote_crash_dirs}"
+    fi
+  else
+    [ -n "${FLAGS_ARGV}" ] || usage
+    [ -n "${FLAGS_board}" ] || die "--board is required."
+  fi
+
+  local modules_file="${TMP}/modules"
+  for dump in ${FLAGS_ARGV}; do
+    dump=$(remove_quotes "${dump}")
+    if [ $(get_kind "${dump}") == "minidump" ]; then
+      # Find all DSOs and executables listed in lines like:
+      #  (code_file)       = "/usr/lib/mylib.so"
+      ${MINIDUMP_DUMP} "${dump}" 2>/dev/null \
+        | grep code_file \
+        | sed 's/.*= "\(.*\)"/\1/' \
+        >> "${modules_file}"
+    fi
+  done
+
+  if [ -z "${FLAGS_breakpad_root}" ]; then
+    generate_symbols "${modules_file}"
+    FLAGS_breakpad_root=/build/${FLAGS_board}/usr/lib/debug/breakpad
+  fi
+
+  for dump in ${FLAGS_ARGV}; do
+    dump=$(remove_quotes "${dump}")
+    if [ $(get_kind "${dump}") = "minidump" ]; then
+      info "Dumping stack for $(basename ${dump}) with ${FLAGS_breakpad_root}:"
+      ${MINIDUMP_STACKWALK} "${dump}" "${FLAGS_breakpad_root}" 2> /dev/null
+    else
+      info "Dumping kcrash $(basename ${dump}):"
+      cat "${dump}"
+    fi
+    echo ""
+  done
+}
+
+main "$@"

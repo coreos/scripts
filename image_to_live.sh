@@ -69,7 +69,7 @@ function copy_stateful_update {
   local dev_dir="$(dirname $0)/../platform/dev"
 
   # Copy over update script and run update.
-  remote_cp "$dev_dir/stateful_update" "/tmp"
+  remote_cp_to "$dev_dir/stateful_update" "/tmp"
   remote_sh "/tmp/stateful_update"
 }
 
