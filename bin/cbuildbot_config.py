@@ -43,7 +43,7 @@ config['x86_pineview_bin'] = {
   'uprev' : True,
   'master' : False,
   'important' : False,
-  'hostname' : 'codf200',
+  'hostname' : 'codf200.jail',
   'unittests': True,
 }
 config['arm_tegra2_bin'] = {
@@ -51,7 +51,7 @@ config['arm_tegra2_bin'] = {
   'uprev' : True,
   'master' : False,
   'important' : False,
-  'hostname' : 'codg172',
+  'hostname' : 'codg172.jail',
   'unittests' : False,
 }
 config['arm_voguev210_bin'] = {
@@ -59,7 +59,7 @@ config['arm_voguev210_bin'] = {
   'uprev' : True,
   'master' : False,
   'important' : False,
-  'hostname' : 'codf196',
+  'hostname' : 'codf196.jail',
   'unittests' : False,
 }
 config['arm_beagleboard_bin'] = {
@@ -67,7 +67,7 @@ config['arm_beagleboard_bin'] = {
   'master' : False,
   'uprev' : True,
   'important' : False,
-  'hostname' : 'codf202',
+  'hostname' : 'codf202.jail',
   'unittests' : False,
 }
 config['arm_st1q_bin'] = {
@@ -75,7 +75,7 @@ config['arm_st1q_bin'] = {
   'uprev' : True,
   'master' : False,
   'important' : False,
-  'hostname' : 'codg158',
+  'hostname' : 'codg158.jail',
   'unittests' : False,
 }
 config['arm_generic_bin'] = {
@@ -83,6 +83,6 @@ config['arm_generic_bin'] = {
   'uprev' : True,
   'master' : False,
   'important' : False,
-  'hostname' : 'codg175',
+  'hostname' : 'codg175.jail',
   'unittests' : False,
 }
