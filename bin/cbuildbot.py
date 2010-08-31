@@ -342,8 +342,8 @@ def main():
   if options.clobber:
     RunCommand(['sudo', 'rm', '-rf', buildroot])
 
-  if len(args) == 1:
-    buildconfig = _GetConfig(args[0])
+  if len(args) >= 1:
+    buildconfig = _GetConfig(args[-1])
   else:
     Warning('Missing configuration description')
     parser.print_usage()
