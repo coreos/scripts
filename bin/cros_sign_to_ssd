@@ -22,35 +22,49 @@ DEFINE_string from "chromiumos_image.bin" \
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
+failure() {
+  echo "SIGNING HAD FAILED"
+  exit 1
+}
+
 # Abort on error
 set -e
 
-if [ -z $FLAGS_from ] || [ ! -f $FLAGS_from ] ; then
+trap "failure" EXIT
+
+if [ -z "${FLAGS_from}" ] || [ ! -f "${FLAGS_from}" ] ; then
   echo "Error: invalid flag --from"
   exit 1
 fi
 
 # Example commandline is as follows:
-# ./bin/cros_resign_image.sh \
-#--from ../build/images/x86-generic/b903/chromiumos_ssd_image.bin \
-#--datakey ../platform/vboot_reference/tests/devkeys/kernel_data_key.vbprivk \
-#--keyblock ../platform/vboot_reference/tests/devkeys/kernel.keyblock \
-#--vsubkey ../platform/vboot_reference/tests/devkeys/kernel_subkey.vbpubk \
-#--vbutil_dir /usr/bin/ \
-#--to ../build/images/x86-generic/b903/chromiumos_ssd_test_image.bin
+# ./sign_official_build.sh \
+# ssd \
+# /.../build/images/x86-mario/0.8.68.2/chromiumos_test_image.bin \
+# ../../tests/devkeys/ \
+# /.../build/images/x86-mario/0.8.68.2/chromiumos_test_ssd_image.bin
 
+VBOOT_DIR="$(dirname "$0")/../../platform/vboot_reference"
+if [ ! -d "${VBOOT_DIR}" ]; then
+  die "VBOOT DIR NOT FOUND at \'${VBOOT_DIR}\' .."
+fi
 
-TMP_IMAGE=/tmp/image.bin
-VBOOT_KEYS=$(dirname "$0")/../../platform/vboot_reference/tests/devkeys
-cp $FLAGS_from $TMP_IMAGE
+TMP_IMAGE=$(mktemp)
+VBOOT_KEYS="${VBOOT_DIR}/tests/devkeys"
+if [ ! -d "${VBOOT_KEYS}" ]; then
+  die "VBOOT KEYS NOT FOUND at \'${VBOOT_KEYS}\' .."
+fi
 
-$(dirname "$0")/cros_resign_image.sh \
-  --from $TMP_IMAGE \
-  --datakey ${VBOOT_KEYS}/kernel_data_key.vbprivk \
-  --keyblock ${VBOOT_KEYS}/kernel.keyblock \
-  --vsubkey ${VBOOT_KEYS}/kernel_subkey.vbpubk \
-  --vbutil_dir /usr/bin/ \
-  --to $FLAGS_from
+VBOOT_SIGN="${VBOOT_DIR}/scripts/image_signing/sign_official_build.sh"
+if [ ! -x "${VBOOT_SIGN}" ]; then
+  die "VBOOT TOOL sign_official_build.sh NOT FOUND at \'${VBOOT_SIGN}\' .."
+fi
 
-rm $TMP_IMAGE
+cp "${FLAGS_from}" "${TMP_IMAGE}"
 
+${VBOOT_SIGN} ssd "${TMP_IMAGE}" "${VBOOT_KEYS}" "${FLAGS_from}"
+
+rm "${TMP_IMAGE}"
+
+set +e
+trap - EXIT
