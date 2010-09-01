@@ -19,7 +19,7 @@ get_default_board
 DEFINE_string board "${DEFAULT_BOARD}" "Board for which the image was built"
 DEFINE_string from "" \
   "Directory containing chromiumos_image.bin"
-DEFINE_string to "" "${DEFAULT_TO_HELP}"
+DEFINE_string to "/dev/sdX" "${DEFAULT_TO_HELP}"
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts" "y"
 DEFINE_boolean force_copy ${FLAGS_FALSE} "Always rebuild test image"
 DEFINE_boolean force_non_usb ${FLAGS_FALSE} \
@@ -81,7 +81,7 @@ if [ ! -d "${FLAGS_from}" ] ; then
   exit 1
 fi
 
-if [ -z "${FLAGS_to}" ]; then
+if [ "${FLAGS_to}" == "/dev/sdX" ]; then
   echo "You must specify a file or device to write to using --to."
   disks=$(list_usb_disks)
   if [ -n "$disks" ]; then
