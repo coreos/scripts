@@ -31,6 +31,7 @@ DEFINE_boolean official_build $FLAGS_FALSE \
   "Set CHROMEOS_OFFICIAL=1 for release builds."
 DEFINE_boolean mount $FLAGS_FALSE "Only set up mounts."
 DEFINE_boolean unmount $FLAGS_FALSE "Only tear down mounts."
+DEFINE_boolean ssh_agent $FLAGS_TRUE "Import ssh agent."
 
 # More useful help
 FLAGS_HELP="USAGE: $0 [flags] [VAR=value] [-- \"command\"]
@@ -102,6 +103,20 @@ function setup_env {
     then
       sudo mount --bind /dev "$MOUNTED_PATH" || \
           die "Could not mount $MOUNTED_PATH"
+    fi
+
+    if [ $FLAGS_ssh_agent -eq $FLAGS_TRUE ]; then
+      TARGET_DIR="$(readlink -f "${FLAGS_chroot}/home/${USER}/.ssh")"
+      if [ -n "${SSH_AUTH_SOCK}" \
+        -a -d "${HOME}/.ssh" ]
+      then
+        mkdir -p "${TARGET_DIR}"
+        cp -r "${HOME}/.ssh/known_hosts" "${TARGET_DIR}"
+        ASOCK="$(dirname "${SSH_AUTH_SOCK}")"
+        mkdir -p "${FLAGS_chroot}/${ASOCK}"
+        sudo mount --bind "${ASOCK}" "${FLAGS_chroot}/${ASOCK}" || \
+          die "Count not mount ${ASOCK}"
+      fi
     fi
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}/dev/pts")"
@@ -274,7 +289,8 @@ fi
 # the source trunk for scripts that may need to print it (e.g.
 # build_image.sh).
 sudo chroot "$FLAGS_chroot" sudo -i -u $USER $CHROOT_PASSTHRU \
-  EXTERNAL_TRUNK_PATH="${FLAGS_trunk}" LANG=C -- "$@"
+  EXTERNAL_TRUNK_PATH="${FLAGS_trunk}" LANG=C SSH_AGENT_PID="${SSH_AGENT_PID}" \
+  SSH_AUTH_SOCK="${SSH_AUTH_SOCK}" -- "$@"
 
 # Remove trap and explicitly unmount
 trap - EXIT
