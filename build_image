@@ -96,25 +96,24 @@ if [ -z "${FLAGS_board}" ] ; then
 fi
 
 # Verify user didn't specify incompatible flags for dev install shim
-if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] &&
-   [ ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
-  error "Incompatible flags: --factory_install and --dev_install cannot be \
+if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ] &&
+   [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ] ; then
+  die "Incompatible flags: --factory_install and --dev_install cannot be \
 both set to True. Please specify one or none."
-  exit 1
 fi
 
 INSTALL_MASK=""
-if [ ${FLAGS_installmask} -eq ${FLAGS_TRUE} ] ; then
+if [ "${FLAGS_installmask}" -eq "${FLAGS_TRUE}" ] ; then
   INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
 fi
 
 # Reduce the size of factory install shim.
-if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ||
-   [ ${FLAGS_dev_install} -eq ${FLAGS_TRUE} ] ; then
+if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ] ||
+   [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ] ; then
   # Disable --withdev flag when --*_install is set to True. Otherwise, the
   # dev image produced will be based on install shim, rather than a pristine
   # image
-  if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
+  if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
     info "Incompatible flags: --withdev and --dev_install or --factory_install \
 cannot be both set to True. Reset --withdev to False."
     FLAGS_withdev=${FLAGS_FALSE}
@@ -144,6 +143,24 @@ fi
 
 # Determine build version.
 . "${SCRIPTS_DIR}/chromeos_version.sh"
+
+# Configure extra USE or packages for this type of build.
+EXTRA_PACKAGES=""
+EXTRA_USE=""
+if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ] ; then
+  # Factory install needs to have the kernel initrmafs enabled,
+  # and the factory installer added.
+  EXTRA_PACKAGES="chromeos-base/chromeos-factoryinstall"
+  EXTRA_USE="initramfs"
+fi
+
+# Freshen kernel with correct USE flags. This is a noop if we have
+# the right kernel prebuilt. Factory install uses USE="initramfs".
+# We don't allow building from source with the image as a target,
+# and it's not possible to store prebuilts for the same package
+# with different use flags.
+USE="${EXTRA_USE}" emerge-${FLAGS_board} \
+    -uNDvg --binpkg-respect-use=y kernel
 
 # Use canonical path since some tools (e.g. mount) do not like symlinks.
 # Append build attempt to output directory.
@@ -434,9 +451,9 @@ update_base_packages() {
     -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
 
   # Emerge updated packages, exactly like when creating base image
-  sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
+  sudo USE="${EXTRA_USE}" INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
     --root="${ROOT_FS_DIR}" --root-deps=rdeps \
-    --usepkg -uDNv chromeos ${EMERGE_JOBS}
+    --usepkg -uDNv chromeos ${EXTRA_PACKAGES} ${EMERGE_JOBS}
 
   # Clean out unused packages
   sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
@@ -572,9 +589,9 @@ create_base_image() {
   # runtime packages for chrome os. This builds up a chrome os image from
   # binary packages with runtime dependencies only.  We use INSTALL_MASK to
   # trim the image size as much as possible.
-  sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
+  sudo USE="${EXTRA_USE}" INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
     --root="${ROOT_FS_DIR}" --root-deps=rdeps \
-    --usepkg chromeos ${EMERGE_JOBS}
+    --usepkg chromeos ${EXTRA_PACKAGES} ${EMERGE_JOBS}
 
   # Perform any customizations on the root file system that are needed.
   "${SCRIPTS_DIR}/customize_rootfs" \
