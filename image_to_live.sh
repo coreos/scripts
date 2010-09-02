@@ -24,8 +24,11 @@ DEFINE_integer devserver_port 8080 \
   "Port to use for devserver"
 DEFINE_string update_url "" "Full url of an update image"
 
+UPDATER_BIN='/usr/bin/update_engine_client'
+UPDATER_IDLE='UPDATE_STATUS_IDLE'
+UPDATER_NEED_REBOOT='UPDATE_STATUS_UPDATED_NEED_REBOOT'
+
 function kill_all_devservers {
-  echo "Killing dev server."
   # Using ! here to avoid exiting with set -e is insufficient, so use
   # || true instead.
   sudo pkill -f devserver\.py || true
@@ -48,9 +51,10 @@ function start_dev_server {
   kill_all_devservers
   if [ ${FLAGS_verbose} -eq ${FLAGS_FALSE} ]; then
     ./enter_chroot.sh "sudo ./start_devserver ${FLAGS_devserver_port} \
-         > dev_server.log 2>&1" &
+         --client_prefix=ChromeOSUpdateEngine > dev_server.log 2>&1" &
   else
-    ./enter_chroot.sh "sudo ./start_devserver ${FLAGS_devserver_port}" &
+    ./enter_chroot.sh "sudo ./start_devserver ${FLAGS_devserver_port} \
+        --client_prefix=ChromeOSUpdateEngine &"
   fi
   echo -n "Waiting on devserver to start"
   until netstat -anp 2>&1 | grep 0.0.0.0:${FLAGS_devserver_port} > /dev/null
@@ -65,7 +69,7 @@ function start_dev_server {
 # from the dev server and prepares the update. chromeos_startup finishes
 # the update on next boot.
 function copy_stateful_update {
-  echo "Starting stateful update."
+  info "Starting stateful update."
   local dev_dir="$(dirname $0)/../platform/dev"
 
   # Copy over update script and run update.
@@ -73,83 +77,55 @@ function copy_stateful_update {
   remote_sh "/tmp/stateful_update"
 }
 
-function prepare_update_metadata {
-  remote_sh "mount -norw,remount /"
-
+function get_update_args {
+  if [ -z ${1} ]; then
+    die "No url provided for update."
+  fi
+  local update_args="--omaha_url ${1}"
   if [[ ${FLAGS_ignore_version} -eq ${FLAGS_TRUE} ]]; then
-    echo "Forcing update independent of the current version"
-    remote_sh "cat /etc/lsb-release |\
-        grep -v CHROMEOS_RELEASE_VERSION > /etc/lsb-release~;\
-        mv /etc/lsb-release~ /etc/lsb-release; \
-        echo 'CHROMEOS_RELEASE_VERSION=0.0.0.0' >> /etc/lsb-release"
+    info "Forcing update independent of the current version"
+    update_args="--update ${update_args}"
   fi
 
+  echo "${update_args}"
+}
+
+function get_devserver_url {
+  local devserver_url=""
   if [ ${FLAGS_ignore_hostname} -eq ${FLAGS_TRUE} ]; then
     if [ -z ${FLAGS_update_url} ]; then
       devserver_url="http://$HOSTNAME:${FLAGS_devserver_port}/update"
     else
       devserver_url="${FLAGS_update_url}"
     fi
-    echo "Forcing update from ${devserver_url}"
-    remote_sh "cat /etc/lsb-release |\
-        grep -v '^CHROMEOS_AUSERVER=' |\
-        grep -v '^CHROMEOS_DEVSERVER=' > /etc/lsb-release~;\
-        mv /etc/lsb-release~ /etc/lsb-release; \
-        echo 'CHROMEOS_AUSERVER=${devserver_url}' >> \
-          /etc/lsb-release; \
-        echo 'CHROMEOS_DEVSERVER=${devserver_url}' >> /etc/lsb-release"
   fi
+  echo "${devserver_url}"
+}
+
+function get_update_status {
+  remote_sh "${UPDATER_BIN} -status |
+      grep CURRENT_OP |
+      cut -f 2 -d ="
+  echo "${REMOTE_OUT}"
 }
 
 function run_auto_update {
-  echo "Starting update"
-  local update_file=/var/log/softwareupdate.log
-  # Clear it out so we don't see a prior run and make sure it
-  # exists so the first tail below can't fail if it races the
-  # memento updater first write and wins.
-  remote_sh "rm -f /tmp/memento_autoupdate_completed; rm -f ${update_file}; \
-      touch ${update_file}; \
-      /opt/google/memento_updater/memento_updater.sh --force_update < /dev/null\
-      >&/dev/null&"
+  local update_args="$(get_update_args "$(get_devserver_url)")"
+  info "Starting update using args ${update_args}"
+  remote_sh "${UPDATER_BIN} ${update_args}"
 
-  local update_error
-  local output_file
-  local progress
-
-  update_error=1
-  output_file="${TMP}/output"
-
-  while true; do
-    # The softwareupdate.log gets pretty bit with download progress
-    # lines so only look in the last 100 lines for status.
-    remote_sh "tail -100 ${update_file}"
-    echo "${REMOTE_OUT}" > "${output_file}"
-    progress=$(tail -4 "${output_file}" | grep 0K | head -1)
-    if [ -n "${progress}" ]; then
-      echo "Image fetching progress: ${progress}"
-    fi
-    if grep -q 'updatecheck status="noupdate"' "${output_file}"; then
-      echo "devserver is claiming there is no update available."
-      echo "Consider setting --ignore_version."
-      break
-    fi
-    if grep -q 'Autoupdate applied. You should now reboot' "${output_file}"
-    then
-      echo "Autoupdate was successful."
-      update_error=0
-    fi
-    if grep -q 'Memento AutoUpdate terminating' "${output_file}"; then
-      break
-    fi
-    # Sleep for a while so that ssh handling doesn't slow down the install
-    sleep 2
-  done
-
-  return ${update_error}
+  local update_status="$(get_update_status)"
+  if [ "${update_status}" = ${UPDATER_NEED_REBOOT} ]; then
+    info "Autoupdate was successful."
+    return 0
+  else
+    warn "Autoupdate was unsuccessful.  Status returned was ${update_status}."
+    return 1
+  fi
 }
 
 function remote_reboot {
-  echo "Rebooting."
+  info "Rebooting."
   remote_sh "touch /tmp/awaiting_reboot; reboot"
   local output_file
   output_file="${TMP}/output"
@@ -159,13 +135,13 @@ function remote_reboot {
     # This may fail while the machine is down so generate output and a
     # boolean result to distinguish between down/timeout and real failure
     ! remote_sh_allow_changed_host_key \
-      "echo 0; [ -e /tmp/awaiting_reboot ] && echo '1'; true"
+        "echo 0; [ -e /tmp/awaiting_reboot ] && echo '1'; true"
     echo "${REMOTE_OUT}" > "${output_file}"
     if grep -q "0" "${output_file}"; then
       if grep -q "1" "${output_file}"; then
-        echo "Not yet rebooted"
+        info "Not yet rebooted"
       else
-        echo "Rebooted and responding"
+        info "Rebooted and responding"
         break
       fi
     fi
@@ -189,9 +165,9 @@ function main() {
 
   remote_access_init
 
-  if remote_sh [ -e /tmp/memento_autoupdate_completed ]; then
-    echo "Machine has been updated but not yet rebooted.  Rebooting it now."
-    echo "Rerun this script if you still wish to update it."
+  if [ "$(get_update_status)" = "${UPDATER_NEED_REBOOT}" ]; then
+    warn "Machine has been updated but not yet rebooted.  Rebooting it now."
+    warn "Rerun this script if you still wish to update it."
     remote_reboot
     exit 1
   fi
@@ -201,15 +177,12 @@ function main() {
     start_dev_server
   fi
 
-  prepare_update_metadata
-
   if ! run_auto_update; then
-    echo "Update was not successful."
-    exit 1
+    die "Update was not successful."
   fi
 
   if ! copy_stateful_update; then
-    echo "Stateful update was not successful."
+    warn "Stateful update was not successful."
   fi
 
   remote_reboot
@@ -220,12 +193,12 @@ function main() {
     grep -v "^${FLAGS_remote} " "${known_hosts}" > "${TMP}/new_known_hosts"
     cat "${TMP}/new_known_hosts" "${TMP_KNOWN_HOSTS}" > "${known_hosts}"
     chmod 0640 "${known_hosts}"
-    echo "New updated in ${known_hosts}, backup made."
+    info "New updated in ${known_hosts}, backup made."
   fi
 
   remote_sh "grep ^CHROMEOS_RELEASE_DESCRIPTION= /etc/lsb-release"
-  local release_description=$(echo $REMOTE_OUT | cut -d '=' -f 2)
-  echo "Update was successful and rebooted to $release_description"
+  local release_description=$(echo ${REMOTE_OUT} | cut -d '=' -f 2)
+  info "Update was successful and rebooted to $release_description"
 
   return 0
 }
