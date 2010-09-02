@@ -406,6 +406,49 @@ class DepGraphGenerator(object):
     root = settings["ROOT"]
     emerge.root_config = trees[root]["root_config"]
 
+  def CheckUseFlags(self, pkgsettings, cur_pkg, new_pkg):
+    """Are the use flags in cur_pkg up to date?
+
+    Return True if use flags are up to date; return false otherwise."""
+
+    # cur_use:  The set of flags that were enabled when the package was
+    #           first installed.
+    # cur_iuse: The set of flags that affected the specified package
+    #           when it was first installed.
+    #
+    # The intersection of cur_use and cur_iuse provides the set of
+    # flags that were enabled and affected the specified package.
+    cur_use = cur_pkg.use.enabled
+    cur_iuse = cur_pkg.iuse.all
+
+    # Check whether this package is already installed with the right use
+    # flags.
+    #
+    # now_use: The set of flags (special and non-special) that are now
+    #          enabled for the specified package.
+    # now_iuse: The set of non-special flags that affect the specified
+    #           package.
+    now_use = new_pkg.use.enabled
+    now_iuse = new_pkg.iuse.all
+
+    # Tell portage we want to lookup the flags for the specified package
+    # in package.use.{mask,force}
+    pkgsettings.setcpv(new_pkg.cpv)
+
+    # Grab the set of flags that are requested for the given package.
+    # This includes flags that don't affect the package, and includes
+    # all sources of flags (e.g. USE environment variable, make.conf,
+    # make.defaults, package.use.{mask,force}, etc.).
+    #
+    # This is used by portage in the _reinstall_for_flags function below.
+    forced_flags = set(pkgsettings.useforce).union(pkgsettings.usemask)
+
+    depgraph = self.emerge.depgraph
+
+    flags = depgraph._reinstall_for_flags(forced_flags, cur_use,
+                                          cur_iuse, now_use, now_iuse)
+    return not flags
+
   def GenDependencyTree(self):
     """Get dependency tree info from emerge.
 
@@ -509,7 +552,10 @@ class DepGraphGenerator(object):
     # versions of packages that we're either upgrading or replacing.
     #
     # The "vardb" is the database of installed packages.
-    vardb = emerge.trees[emerge.settings["ROOT"]]["vartree"].dbapi
+    root = emerge.settings["ROOT"]
+    frozen_config = depgraph._frozen_config
+    vardb = frozen_config.trees[root]["vartree"].dbapi
+    pkgsettings = frozen_config.pkgsettings[root]
     deps_info = {}
     for pkg in depgraph.altlist():
       if isinstance(pkg, Package):
@@ -517,8 +563,11 @@ class DepGraphGenerator(object):
         # that is already installed, then this operation is possibly optional.
         # ("--selective" mode is handled later, in RemoveInstalledPackages())
         optional = False
-        if not emptytree and vardb.cpv_exists(pkg.cpv):
-          optional = True
+        if not emptytree:
+          for vardb_pkg in vardb.match_pkgs(pkg.cpv):
+            if self.CheckUseFlags(pkgsettings, vardb_pkg, pkg):
+              optional = True
+              break
 
         # Add the package to our database.
         self.package_db[str(pkg.cpv)] = pkg
@@ -531,7 +580,7 @@ class DepGraphGenerator(object):
     # tree. We just wanted to get emerge to leave uninstall instructions on
     # the graph. Later, when we display the graph, we'll want standard-looking
     # output, so removing the --tree option is important.
-    depgraph._frozen_config.myopts.pop("--tree", None)
+    frozen_config.myopts.pop("--tree", None)
 
     seconds = time.time() - start
     if "--quiet" not in emerge.opts:
@@ -575,8 +624,8 @@ class DepGraphGenerator(object):
     final_pkgs = set()
 
     # These packages take a really long time to build, so, for expediency, we
-    # are blacklisting them from automatic rebuilds. Instead, these packages
-    # will only be rebuilt when they are explicitly rev'd.
+    # are blacklisting them from automatic rebuilds because one of their
+    # dependencies needs to be recompiled.
     rebuild_blacklist = set()
     for pkg in ("media-plugins/o3d", "dev-java/icedtea"):
       for match in final_db.match_pkgs(pkg):
@@ -696,7 +745,10 @@ class DepGraphGenerator(object):
       if "--selective" in emerge.opts:
         selective = emerge.opts["--selective"] != "n"
       else:
-        selective = "--noreplace" in emerge.opts or "--update" in emerge.opts
+        selective = ("--noreplace" in emerge.opts or
+                     "--update" in emerge.opts or
+                     "--newuse" in emerge.opts or
+                     "--reinstall" in emerge.opts)
       onlydeps = "--onlydeps" in emerge.opts
       if not selective:
         for pkg in emerge.cmdline_packages:
@@ -811,14 +863,13 @@ class DepGraphGenerator(object):
       """Merge this package and all packages it provides."""
 
       this_pkg = deps_map[pkg]
-      if (this_pkg[merge_type] or pkg not in final_pkgs or
-          pkg in rebuild_blacklist):
+      if (this_pkg[merge_type] or pkg not in final_pkgs):
         return
 
       # Mark this package as non-optional
       deps_info[pkg]["optional"] = False
       this_pkg[merge_type] = True
-      for w in this_pkg["provides"]:
+      for w in this_pkg["provides"].difference(rebuild_blacklist):
         MergeChildren(w, merge_type)
 
       if this_pkg["action"] == "nomerge":
@@ -958,7 +1009,7 @@ class DepGraphGenerator(object):
         local_mtime = LastModifiedWithDeps(pkg, local_pkgs, local_mtime_cache)
         local_ready = PrebuiltsReady(pkg, local_pkgs, local_ready_cache)
         if (not local_ready or local_pkgs.get(pkg, 0) < local_mtime and
-            pkg not in cycles):
+            pkg not in cycles and pkg not in rebuild_blacklist):
           # OK, at least one package is missing from the local cache or is
           # outdated. This means we're going to have to install the package
           # and all dependencies.
@@ -983,13 +1034,14 @@ class DepGraphGenerator(object):
       bintree = emerge.trees[root]["bintree"]
       bindb = bintree.dbapi
       root_config = emerge.root_config
+      pkgsettings = emerge.depgraph._frozen_config.pkgsettings[root]
       prebuilt_pkgs = {}
 
       # Populate the DB with packages
       bintree.populate("--getbinpkg" in emerge.opts,
                        "--getbinpkgonly" in emerge.opts)
 
-      # Update packages that can use prebuilts to do so.
+      # Build list of prebuilt packages
       for pkg, info in deps_map.iteritems():
         if info and not info["mandatory_source"] and info["action"] == "merge":
           db_keys = list(bindb._aux_cache_keys)
@@ -1004,7 +1056,19 @@ class DepGraphGenerator(object):
                            metadata=metadata, onlydeps=False, mtime=mtime,
                            operation="merge", root_config=root_config,
                            type_name="binary")
-          self.package_db[pkg] = db_pkg
+          prebuilt_pkgs[pkg] = db_pkg
+
+      # Calculate what packages need to be rebuilt due to changes in use flags.
+      for pkg, db_pkg in prebuilt_pkgs.iteritems():
+        db_pkg_src = self.package_db[pkg]
+        if not self.CheckUseFlags(pkgsettings, db_pkg, db_pkg_src):
+          MergeChildren(pkg, "mandatory_source")
+
+      # Convert eligible packages to binaries.
+      for pkg, info in deps_map.iteritems():
+        if (info and not info["mandatory_source"] and
+            info["action"] == "merge" and pkg in prebuilt_pkgs):
+          self.package_db[pkg] = prebuilt_pkgs[pkg]
 
       seconds = time.time() - start
       if "--quiet" not in emerge.opts:
