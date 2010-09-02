@@ -81,7 +81,7 @@ function setup_env {
     flock 200
     echo $$ >> "$LOCKFILE"
 
-    echo >&2 "Mounting chroot environment."
+    info "Mounting chroot environment."
 
     # Mount only if not already mounted
     MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/proc")"
@@ -142,10 +142,10 @@ function setup_env {
           2>/dev/null)"
       fi
       if [[ ( -z "$CHROME_ROOT" ) || ( ! -d "${CHROME_ROOT}/src" ) ]]; then
-        echo >&2 "Not mounting chrome source"
+        info "Not mounting chrome source"
         sudo rm -f "${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
       else
-        echo >&2 "Mounting chrome source at: $INNER_CHROME_ROOT"
+        info "Mounting chrome source at: $INNER_CHROME_ROOT"
         echo "$CHROME_ROOT" | \
           sudo dd of="${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
         mkdir -p "$MOUNTED_PATH"
@@ -158,12 +158,12 @@ function setup_env {
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
     then
       if [ $(which gclient 2>/dev/null) ]; then
-        echo >&2 "Mounting depot_tools"
+        info "Mounting depot_tools"
         DEPOT_TOOLS=$(dirname $(which gclient) )
         mkdir -p "$MOUNTED_PATH"
         if ! sudo mount --bind "$DEPOT_TOOLS" "$MOUNTED_PATH"; then
-          echo >&2 "depot_tools failed to mount; perhaps it's on NFS?"
-          echo >&2 "This may impact chromium build."
+          warn "depot_tools failed to mount; perhaps it's on NFS?"
+          warn "This may impact chromium build."
         fi
       fi
     fi
@@ -171,7 +171,7 @@ function setup_env {
     # Install fuse module.
     if [ -c "${FUSE_DEVICE}" ] ; then
       sudo modprobe fuse 2> /dev/null ||\
-        echo >&2 "-- Note: modprobe fuse failed.  gmergefs will not work"
+        warn "-- Note: modprobe fuse failed.  gmergefs will not work"
     fi
 
     # Turn off automounting of external media when we enter the
@@ -181,10 +181,10 @@ function setup_env {
       gconftool-2 -g ${AUTOMOUNT_PREF} > \
         "${FLAGS_chroot}${SAVED_AUTOMOUNT_PREF_FILE}"
       if [ $(gconftool-2 -s --type=boolean ${AUTOMOUNT_PREF} false) ]; then
-        echo >&2 "-- Note: USB sticks may be automounted by your host OS."
-        echo >&2 "-- Note: If you plan to burn bootable media, you may need to"
-        echo >&2 "-- Note: unmount these devices manually, or run image_to_usb.sh"
-        echo >&2 "-- Note: outside the chroot."
+        warn "-- Note: USB sticks may be automounted by your host OS."
+        warn "-- Note: If you plan to burn bootable media, you may need to"
+        warn "-- Note: unmount these devices manually, or run image_to_usb.sh"
+        warn "-- Note: outside the chroot."
       fi
     fi
 
@@ -219,15 +219,15 @@ function teardown_env {
     if [ $(which gconftool-2 2>/dev/null) ]; then
       SAVED_PREF=$(cat "${FLAGS_chroot}${SAVED_AUTOMOUNT_PREF_FILE}")
       gconftool-2 -s --type=boolean ${AUTOMOUNT_PREF} ${SAVED_PREF} || \
-        echo >&2 "could not re-set your automount preference."
+        warn "could not re-set your automount preference."
     fi
 
     if [ -s "$LOCKFILE" ]; then
-      echo >&2 "At least one other pid is running in the chroot, so not"
-      echo >&2 "tearing down env."
+      info "At least one other pid is running in the chroot, so not"
+      info "tearing down env."
     else
       MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
-      echo >&2 "Unmounting chroot environment."
+      info "Unmounting chroot environment."
       # sort the list of mounts in reverse order, to ensure umount of
       # cascading mounts in proper order
       for i in \
@@ -241,10 +241,10 @@ function teardown_env {
 if [ $FLAGS_mount -eq $FLAGS_TRUE ]
 then
   setup_env
-  echo >&2 "Make sure you run"
-  echo >&2 "    $0 --unmount"
-  echo >&2 "before deleting $FLAGS_chroot"
-  echo >&2 "or you'll end up deleting $FLAGS_trunk too!"
+  info "Make sure you run"
+  info "    $0 --unmount"
+  info "before deleting $FLAGS_chroot"
+  info "or you'll end up deleting $FLAGS_trunk too!"
   exit 0
 fi
 
@@ -276,7 +276,7 @@ REVISION=$(git rev-parse --short=8 HEAD)
 CHROOT_PASSTHRU="CHROMEOS_REVISION=$REVISION BUILDBOT_BUILD=$FLAGS_build_number CHROMEOS_OFFICIAL=$CHROMEOS_OFFICIAL"
 if [ -d "$HOME/.subversion" ]; then
   # Bind mounting .subversion into chroot
-  echo >&2 "mounting ~/.subversion into chroot"
+  info "mounting ~/.subversion into chroot"
   MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}/home/${USER}/.subversion")"
   if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
     mkdir -p "$MOUNTED_PATH"
