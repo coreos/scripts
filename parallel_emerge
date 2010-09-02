@@ -217,13 +217,14 @@ class DepGraphGenerator(object):
   """
 
   __slots__ = ["board", "emerge", "mandatory_source", "no_workon_deps",
-               "package_db", "rebuild", "show_output"]
+               "nomerge", "package_db", "rebuild", "show_output"]
 
   def __init__(self):
     self.board = None
     self.emerge = EmergeData()
     self.mandatory_source = set()
     self.no_workon_deps = False
+    self.nomerge = set()
     self.package_db = {}
     self.rebuild = False
     self.show_output = False
@@ -249,6 +250,10 @@ class DepGraphGenerator(object):
         workon_str = arg.replace("--workon=", "")
         package_list = shlex.split(" ".join(shlex.split(workon_str)))
         self.mandatory_source.update(package_list)
+      elif arg.startswith("--nomerge="):
+        nomerge_str = arg.replace("--nomerge=", "")
+        package_list = shlex.split(" ".join(shlex.split(nomerge_str)))
+        self.nomerge.update(package_list)
       elif arg == "--no-workon-deps":
         self.no_workon_deps = True
       elif arg == "--rebuild":
@@ -774,6 +779,12 @@ class DepGraphGenerator(object):
       for pkg, info in deps_info.items():
         if info["optional"]:
           rm_pkgs.add(pkg)
+
+      # Schedule nomerge packages for removal
+      for pkg in self.nomerge:
+        for db_pkg in final_db.match_pkgs(pkg):
+          if db_pkg.cpv in deps_map:
+            rm_pkgs.add(str(db_pkg.cpv))
 
       # Remove the packages we don't want, simplifying the graph and making
       # it easier for us to crack cycles.
@@ -1611,9 +1622,13 @@ def main():
 
   if "--quiet" not in emerge.opts:
     cmdline_packages = " ".join(emerge.cmdline_packages)
+    nomerge_packages = " ".join(deps.nomerge)
     print "Starting fast-emerge."
     print " Building package %s on %s" % (cmdline_packages,
                                           deps.board or "root")
+    if nomerge_packages:
+      print " Skipping package %s on %s" % (nomerge_packages,
+                                            deps.board or "root")
 
   deps_tree, deps_info = deps.GenDependencyTree()
 
@@ -1628,6 +1643,22 @@ def main():
   if "--tree" in emerge.opts:
     PrintDepsMap(deps_graph)
 
+  # Are we upgrading portage? If so, and there are more packages to merge,
+  # schedule a restart of parallel_emerge to merge the rest. This ensures that
+  # we pick up all updates to portage settings before merging any more
+  # packages.
+  portage_upgrade = False
+  root = emerge.settings["ROOT"]
+  final_db = emerge.depgraph._dynamic_config.mydbapi[root]
+  if root == "/":
+    for db_pkg in final_db.match_pkgs("sys-apps/portage"):
+      portage_pkg = deps_graph.get(db_pkg.cpv)
+      if portage and len(deps_graph) > 1:
+        deps_graph = { str(db_pkg.cpv): portage_pkg }
+        portage_upgrade = True
+        if "--quiet" not in emerge.opts:
+          print "Upgrading portage first, then restarting..."
+
   # Run the queued emerges.
   scheduler = EmergeQueue(deps_graph, emerge, deps.package_db, deps.show_output)
   scheduler.Run()
@@ -1637,8 +1668,6 @@ def main():
       "--pretend" not in emerge.opts):
     world_set = emerge.root_config.sets["selected"]
     new_world_pkgs = []
-    root = emerge.settings["ROOT"]
-    final_db = emerge.depgraph._dynamic_config.mydbapi[root]
     for pkg in emerge.cmdline_packages:
       for db_pkg in final_db.match_pkgs(pkg):
         print "Adding %s to world" % db_pkg.cp
@@ -1649,6 +1678,12 @@ def main():
   # Update environment (library cache, symlinks, etc.)
   if deps.board and "--pretend" not in emerge.opts:
     portage.env_update()
+
+  # If we already upgraded portage, we don't need to do so again. But we do
+  # need to upgrade the rest of the packages. So we'll go ahead and do that.
+  if portage_upgrade:
+    args = sys.argv[1:] + ["--nomerge=sys-apps/portage"]
+    os.execvp(os.path.realpath(sys.argv[0]), args)
 
   print "Done"
 
