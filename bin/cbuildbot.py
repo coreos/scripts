@@ -47,9 +47,13 @@ def RepoSync(buildroot, rw_checkout=False, retries=_DEFAULT_RETRIES):
   retries -- Number of retries to try before failing on the sync.
 
   """
+  # Get the number of processors to use with repo sync.
+  num_procs = int(RunCommand('grep -c processor /proc/cpuinfo'.split(),
+                             print_cmd=False, redirect_stdout=True))
+
   while retries > 0:
     try:
-      RunCommand(['repo', 'sync'], cwd=buildroot)
+      RunCommand(['repo', 'sync', '--jobs=%d' % (num_procs)], cwd=buildroot)
       if rw_checkout:
         # Always re-run in case of new git repos or repo sync
         # failed in a previous run because of a forced Stop Build.
@@ -238,7 +242,12 @@ def _Build(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./build_packages'], cwd=cwd, enter_chroot=True)
 
+def _WipeOldOutput(buildroot):
+  RunCommand(['rm', '-rf', 'src/build/images'], cwd=buildroot)
+
 def _BuildImage(buildroot):
+  _WipeOldOutput(buildroot)
+
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./build_image', '--replace'], cwd=cwd, enter_chroot=True)
 
