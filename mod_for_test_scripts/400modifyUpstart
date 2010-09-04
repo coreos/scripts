@@ -5,6 +5,7 @@
 # found in the LICENSE file.
 
 echo "Modifying upstart scripts for test accesibility."
-sed -i 's/#for_test //' "${ROOT_FS_DIR}/etc/init/openssh-server.conf"
-sed -i 's/#for_test //' "${ROOT_FS_DIR}/etc/init/iptables.conf"
+for script in openssh-server iptables saft; do
+    sed -i 's/#for_test //' "${ROOT_FS_DIR}/etc/init/${script}.conf"
+done
 
