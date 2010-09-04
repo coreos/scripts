@@ -59,10 +59,12 @@ if [ -n "${FLAGS_board}" ]; then
   BOARD_DIR=/build/"${FLAGS_board}" # --board specified
   EQUERYCMD=equery-"${FLAGS_board}"
   EBUILDCMD=ebuild-"${FLAGS_board}"
+  BOARD_STR="${FLAGS_board}"
 else
   BOARD_DIR="" # --host specified
   EQUERYCMD=equery
   EBUILDCMD=ebuild
+  BOARD_STR="host"
 fi
 
 WORKON_DIR=${CHROOT_TRUNK_DIR}/.config/cros_workon
@@ -200,29 +202,37 @@ regen_manifest_and_sync() {
 # src_unpack step fetches the package source for local development.
 ebuild_to_live () {
   local atoms=$1
+  local atoms_success=""
 
   for atom in ${atoms}; do
     if ! grep -qx "[~=]${atom}-9999" "${WORKON_FILE}" ; then
-      sudo bash -c "echo \"=${atom}-9999\" >> \"${WORKON_FILE}\""
+      if sudo bash -c "echo \"=${atom}-9999\" >> \"${WORKON_FILE}\""; then
+        atoms_success="${atoms_success} ${atom}"
+      fi
     else
       warn "Already working on ${atom}"
     fi
   done
+  [ -n "${atoms_success}" ] && regen_manifest_and_sync && \
+    info "Started working on '${atoms_success/ /}' for '${BOARD_STR}'"
 }
 
 # Move a live development ebuild back to stable.
 ebuild_to_stable () {
   local atoms=$1
+  local atoms_success=""
 
   for atom in ${atoms}; do
     if grep -qx "[~=]${atom}-9999" "${WORKON_FILE}" ; then
-      sudo bash -c "grep -v '^[~=]${atom}-9999\$' \"${WORKON_FILE}\" > \
-          \"${WORKON_FILE}+\""
-      sudo mv "${WORKON_FILE}+" "${WORKON_FILE}"
+      if sudo sed -e "/^[~=]${atom/\//\\/}-9999\$/d" -i "${WORKON_FILE}"; then
+        atoms_success="${atoms_success} ${atom}"
+      fi
     else
       warn "Not working on ${atom}"
     fi
   done
+  [ -n "${atoms_success}" ] && \
+    info "Stopped working on '${atoms_success/ /}' for '${BOARD_STR}'"
 }
 
 # Run a command on all or a set of repos.
@@ -258,7 +268,7 @@ else # not selected --all
 fi
 
 case ${WORKON_CMD} in
-  start)  ebuild_to_live "${ATOM_LIST}"; regen_manifest_and_sync ;;
+  start)  ebuild_to_live "${ATOM_LIST}" ;;
   stop)   ebuild_to_stable "${ATOM_LIST}" ;;
   list)   [ ${FLAGS_all} = "${FLAGS_FALSE}" ] && show_live_ebuilds || show_workon_ebuilds ;;
   iterate)ebuild_iterate "${ATOM_LIST}" ;;
