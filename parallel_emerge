@@ -829,7 +829,7 @@ class DepGraphGenerator(object):
           depinfo = depinfo + ", deleting"
         print "  %s -> %s (%s)" % (pkg1, pkg2, depinfo)
 
-    def SanitizeTree(cycles):
+    def SanitizeTree():
       """Remove circular dependencies.
 
       We prune all dependencies involved in cycles that go against the emerge
@@ -839,18 +839,20 @@ class DepGraphGenerator(object):
       Because we don't treat any dependencies as "soft" unless they're killed
       by a cycle, we pay attention to a larger number of dependencies when
       merging. This hurts performance a bit, but helps reliability.
-
-      Args:
-        cycles: Dict of packages involved in cyclic dependencies, mapping each
-        package to a list of the cycles the package is involved in. Produced
-        by FindCycles().
       """
-      for dep, mycycles in cycles.iteritems():
-        for basedep, mycycle in mycycles.iteritems():
-          if deps_info[basedep]["idx"] >= deps_info[dep]["idx"]:
-            PrintCycleBreak(basedep, dep, mycycle)
-            del deps_map[dep]["needs"][basedep]
-            deps_map[basedep]["provides"].remove(dep)
+      start = time.time()
+      cycles = FindCycles()
+      while cycles:
+        for dep, mycycles in cycles.iteritems():
+          for basedep, mycycle in mycycles.iteritems():
+            if deps_info[basedep]["idx"] >= deps_info[dep]["idx"]:
+              PrintCycleBreak(basedep, dep, mycycle)
+              del deps_map[dep]["needs"][basedep]
+              deps_map[basedep]["provides"].remove(dep)
+        cycles = FindCycles()
+      seconds = time.time() - start
+      if "--quiet" not in emerge.opts and seconds >= 0.1:
+        print "Tree sanitized in %dm%.1fs" % (seconds / 60, seconds % 60)
 
     def AddSecretDeps():
       """Find these tagged packages and add extra dependencies.
@@ -1129,8 +1131,7 @@ class DepGraphGenerator(object):
     # we've done that, we also need to recalculate our list of cycles so that
     # we don't include the installed packages in our cycles.
     RemoveInstalledPackages()
-    cycles = FindCycles()
-    SanitizeTree(cycles)
+    SanitizeTree()
     if deps_map:
       if "--usepkg" in emerge.opts:
         UsePrebuiltPackages()
