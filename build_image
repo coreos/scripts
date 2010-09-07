@@ -30,6 +30,8 @@ DEFINE_integer build_attempt 1 \
   "The build attempt for this image build."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
+DEFINE_boolean eclean ${FLAGS_TRUE} \
+  "Perform eclean-<board> -d as part of this script to remove obsolete packages"
 DEFINE_boolean replace ${FLAGS_FALSE} \
   "Overwrite existing output, if any."
 DEFINE_boolean withdev ${FLAGS_TRUE} \
@@ -384,13 +386,13 @@ update_dev_packages() {
   # Install developer packages described in chromeos-dev.
   sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
       --root="${root_dev_dir}" --root-deps=rdeps \
-      --usepkg -uDNv chromeos-dev ${EMERGE_JOBS}
+      --usepkgonly -uDNv chromeos-dev ${EMERGE_JOBS}
 
   if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
     # Clean out unused packages
     sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
       --root="${ROOT_FS_DIR}" --root-deps=rdeps \
-      --usepkg --depclean ${EMERGE_JOBS}
+      --usepkgonly --depclean ${EMERGE_JOBS}
   fi
 
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
@@ -453,12 +455,12 @@ update_base_packages() {
   # Emerge updated packages, exactly like when creating base image
   sudo USE="${EXTRA_USE}" INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
     --root="${ROOT_FS_DIR}" --root-deps=rdeps \
-    --usepkg -uDNv chromeos ${EXTRA_PACKAGES} ${EMERGE_JOBS}
+    --usepkgonly -uDNv chromeos ${EXTRA_PACKAGES} ${EMERGE_JOBS}
 
   # Clean out unused packages
   sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
     --root="${ROOT_FS_DIR}" --root-deps=rdeps \
-    --usepkg --depclean ${EMERGE_JOBS}
+    --usepkgonly --depclean ${EMERGE_JOBS}
 
   trap - EXIT
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
@@ -585,13 +587,13 @@ create_base_image() {
   sudo mount --bind "${STATEFUL_FS_DIR}/var" "${ROOT_FS_DIR}/var"
   sudo mkdir -p "${ROOT_FS_DIR}/dev"
 
-  # We "emerge --root=${ROOT_FS_DIR} --root-deps=rdeps --usepkg" all of the
+  # We "emerge --root=${ROOT_FS_DIR} --root-deps=rdeps --usepkgonly" all of the
   # runtime packages for chrome os. This builds up a chrome os image from
   # binary packages with runtime dependencies only.  We use INSTALL_MASK to
   # trim the image size as much as possible.
   sudo USE="${EXTRA_USE}" INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
     --root="${ROOT_FS_DIR}" --root-deps=rdeps \
-    --usepkg chromeos ${EXTRA_PACKAGES} ${EMERGE_JOBS}
+    --usepkgonly chromeos ${EXTRA_PACKAGES} ${EMERGE_JOBS}
 
   # Perform any customizations on the root file system that are needed.
   "${SCRIPTS_DIR}/customize_rootfs" \
@@ -678,6 +680,11 @@ if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
       cp ${PREVIOUS_DIR}/${DEVELOPER_IMAGE_NAME} ${OUTPUT_DIR}
     fi
   fi
+fi
+
+# Perform an eclean to remove packages which are not installed
+if [[ "${FLAGS_eclean}" -eq "${FLAGS_TRUE}" ]]; then
+  eclean-${FLAGS_board} -d packages
 fi
 
 # Create the boot.desc file which stores the build-time configuration
