@@ -4,5 +4,5 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-mkdir -p "${STATEFUL_DIR}/var/lib/power_manager"
-echo 1 > "${STATEFUL_DIR}/var/lib/power_manager/disable_idle_suspend"
+mkdir -p "${ROOT_FS_DIR}/usr/share/power_manager"
+echo 1 > "${ROOT_FS_DIR}/usr/share/power_manager/disable_idle_suspend"
