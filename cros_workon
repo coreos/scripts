@@ -152,22 +152,22 @@ regen_manifest_and_sync() {
 
   # ensure we don't clobber existing manifest entries
   if [ -f "${local_manifest}" ]; then
-      grep -q -i "<remote" "${local_manifest}"
-      if [ $? -ne 1 ]; then
-	  die "Your local manifest will be clobbered running cros_workon. You can not have any <remote> tags at all."
-      fi
-      sed -ne '/^[[:space:]]\+[^[:space:]]/q1' "${local_manifest}"
-      if [ $? -ne 0 ]; then
-	  die "Your local manifest will be clobbered running cros_workon. You can not have any tags that span multiple lines or are indented."
-      fi
-      egrep -q "^[^<]" "${local_manifest}" 
-      if [ $? -ne 1 ]; then
-	  die "Your local manifest will be clobbered running cros_workon. You can not have any tags that span multiple lines"
-      fi
-      grep -v "<project" "${local_manifest}" | grep -q -i "<project" 
-      if [ $? -eq 0 ]; then
-	  die "Your local manifest has mixed case tags for project.  You can not have mixed case tags"
-      fi
+    grep -q -i "<remote" "${local_manifest}"
+    if [ $? -ne 1 ]; then
+      die "Your local manifest will be clobbered running cros_workon. You can not have any <remote> tags at all."
+    fi
+    sed -ne '/^[[:space:]]\+[^[:space:]]/q1' "${local_manifest}"
+    if [ $? -ne 0 ]; then
+      die "Your local manifest will be clobbered running cros_workon. You can not have any tags that span multiple lines or are indented."
+    fi
+    egrep -q "^[^<]" "${local_manifest}"
+    if [ $? -ne 1 ]; then
+      die "Your local manifest will be clobbered running cros_workon. You can not have any tags that span multiple lines"
+    fi
+    grep -v "<project" "${local_manifest}" | grep -q -i "<project"
+    if [ $? -eq 0 ]; then
+      die "Your local manifest has mixed case tags for project.  You can not have mixed case tags"
+    fi
   fi
   # preserve old manifest entries
   [ -f "${local_manifest}" ] && \
