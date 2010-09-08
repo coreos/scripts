@@ -211,8 +211,9 @@ class _EBuild(object):
   def _FindEBuildPath(cls, package):
     """Static method that returns the full path of an ebuild."""
     _Print('Looking for unstable ebuild for %s' % package)
-    equery_cmd = 'equery-%s which %s 2> /dev/null' \
-      % (gflags.FLAGS.board, package)
+    equery_cmd = (
+        'ACCEPT_KEYWORDS="x86 arm amd64" equery-%s which %s 2> /dev/null'
+            % (gflags.FLAGS.board, package))
     path = _SimpleRunCommand(equery_cmd)
     if path:
       _Print('Unstable ebuild found at %s' % path)
