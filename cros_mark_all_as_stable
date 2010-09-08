@@ -61,9 +61,11 @@ for package in ${PACKAGES}; do
     info "${package} blacklisted, skipping"
     continue
   fi
-  ebuild_path=$(${EQUERYCMD} which ${package}) || continue
+  # We need to pick up any stable ebuilds for any platform.
+  ebuild_path=$(ACCEPT_KEYWORDS="arm x86 amd64" ${EQUERYCMD} which ${package})\
+      || continue
   # Get 9999 ebuild path to see if it got changed.
-  ebuild_9999_path=$(ACCEPT_KEYWORDS=~* ${EQUERYCMD} which ${package}) \
+  ebuild_9999_path=$(ACCEPT_KEYWORDS="~*" ${EQUERYCMD} which ${package}) \
       || continue
   # Sets ${CROS_WORKON_SRCDIR} from the ebuild.
   eval $(${EBUILDCMD} ${ebuild_path} info) &> /dev/null || continue
