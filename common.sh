@@ -135,7 +135,9 @@ DEFAULT_INSTALL_MASK="/usr/include /usr/man /usr/share/man /usr/share/doc \
   /usr/local/autotest /usr/local/autotest-chrome"
 
 FACTORY_INSTALL_MASK="/opt/google/chrome /opt/google/o3d /opt/netscape \
-  /usr/lib/dri /usr/lib/python2.6/test /usr/share/chewing /usr/share/fonts \
+  /opt/google/talkplugin /opt/Qualcomm /opt/Synaptics \
+  /usr/lib/dri /usr/lib/python2.6/test \
+  /usr/share/chewing /usr/share/fonts \
   /usr/share/ibus-pinyin /usr/share/libhangul /usr/share/locale \
   /usr/share/m17n /usr/share/mime /usr/share/sounds /usr/share/tts \
   /usr/share/X11 /usr/share/zoneinfo /usr/lib/debug
