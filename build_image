@@ -402,6 +402,10 @@ update_dev_packages() {
       --usepkgonly --depclean ${EMERGE_JOBS}
   fi
 
+  # Install the bare necessary files so that the "emerge" command works
+  sudo cp ${root_dev_dir}/etc/make.globals ${ROOT_FS_DIR}/etc/
+  sudo mkdir -p ${ROOT_FS_DIR}/etc/make.profile
+
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
   sudo /sbin/ldconfig -r "${ROOT_FS_DIR}"
 
