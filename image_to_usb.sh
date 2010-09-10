@@ -36,6 +36,8 @@ DEFINE_string image_name "chromiumos_image.bin" \
   "Base name of the image" i
 DEFINE_string build_root "/build" \
   "The root location for board sysroots."
+DEFINE_boolean install ${FLAGS_FALSE} "Install to the usb device."
+DEFINE_string arch "" "Architecture of the image."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -70,6 +72,12 @@ if [ -z ${FLAGS_from} ] && [ -z ${FLAGS_board} ] ; then
   exit 1
 fi
 
+# No board set during install
+if [ -z "${FLAGS_board}" ] && [ ${FLAGS_install} -eq ${FLAGS_TRUE} ]; then
+  setup_board_warning
+  exit 1
+fi
+
 # We have a board name but no image set.  Use image at default location
 if [ -z "${FLAGS_from}" ]; then
   IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
@@ -94,6 +102,15 @@ if [ "${FLAGS_to}" == "/dev/sdX" ]; then
     done
   fi
   exit 1
+fi
+
+# Guess ARCH if it's unset
+if [ "${FLAGS_arch}" = "" ]; then
+  if echo "${FLAGS_board}" | grep -qs "x86"; then
+    FLAGS_arch=INTEL
+  else
+    FLAGS_arch=ARM
+  fi
 fi
 
 # Convert args to paths.  Need eval to un-quote the string so that shell
@@ -169,7 +186,11 @@ fi
 if [ -b "${FLAGS_to}" ]
 then
   # Output to a block device (i.e., a real USB key), so need sudo dd
-  echo "Copying USB image ${SRC_IMAGE} to device ${FLAGS_to}..."
+  if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
+    echo "Copying USB image ${SRC_IMAGE} to device ${FLAGS_to}..."
+  else
+    echo "Installing USB image ${SRC_IMAGE} to device ${FLAGS_to}..."
+  fi
 
   # Warn if it looks like they supplied a partition as the destination.
   if echo "${FLAGS_to}" | grep -q '[0-9]$'; then
@@ -213,10 +234,28 @@ then
   done
   sleep 3
 
-  echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
-  sudo dd if="${SRC_IMAGE}" of="${FLAGS_to}" bs=4M
-  sync
+  if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
+    echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
+    sudo dd if="${SRC_IMAGE}" of="${FLAGS_to}" bs=4M
+    sync
+  else
+    if [ ${INSIDE_CHROOT} -ne 1 ]; then
+      echo "Installation must be done from inside the chroot."
+      exit 1
+    fi
+    #TODO(kwaters): fix when verified root works on ARM
+    [ "${FLAGS_arch}" = "ARM" ] && SKIP_VBLOCK="--skip_vblock"
 
+    echo "Installing ${SRC_IMAGE} to ${FLAGS_to}..."
+    "${FLAGS_build_root}/${FLAGS_board}/usr/sbin/chromeos-install" \
+      --yes \
+      --skip_src_removable \
+      --skip_dst_removable \
+      ${SKIP_VBLOCK:-} \
+      --arch="${FLAGS_arch}" \
+      --payload_image="${SRC_IMAGE}" \
+      --dst="${FLAGS_to}"
+  fi
   echo "Done."
 else
   # Output to a file, so just make a copy.
