@@ -163,9 +163,13 @@ function main() {
   fi
 
   local control_files_to_run=""
-
+  local chrome_autotests="${CHROME_ROOT}/src/chrome/test/chromeos/autotest/files"
   # Now search for tests which unambiguously include the given identifier
   local search_path=$(echo {client,server}/{tests,site_tests})
+  # Include chrome autotest in the search path
+  if [ -n "${CHROME_ROOT}" ]; then
+    search_path="${search_path} ${chrome_autotests}/client/site_tests"
+  fi
   pushd ${autotest_dir} > /dev/null
   for test_request in $FLAGS_ARGV; do
     test_request=$(remove_quotes "${test_request}")
@@ -210,6 +214,10 @@ function main() {
     # Assume a line starts with TEST_TYPE =
     control_file=$(remove_quotes "${control_file}")
     local type=$(read_test_type "${autotest_dir}/${control_file}")
+    # Check if the control file is an absolute path (i.e. chrome autotests case)
+    if [[ ${control_file:0:1} == "/" ]]; then
+      type=$(read_test_type "${control_file}")
+    fi
     local option
     if [[ "${type}" == "client" ]]; then
       option="-c"
@@ -243,6 +251,13 @@ function main() {
     if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
       enter_chroot="./enter_chroot.sh --chroot ${FLAGS_chroot} --"
       autotest="./autotest${WORKON_SUFFIX}"
+    fi
+
+    # Remove chrome autotest location prefix from control_file if needed
+    if [[ ${control_file:0:${#chrome_autotests}} == \
+          "${chrome_autotests}" ]]; then
+      control_file="${control_file:${#chrome_autotests}+1}"
+      echo_color "yellow" ">>> Running chrome autotest " ${control_file}
     fi
 
     ${enter_chroot} ${autotest} --board "${FLAGS_board}" -m "${FLAGS_remote}" \
