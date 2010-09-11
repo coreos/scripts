@@ -1016,13 +1016,13 @@ class DepGraphGenerator(object):
       # built from source, all children must also be built from source.
       local_ready_cache, remote_ready_cache = {}, {}
       local_mtime_cache, remote_mtime_cache = {}, {}
-      for pkg in final_pkgs:
+      for pkg in final_pkgs.difference(rebuild_blacklist):
         # If all the necessary local packages are ready, and their
         # modification times are in sync, we don't need to do anything here.
         local_mtime = LastModifiedWithDeps(pkg, local_pkgs, local_mtime_cache)
         local_ready = PrebuiltsReady(pkg, local_pkgs, local_ready_cache)
         if (not local_ready or local_pkgs.get(pkg, 0) < local_mtime and
-            pkg not in cycles and pkg not in rebuild_blacklist):
+            pkg not in cycles):
           # OK, at least one package is missing from the local cache or is
           # outdated. This means we're going to have to install the package
           # and all dependencies.
