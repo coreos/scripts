@@ -22,6 +22,9 @@ DEFINE_string upgrade_server "" "SSH-capable host for upgrade server install"
 DEFINE_string dest_path "" "Directory on host to do install"
 DEFINE_string client_address "" "IP Address of netbook to update"
 DEFINE_string server_address "" "IP Address of upgrade server"
+DEFINE_string client_prefix "ChromeOSUpdateEngine" \
+  "client_prefix arg to devserver.  Old version is MementoSoftwareUpdate"
+DEFINE_boolean old_prefix ${FLAGS_FALSE} "Use old MementoSoftwareUpdate"
 DEFINE_boolean start_server ${FLAGS_TRUE} "Start up the server"
 DEFINE_boolean stop_server  ${FLAGS_FALSE} "Start up the server"
 DEFINE_boolean no_copy_archive  ${FLAGS_FALSE} "Skip copy of files to server"
@@ -74,9 +77,11 @@ create_devserver () {
 
   # Copy server components into place
   (cd ${SCRIPTS_DIR}/../.. && \
-      tar zcf - --exclude=.git --exclude=.svn \
+      tar zcfh - --exclude=.git --exclude=.svn --exclude=pkgroot \
       src/scripts/lib \
       src/scripts/start_devserver \
+      src/scripts/cros_generate_update_payload \
+      src/scripts/chromeos-common.sh \
       src/scripts/{common,get_latest_image,mk_memento_images}.sh \
       src/platform/dev) | \
       ssh ${FLAGS_upgrade_server} "cd ${FLAGS_dest_path} && tar zxf -"
@@ -138,7 +143,11 @@ start_server () {
   done
   rm -f $portlist
 
-  ssh ${FLAGS_upgrade_server} "cd ${FLAGS_dest_path}/src/scripts && env PYTHONPATH=${remote_root}${FLAGS_dest_path}/python CHROMEOS_BUILD_ROOT=${archive_dir} ./start_devserver --archive_dir ${archive_dir} $server_port" > $server_logfile 2>&1 &
+  if [ "${FLAGS_old_prefix}" -eq ${FLAGS_TRUE} ] ; then
+    FLAGS_client_prefix=MementoSoftwareUpdate
+  fi
+
+  ssh ${FLAGS_upgrade_server} "cd ${FLAGS_dest_path}/src/scripts && env PYTHONPATH=${remote_root}${FLAGS_dest_path}/python CHROMEOS_BUILD_ROOT=${archive_dir} ./start_devserver --archive_dir ${archive_dir} --client_prefix ${FLAGS_client_prefix} $server_port" > $server_logfile 2>&1 &
   server_pid=$!
 
   trap server_cleanup 2
