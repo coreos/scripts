@@ -69,12 +69,22 @@ function start_dev_server {
 # from the dev server and prepares the update. chromeos_startup finishes
 # the update on next boot.
 function copy_stateful_update {
-  info "Starting stateful update."
-  local dev_dir="$(dirname $0)/../platform/dev"
+  local dev_url=$(get_devserver_url)
+  local stateful_url=""
+
+  # Assume users providing an update url are using an archive_dir path.
+  if [ -n "${FLAGS_update_url}" ]; then
+    stateful_url=$(echo ${dev_url} | sed -e "s/update/static\/archive/")
+  else
+    stateful_url=$(echo ${dev_url} | sed -e "s/update/static/")
+  fi
+
+  info "Starting stateful update using URL ${stateful_url}"
 
   # Copy over update script and run update.
-  remote_cp_to "$dev_dir/stateful_update" "/tmp"
-  remote_sh "/tmp/stateful_update"
+  local dev_dir="$(dirname $0)/../platform/dev"
+  remote_cp_to "${dev_dir}/stateful_update" "/tmp"
+  remote_sh "/tmp/stateful_update ${stateful_url}"
 }
 
 function get_update_args {
