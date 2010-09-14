@@ -52,7 +52,7 @@ class LocalManifestTest(unittest.TestCase):
     ptree = loman.LocalManifest('<manifest>\n</manifest>')
     ptree.Parse()
     ptree.AddWorkonProject('foo', 'path/to/foo')
-    self.assertTrue(not ptree.AddWorkonProject('foo', 'path/to/foo'))
+    self.assertTrue(ptree.AddWorkonProject('foo', 'path/to/foo'))
     self.assertTrue(not ptree.AddWorkonProject('foo', 'path/foo'))
     self.assertTrue(not ptree.AddWorkonProject('foobar', 'path/to/foo'))
 
@@ -102,9 +102,11 @@ class MainTest(unittest.TestCase):
     os.fsync(temp.fileno())
     loman.main(['loman', 'add', '--workon', '-f',
                 temp.name, 'foo', 'path/to/foo'])
+    loman.main(['loman', 'add', '--workon', '-f',
+                temp.name, 'foo', 'path/to/foo'])
     self.assertRaises(SystemExit, loman.main,
                       ['loman', 'add', '--workon', '-f',
-                       temp.name, 'foo', 'path/to/foo'])
+                       temp.name, 'foo', 'path/foo'])
 
 
 if __name__ == '__main__':

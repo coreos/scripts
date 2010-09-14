@@ -43,6 +43,9 @@ class LocalManifest:
 
     for project in self._root.findall('project'):
         if project.attrib['path'] == path or project.attrib['name'] == name:
+          if project.attrib['path'] == path and project.attrib['name'] == name:
+            return True
+          else:
             return False
     self._AddProject(name, path, workon='True')
     return True
