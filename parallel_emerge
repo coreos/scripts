@@ -1123,7 +1123,9 @@ class DepGraphGenerator(object):
       cycles = FindCycles()
       if self.rebuild:
         local_pkgs = LocalPackageDatabase()
-        remote_pkgs = RemotePackageDatabase(emerge.settings["PORTAGE_BINHOST"])
+        remote_pkgs = {}
+        if "--getbinpkg" in emerge.opts:
+          remote_pkgs = RemotePackageDatabase(emerge.settings["PORTAGE_BINHOST"])
         AutoRebuildDeps(local_pkgs, remote_pkgs, cycles)
 
     # We need to remove installed packages so that we can use the dependency
