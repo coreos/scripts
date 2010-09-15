@@ -300,8 +300,12 @@ class DepGraphGenerator(object):
       # will be going away soon as we migrate to CROS_WORKON_SRCROOT.
       os.environ.setdefault("CHROMEOS_ROOT", os.environ["HOME"] + "/trunk")
 
-    # Modify the environment to disable locking.
-    os.environ["PORTAGE_LOCKS"] = "false"
+      # Modify the environment to disable locking by default.
+      # TODO(davidjames): This option can cause problems if packages muck
+      # with each other during the post-install step. There are a few host
+      # packages that do this, so we only do this environment modification for
+      # board builds.
+      os.environ.setdefault("PORTAGE_LOCKS", "false")
 
     # Turn off interactive delays
     os.environ["EBEEP_IGNORE"] = "1"
@@ -344,9 +348,10 @@ class DepGraphGenerator(object):
     features = os.environ.get("FEATURES", "") + " -collision-protect"
 
     # If we're cross-compiling, updating the environment every time we install
-    # a package isn't necessary, and leads to race conditions. Do environment
-    # updates at the end, instead.
-    if self.board:
+    # a package isn't necessary, and leads to race conditions when
+    # PORTAGE_LOCKS is false. In this case, do environment updates at the end,
+    # instead.
+    if self.board and os.environ.get("PORTAGE_LOCKS") == "false":
       features = features + " no-env-update"
 
     os.environ["FEATURES"] = features
