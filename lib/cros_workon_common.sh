@@ -6,7 +6,9 @@
 
 # Common library for functions used by workon tools.
 
-find_workon_ebuilds() {
+find_keyword_workon_ebuilds() {
+  keyword="${1}"
+
   pushd "${BOARD_DIR}"/etc/ 1> /dev/null
   source make.conf
   popd 1> /dev/null
@@ -15,20 +17,17 @@ find_workon_ebuilds() {
   # NOTE: overlay may be a symlink, and we have to use ${overlay}/
   for overlay in ${CROS_OVERLAYS}; do
     # only look up ebuilds named 9999 to eliminate duplicates
-    find ${overlay}/ -name '*9999.ebuild' | xargs fgrep cros-workon | \
-      sed -e 's/\([.]ebuild\):.*/\1/'|uniq
+    find ${overlay}/ -name '*9999.ebuild' | \
+      xargs grep -l "inherit.*cros-workon" | \
+      xargs grep -l "KEYWORDS=.*${keyword}.*"
   done
 }
 
-# wrapper script that caches the result of find_workon_ebuilds()
-show_workon_ebuilds_files() {
-  if [ -z "${CROS_ALL_EBUILDS}" ]; then
-    CROS_ALL_EBUILDS=$(find_workon_ebuilds)
-  fi
-  echo "${CROS_ALL_EBUILDS}"
-}
-
 show_workon_ebuilds() {
-  show_workon_ebuilds_files | \
-    sed -e 's/.*\/\([^/]*\)\/\([^/]*\)\/.*\.ebuild/\1\/\2/'| sort
+  keyword=$1
+
+  find_keyword_workon_ebuilds ${keyword} | \
+    sed -e 's/.*\/\([^/]*\)\/\([^/]*\)\/.*\.ebuild/\1\/\2/' | \
+       sort -u
+  # This changes the absolute path to ebuilds into category/package.
 }
