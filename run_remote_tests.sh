@@ -154,16 +154,14 @@ function main() {
 
   remote_access_init
 
-  # HACK: Temporary hack for cros-workon conversion
-  # In cros-workon, we always use the prepackaged tests, because the locations
-  # where tests come from are possibly infinite.
-  [[ -n "${CROS_WORKON_SRCROOT}" ]] && \
-    FLAGS_prepackaged_autotest="/build/${FLAGS_board}/usr/local/autotest/"
-
   local autotest_dir=""
   if [[ -z "${FLAGS_prepackaged_autotest}" ]]; then
     learn_board
-    autotest_dir="${GCLIENT_ROOT}/src/third_party/autotest/files"
+    if [[ -n "${CROS_WORKON_SRCROOT}" ]]; then
+      autotest_dir="/build/${FLAGS_board}/usr/local/autotest"
+    else
+      autotest_dir="${GCLIENT_ROOT}/src/third_party/autotest/files"
+    fi
   else
     autotest_dir="${FLAGS_prepackaged_autotest}"
   fi
