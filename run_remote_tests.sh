@@ -275,4 +275,4 @@ function main() {
   ./generate_test_report "${TMP}" --strip="${TMP}/"
 }
 
-main $@
+main "$@"
