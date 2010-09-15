@@ -60,11 +60,13 @@ if [ -n "${FLAGS_board}" ]; then
   EQUERYCMD=equery-"${FLAGS_board}"
   EBUILDCMD=ebuild-"${FLAGS_board}"
   BOARD_STR="${FLAGS_board}"
+  BOARD_KEYWORD="$(portageq-${FLAGS_board} envvar ARCH)"
 else
   BOARD_DIR="" # --host specified
   EQUERYCMD=equery
   EBUILDCMD=ebuild
   BOARD_STR="host"
+  BOARD_KEYWORD="$(portageq envvar ARCH)"
 fi
 
 WORKON_DIR=${CHROOT_TRUNK_DIR}/.config/cros_workon
@@ -95,7 +97,7 @@ canonicalize_name () {
   local pkgfile
   local pkgname
 
-  if ! pkgfile=$(ACCEPT_KEYWORDS="**" ${EQUERYCMD} which $1); then
+  if ! pkgfile=$(ACCEPT_KEYWORDS="~${BOARD_KEYWORD}" ${EQUERYCMD} which $1); then
     warn "error looking up package $1" 1>&2
     return 1
   fi
@@ -249,7 +251,7 @@ ebuild_iterate() {
 # --all makes commands operate on different lists
 if [ ${FLAGS_all} = "${FLAGS_TRUE}" ]; then
   case ${WORKON_CMD} in
-    start) ATOM_LIST=$(show_workon_ebuilds);;
+    start) ATOM_LIST=$(show_workon_ebuilds ${BOARD_KEYWORD});;
     stop|iterate) ATOM_LIST=$(show_live_ebuilds);;
     list) ;;
     *) die "--all is invalid for the given command";;
@@ -270,7 +272,7 @@ fi
 case ${WORKON_CMD} in
   start)  ebuild_to_live "${ATOM_LIST}" ;;
   stop)   ebuild_to_stable "${ATOM_LIST}" ;;
-  list)   [ ${FLAGS_all} = "${FLAGS_FALSE}" ] && show_live_ebuilds || show_workon_ebuilds ;;
+  list)   [ ${FLAGS_all} = "${FLAGS_FALSE}" ] && show_live_ebuilds || show_workon_ebuilds ${BOARD_KEYWORD} ;;
   iterate)ebuild_iterate "${ATOM_LIST}" ;;
   *)      die "$(basename $0): command '${WORKON_CMD}' not recognized" ;;
 esac
