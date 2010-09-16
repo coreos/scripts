@@ -155,9 +155,9 @@ find_repo_dir () {
 regen_manifest_and_sync() {
   for pkgname in $(show_live_ebuilds); do
     eval $(${EBUILDCMD} $(${EQUERYCMD} which ${pkgname}) info)
-    local srcdir=$(readlink -f ${CROS_WORKON_SRCDIR})
-    local trunkdir=$(readlink -f ${CHROOT_TRUNK_DIR})
-    local project_path=${srcdir#$(readlink -f ${CHROOT_TRUNK_DIR})/}
+    local srcdir=$(readlink -m ${CROS_WORKON_SRCDIR})
+    local trunkdir=$(readlink -m ${CHROOT_TRUNK_DIR})
+    local project_path=${srcdir#${trunkdir}/}
 
     loman add --workon "${CROS_WORKON_PROJECT}" "${project_path}"
   done
