@@ -238,12 +238,6 @@ function main() {
     if [[ ${FLAGS_verbose} -eq $FLAGS_TRUE ]]; then
       verbose="--verbose"
     fi
-    local args=()
-    if [[ -n "${FLAGS_args}" ]]; then
-      local with_spaces=""
-      with_spaces=${FLAGS_args//,/ }
-      args=("-a" "${with_spaces}")
-    fi
 
     RAN_ANY_TESTS=${FLAGS_TRUE}
 
@@ -263,11 +257,14 @@ function main() {
       control_file="${control_file:${#chrome_autotests}+1}"
       echo_color "yellow" ">>> Running chrome autotest " ${control_file}
     fi
+    if [[ -n "${FLAGS_args}" ]]; then
+      passthrough_args="--args=${FLAGS_args}"
+    fi
 
     ${enter_chroot} ${autotest} --board "${FLAGS_board}" -m "${FLAGS_remote}" \
       --ssh-port ${FLAGS_ssh_port} \
       "${option}" "${control_file}" -r "${results_dir}" ${verbose} \
-      "${args[@]}"
+      "${passthrough_args}"
   done
 
   echo ""
