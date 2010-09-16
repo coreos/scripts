@@ -92,9 +92,6 @@ patch_kernel() {
   STATE_LOOP_DEV=""
 }
 
-# We should be in the chroot.
-assert_inside_chroot
-
 DEFINE_string image "" "The image that should be sent to clients."
 DEFINE_string src_image "" "Optional: a source image. If specified, this makes\
  a delta update."
@@ -108,6 +105,11 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 set -e
+
+if [ -n "$FLAGS_src_image" ]; then
+  # We need to be in the chroot for generating delta images
+  assert_inside_chroot
+fi
 
 locate_gpt
 
