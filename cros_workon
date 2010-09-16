@@ -153,55 +153,15 @@ find_repo_dir () {
 
 # This is called only for "cros-workon start". We dont handle the "stop" case since the local changes are ignored anyway since the 9999.ebuild is masked and we dont want to deal with what to do with the user's local changes.
 regen_manifest_and_sync() {
-  find_repo_dir
-  local_manifest="${REPODIR}/local_manifest.xml"
+  for pkgname in $(show_live_ebuilds); do
+    eval $(${EBUILDCMD} $(${EQUERYCMD} which ${pkgname}) info)
+    local srcdir=$(readlink -f ${CROS_WORKON_SRCDIR})
+    local trunkdir=$(readlink -f ${CHROOT_TRUNK_DIR})
+    local project_path=${srcdir#$(readlink -f ${CHROOT_TRUNK_DIR})/}
 
-  # ensure we don't clobber existing manifest entries
-  if [ -f "${local_manifest}" ]; then
-    grep -q -i "<remote" "${local_manifest}"
-    if [ $? -ne 1 ]; then
-      die "Your local manifest will be clobbered running cros_workon. You can not have any <remote> tags at all."
-    fi
-    sed -ne '/^[[:space:]]\+[^[:space:]]/q1' "${local_manifest}"
-    if [ $? -ne 0 ]; then
-      die "Your local manifest will be clobbered running cros_workon. You can not have any tags that span multiple lines or are indented."
-    fi
-    egrep -q "^[^<]" "${local_manifest}"
-    if [ $? -ne 1 ]; then
-      die "Your local manifest will be clobbered running cros_workon. You can not have any tags that span multiple lines"
-    fi
-    grep -v "<project" "${local_manifest}" | grep -q -i "<project"
-    if [ $? -eq 0 ]; then
-      die "Your local manifest has mixed case tags for project.  You can not have mixed case tags"
-    fi
-  fi
-  # preserve old manifest entries
-  [ -f "${local_manifest}" ] && \
-    MANIFEST_ENTRIES_OLD=$(cat "${local_manifest}" | grep "^<project")
-
-  rm -f "${local_manifest}"
-
-  # get new manifest entries
-  MANIFEST_ENTRIES=$(show_live_ebuilds |
-  {
-    while read line
-    do
-      pkgname=`basename ${line}`
-      eval $(${EBUILDCMD} $(${EQUERYCMD} which ${pkgname}) info)
-      REPO_ELEMENT=$(sed -n '/START_MINILAYOUT/,/STOP_MINILAYOUT/p' $REPODIR/manifest.xml | grep "name=\"${CROS_WORKON_PROJECT}\"" | sed -e 's/^[ \t]*//')
-      echo "$REPO_ELEMENT"
-    done
-  })
-
-  if [ -n "${MANIFEST_ENTRIES}" ] || [ -n "${MANIFEST_ENTRIES_OLD}" ]; then
-    info "Creating local manifest for workon packages.."
-    echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" >> "${local_manifest}"
-    echo "<manifest>" >> "${local_manifest}"
-    echo -e "${MANIFEST_ENTRIES}\n${MANIFEST_ENTRIES_OLD}" \
-      | sort | uniq >> "${local_manifest}"
-    echo "</manifest>" >> "${local_manifest}"
-    echo "Please run \"repo sync\" now."
-  fi
+    loman add --workon "${CROS_WORKON_PROJECT}" "${project_path}"
+  done
+  echo "Please run \"repo sync\" now."
 }
 
 # Move a stable ebuild to the live development catgeory.  The ebuild
