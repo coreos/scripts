@@ -63,7 +63,7 @@ append_flag () {
 
 append_arg () {
     local delim=''
-    [ -n "${run_remote_args}" ] && delim=','
+    [ -n "${run_remote_args}" ] && delim=' '
     run_remote_args="${run_remote_args}${delim}$*"
 }
 
@@ -145,5 +145,6 @@ for arg in $*; do
     append_arg $arg
 done
 
-eval "exec "${script_root}/run_remote_tests.sh" \
-    -a "${run_remote_args}" --remote=${remote} $run_remote_flags $FLAGS_ARGV"
+eval "exec ${script_root}/run_remote_tests.sh \
+      --args=\"${run_remote_args}\" --remote=${remote} $run_remote_flags \
+      $FLAGS_ARGV"
