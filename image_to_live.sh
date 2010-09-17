@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2009-2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -12,21 +12,38 @@
 . "$(dirname $0)/common.sh"
 . "$(dirname $0)/remote_access.sh"
 
-DEFINE_boolean ignore_version ${FLAGS_TRUE} \
-  "Ignore existing version on running instance and always update"
+# Flags to control image_to_live.
 DEFINE_boolean ignore_hostname ${FLAGS_TRUE} \
-  "Ignore existing AU hostname on running instance use this hostname"
+  "Ignore existing AU hostname on running instance use this hostname."
+DEFINE_boolean ignore_version ${FLAGS_TRUE} \
+  "Ignore existing version on running instance and always update."
+DEFINE_string server_log "dev_server.log" \
+  "Path to log for the devserver."
+DEFINE_boolean update "${FLAGS_TRUE}" \
+  "Perform update of root partition."
 DEFINE_boolean update_known_hosts ${FLAGS_FALSE} \
-  "Update your known_hosts with the new remote instance's key"
-DEFINE_boolean verbose ${FLAGS_FALSE} \
-  "Whether to output verbose information for debugging."
+  "Update your known_hosts with the new remote instance's key."
+DEFINE_string update_log "update_engine.log" \
+  "Path to log for the update_engine."
+
+# Flags for devserver.
+DEFINE_string archive_dir "" \
+  "Update using the test image in the image.zip in this directory." a
 DEFINE_integer devserver_port 8080 \
-  "Port to use for devserver"
-DEFINE_string update_url "" "Full url of an update image"
+  "Port to use for devserver."
+DEFINE_string image "" \
+  "Update with this image path that is in this source checkout." i
+DEFINE_string update_url "" "Full url of an update image."
+
+# Flags for stateful update.
+DEFINE_string stateful_update_flag "" \
+  "Flag to pass to stateful update e.g. old, clean, etc." s
 
 UPDATER_BIN='/usr/bin/update_engine_client'
 UPDATER_IDLE='UPDATE_STATUS_IDLE'
 UPDATER_NEED_REBOOT='UPDATE_STATUS_UPDATED_NEED_REBOOT'
+UPDATER_UPDATE_CHECK='UPDATE_STATUS_CHECKING_FOR_UPDATE'
+UPDATER_DOWNLOADING='UPDATE_STATUS_DOWNLOADING'
 
 function kill_all_devservers {
   # Using ! here to avoid exiting with set -e is insufficient, so use
@@ -47,15 +64,40 @@ function remote_reboot_sh {
   remote_sh "$@"
 }
 
+# Reinterprets path from outside the chroot for use inside.
+# $1 - The path to reinterpret.
+function reinterpret_path_for_chroot() {
+  local path_abs_path=$(readlink -f "${1}")
+  local gclient_root_abs_path=$(readlink -f "${GCLIENT_ROOT}")
+
+  # Strip the repository root from the path.
+  local relative_path=$(echo ${path_abs_path} \
+      | sed s:${gclient_root_abs_path}/::)
+
+  if [ "${relative_path}" = "${path_abs_path}" ]; then
+    die "Error reinterpreting path.  Path ${1} is not within your source tree."
+  fi
+
+  # Prepend the chroot repository path.
+  echo "/home/${USER}/trunk/${relative_path}"
+}
+
 function start_dev_server {
   kill_all_devservers
-  if [ ${FLAGS_verbose} -eq ${FLAGS_FALSE} ]; then
-    ./enter_chroot.sh "sudo ./start_devserver ${FLAGS_devserver_port} \
-         --client_prefix=ChromeOSUpdateEngine > dev_server.log 2>&1" &
-  else
-    ./enter_chroot.sh "sudo ./start_devserver ${FLAGS_devserver_port} \
-        --client_prefix=ChromeOSUpdateEngine &"
+  local devserver_flags=${FLAGS_devserver_port}
+  # Parse devserver flags.
+  if [ -n "${FLAGS_image}" ]; then
+    devserver_flags="${devserver_flags} \
+        --image $(reinterpret_path_for_chroot ${FLAGS_image})"
+  elif [ -n "${FLAGS_archive_dir}" ]; then
+    devserver_flags="${devserver_flags} \
+        --archive_dir $(reinterpret_path_for_chroot ${FLAGS_archive_dir}) -t"
   fi
+
+  info "Starting devserver with flags ${devserver_flags}"
+  ./enter_chroot.sh "sudo ./start_devserver ${devserver_flags} \
+       --client_prefix=ChromeOSUpdateEngine > ${FLAGS_server_log} 2>&1" &
+
   echo -n "Waiting on devserver to start"
   until netstat -anp 2>&1 | grep 0.0.0.0:${FLAGS_devserver_port} > /dev/null
   do
@@ -65,12 +107,19 @@ function start_dev_server {
   echo ""
 }
 
-# Copys stateful update script which fetches the newest stateful update
+# Copies stateful update script which fetches the newest stateful update
 # from the dev server and prepares the update. chromeos_startup finishes
 # the update on next boot.
-function copy_stateful_update {
+function run_stateful_update {
   local dev_url=$(get_devserver_url)
   local stateful_url=""
+  local stateful_update_args=""
+
+  # Parse stateful update flag.
+  if [ -n "${FLAGS_stateful_update_flag}" ]; then
+    stateful_update_args="${stateful_update_args} \
+        --stateful_change ${FLAGS_stateful_update_flag}"
+  fi
 
   # Assume users providing an update url are using an archive_dir path.
   if [ -n "${FLAGS_update_url}" ]; then
@@ -84,7 +133,7 @@ function copy_stateful_update {
   # Copy over update script and run update.
   local dev_dir="$(dirname $0)/../platform/dev"
   remote_cp_to "${dev_dir}/stateful_update" "/tmp"
-  remote_sh "/tmp/stateful_update ${stateful_url}"
+  remote_sh "/tmp/stateful_update ${stateful_update_args} ${stateful_url}"
 }
 
 function get_update_args {
@@ -112,19 +161,69 @@ function get_devserver_url {
   echo "${devserver_url}"
 }
 
-function get_update_status {
-  remote_sh "${UPDATER_BIN} -status |
-      grep CURRENT_OP |
+function truncate_update_log {
+  remote_sh "> /var/log/update_engine.log"
+}
+
+function get_update_log {
+  remote_sh "cat /var/log/update_engine.log"
+  echo "${REMOTE_OUT}" > "${FLAGS_update_log}"
+}
+
+
+# Returns ${1} reported by the update client e.g. PROGRESS, CURRENT_OP.
+function get_update_var {
+  remote_sh "${UPDATER_BIN} --status 2> /dev/null |
+      grep ${1} |
       cut -f 2 -d ="
   echo "${REMOTE_OUT}"
 }
 
+# Returns the current status / progress of the update engine.
+# This is expected to run in its own thread.
+function status_thread {
+  local timeout=5
+  # Let update engine receive call to ping the dev server.
+  info "Devserver handling ping.  Check ${FLAGS_server_log} for more info."
+  sleep ${timeout}
+
+  # The devserver generates images when the update engine checks for updates.
+  while [ $(get_update_var CURRENT_OP) = ${UPDATER_UPDATE_CHECK} ]; do
+    echo -n "." && sleep ${timeout}
+  done
+
+  info "Update generated.  Update engine downloading update."
+  while [ $(get_update_var CURRENT_OP) = ${UPDATER_DOWNLOADING} ]; do
+    echo "Download progress $(get_update_var PROGRESS)" && sleep ${timeout}
+  done
+
+  info "Download complete."
+}
+
+
 function run_auto_update {
+  # Truncate the update log so our log file is clean.
+  truncate_update_log
+
   local update_args="$(get_update_args "$(get_devserver_url)")"
   info "Starting update using args ${update_args}"
+
+  # Sets up a secondary thread to track the update progress.
+  status_thread &
+  local status_thread_pid=$!
+  trap "kill ${status_thread_pid} && cleanup" EXIT
+
+  # Actually run the update.  This is a blocking call.
   remote_sh "${UPDATER_BIN} ${update_args}"
 
-  local update_status="$(get_update_status)"
+  # Clean up secondary thread.
+  ! kill ${status_thread_pid} 2> /dev/null
+  trap cleanup EXIT
+
+  # We get the log file now.
+  get_update_log
+
+  local update_status="$(get_update_var CURRENT_OP)"
   if [ "${update_status}" = ${UPDATER_NEED_REBOOT} ]; then
     info "Autoupdate was successful."
     return 0
@@ -175,23 +274,21 @@ function main() {
 
   remote_access_init
 
-  if [ "$(get_update_status)" = "${UPDATER_NEED_REBOOT}" ]; then
-    warn "Machine has been updated but not yet rebooted.  Rebooting it now."
-    warn "Rerun this script if you still wish to update it."
+  if [ "$(get_update_var CURRENT_OP)" != "${UPDATER_IDLE}" ]; then
+    warn "Machine is in a bad state.  Rebooting it now."
     remote_reboot
-    exit 1
   fi
 
   if [ -z "${FLAGS_update_url}" ]; then
-    # only start local devserver if no update url specified.
+    # Start local devserver if no update url specified.
     start_dev_server
   fi
 
-  if ! run_auto_update; then
+  if [ "${FLAGS_update}" -eq "${FLAGS_TRUE}" ] && ! run_auto_update; then
     die "Update was not successful."
   fi
 
-  if ! copy_stateful_update; then
+  if ! run_stateful_update; then
     warn "Stateful update was not successful."
   fi
 
