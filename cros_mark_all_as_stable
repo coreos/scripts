@@ -53,6 +53,70 @@ function package_is_blacklisted() {
   expr "${1}" : "^\(${blist_regex/\\|/}\)$" &> /dev/null && return 0 || return 1
 }
 
+function ifs_normalize() {
+  for i in $*; do echo "${i}"; done | sort -u |tr '\n' ' '
+}
+
+function eclass_affected_ebuilds() {
+  CHROMIUMOS_OVERLAY="${HOME}/trunk/src/third_party/chromiumos-overlay/"
+
+  info "Tracking eclass changes"
+  pushd "${CHROMIUMOS_OVERLAY}" 1> /dev/null
+
+  # Look at the last time chrome-bot commited anything.
+  last_bot_commit=$(
+    git log --author=chrome-bot -1|head -n 1|cut -f2 -d' '
+  )
+  info "Last bot commit is: ${last_bot_commit}"
+
+  # List of eclasses touched in all commits since that commit.
+  eclass_touched=$(ifs_normalize $(
+      git diff --name-only ${last_bot_commit}|grep "^eclass\/.*\.eclass" | \
+        sed -e 's,eclass/\(.*\)\.eclass,\1,' | \
+        sort -u
+    )
+  )
+  eclass_touched_prev=""
+
+  if [ -z "${eclass_touched}" ]; then
+    info "No eclasses changed"
+    return 0
+  fi
+
+  # Iteratively add all eclasses that inherit the current list, until
+  # the first iteration that will not add anything.
+  while [ "${eclass_touched}" != "${eclass_touched_prev}" ]; do
+    eclass_touched_prev=${eclass_touched}
+
+    # regexp to search for eclass inheritance
+    searchregexp="$(for i in ${eclass_touched}; do echo -n "\|${i}"; done)"
+    searchregexp="inherit.*\(${searchregexp/|/}\).*"
+
+    # Iterate the current list of eclasses and add immediate dependencies.
+    eclass_touched=$(ifs_normalize $(
+        find "eclass/" -name '*.eclass' | \
+          xargs grep -l "${searchregexp}" | \
+          sed -e "s,eclass/\(.*\)\.eclass,\1,"
+      ) ${eclass_touched}
+    )
+  done
+
+  info "Eclasses changed: ${eclass_touched}"
+
+  # Look which ebuilds are affected.
+  # NOTE: searchregexp is usable because last two lists of eclasses were the same
+  ebuilds_affected=$(
+      find . -name '*9999.ebuild' | \
+        xargs grep -l "cros-workon" | \
+        xargs grep -l "${searchregexp}" | \
+        sed -e "s,.\/\(.*\)/.*-9999.ebuild,\1,"
+  )
+
+  echo "${ebuilds_affected}"
+
+  popd 1> /dev/null
+}
+
 # For each package, compares the head commit id to the commit id in the ebuild.
 # If they do not match, add the package and its commit id into ${PACKAGE_LIST}
 # and ${COMMIT_ID_LIST}
@@ -91,6 +155,10 @@ for package in ${PACKAGES}; do
     fi
   fi
 done
+
+PACKAGE_LIST=$(
+  ifs_normalize ${PACKAGE_LIST} $(eclass_affected_ebuilds)
+)
 
 if [ -n "${PACKAGE_LIST}" ] ; then
   info "Candidate package list ${PACKAGE_LIST}"
