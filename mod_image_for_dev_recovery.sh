@@ -11,6 +11,7 @@
 . "$(dirname "$0")/chromeos-common.sh"
 
 get_default_board
+locate_gpt
 
 DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built \
 Default: ${DEFAULT_BOARD}"
@@ -72,103 +73,131 @@ fi
 INSTALL_SHIM_DIR="$(dirname "$FLAGS_dev_install_shim")"
 DEV_RECOVERY_IMAGE="dev_recovery_image.bin"
 
-# Resize stateful partition of install shim to hold payload content
-# Due to this resize, we can't just re-pack the modified part back into an
-# image using pack_partition.sh generated for the dev install shim. Instead,
-# a revised partition table and a new image is needed
-# (see update_partition_table() for details)
-resize_statefulfs() {
-  local source_part=$1  # source stateful partition
-  local num_sectors=$2  # number of 512-byte sectors to be added
+umount_from_loop_dev() {
+  local mnt_pt=$1
+  mount | grep -q " on ${mnt_pt}" && sudo umount ${mnt_pt}
+}
 
-  source_image_sectors=$(roundup $(numsectors ${source_part}))
-  info "source stateful fs has $((512 * $(expr $source_image_sectors))) bytes"
-  resized_image_bytes=$((512 * $(expr $source_image_sectors + $num_sectors)))
-  info "resized stateful fs has $resized_image_bytes bytes"
+cleanup_loop_dev() {
+  sudo losetup -d ${1} || /bin/true
+}
 
-  STATEFUL_LOOP_DEV=$(sudo losetup -f)
-  if [ -z "${STATEFUL_LOOP_DEV}" ]; then
+get_loop_dev() {
+  local loop_dev=$(sudo losetup -f)
+  if [ -z "${loop_dev}" ]; then
     die "No free loop device. Free up a loop device or reboot. Exiting."
   fi
+  echo ${loop_dev}
+}
+
+# Resize stateful partition of install shim to hold payload content
+# Due to this resize, we need to create a new partition table and a new image.
+# (see update_partition_table() for details)
+resize_partition() {
+  local source_part=$1  # source partition
+  local add_num_sectors=$2  # number of 512-byte sectors to be added
+
+  local source_sectors=$(roundup $(numsectors ${source_part}))
+  info "source partition has ${source_sectors} 512-byte sectors."
+  local resized_sectors=$(roundup $(expr $source_sectors + $add_num_sectors))
+  info "resized partition has ${resized_sectors} 512-byte sectors."
+
+  local loop_dev=$(get_loop_dev)
+  trap "cleanup_loop_dev ${loop_dev}" EXIT
 
   # Extend the source file size to the new size.
   dd if=/dev/zero of="${source_part}" bs=1 count=1 \
-      seek=$((resized_image_bytes - 1))
+      seek=$((512 * ${resized_sectors} - 1))
 
   # Resize the partition.
-  sudo losetup "${STATEFUL_LOOP_DEV}" "${source_part}"
-  sudo e2fsck -f "${STATEFUL_LOOP_DEV}"
-  sudo resize2fs "${STATEFUL_LOOP_DEV}"
-  sudo losetup -d "${STATEFUL_LOOP_DEV}"
+  sudo losetup "${loop_dev}" "${source_part}"
+  sudo e2fsck -fp "${loop_dev}" &> /dev/null
+  sudo resize2fs "${loop_dev}" &> /dev/null
+  cleanup_loop_dev "${loop_dev}"
+
+  echo "${resized_sectors}"
 }
 
 # Update partition table with resized stateful partition and create the final
 # dev recovery image
 update_partition_table() {
-  TEMP_IMG=$(mktemp)
+  local temp_state=$1       # stateful partition image
+  local resized_sectors=$2  # number of sectors in resized stateful partition
+  local temp_img=$(mktemp)
 
-  TEMP_KERN="${TEMP_DIR}"/part_2
-  TEMP_ROOTFS="${TEMP_DIR}"/part_3
-  TEMP_OEM="${TEMP_DIR}"/part_8
-  TEMP_ESP="${TEMP_DIR}"/part_12
-  TEMP_PMBR="${TEMP_DIR}"/pmbr
-  dd if="${FLAGS_dev_install_shim}" of="${TEMP_PMBR}" bs=512 count=1
+  local kernel_offset=$(partoffset ${FLAGS_dev_install_shim} 2)
+  local kernel_count=$(partsize ${FLAGS_dev_install_shim} 2)
+  local rootfs_offset=$(partoffset ${FLAGS_dev_install_shim} 3)
+  local rootfs_count=$(partsize ${FLAGS_dev_install_shim} 3)
+  local oem_offset=$(partoffset ${FLAGS_dev_install_shim} 8)
+  local oem_count=$(partsize ${FLAGS_dev_install_shim} 8)
+  local esp_offset=$(partoffset ${FLAGS_dev_install_shim} 12)
+  local esp_count=$(partsize ${FLAGS_dev_install_shim} 12)
+
+  local temp_pmbr=$(mktemp)
+  dd if="${FLAGS_dev_install_shim}" of="${temp_pmbr}" bs=512 count=1
 
   # Set up a new partition table
-  install_gpt "${TEMP_IMG}" "$(numsectors $TEMP_ROOTFS)" \
-    "$(numsectors $TEMP_STATE)" "${TEMP_PMBR}" "$(numsectors $TEMP_ESP)" \
-    false $(roundup $(numsectors ${TEMP_ROOTFS}))
+  install_gpt "${temp_img}" "${rootfs_count}" "${resized_sectors}" \
+    "${temp_pmbr}" "${esp_count}" false $(roundup ${rootfs_count}) &>/dev/null
+
+  rm -rf "${temp_pmbr}"
 
   # Copy into the partition parts of the file
-  dd if="${TEMP_ROOTFS}" of="${TEMP_IMG}" conv=notrunc bs=512 \
-    seek="${START_ROOTFS_A}"
-  dd if="${TEMP_STATE}"  of="${TEMP_IMG}" conv=notrunc bs=512 \
+  dd if="${FLAGS_dev_install_shim}" of="${temp_img}" conv=notrunc bs=512 \
+    seek="${START_ROOTFS_A}" skip=${rootfs_offset} count=${rootfs_count}
+  dd if="${temp_state}" of="${temp_img}" conv=notrunc bs=512 \
     seek="${START_STATEFUL}"
   # Copy the full kernel (i.e. with vboot sections)
-  dd if="${TEMP_KERN}"   of="${TEMP_IMG}" conv=notrunc bs=512 \
-    seek="${START_KERN_A}"
-  dd if="${TEMP_OEM}"    of="${TEMP_IMG}" conv=notrunc bs=512 \
-    seek="${START_OEM}"
-  dd if="${TEMP_ESP}"    of="${TEMP_IMG}" conv=notrunc bs=512 \
-    seek="${START_ESP}"
+  dd if="${FLAGS_dev_install_shim}" of="${temp_img}" conv=notrunc bs=512 \
+    seek="${START_KERN_A}" skip=${kernel_offset} count=${kernel_count}
+  dd if="${FLAGS_dev_install_shim}" of="${temp_img}" conv=notrunc bs=512 \
+    seek="${START_OEM}" skip=${oem_offset} count=${oem_count}
+  dd if="${FLAGS_dev_install_shim}" of="${temp_img}" conv=notrunc bs=512 \
+    seek="${START_ESP}" skip=${esp_offset} count=${esp_count}
+
+  echo ${temp_img}
 }
 
 # Creates a dev recovery image using an existing dev install shim
 # If successful, content of --payload_dir is copied to a directory named
 # "dev_payload" under the root of stateful partition.
 create_dev_recovery_image() {
-  # Split apart the partitions so we can make modifications
-  TEMP_DIR=$(mktemp -d)
-  (cd "${TEMP_DIR}" &&
-    "${INSTALL_SHIM_DIR}/unpack_partitions.sh" "${FLAGS_dev_install_shim}")
+  local temp_state=$(mktemp)
+  local stateful_offset=$(partoffset ${FLAGS_dev_install_shim} 1)
+  local stateful_count=$(partsize ${FLAGS_dev_install_shim} 1)
+  dd if="${FLAGS_dev_install_shim}" of="${temp_state}" conv=notrunc bs=512 \
+    skip=${stateful_offset} count=${stateful_count}
 
-  TEMP_STATE="${TEMP_DIR}"/part_1
-
-  resize_statefulfs $TEMP_STATE $PAYLOAD_DIR_SIZE
+  local resized_sectors=$(resize_partition $temp_state $PAYLOAD_DIR_SIZE)
 
   # Mount resized stateful FS and copy payload content to its root directory
-  TEMP_MNT_STATE=$(mktemp -d)
-  mkdir -p "${TEMP_MNT_STATE}"
-  sudo mount -o loop "${TEMP_STATE}" "${TEMP_MNT_STATE}"
-  sudo cp -R "${FLAGS_payload_dir}" "${TEMP_MNT_STATE}"
-  sudo mv "${TEMP_MNT_STATE}/$(basename ${FLAGS_payload_dir})" \
-"${TEMP_MNT_STATE}/dev_payload"
+  local temp_mnt=$(mktemp -d)
+  local loop_dev=$(get_loop_dev)
+  trap "umount_from_loop_dev ${temp_mnt} && cleanup_loop_dev ${loop_dev}" EXIT
+  mkdir -p "${temp_mnt}"
+  sudo mount -o loop=${loop_dev} "${temp_state}" "${temp_mnt}"
+  sudo cp -R "${FLAGS_payload_dir}" "${temp_mnt}"
+  sudo mv "${temp_mnt}/$(basename ${FLAGS_payload_dir})" \
+    "${temp_mnt}/dev_payload"
   # Mark image as dev recovery
-  sudo touch "${TEMP_MNT_STATE}/.recovery"
-  sudo touch "${TEMP_MNT_STATE}/.dev_recovery"
+  sudo touch "${temp_mnt}/.recovery"
+  sudo touch "${temp_mnt}/.dev_recovery"
 
   # TODO(tgao): handle install script (for default and custom cases)
-  update_partition_table
+  local temp_img=$(update_partition_table $temp_state $resized_sectors)
 
-  sudo umount "${TEMP_MNT_STATE}"
-  trap - EXIT
+  umount_from_loop_dev "${temp_mnt}"
+  cleanup_loop_dev ${loop_dev}
+  rm -f "${temp_state}"
+  echo ${temp_img}
 }
 
 # Main
 DST_PATH="${INSTALL_SHIM_DIR}/${DEV_RECOVERY_IMAGE}"
 info "Attempting to create dev recovery image using dev install shim \
 ${FLAGS_dev_install_shim}"
-create_dev_recovery_image
+TEMP_IMG=$(create_dev_recovery_image)
 
 mv -f $TEMP_IMG $DST_PATH
 info "Dev recovery image created at ${DST_PATH}"
