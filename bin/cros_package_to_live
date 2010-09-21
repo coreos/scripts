@@ -33,8 +33,11 @@ FLAGS "$@" || exit 1
 TMP=$(mktemp -d /tmp/cros_package_to_live.XXXX)
 
 function cleanup {
-  cleanup_remote_access
-  rm -rf "${TMP}"
+    if [ "${mount_type}" = ro ]; then
+        remote_sh "mount -o remount,ro /" || /bin/true
+    fi
+    cleanup_remote_access
+    rm -rf "${TMP}"
 }
 
 # Make sure we have a package name
@@ -62,6 +65,13 @@ fi
 
 PKGROOT="${FLAGS_build_root}/${FLAGS_board}/packages"
 
+remote_sh "grep '\S* / ' /proc/mounts | tail -1 | awk '{ print \$4 }' |
+           cut -d, -f1"
+mount_type=$REMOTE_OUT
+if [ "${mount_type}" = ro ]; then
+    remote_sh "mount -o remount,rw /"
+fi
+
 for pkg in $@; do
     latest_pkg=$(ls -tr $PKGROOT/*/${pkg}-[0-9]* | tail -1)
     if [ -z "${latest_pkg}" ]; then
@@ -75,12 +85,10 @@ for pkg in $@; do
     remote_sh "mktemp -d /tmp/cros_package_to_live.XXXX"
     temp_dir=$REMOTE_OUT
     remote_cp_to "${latest_pkg}" "${temp_dir}"
-    remote_sh "mount -o remount,rw /"
     remote_sh "mkdir -p /usr/portage/packages/${pkg_dir} &&
                mv ${temp_dir}/${pkg_name} /usr/portage/packages/${pkg_dir} &&
                env FEATURES=-sandbox emerge --usepkg \
                     /usr/portage/packages/${pkg_dir}/${pkg_name} 1>&2"
     echo "${pkg} has been installed"
     remote_sh "rm -rf ${temp_dir}"
-    remote_sh "mount -o remount,ro /" || /bin/true
 done
