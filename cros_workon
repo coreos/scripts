@@ -136,23 +136,14 @@ show_live_ebuilds () {
   sed -n 's/^[~=]\(.*\)-9999$/\1/p' "${WORKON_FILE}"
 }
 
-find_repo_dir () {
-  curdir=`pwd`
-  while [ $curdir != / ]; do
-    if [ -d "$curdir/.repo" ]; then
-       #echo "Found .repo directory at ${curdir}"
-       REPODIR=${curdir}/.repo
-       return 0
-    fi
-    curdir=`dirname "$curdir"`
-  done
-  echo "Unable to find .repo directory. Did you checkout with repo?"
-  exit 1
-}
-
-
 # This is called only for "cros-workon start". We dont handle the "stop" case since the local changes are ignored anyway since the 9999.ebuild is masked and we dont want to deal with what to do with the user's local changes.
 regen_manifest_and_sync() {
+  # Nothing to do unless you are working on the minilayout
+  local manifest=${CHROOT_TRUNK_DIR}/.repo/manifest.xml
+  if [ $(basename $(readlink -f ${manifest})) != "minilayout.xml" ]; then
+      return
+  fi
+
   for pkgname in $(show_live_ebuilds); do
     eval $(${EBUILDCMD} $(${EQUERYCMD} which ${pkgname}) info)
     local srcdir=$(readlink -m ${CROS_WORKON_SRCDIR})
