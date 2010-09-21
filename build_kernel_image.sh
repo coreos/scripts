@@ -88,8 +88,13 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
   # the verified boot device.  Doing so will claim /dev/sdDP out from
   # under the system.
   if [[ ${FLAGS_root} = "/dev/dm-0" ]]; then
-    table=${table//HASH_DEV//dev/sd%D%P}
-    table=${table//ROOT_DEV//dev/sd%D%P}
+    if [[ "${FLAGS_arch}" = "x86" ]]; then
+      base_root='/dev/sd%D%P'
+    elif [[ "${FLAGS_arch}" = "arm" ]]; then
+      base_root='/dev/${devname}${rootpart}'
+    fi
+    table=${table//HASH_DEV/${base_root}}
+    table=${table//ROOT_DEV/${base_root}}
   fi
   verity_args="dm=\"vroot none ro,${table}\""
   info "dm-verity configuration: ${verity_args}"
@@ -188,8 +193,39 @@ EOF
   trap - EXIT
 
 elif [[ "${FLAGS_arch}" = "arm" ]]; then
-  # FIXME: For now, ARM just uses the unsigned kernel by itself.
-  cp -f "${FLAGS_vmlinuz}" "${FLAGS_to}"
+  # FIXME: This stuff is unsigned, and will likely change with vboot_reference
+  # but it doesn't technically have to.
+
+  kernel_script="${FLAGS_working_dir}/kernel.scr"
+  kernel_script_img="${FLAGS_working_dir}/kernel.scr.uimg"
+  # HACK: !! Kernel image construction requires some stuff from portage, not
+  # sure how to get that information here cleanly !!
+  kernel_image="${FLAGS_vmlinuz/vmlinuz/vmlinux.uimg}"
+  WORK="${WORK} ${kernel_script} ${kernel_script_img}"
+
+  kernel_size=$((($(stat -c %s "${kernel_image}") + 511) / 512))
+  script_size=16
+
+  # Build boot script image
+  echo -n 'setenv bootargs ${bootargs} ' > "${kernel_script}"
+  tr '\n' ' ' <"${FLAGS_working_dir}/boot.config" >> "${kernel_script}"
+  echo >> "${kernel_script}"
+  printf 'read ${devtype} 0:${kernelpart} ${loadaddr} %x %x\n' \
+    ${script_size} ${kernel_size} >> "${kernel_script}"
+  echo 'bootm ${loadaddr}' >> ${kernel_script}
+  mkimage -A arm -O linux -T script -C none -a 0 -e 0 \
+    -n kernel_script -d "${kernel_script}" "${kernel_script_img}"
+
+  if [ $(stat -c %s "${kernel_script_img}") -gt $((512 * ${script_size})) ]
+  then
+    echo 'Kernel script too large for reserved space.'
+    exit 1
+  fi
+
+  # Assemble image
+  rm -f "${FLAGS_to}"
+  dd if="${kernel_script_img}" of="${FLAGS_to}" bs=512 count="${script_size}"
+  dd if="${kernel_image}" of="${FLAGS_to}" bs=512 seek="${script_size}"
 else
   error "Unknown arch: ${FLAGS_arch}"
 fi

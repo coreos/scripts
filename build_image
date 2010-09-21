@@ -241,13 +241,6 @@ esac
 
 if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
   enable_rootfs_verification_flag="--enable_rootfs_verification"
-  # Comment out this section if you need to start testing vboot on arm.
-  if [[ "${ARCH}" = "arm" ]]; then
-    warn "ARM does not yet support --enable_rootfs_verification"
-    warn "Root filesystem verification has been disabled."
-    enable_rootfs_verification_flag=
-    FLAGS_enable_rootfs_verification_flag=${FLAGS_FALSE}
-  fi
 fi
 
 # Hack to fix bug where x86_64 CHOST line gets incorrectly added.

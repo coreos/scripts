@@ -125,8 +125,7 @@ make_image_bootable() {
 
   cros_root=/dev/sd%D%P
   if [[ "${FLAGS_arch}" = "arm" ]]; then
-    # TODO(wad) assumed like in build_gpt for now.
-    cros_root=/dev/mmcblk1p3
+    cros_root='/dev/${devname}${rootpart}'
   fi
   if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
     cros_root=/dev/dm-0

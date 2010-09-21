@@ -183,29 +183,6 @@ if [[ "${FLAGS_arch}" = "x86" ]]; then
     sudo syslinux -d /syslinux "${ESP_DEV}"
   fi
 elif [[ "${FLAGS_arch}" = "arm" ]]; then
-  # Extract kernel flags
-  kernel_cfg=
-  old_root="sd%D%P"
-  if [[ -n "${FLAGS_kernel_cmdline}" ]]; then
-    info "Using supplied kernel_cmdline to update templates."
-    kernel_cfg="${FLAGS_kernel_cmdline}"
-  elif [[ -n "${FLAGS_kernel_partition}" ]]; then
-    info "Extracting the kernel command line from ${FLAGS_kernel_partition}"
-    kernel_cfg=$(dump_kernel_config "${kernel_partition}")
-  fi
-  dm_table=
-  if echo "$kernel_cfg" | grep -q 'dm="'; then
-    dm_table=$(echo "$kernel_cfg" | sed -s 's/.*dm="\([^"]*\)".*/\1/')
-  fi
-  # TODO(wad) assume usb_disk contains the arm boot location for now.
-  new_root="${FLAGS_usb_disk}"
-  info "Replacing dm slave devices with /dev/${new_root}"
-  dm_table="${dm_table//ROOT_DEV/\/dev\/${new_root}}"
-  dm_table="${dm_table//HASH_DEV/\/dev\/${new_root}}"
-
-  warn "FIXME: cannot replace root= here for the arm bootloader yet."
-  dm_table=""  # TODO(wad) Clear it until we can fix root=/dev/dm-0
-
   # Copy u-boot script to ESP partition
   if [ -r "${FLAGS_from}/boot-A.scr.uimg" ]; then
     sudo mkdir -p "${ESP_FS_DIR}/u-boot"
