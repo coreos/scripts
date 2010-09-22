@@ -14,7 +14,11 @@ if [ ! -r "${COMMON_PATH}" ]; then
   echo "ERROR! Cannot find common.sh: ${COMMON_PATH}" 1>&2
   exit 1
 fi
+
 . "$(dirname "$0")/../common.sh"
+
+# Script must be run inside the chroot.
+assert_inside_chroot
 
 set -e
 . "$(dirname "$0")/../chromeos-common.sh"  # for partoffset and partsize
@@ -46,8 +50,6 @@ if [ ! -r "${IMAGE}" ]; then
   die "${IMAGE} cannot be read!"
 fi
 
-# Script must be run inside the chroot.
-restart_in_chroot_if_needed $*
 
 locate_gpt
 set +e
