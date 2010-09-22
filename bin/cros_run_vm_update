@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Updates an existing vm image with another image.
+
+. "$(dirname $0)/../common.sh"
+. "$(dirname $0)/../lib/cros_vm_lib.sh"
+
+DEFINE_string stateful_flags "" "Flags to pass to stateful update." s
+DEFINE_string update_image_path "" "Path of the image to update to." u
+DEFINE_string vm_image_path "" "Path of the VM image to update from." v
+
+set -e
+
+# Parse command line.
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+[ -n "${FLAGS_update_image_path}" ] || \
+  die "You must specify a path to an image to use as an update."
+[ -n "${FLAGS_vm_image_path}" ] || \
+  die "You must specify a path to a vm image."
+
+trap stop_kvm EXIT
+start_kvm "${FLAGS_vm_image_path}"
+
+$(dirname $0)/../image_to_live.sh \
+  --remote=${HOSTNAME} \
+  --ssh_port=${FLAGS_ssh_port} \
+  --stateful_update_flag=${stateful_flags} \
+  --image=$(readlink -f ${FLAGS_update_image_path})

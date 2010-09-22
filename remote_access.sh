@@ -15,7 +15,7 @@ DEFINE_integer ssh_port 22 \
 
 # Copies $1 to $2 on remote host
 function remote_cp_to() {
-  REMOTE_OUT=$(scp  -o StrictHostKeyChecking=no -o \
+  REMOTE_OUT=$(scp -P ${FLAGS_ssh_port} -o StrictHostKeyChecking=no -o \
     UserKnownHostsFile=$TMP_KNOWN_HOSTS $1 root@$FLAGS_remote:$2)
   return ${PIPESTATUS[0]}
 }

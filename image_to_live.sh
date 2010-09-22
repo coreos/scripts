@@ -131,7 +131,7 @@ function run_stateful_update {
   info "Starting stateful update using URL ${stateful_url}"
 
   # Copy over update script and run update.
-  local dev_dir="$(dirname $0)/../platform/dev"
+  local dev_dir="${SCRIPTS_DIR}/../platform/dev"
   remote_cp_to "${dev_dir}/stateful_update" "/tmp"
   remote_sh "/tmp/stateful_update ${stateful_update_args} ${stateful_url}"
 }

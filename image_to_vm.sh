@@ -13,11 +13,17 @@
 . "$(dirname "$0")/chromeos-common.sh"
 
 get_default_board
+assert_inside_chroot
 
+DEFAULT_MEM="1024"
 DEFAULT_VMDK="ide.vmdk"
 DEFAULT_VMX="chromiumos.vmx"
 DEFAULT_VBOX_DISK="os.vdi"
 DEFAULT_QEMU_IMAGE="chromiumos_qemu_image.bin"
+
+# Minimum sizes for full size vm images -- needed for update.
+MIN_VDISK_SIZE_FULL=6072
+MIN_STATEFUL_FS_SIZE_FULL=2048
 
 MOD_SCRIPTS_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
 
@@ -33,6 +39,7 @@ DEFINE_string format "qemu" \
   "Output format, either qemu, vmware or virtualbox"
 DEFINE_string from "" \
   "Directory containing rootfs.image and mbr.image"
+DEFINE_boolean full "${FLAGS_FALSE}" "Build full image with all partitions."
 DEFINE_boolean make_vmx ${FLAGS_TRUE} \
   "Create a vmx file for use with vmplayer (vmware only)."
 DEFINE_integer mem "${DEFAULT_MEM}" \
@@ -65,6 +72,14 @@ set -e
 
 if [ -z "${FLAGS_board}" ] ; then
   die "--board is required."
+fi
+
+if [ "${FLAGS_full}" -eq "${FLAGS_TRUE}" ] && \
+    ( [[ ${FLAGS_vdisk_size} < ${MIN_VDISK_SIZE_FULL} ]] || \
+      [[ ${FLAGS_statefulfs_size} < ${MIN_STATEFUL_FS_SIZE_FULL} ]]); then
+  die "Disk is too small for full, please select a vdisk size greater than \
+${MIN_VDISK_SIZE_FULL} and statefulfs size greater than \
+${MIN_STATEFUL_FS_SIZE_FULL}."
 fi
 
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
@@ -114,7 +129,6 @@ if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
 fi
 
 # Memory units are in MBs
-DEFAULT_MEM="1024"
 TEMP_IMG="$(dirname ${SRC_IMAGE})/vm_temp_image.bin"
 
 # If we're not building for VMWare, don't build the vmx
@@ -182,11 +196,13 @@ mkdir -p "${TEMP_ESP_MNT}"
 sudo mount -o loop "${TEMP_ESP}" "${TEMP_ESP_MNT}"
 
 if [ "${FLAGS_format}" = "qemu" ]; then
-  sudo python ./fixup_image_for_qemu.py --mounted_dir="${TEMP_MNT}" \
-  --enable_tablet=true
+  sudo python "$(dirname $0)/fixup_image_for_qemu.py" \
+      --mounted_dir="${TEMP_MNT}" \
+      --enable_tablet=true
 else
-  sudo python ./fixup_image_for_qemu.py --mounted_dir="${TEMP_MNT}" \
-  --enable_tablet=false
+  sudo python "$(dirname $0)/fixup_image_for_qemu.py" \
+      --mounted_dir="${TEMP_MNT}" \
+      --enable_tablet=false
 fi
 
 # Modify the unverified usb template which uses a default usb_disk of sdb3
@@ -197,15 +213,17 @@ sync
 trap - INT TERM EXIT
 cleanup
 
-# Make 3 GiB output image
-# TOOD(adlr): pick a size that will for sure accomodate the partitions
+# TOOD(adlr): pick a size that will for sure accomodate the partitions.
 dd if=/dev/zero of="${TEMP_IMG}" bs=1 count=1 \
   seek=$((${FLAGS_vdisk_size} * 1024 * 1024 - 1))
+
+GPT_FULL="false"
+[ "${FLAGS_full}" -eq "${FLAGS_TRUE}" ] && GPT_FULL="true"
 
 # Set up the partition table
 install_gpt "${TEMP_IMG}" "$(numsectors $TEMP_ROOTFS)" \
   "$(numsectors $TEMP_STATE)" "${TEMP_PMBR}" "$(numsectors $TEMP_ESP)" \
-  false ${FLAGS_rootfs_partition_size}
+  "${GPT_FULL}" ${FLAGS_rootfs_partition_size}
 # Copy into the partition parts of the file
 dd if="${TEMP_ROOTFS}" of="${TEMP_IMG}" conv=notrunc bs=512 \
   seek="${START_ROOTFS_A}"
