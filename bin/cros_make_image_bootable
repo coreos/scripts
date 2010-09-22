@@ -191,10 +191,8 @@ make_image_bootable() {
   # In original CL: http://codereview.chromium.org/2868044, this was done in
   # create_base_image(). However, it could break the build if it is a clean
   # build because vmlinuz_hd.vblock hasn't been created by build_kernel_image.sh
-  if [[ "${FLAGS_arch}" = "x86" ]]; then
-    sudo cp "${FLAGS_output_dir}/vmlinuz_hd.vblock" \
-            "${FLAGS_statefulfs_mountpoint}"
-  fi
+  sudo cp "${FLAGS_output_dir}/vmlinuz_hd.vblock" \
+          "${FLAGS_statefulfs_mountpoint}"
 
   # START_KERN_A is set by the first call to install the gpt.
   local koffset="$(partoffset ${image} 2)"

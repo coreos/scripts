@@ -226,6 +226,11 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
   rm -f "${FLAGS_to}"
   dd if="${kernel_script_img}" of="${FLAGS_to}" bs=512 count="${script_size}"
   dd if="${kernel_image}" of="${FLAGS_to}" bs=512 seek="${script_size}"
+
+  # TODO: HACK: Until the kernel partition contains a signed image, create a
+  # phony hd.vblock to keep chromeos-install and cros_generate_update_payload
+  # working.
+  dd if="${FLAGS_to}" of="${FLAGS_hd_vblock}" bs=64K count=1
 else
   error "Unknown arch: ${FLAGS_arch}"
 fi
