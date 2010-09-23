@@ -76,6 +76,7 @@ DEV_RECOVERY_IMAGE="dev_recovery_image.bin"
 umount_from_loop_dev() {
   local mnt_pt=$1
   mount | grep -q " on ${mnt_pt}" && sudo umount ${mnt_pt}
+  rmdir ${mnt_pt}
 }
 
 cleanup_loop_dev() {
@@ -107,14 +108,13 @@ resize_partition() {
 
   # Extend the source file size to the new size.
   dd if=/dev/zero of="${source_part}" bs=1 count=1 \
-      seek=$((512 * ${resized_sectors} - 1))
+      seek=$((512 * ${resized_sectors} - 1)) &>/dev/null
 
   # Resize the partition.
   sudo losetup "${loop_dev}" "${source_part}"
   sudo e2fsck -fp "${loop_dev}" &> /dev/null
   sudo resize2fs "${loop_dev}" &> /dev/null
-  cleanup_loop_dev "${loop_dev}"
-
+  # trap handler will clean up the loop device
   echo "${resized_sectors}"
 }
 
@@ -123,7 +123,7 @@ resize_partition() {
 update_partition_table() {
   local temp_state=$1       # stateful partition image
   local resized_sectors=$2  # number of sectors in resized stateful partition
-  local temp_img=$(mktemp)
+  local temp_img=$(mktemp "/tmp/temp_img.XXXXXX")
 
   local kernel_offset=$(partoffset ${FLAGS_dev_install_shim} 2)
   local kernel_count=$(partsize ${FLAGS_dev_install_shim} 2)
@@ -134,8 +134,8 @@ update_partition_table() {
   local esp_offset=$(partoffset ${FLAGS_dev_install_shim} 12)
   local esp_count=$(partsize ${FLAGS_dev_install_shim} 12)
 
-  local temp_pmbr=$(mktemp)
-  dd if="${FLAGS_dev_install_shim}" of="${temp_pmbr}" bs=512 count=1
+  local temp_pmbr=$(mktemp "/tmp/pmbr.XXXXXX")
+  dd if="${FLAGS_dev_install_shim}" of="${temp_pmbr}" bs=512 count=1 &>/dev/null
 
   # Set up a new partition table
   install_gpt "${temp_img}" "${rootfs_count}" "${resized_sectors}" \
@@ -145,16 +145,18 @@ update_partition_table() {
 
   # Copy into the partition parts of the file
   dd if="${FLAGS_dev_install_shim}" of="${temp_img}" conv=notrunc bs=512 \
-    seek="${START_ROOTFS_A}" skip=${rootfs_offset} count=${rootfs_count}
+    seek="${START_ROOTFS_A}" skip=${rootfs_offset} count=${rootfs_count} \
+    &>/dev/null
   dd if="${temp_state}" of="${temp_img}" conv=notrunc bs=512 \
-    seek="${START_STATEFUL}"
+    seek="${START_STATEFUL}" &>/dev/null
   # Copy the full kernel (i.e. with vboot sections)
   dd if="${FLAGS_dev_install_shim}" of="${temp_img}" conv=notrunc bs=512 \
-    seek="${START_KERN_A}" skip=${kernel_offset} count=${kernel_count}
+    seek="${START_KERN_A}" skip=${kernel_offset} count=${kernel_count} \
+    &>/dev/null
   dd if="${FLAGS_dev_install_shim}" of="${temp_img}" conv=notrunc bs=512 \
-    seek="${START_OEM}" skip=${oem_offset} count=${oem_count}
+    seek="${START_OEM}" skip=${oem_offset} count=${oem_count} &>/dev/null
   dd if="${FLAGS_dev_install_shim}" of="${temp_img}" conv=notrunc bs=512 \
-    seek="${START_ESP}" skip=${esp_offset} count=${esp_count}
+    seek="${START_ESP}" skip=${esp_offset} count=${esp_count} &>/dev/null
 
   echo ${temp_img}
 }
@@ -163,16 +165,16 @@ update_partition_table() {
 # If successful, content of --payload_dir is copied to a directory named
 # "dev_payload" under the root of stateful partition.
 create_dev_recovery_image() {
-  local temp_state=$(mktemp)
+  local temp_state=$(mktemp "/tmp/temp_state.XXXXXX")
   local stateful_offset=$(partoffset ${FLAGS_dev_install_shim} 1)
   local stateful_count=$(partsize ${FLAGS_dev_install_shim} 1)
   dd if="${FLAGS_dev_install_shim}" of="${temp_state}" conv=notrunc bs=512 \
-    skip=${stateful_offset} count=${stateful_count}
+    skip=${stateful_offset} count=${stateful_count} &>/dev/null
 
   local resized_sectors=$(resize_partition $temp_state $PAYLOAD_DIR_SIZE)
 
   # Mount resized stateful FS and copy payload content to its root directory
-  local temp_mnt=$(mktemp -d)
+  local temp_mnt=$(mktemp -d "/tmp/temp_mnt.XXXXXX")
   local loop_dev=$(get_loop_dev)
   trap "umount_from_loop_dev ${temp_mnt} && cleanup_loop_dev ${loop_dev}" EXIT
   mkdir -p "${temp_mnt}"
@@ -187,9 +189,8 @@ create_dev_recovery_image() {
   # TODO(tgao): handle install script (for default and custom cases)
   local temp_img=$(update_partition_table $temp_state $resized_sectors)
 
-  umount_from_loop_dev "${temp_mnt}"
-  cleanup_loop_dev ${loop_dev}
   rm -f "${temp_state}"
+  # trap handler will clean up loop device and temp mount point
   echo ${temp_img}
 }
 
