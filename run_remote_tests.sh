@@ -111,7 +111,8 @@ function main() {
   FLAGS "$@" || exit 1
 
   if [[ -z "${FLAGS_ARGV}" ]]; then
-    echo "Please specify tests to run.  For example:"
+    echo "Usage: $0 --remote=[hostname] [regexp...]:"
+    echo "Each regexp pattern must uniquely match a control file. For example:"
     echo "  $0 --remote=MyMachine BootPerfServer"
     exit 1
   fi
@@ -185,15 +186,11 @@ function main() {
     fi
     local matches=$(echo "${finds}" | wc -l)
     if [[ ${matches} -gt 1 ]]; then
-      echo ""
-      echo_color "red" \
-        ">>> \"${test_request}\" is ambiguous.  These control file paths match:"
+      echo ">>> \"${test_request}\" is an ambiguous pattern.  Disambiguate by" \
+           "passing one of these patterns instead:"
       for FIND in ${finds}; do
-        echo_color "red" " * " "${FIND}"
+        echo "   ^${FIND}\$"
       done
-      echo ""
-      echo ">>> Disambiguate by copy-and-pasting the whole path above" \
-           "instead of passing \"${test_request}\"."
       exit 1
     fi
     for i in $(seq 1 $FLAGS_iterations); do
