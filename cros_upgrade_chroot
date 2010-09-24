@@ -1,0 +1,100 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+. "$(dirname $0)/common.sh"
+
+# Script must be run inside the chroot
+restart_in_chroot_if_needed $*
+
+DEFINE_string version "" \
+  "Assume current chroot version is this."
+DEFINE_boolean force_latest "${FLAGS_false}" \
+  "Assume latest version and recreate the version file"
+DEFINE_boolean skipfirst "${FLAGS_false}" \
+  "Skip the first upgrade. This may be dangerous."
+
+FLAGS "$@" || exit 1
+
+VERSION_FILE=~/.version
+
+######################################################################
+
+# Latest version is the version of last upgrade.d file.
+# Name format is ${number}_${short_description}
+# Versions must be -n sorted, that is, the first continuous sequence
+# of numbers is what counts. 12_ is before 111_, etc.
+LATEST_VERSION=$(
+  ls "$(dirname $0)/upgrade.d" | grep "^[0-9]*_" | \
+  sort -n | tail -n 1 | cut -f1 -d'_'
+)
+CHROOT_VERSION=$(cat ${VERSION_FILE})
+# Check if it's a number.
+if ! [ "${CHROOT_VERSION}" -ge "0" ] &> /dev/null; then
+  error "Your chroot version file ${VERSION_FILE} is bogus: ${CHROOT_VERSION}"
+  exit 1
+fi
+
+if [ -n "${FLAGS_force_latest}" ]; then
+  echo "${LATEST_VERSION}" > "${VERSION_FILE}"
+  exit 0
+fi
+
+if [ -n "${FLAGS_skipfirst}" ]; then
+  if [ "${CHROOT_VERSION}" -lt "${LATEST_VERSION}" ]; then
+    CHROOT_VERSION=$(expr ${CHROOT_VERSION} + 1)
+  fi
+fi
+
+if [ -n "${FLAGS_version}" ]; then
+  # Check if it's a number.
+  if [ "${FLAGS_version}" -ge "0" ] &> /dev/null; then
+    CHROOT_VERSION="${FLAGS_version}"
+  else
+    error "Trying to force invalid version: ${FLAGS_version}"
+    exit 1
+  fi
+fi
+
+# default goes here
+if ! [ -f "${VERSION_FILE}" ]; then
+  warn "Warning: chroot of unknown version, assuming 0"
+  echo "0" > "${VERSION_FILE}"
+fi
+
+if [ "${LATEST_VERSION}" -gt "${CHROOT_VERSION}" ]; then
+  echo "Outdated chroot found"
+
+  pushd "$(dirname $0)/upgrade.d/" 1> /dev/null
+  for n in $(seq "$(expr ${CHROOT_VERSION} + 1)" "${LATEST_VERSION}"); do
+    # Deprecation check; Deprecation can be done by removing old upgrade
+    # scripts and causing too old chroots to have to start over.
+    # This also means that the scripts have to form a continuous sequence.
+    if ! [ -f ${n}_* ]; then
+      error "Fatal: Upgrade ${n} doesn't exist."
+      error "Your chroot is too old, you need to re-create it!"
+      exit 1
+    fi
+
+    info "Rollup $(echo ${n}_*)"
+
+    # Attempt the upgrade.
+    # NOTE: We source the upgrade scripts because:
+    # 1) We can impose set -something on them.
+    # 2) They can reuse local variables and functions (fe. from common.sh)
+    # A side effect is that the scripts have to be internally enclosed in
+    # a code block, otherwise simply running "exit" in any of them would
+    # terminate the master script, and there would be no way to pass the
+    # return value from them.
+    if ! source ${n}_*; then
+      error "Fatal: failed to upgrade ${n}!"
+      exit 1
+    fi
+    echo "${n}" > "${VERSION_FILE}"
+  done
+  popd 1> /dev/null
+fi

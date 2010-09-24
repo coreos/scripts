@@ -1,0 +1,4 @@
+{
+  info "You have just been upgraded to chroot version 1! Congratulations!"
+  return 0
+}
