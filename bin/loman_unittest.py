@@ -38,10 +38,30 @@ class LocalManifestTest(unittest.TestCase):
     ptree.Parse()
     self.assertEqual(ptree.ToString(), self.utf8 + self.tiny_manifest)
 
+  def testGetProject(self):
+    ptree = loman.LocalManifest('<manifest>\n</manifest>')
+    ptree.Parse()
+    ptree.AddProject('foo', 'path/to/foo')
+    project = ptree.GetProject('foo')
+    self.assertEqual(project.attrib['name'], 'foo')
+
   def testAddNew(self):
     ptree = loman.LocalManifest('<manifest>\n</manifest>')
     ptree.Parse()
     self.assertTrue(ptree.AddWorkonProject('foo', 'path/to/foo'))
+    self.assertEqual(
+      ptree.ToString(),
+      self.utf8 + '<manifest>\n'
+      '<project name="foo" path="path/to/foo" workon="True" />\n'
+      '</manifest>')
+
+  def testAddNewElement(self):
+    dtree = loman.LocalManifest('<manifest>\n</manifest>')
+    dtree.Parse()
+    dtree.AddProject('foo', 'path/to/foo')
+    ptree = loman.LocalManifest('<manifest>\n</manifest>')
+    ptree.Parse()
+    ptree.AddWorkonProjectElement(dtree.GetProject('foo'))
     self.assertEqual(
       ptree.ToString(),
       self.utf8 + '<manifest>\n'
@@ -83,30 +103,69 @@ class MainTest(unittest.TestCase):
     self.assertTrue(sys.stderr.getvalue().endswith(err_msg))
 
   def testSimpleAdd(self):
+    default = tempfile.NamedTemporaryFile('w')
+    print >> default, '<manifest>\n' \
+      '<project name="foo" path="path/to/foo" />\n' \
+      '</manifest>\n'
+    default.flush()
+    os.fsync(default.fileno())
     temp = tempfile.NamedTemporaryFile('w')
     print >> temp, '<manifest>\n</manifest>'
     temp.flush()
     os.fsync(temp.fileno())
-    loman.main(['loman', 'add', '--workon', '-f',
-                temp.name, 'foo', 'path/to/foo'])
+    loman.main(['loman', 'add', '--workon', '-f', temp.name,
+                '-d', default.name, 'foo'])
     self.assertEqual(
       open(temp.name, 'r').read(),
       self.utf8 + '<manifest>\n'
       '<project name="foo" path="path/to/foo" workon="True" />\n'
       '</manifest>\n')
 
-  def testAddDup(self):
+  def testIgnoredPath(self):
+    default = tempfile.NamedTemporaryFile('w')
+    print >> default, '<manifest>\n' \
+      '<project name="foo" path="path/to/foo" />\n' \
+      '</manifest>\n'
+    default.flush()
+    os.fsync(default.fileno())
     temp = tempfile.NamedTemporaryFile('w')
     print >> temp, '<manifest>\n</manifest>'
     temp.flush()
     os.fsync(temp.fileno())
-    loman.main(['loman', 'add', '--workon', '-f',
-                temp.name, 'foo', 'path/to/foo'])
-    loman.main(['loman', 'add', '--workon', '-f',
-                temp.name, 'foo', 'path/to/foo'])
+    loman.main(['loman', 'add', '--workon', '-f', temp.name,
+                '-d', default.name, 'foo'])
+
+  def testAddDup(self):
+    default = tempfile.NamedTemporaryFile('w')
+    print >> default, '<manifest>\n' \
+      '<project name="foo" path="path/to/foo" />\n' \
+      '</manifest>\n'
+    default.flush()
+    os.fsync(default.fileno())
+    temp = tempfile.NamedTemporaryFile('w')
+    print >> temp, '<manifest>\n' \
+      '<project name="foo" path="bad/path/to/foo" />\n' \
+      '</manifest>\n'
+    temp.flush()
+    os.fsync(temp.fileno())
     self.assertRaises(SystemExit, loman.main,
-                      ['loman', 'add', '--workon', '-f',
-                       temp.name, 'foo', 'path/foo'])
+                      ['loman', 'add', '--workon', '-f', temp.name,
+                       '-d', default.name, 'foo'])
+
+  def testAddNonexistant(self):
+    default = tempfile.NamedTemporaryFile('w')
+    print >> default, '<manifest>\n' \
+      '<project name="foo" path="path/to/foo" />\n' \
+      '</manifest>\n'
+    default.flush()
+    os.fsync(default.fileno())
+    temp = tempfile.NamedTemporaryFile('w')
+    print >> temp, '<manifest>\n</manifest>'
+    temp.flush()
+    os.fsync(temp.fileno())
+    self.assertRaises(SystemExit, loman.main,
+                      ['loman', 'add', '--workon', '-f', temp.name,
+                       '-d', default.name, 'bar'])
 
 
 if __name__ == '__main__':
