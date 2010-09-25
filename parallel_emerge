@@ -924,16 +924,38 @@ class DepGraphGenerator(object):
       if not binhost_url:
         return {}
 
-      url = binhost_url + "/Packages"
+      def retry_urlopen(url, tries=3):
+        """Open the specified url, retrying if we run into network errors.
 
-      prebuilt_pkgs = {}
+        We do not retry for HTTP errors.
+
+        Args:
+          url: The specified url.
+          tries: The number of times to try.
+
+        Returns:
+          The result of urllib2.urlopen(url).
+        """
+        for i in range(tries):
+          try:
+            return urllib2.urlopen(url)
+          except urllib2.HTTPError as e:
+            raise
+          except urllib2.URLError as e:
+            if i + 1 == tries:
+              raise
+            else:
+              print "Cannot GET %s: %s" % (url, e)
+
+      url = binhost_url + "/Packages"
       try:
-        f = urllib2.urlopen(url)
+        f = retry_urlopen(url)
       except urllib2.HTTPError as e:
         if e.code == 404:
           return {}
         else:
           raise
+      prebuilt_pkgs = {}
       for line in f:
         if line.startswith("CPV: "):
           pkg = line.replace("CPV: ", "").rstrip()
@@ -1144,7 +1166,8 @@ class DepGraphGenerator(object):
         local_pkgs = LocalPackageDatabase()
         remote_pkgs = {}
         if "--getbinpkg" in emerge.opts:
-          remote_pkgs = RemotePackageDatabase(emerge.settings["PORTAGE_BINHOST"])
+          binhost = emerge.settings["PORTAGE_BINHOST"]
+          remote_pkgs = RemotePackageDatabase(binhost)
         AutoRebuildDeps(local_pkgs, remote_pkgs, cycles)
 
     # We need to remove installed packages so that we can use the dependency
