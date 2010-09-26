@@ -69,6 +69,9 @@ def RepoSync(buildroot, rw_checkout=False, retries=_DEFAULT_RETRIES):
         Warning('CBUILDBOT -- Retries exhausted')
         raise
 
+  # Output manifest
+  RunCommand(['repo', 'manifest', '-r', '-o', '-'], cwd=buildroot)
+
 # =========================== Command Helpers =================================
 
 def _GetAllGitRepos(buildroot, debug=False):
