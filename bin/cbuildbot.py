@@ -47,13 +47,12 @@ def RepoSync(buildroot, rw_checkout=False, retries=_DEFAULT_RETRIES):
   retries -- Number of retries to try before failing on the sync.
 
   """
-  # Get the number of processors to use with repo sync.
-  num_procs = int(RunCommand('grep -c processor /proc/cpuinfo'.split(),
-                             print_cmd=False, redirect_stdout=True))
-
   while retries > 0:
     try:
-      RunCommand(['repo', 'sync', '--jobs=%d' % (num_procs)], cwd=buildroot)
+      # The --trace option ensures that repo shows the output from git. This
+      # is needed so that the buildbot can kill us if git is not making
+      # progress.
+      RunCommand(['repo', '--trace', 'sync'], cwd=buildroot)
       if rw_checkout:
         # Always re-run in case of new git repos or repo sync
         # failed in a previous run because of a forced Stop Build.
