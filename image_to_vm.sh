@@ -288,3 +288,10 @@ if [[ "${FLAGS_make_vmx}" = "${FLAGS_TRUE}" ]]; then
   echo "${VMX_CONFIG}"
 fi
 
+
+if [ "${FLAGS_format}" == "qemu" ]; then
+  echo "If you have qemu-kvm installed, you can start the image by:"
+  echo "sudo kvm -m ${FLAGS_mem} -vga std -pidfile /tmp/kvm.pid -net nic " \
+       "-net user,hostfwd=tcp::922-:22 \\"
+  echo "        -hda ${FLAGS_to}/${DEFAULT_QEMU_IMAGE}"
+fi
