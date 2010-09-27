@@ -285,6 +285,12 @@ if [ -d "$HOME/.subversion" ]; then
   fi
 fi
 
+# Configure committer username and email in chroot .gitconfig
+git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all user.name \
+  "$(cd /tmp; git var GIT_COMMITTER_IDENT | sed -e 's/ *<.*//')"
+git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all user.email \
+  "$(cd /tmp; git var GIT_COMMITTER_IDENT | sed -e 's/.*<\([^>]*\)>.*/\1/')"
+
 # Run command or interactive shell.  Also include the non-chrooted path to
 # the source trunk for scripts that may need to print it (e.g.
 # build_image.sh).
