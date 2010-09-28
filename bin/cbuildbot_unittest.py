@@ -76,10 +76,35 @@ class CBuildBotTest(mox.MoxTestBase):
                      ['chromeos-base/chromeos-login'])
     self.mox.VerifyAll()
 
+  # TODO(sosa): Re-add once we use cros_mark vs. cros_mark_all.
+  #def testUprevPackages(self):
+  #  """Test if we get actual revisions in revisions.pfq."""
+  #  self.mox.StubOutWithMock(cbuildbot, '_CreateRepoDictionary')
+  #  self.mox.StubOutWithMock(cbuildbot, '_ParseRevisionString')
+  #  self.mox.StubOutWithMock(cbuildbot, '_UprevFromRevisionList')
+  #  self.mox.StubOutWithMock(__builtin__, 'open')
+
+  #  # Mock out file interaction.
+  #  m_file = self.mox.CreateMock(file)
+  #  __builtin__.open(self._revision_file).AndReturn(m_file)
+  #  m_file.read().AndReturn(self._test_string)
+  #  m_file.close()
+
+  #  cbuildbot._CreateRepoDictionary(self._buildroot,
+  #                                  self._test_board).AndReturn(self._test_dict)
+  #  cbuildbot._ParseRevisionString(self._test_string,
+  #                                 self._test_dict).AndReturn(
+  #                                     self._test_parsed_string_array)
+  #  cbuildbot._UprevFromRevisionList(self._buildroot,
+  #                                   self._test_parsed_string_array)
+  #  self.mox.ReplayAll()
+  #  cbuildbot._UprevPackages(self._buildroot, self._revision_file,
+  #                           self._test_board)
+  #  self.mox.VerifyAll()
+
+  # TODO(sosa):  Remove once we un-comment above.
   def testUprevPackages(self):
-    self.mox.StubOutWithMock(cbuildbot, '_CreateRepoDictionary')
-    self.mox.StubOutWithMock(cbuildbot, '_ParseRevisionString')
-    self.mox.StubOutWithMock(cbuildbot, '_UprevFromRevisionList')
+    """Test if we get actual revisions in revisions.pfq."""
     self.mox.StubOutWithMock(__builtin__, 'open')
 
     # Mock out file interaction.
@@ -88,13 +113,31 @@ class CBuildBotTest(mox.MoxTestBase):
     m_file.read().AndReturn(self._test_string)
     m_file.close()
 
-    cbuildbot._CreateRepoDictionary(self._buildroot,
-                                    self._test_board).AndReturn(self._test_dict)
-    cbuildbot._ParseRevisionString(self._test_string,
-                                   self._test_dict).AndReturn(
-                                       self._test_parsed_string_array)
-    cbuildbot._UprevFromRevisionList(self._buildroot,
-                                     self._test_parsed_string_array)
+    cbuildbot.RunCommand(['./cros_mark_all_as_stable',
+                     '--tracking_branch="cros/master"'],
+                     cwd='%s/src/scripts' % self._buildroot,
+                     enter_chroot=True)
+
+    self.mox.ReplayAll()
+    cbuildbot._UprevPackages(self._buildroot, self._revision_file,
+                             self._test_board)
+    self.mox.VerifyAll()
+
+  def testUprevAllPackages(self):
+    """Test if we get None in revisions.pfq indicating Full Builds."""
+    self.mox.StubOutWithMock(__builtin__, 'open')
+
+    # Mock out file interaction.
+    m_file = self.mox.CreateMock(file)
+    __builtin__.open(self._revision_file).AndReturn(m_file)
+    m_file.read().AndReturn('None')
+    m_file.close()
+
+    cbuildbot.RunCommand(['./cros_mark_all_as_stable',
+                         '--tracking_branch="cros/master"'],
+                         cwd='%s/src/scripts' % self._buildroot,
+                         enter_chroot=True)
+
     self.mox.ReplayAll()
     cbuildbot._UprevPackages(self._buildroot, self._revision_file,
                              self._test_board)
