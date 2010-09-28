@@ -1,0 +1,292 @@
+#!/usr/bin/python
+
+import datetime
+import optparse
+import os
+import sys
+from multiprocessing import Pool
+
+from chromite.lib import cros_build_lib
+"""
+This script is used to upload host prebuilts as well as board BINHOSTS to 
+Google Storage. 
+
+After a build is successfully uploaded a file is updated with the proper
+BINHOST version as well as the target board. This file is defined in GIT_FILE
+
+
+To read more about prebuilts/binhost binary packages please refer to:
+http://sites/chromeos/for-team-members/engineering/releng/prebuilt-binaries-for-streamlining-the-build-process
+
+
+Example of uploading prebuilt amd64 host files
+./prebuilt.py -p /b/cbuild/build -s -u gs://chromeos-prebuilt
+
+Example of uploading x86-dogfood binhosts
+./prebuilt.py -b x86-dogfood -p /b/cbuild/build/ -u gs://chromeos-prebuilt  -g
+"""
+
+VER_FILE = 'src/third_party/chromiumos-overlay/chromeos/config/stable_versions'
+
+# as per http://crosbug.com/5855 always filter the below packages
+FILTER_PACKAGES = []
+_RETRIES = 3
+_RSYNC_CMD = 'sudo /usr/bin/rsync -a '
+_HOST_PACKAGES_PATH = 'chroot/var/lib/portage/pkgs'
+_BOARD_PATH = 'chroot/build/%s'
+_BOTO_CONFIG = '/home/chrome-bot/external-boto'
+os.environ['BOTO_CONFIG'] = _BOTO_CONFIG
+# board/board-target/version'
+_GS_BOARD_PATH = 'board/%s/%s/'
+# We only support amd64 right now
+_GS_HOST_PATH = 'host/amd64'
+
+def UpdateLocalFile(filename, key, value):
+  """Update the key in file with the value passed.
+  File format:
+    key value
+
+  Args:
+    filename: Name of file to modify.
+    key: The variable key to update.
+    value: Value to write with the key.
+  """
+  file_fh = open(filename)
+  file_lines = []
+  found = False
+  for line in file_fh.readlines():
+    file_var, file_val = line.split()
+    if file_var == key:
+      found = True
+      print 'Updating %s %s to %s %s' % (file_var, file_val, key, value)
+      file_lines.append('%s %s' % (key, value))
+    else:
+      file_lines.append('%s %s' % (file_var, file_val))
+
+  if not found:
+    file_lines.append('%s %s' % (key, value))
+
+  file_fh.close()
+  # write out new file
+  file_fh = open(filename, 'w')
+  file_fh.write('\n'.join(file_lines))
+  file_fh.close()
+
+
+def RevGitFile(filename, key, value):
+  """Update and push the git file.
+
+  Args:
+    filename: file to modify that is in a git repo already
+    key: board or host package type e.g. x86-dogfood
+    value: string representing the version of the prebuilt that has been
+      uploaded.
+  """
+  prebuilt_branch = 'prebuilt_branch'
+  old_cwd = os.getcwd()
+  os.chdir(os.path.dirname(filename))
+  cros_build_lib.RunCommand('repo start %s  .' % prebuilt_branch, shell=True)
+  UpdateLocalFile(filename, key, value)
+  description = 'Update BINHOST key/value %s %s' % (key, value)
+  print description
+  git_ssh_config_cmd = ('git config '
+                    'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof '
+                    'http://git.chromium.org/git')
+  try:
+    cros_build_lib.RunCommand(git_ssh_config_cmd, shell=True)
+    cros_build_lib.RunCommand('git config push.default tracking', shell=True)
+    cros_build_lib.RunCommand('git commit -am "%s"' % description, shell=True)
+    cros_build_lib.RunCommand('git push', shell=True)
+  finally:
+    cros_build_lib.RunCommand('repo abandon %s .' % prebuilt_branch, shell=True)
+    os.chdir(old_cwd)
+
+
+def GetVersion():
+  """Get the version to put in LATEST and update the git version with."""
+  return datetime.datetime.now().strftime('%d.%m.%y.%H%M%S')
+
+
+def LoadFilterFile(filter_file):
+  """Load a file with keywords on a perline basis.
+
+  Args:
+    filter_file: file to load into FILTER_PACKAGES
+  """
+  filter_fh = open(filter_file)
+  global FILTER_PACKAGES
+  FILTER_PACKAGES = [filter.strip() for filter in filter_fh.readlines()]
+  return FILTER_PACKAGES
+  
+
+def FilterPackage(file_path):
+  """Skip a particular file if it matches a pattern.
+
+  Skip any files that machine the list of packages to filter in FILTER_PACKAGES.
+
+  Args:
+    file_path: string of a file path to inspect against FILTER_PACKAGES
+
+  Returns:
+    True if we should filter the package.
+    False otherwise
+  """
+  for name in FILTER_PACKAGES:
+    if name in file_path:
+      print 'FILTERING %s' % file_path
+      return True
+
+  return False
+
+
+def _GsUpload(args):
+  """Upload to GS bucket.
+
+  Args:
+    args: a set of arguments that contains local_file and remote_file.
+  """
+  (local_file, remote_file) = args
+  if FilterPackage(local_file):
+    return
+
+  cmd = 'gsutil cp -a public-read %s %s' % (local_file, remote_file)
+  for attempt in range(_RETRIES):
+    try:
+      output = cros_build_lib.RunCommand(cmd, print_cmd=False, shell=True)
+      break
+    except cros_build_lib.RunCommandError:
+      print 'Failed to sync %s -> %s, retryings' % (local_file, remote_file)
+  else:
+    print 'Retry failed we should probably return the file that faild?'
+      
+
+def RemoteUpload(files, pool=10):
+  """Upload to google storage. 
+
+  Create a pool of process and call _GsUpload with the proper arguments.
+
+  Args:
+    files: dictionary with keys to local files and values to remote path. 
+    pool: integer of maximum proesses to have at the same time
+  """
+  pool = Pool(processes=pool)
+  workers = []
+  for local_file, remote_path in files.iteritems():
+    workers.append((local_file, remote_path))
+
+  pool.map(_GsUpload, workers)
+
+
+def GenerateUploadDict(local_path, gs_path, strip_str):
+  """Build a dictionary of local remote file key pairs for gsutil to upload.
+
+  Args:
+    local_path: A path to the file on the local hard drive.
+    gs_path: Path to upload in Google Storage.
+    strip_str: String to remove from the local_path so that the relative
+      file path can be tacked on to the gs_path.
+
+  Returns:
+    Returns a dictionary of file path/gs_dest_path pairs
+  """
+  files_to_sync = cros_build_lib.ListFiles(local_path)
+  upload_files = {}
+  for file_path in files_to_sync:
+    filename = file_path.replace(strip_str, '').lstrip('/')
+    gs_file_path = os.path.join(gs_path, filename)
+    upload_files[file_path] = gs_file_path
+
+  return upload_files
+
+
+def HostPrebuilt(build_path, bucket, git_file=None):
+  """Upload Host prebuilt files to Google Storage space.
+
+  Args:
+    build_path: The path to the root of the chroot.
+    bucket: The Google Storage bucket to upload to.
+    git_file: If set, update this file with a host/version combo, commit and
+      push it.
+  """
+  host_package_path = os.path.join(build_path, _HOST_PACKAGES_PATH)
+  version = GetVersion()
+  gs_path = os.path.join(bucket, _GS_HOST_PATH, version)
+  upload_files = GenerateUploadDict(host_package_path, gs_path,
+                                    host_package_path)
+
+  print 'Uploading host to %s' % bucket
+  RemoteUpload(upload_files)
+
+  if git_file:
+    RevGitFile(git_file, 'amd64', version)
+
+
+def BoardPackages(board, build_path, bucket, git_file=None):
+  """Upload board packages to Google Storage.
+
+  Args:
+    board: The board type.
+    build_path: Path to the Chrome build directory.
+    bucket: The Google Storage bucket to upload to.
+    git_file: If set, update this file with a host/version combo, commit and
+      push it.
+  """
+  board_path = os.path.join(build_path, _BOARD_PATH % board)
+  board_packages_path = os.path.join(board_path, 'packages')
+  version = GetVersion()
+  gs_path = os.path.join(bucket, _GS_BOARD_PATH % (board, version))
+  upload_files = GenerateUploadDict(board_packages_path, gs_path, board_path)
+  print 'Uploading board %s to %s' % (board, bucket)
+  RemoteUpload(upload_files)
+  if git_file:
+    RevGitFile(git_file, board, version)
+
+
+def usage(parser, msg):
+  """Display usage message and parser help then exit with 1."""
+  print msg
+  parser.print_help()
+  sys.exit(1)
+
+
+def main():
+  parser = optparse.OptionParser()
+  parser.add_option('-b', '--board', dest='board', default=None,
+                    help='Board type that was built on this machine')
+  parser.add_option('-p', '--build-path', dest='build_path',
+                    help='Path to the chroot')
+  parser.add_option('-s', '--sync-host', dest='sync_host',
+                    default=False, action='store_true',
+                    help='Sync host prebuilts')
+  parser.add_option('-g', '--git-sync', dest='git_sync',
+                    default=False, action='store_true',
+                    help='Enable git version sync (This commits to a repo)')
+  parser.add_option('-u', '--upload', dest='upload',
+                    default=None,
+                    help='Upload to GS bucket')
+  parser.add_option('-f', '--filter', dest='filter_file',
+                    default=None,
+                    help='File to use for filtering GS bucket uploads')
+ 
+  options, args = parser.parse_args()
+
+  if not options.build_path:
+    usage(parser, 'Error: you need provide a chroot path')
+
+  if not options.upload:
+    usage(parser, 'Error: you need to provide a gsutil upload bucket -u')
+
+  git_file = None
+  if options.git_sync:
+    git_file = os.path.join(options.build_path, VER_FILE)
+
+  if options.sync_host:
+    HostPrebuilt(options.build_path, options.upload, git_file=git_file)
+
+  if options.board:
+    BoardPackages(options.board, options.build_path,
+                  options.upload, git_file=git_file)
+
+
+if __name__ == '__main__':
+  main()
