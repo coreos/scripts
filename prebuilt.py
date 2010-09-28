@@ -1,4 +1,7 @@
 #!/usr/bin/python
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
 
 import datetime
 import optparse
@@ -29,17 +32,16 @@ Example of uploading x86-dogfood binhosts
 VER_FILE = 'src/third_party/chromiumos-overlay/chromeos/config/stable_versions'
 
 # as per http://crosbug.com/5855 always filter the below packages
-FILTER_PACKAGES = []
+FILTER_PACKAGES = set()
 _RETRIES = 3
-_RSYNC_CMD = 'sudo /usr/bin/rsync -a '
 _HOST_PACKAGES_PATH = 'chroot/var/lib/portage/pkgs'
-_BOARD_PATH = 'chroot/build/%s'
+_HOST_TARGET = 'amd64'
+_BOARD_PATH = 'chroot/build/%(board)s'
 _BOTO_CONFIG = '/home/chrome-bot/external-boto'
-os.environ['BOTO_CONFIG'] = _BOTO_CONFIG
 # board/board-target/version'
-_GS_BOARD_PATH = 'board/%s/%s/'
+_GS_BOARD_PATH = 'board/%(board)s/%(version)s/'
 # We only support amd64 right now
-_GS_HOST_PATH = 'host/amd64'
+_GS_HOST_PATH = 'host/%s' % _HOST_TARGET
 
 def UpdateLocalFile(filename, key, value):
   """Update the key in file with the value passed.
@@ -54,7 +56,7 @@ def UpdateLocalFile(filename, key, value):
   file_fh = open(filename)
   file_lines = []
   found = False
-  for line in file_fh.readlines():
+  for line in file_fh:
     file_var, file_val = line.split()
     if file_var == key:
       found = True
@@ -68,9 +70,9 @@ def UpdateLocalFile(filename, key, value):
 
   file_fh.close()
   # write out new file
-  file_fh = open(filename, 'w')
-  file_fh.write('\n'.join(file_lines))
-  file_fh.close()
+  new_file_fh = open(filename, 'w')
+  new_file_fh.write('\n'.join(file_lines))
+  new_file_fh.close()
 
 
 def RevGitFile(filename, key, value):
@@ -89,9 +91,9 @@ def RevGitFile(filename, key, value):
   UpdateLocalFile(filename, key, value)
   description = 'Update BINHOST key/value %s %s' % (key, value)
   print description
-  git_ssh_config_cmd = ('git config '
-                    'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof '
-                    'http://git.chromium.org/git')
+  git_ssh_config_cmd = (
+    'git config url.ssh://git@gitrw.chromium.org:9222.pushinsteadof '
+    'http://git.chromium.org/git')
   try:
     cros_build_lib.RunCommand(git_ssh_config_cmd, shell=True)
     cros_build_lib.RunCommand('git config push.default tracking', shell=True)
@@ -108,18 +110,21 @@ def GetVersion():
 
 
 def LoadFilterFile(filter_file):
-  """Load a file with keywords on a perline basis.
+  """Load a file with keywords on a per line basis.
 
   Args:
     filter_file: file to load into FILTER_PACKAGES
   """
   filter_fh = open(filter_file)
   global FILTER_PACKAGES
-  FILTER_PACKAGES = [filter.strip() for filter in filter_fh.readlines()]
+  try:
+    FILTER_PACKAGES.update(set([filter.strip() for filter in filter_fh]))
+  finally:
+    filter_fh.close()
   return FILTER_PACKAGES
   
 
-def FilterPackage(file_path):
+def ShouldFilterPackage(file_path):
   """Skip a particular file if it matches a pattern.
 
   Skip any files that machine the list of packages to filter in FILTER_PACKAGES.
@@ -128,8 +133,8 @@ def FilterPackage(file_path):
     file_path: string of a file path to inspect against FILTER_PACKAGES
 
   Returns:
-    True if we should filter the package.
-    False otherwise
+    True if we should filter the package,
+    False otherwise.
   """
   for name in FILTER_PACKAGES:
     if name in file_path:
@@ -143,22 +148,26 @@ def _GsUpload(args):
   """Upload to GS bucket.
 
   Args:
-    args: a set of arguments that contains local_file and remote_file.
+    args: a tuple of two arguments that contains local_file and remote_file.
   """
   (local_file, remote_file) = args
-  if FilterPackage(local_file):
+  if ShouldFilterPackage(local_file):
     return
 
   cmd = 'gsutil cp -a public-read %s %s' % (local_file, remote_file)
+  # TODO: port to use _Run or similar when it is available in cros_build_lib.
   for attempt in range(_RETRIES):
     try:
       output = cros_build_lib.RunCommand(cmd, print_cmd=False, shell=True)
       break
     except cros_build_lib.RunCommandError:
-      print 'Failed to sync %s -> %s, retryings' % (local_file, remote_file)
-  else:
-    print 'Retry failed we should probably return the file that faild?'
-      
+      print 'Failed to sync %s -> %s, retrying' % (local_file, remote_file)
+  else: 
+    # TODO: potentially return what failed so we can do something with it but
+    # for now just print an error.
+    print 'Retry failed uploading %s -> %s, giving up' % (local_file,
+                                                          remote_file)
+
 
 def RemoteUpload(files, pool=10):
   """Upload to google storage. 
@@ -167,14 +176,24 @@ def RemoteUpload(files, pool=10):
 
   Args:
     files: dictionary with keys to local files and values to remote path. 
-    pool: integer of maximum proesses to have at the same time
+    pool: integer of maximum proesses to have at the same time.
   """
+  # TODO port this to use _RunManyParallel when it is available in 
+  # cros_build_lib
   pool = Pool(processes=pool)
   workers = []
   for local_file, remote_path in files.iteritems():
     workers.append((local_file, remote_path))
 
-  pool.map(_GsUpload, workers)
+  result = pool.map_async(_GsUpload, workers, chunksize=1)
+  while True:
+    try:
+      result.get(60*60)
+      break
+    except multiprocessing.TimeoutError:
+      pass
+
+
 
 
 def GenerateUploadDict(local_path, gs_path, strip_str):
@@ -199,7 +218,7 @@ def GenerateUploadDict(local_path, gs_path, strip_str):
   return upload_files
 
 
-def HostPrebuilt(build_path, bucket, git_file=None):
+def UploadPrebuilt(build_path, bucket, board=None, git_file=None):
   """Upload Host prebuilt files to Google Storage space.
 
   Args:
@@ -208,38 +227,30 @@ def HostPrebuilt(build_path, bucket, git_file=None):
     git_file: If set, update this file with a host/version combo, commit and
       push it.
   """
-  host_package_path = os.path.join(build_path, _HOST_PACKAGES_PATH)
   version = GetVersion()
-  gs_path = os.path.join(bucket, _GS_HOST_PATH, version)
-  upload_files = GenerateUploadDict(host_package_path, gs_path,
-                                    host_package_path)
 
-  print 'Uploading host to %s' % bucket
+  if board is None:
+    # We are uploading host packages
+    # TODO: eventually add support for different host_targets
+    package_path = os.path.join(build_path, _HOST_PACKAGES_PATH)
+    gs_path = os.path.join(bucket, _GS_HOST_PATH, version)
+    strip_pattern = package_path
+    package_string = _HOST_TARGET
+  else:
+    board_path = os.path.join(build_path, _BOARD_PATH % {'board': board})
+    package_path = os.path.join(board_path, 'packages')
+    package_string = board
+    strip_pattern = board_path
+    gs_path = os.path.join(bucket, _GS_BOARD_PATH % {'board': board,
+                                                     'version': version})
+ 
+  upload_files = GenerateUploadDict(package_path, gs_path, strip_pattern)
+
+  print 'Uploading %s' % package_string
   RemoteUpload(upload_files)
 
   if git_file:
-    RevGitFile(git_file, 'amd64', version)
-
-
-def BoardPackages(board, build_path, bucket, git_file=None):
-  """Upload board packages to Google Storage.
-
-  Args:
-    board: The board type.
-    build_path: Path to the Chrome build directory.
-    bucket: The Google Storage bucket to upload to.
-    git_file: If set, update this file with a host/version combo, commit and
-      push it.
-  """
-  board_path = os.path.join(build_path, _BOARD_PATH % board)
-  board_packages_path = os.path.join(board_path, 'packages')
-  version = GetVersion()
-  gs_path = os.path.join(bucket, _GS_BOARD_PATH % (board, version))
-  upload_files = GenerateUploadDict(board_packages_path, gs_path, board_path)
-  print 'Uploading board %s to %s' % (board, bucket)
-  RemoteUpload(upload_files)
-  if git_file:
-    RevGitFile(git_file, board, version)
+    RevGitFile(git_file, package_string, version)
 
 
 def usage(parser, msg):
@@ -269,23 +280,27 @@ def main():
                     help='File to use for filtering GS bucket uploads')
  
   options, args = parser.parse_args()
-
+  # Setup boto environment for gsutil to use
+  os.environ['BOTO_CONFIG'] = _BOTO_CONFIG
   if not options.build_path:
     usage(parser, 'Error: you need provide a chroot path')
 
   if not options.upload:
     usage(parser, 'Error: you need to provide a gsutil upload bucket -u')
 
+  if options.filter_file:
+    LoadFilterFile(options.filter_file)
+
   git_file = None
   if options.git_sync:
     git_file = os.path.join(options.build_path, VER_FILE)
 
   if options.sync_host:
-    HostPrebuilt(options.build_path, options.upload, git_file=git_file)
+    UploadPrebuilt(options.build_path, options.upload, git_file=git_file)
 
   if options.board:
-    BoardPackages(options.board, options.build_path,
-                  options.upload, git_file=git_file)
+    UploadPrebuilt(options.build_path, options.upload, board=options.board,
+                   git_file=git_file)
 
 
 if __name__ == '__main__':

@@ -1,14 +1,16 @@
 #!/usr/bin/python
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
 
+import mox
 import os
-import unittest
 import prebuilt
 import tempfile
-import mox
+import unittest
 from chromite.lib import cros_build_lib
 
 class TestUpdateFile(unittest.TestCase):
-
 
   def setUp(self):
     self.contents_str = ['stage 20100309/stage3-amd64-20100309.tar.bz2',
@@ -21,9 +23,7 @@ class TestUpdateFile(unittest.TestCase):
     os.remove(self.version_file)
 
   def _read_version_file(self):
-    """
-    Read the contents of self.version_file and return as a list
-    """
+    """Read the contents of self.version_file and return as a list."""
     version_fh = open(self.version_file)
     try:
       return [line.strip() for line in version_fh.readlines()]
@@ -41,9 +41,7 @@ class TestUpdateFile(unittest.TestCase):
       self.fail('Could not find "%s %s" in version file' % (key, val))
 
   def testAddVariableThatDoesnotExist(self):
-    """
-    Add in a new variable that was no present in the file
-    """
+    """Add in a new variable that was no present in the file."""
     key = 'x86-testcase'
     value = '1234567'
     prebuilt.UpdateLocalFile(self.version_file, key, value)
@@ -51,9 +49,7 @@ class TestUpdateFile(unittest.TestCase):
     self._verify_key_pair(key, value)
 
   def testUpdateVariable(self):
-    """
-    Test updating a variable that already exists.
-    """
+    """Test updating a variable that already exists."""
     # take first entry in contents
     key, val = self.contents_str[0].split()
     new_val = 'test_update'
@@ -65,20 +61,13 @@ class TestUpdateFile(unittest.TestCase):
 class TestPrebuiltFilters(unittest.TestCase):
 
   def setUp(self):
-    self.FAUX_FILTERS = ['oob', 'bibby', 'bob']
+    self.FAUX_FILTERS = set(['oob', 'bibby', 'bob'])
     temp_fd, self.filter_filename = tempfile.mkstemp()
     os.write(temp_fd, '\n'.join(self.FAUX_FILTERS))
     os.close(temp_fd)
 
   def tearDown(self):
     os.remove(self.filter_filename)
-
-  def testListFiles(self):
-    """
-    create a faux directory and expect specific output from 
-    ListFiles
-    """
-    pass
 
   def testLoadFilterFile(self):
     """
@@ -89,9 +78,7 @@ class TestPrebuiltFilters(unittest.TestCase):
     self.assertEqual(self.FAUX_FILTERS, loaded_filters)
 
   def testFilterPattern(self):
-    """
-    Check that particular packages are filtered properly.
-    """
+    """Check that particular packages are filtered properly."""
     prebuilt.LoadFilterFile(self.filter_filename)
     file_list = ['/usr/local/package/oob',
                  '/usr/local/package/other/path/valid',
@@ -100,15 +87,9 @@ class TestPrebuiltFilters(unittest.TestCase):
     expected_list = ['/usr/local/package/other/path/valid',
                      '/tmp/b/o/b']
     filtered_list = [file for file in file_list if not
-                     prebuilt.FilterPackage(file)]
+                     prebuilt.ShouldFilterPackage(file)]
     self.assertEqual(expected_list, filtered_list)
 
-
-  def testPrebuiltFiles(self):
-    """
-    probably need to pull this function out
-    """
-    pass
 
 class TestPrebuilt(unittest.TestCase):
 
@@ -148,8 +129,6 @@ class TestPrebuilt(unittest.TestCase):
     result = prebuilt.GenerateUploadDict(' ', gs_bucket_path, self.strip_path)
     print result
     self.assertEqual(result, self._generate_dict_results(gs_bucket_path))
-
-    
 
 
 if __name__ == '__main__':
