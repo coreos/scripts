@@ -1733,6 +1733,7 @@ def main():
     os.execvp(os.path.realpath(sys.argv[0]), args)
 
   print "Done"
+  sys.exit(0)
 
 if __name__ == "__main__":
   main()
