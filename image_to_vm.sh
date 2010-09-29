@@ -11,21 +11,10 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 . "$(dirname "$0")/chromeos-common.sh"
+. "$(dirname "$0")/lib/cros_vm_constants.sh"
 
 get_default_board
 assert_inside_chroot
-
-DEFAULT_MEM="1024"
-DEFAULT_VMDK="ide.vmdk"
-DEFAULT_VMX="chromiumos.vmx"
-DEFAULT_VBOX_DISK="os.vdi"
-DEFAULT_QEMU_IMAGE="chromiumos_qemu_image.bin"
-
-# Minimum sizes for full size vm images -- needed for update.
-MIN_VDISK_SIZE_FULL=6072
-MIN_STATEFUL_FS_SIZE_FULL=2048
-
-MOD_SCRIPTS_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
 
 # Flags
 DEFINE_string board "${DEFAULT_BOARD}" \
@@ -85,7 +74,7 @@ fi
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
 # Default to the most recent image
 if [ -z "${FLAGS_from}" ] ; then
-  FLAGS_from="${IMAGES_DIR}/$(ls -t $IMAGES_DIR | head -1)"
+  FLAGS_from="$(./get_latest_image.sh)"
 else
   pushd "${FLAGS_from}" && FLAGS_from=`pwd` && popd
 fi
