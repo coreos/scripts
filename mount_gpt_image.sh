@@ -18,6 +18,8 @@ get_default_board
 # Flags.
 DEFINE_string board "$DEFAULT_BOARD" \
   "The board for which the image was built." b
+DEFINE_boolean read_only $FLAGS_FALSE \
+  "Mount in read only mode -- skips stateful items."
 DEFINE_boolean unmount $FLAGS_FALSE \
   "Unmount previously mounted dir." u
 DEFINE_string from "/dev/sdc" \
@@ -45,9 +47,11 @@ function unmount_image() {
   # Don't die on error to force cleanup
   set +e
   # Reset symlinks in /usr/local.
-  setup_symlinks_on_root "/usr/local" "/var" \
-    "${FLAGS_stateful_mountpt}"
-  fix_broken_symlinks "${FLAGS_rootfs_mountpt}"
+  if mount | grep "${FLAGS_rootfs_mountpt} (rw,bind)"; then
+    setup_symlinks_on_root "/usr/local" "/var" \
+      "${FLAGS_stateful_mountpt}"
+    fix_broken_symlinks "${FLAGS_rootfs_mountpt}"
+  fi
   sudo umount "${FLAGS_rootfs_mountpt}/usr/local"
   sudo umount "${FLAGS_rootfs_mountpt}/var"
   if [[ -n "${FLAGS_esp_mountpt}" ]]; then
@@ -59,10 +63,13 @@ function unmount_image() {
 }
 
 function get_usb_partitions() {
-  sudo mount "${FLAGS_from}3" "${FLAGS_rootfs_mountpt}"
-  sudo mount "${FLAGS_from}1" "${FLAGS_stateful_mountpt}"
+  local ro_flag=""
+  [ ${FLAGS_read_only} -eq ${FLAGS_TRUE} ] && ro_flag="-o ro"
+
+  sudo mount ${ro_flag} "${FLAGS_from}3" "${FLAGS_rootfs_mountpt}"
+  sudo mount ${ro_flag} "${FLAGS_from}1" "${FLAGS_stateful_mountpt}"
   if [[ -n "${FLAGS_esp_mountpt}" ]]; then
-    sudo mount "${FLAGS_from}12" "${FLAGS_esp_mountpt}"
+    sudo mount ${ro_flag} "${FLAGS_from}12" "${FLAGS_esp_mountpt}"
   fi
 }
 
@@ -71,19 +78,22 @@ function get_gpt_partitions() {
 
   # Mount the rootfs partition using a loopback device.
   local offset=$(partoffset "${FLAGS_from}/${filename}" 3)
-  sudo mount -o loop,offset=$(( offset * 512 )) "${FLAGS_from}/${filename}" \
-    "${FLAGS_rootfs_mountpt}"
+  local ro_flag=""
+  [ ${FLAGS_read_only} -eq ${FLAGS_TRUE} ] && ro_flag="-o ro"
+
+  sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
+    "${FLAGS_from}/${filename}" "${FLAGS_rootfs_mountpt}"
 
   # Mount the stateful partition using a loopback device.
   offset=$(partoffset "${FLAGS_from}/${filename}" 1)
-  sudo mount -o loop,offset=$(( offset * 512 )) "${FLAGS_from}/${filename}" \
-    "${FLAGS_stateful_mountpt}"
+  sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
+    "${FLAGS_from}/${filename}" "${FLAGS_stateful_mountpt}"
 
   # Mount the stateful partition using a loopback device.
   if [[ -n "${FLAGS_esp_mountpt}" ]]; then
     offset=$(partoffset "${FLAGS_from}/${filename}" 12)
-    sudo mount -o loop,offset=$(( offset * 512 )) "${FLAGS_from}/${filename}" \
-      "${FLAGS_esp_mountpt}"
+    sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
+      "${FLAGS_from}/${filename}" "${FLAGS_esp_mountpt}"
   fi
 }
 
@@ -108,8 +118,11 @@ function mount_image() {
   sudo mount --bind "${FLAGS_stateful_mountpt}/dev_image" \
     "${FLAGS_rootfs_mountpt}/usr/local"
   # Setup symlinks in /usr/local so you can emerge packages into /usr/local.
-  setup_symlinks_on_root "${FLAGS_stateful_mountpt}/dev_image" \
-    "${FLAGS_stateful_mountpt}/var" "${FLAGS_stateful_mountpt}"
+
+  if [ ${FLAGS_read_only} -eq ${FLAGS_FALSE} ]; then
+    setup_symlinks_on_root "${FLAGS_stateful_mountpt}/dev_image" \
+      "${FLAGS_stateful_mountpt}/var" "${FLAGS_stateful_mountpt}"
+  fi
   echo "Image specified by ${FLAGS_from} mounted at"\
     "${FLAGS_rootfs_mountpt} successfully."
 }
