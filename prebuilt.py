@@ -11,8 +11,8 @@ from multiprocessing import Pool
 
 from chromite.lib import cros_build_lib
 """
-This script is used to upload host prebuilts as well as board BINHOSTS to 
-Google Storage. 
+This script is used to upload host prebuilts as well as board BINHOSTS to
+Google Storage.
 
 After a build is successfully uploaded a file is updated with the proper
 BINHOST version as well as the target board. This file is defined in GIT_FILE
@@ -96,6 +96,7 @@ def RevGitFile(filename, key, value):
     'http://git.chromium.org/git')
   try:
     cros_build_lib.RunCommand(git_ssh_config_cmd, shell=True)
+    cros_build_lib.RunCommand('git pull', shell=True)
     cros_build_lib.RunCommand('git config push.default tracking', shell=True)
     cros_build_lib.RunCommand('git commit -am "%s"' % description, shell=True)
     cros_build_lib.RunCommand('git push', shell=True)
@@ -116,13 +117,12 @@ def LoadFilterFile(filter_file):
     filter_file: file to load into FILTER_PACKAGES
   """
   filter_fh = open(filter_file)
-  global FILTER_PACKAGES
   try:
-    FILTER_PACKAGES.update(set([filter.strip() for filter in filter_fh]))
+    FILTER_PACKAGES.update([filter.strip() for filter in filter_fh])
   finally:
     filter_fh.close()
   return FILTER_PACKAGES
-  
+
 
 def ShouldFilterPackage(file_path):
   """Skip a particular file if it matches a pattern.
@@ -155,30 +155,31 @@ def _GsUpload(args):
     return
 
   cmd = 'gsutil cp -a public-read %s %s' % (local_file, remote_file)
-  # TODO: port to use _Run or similar when it is available in cros_build_lib.
+  # TODO(scottz): port to use _Run or similar when it is available in
+  # cros_build_lib.
   for attempt in range(_RETRIES):
     try:
       output = cros_build_lib.RunCommand(cmd, print_cmd=False, shell=True)
       break
     except cros_build_lib.RunCommandError:
       print 'Failed to sync %s -> %s, retrying' % (local_file, remote_file)
-  else: 
-    # TODO: potentially return what failed so we can do something with it but
-    # for now just print an error.
+  else:
+    # TODO(scottz): potentially return what failed so we can do something with
+    # with it but for now just print an error.
     print 'Retry failed uploading %s -> %s, giving up' % (local_file,
                                                           remote_file)
 
 
 def RemoteUpload(files, pool=10):
-  """Upload to google storage. 
+  """Upload to google storage.
 
   Create a pool of process and call _GsUpload with the proper arguments.
 
   Args:
-    files: dictionary with keys to local files and values to remote path. 
+    files: dictionary with keys to local files and values to remote path.
     pool: integer of maximum proesses to have at the same time.
   """
-  # TODO port this to use _RunManyParallel when it is available in 
+  # TODO(scottz) port this to use _RunManyParallel when it is available in
   # cros_build_lib
   pool = Pool(processes=pool)
   workers = []
@@ -192,8 +193,6 @@ def RemoteUpload(files, pool=10):
       break
     except multiprocessing.TimeoutError:
       pass
-
-
 
 
 def GenerateUploadDict(local_path, gs_path, strip_str):
@@ -224,12 +223,14 @@ def UploadPrebuilt(build_path, bucket, board=None, git_file=None):
   Args:
     build_path: The path to the root of the chroot.
     bucket: The Google Storage bucket to upload to.
+    board: The board to upload to Google Storage, if this is None upload
+      host packages.
     git_file: If set, update this file with a host/version combo, commit and
       push it.
   """
   version = GetVersion()
 
-  if board is None:
+  if not board:
     # We are uploading host packages
     # TODO: eventually add support for different host_targets
     package_path = os.path.join(build_path, _HOST_PACKAGES_PATH)
@@ -243,7 +244,7 @@ def UploadPrebuilt(build_path, bucket, board=None, git_file=None):
     strip_pattern = board_path
     gs_path = os.path.join(bucket, _GS_BOARD_PATH % {'board': board,
                                                      'version': version})
- 
+
   upload_files = GenerateUploadDict(package_path, gs_path, strip_pattern)
 
   print 'Uploading %s' % package_string
@@ -278,7 +279,7 @@ def main():
   parser.add_option('-f', '--filter', dest='filter_file',
                     default=None,
                     help='File to use for filtering GS bucket uploads')
- 
+
   options, args = parser.parse_args()
   # Setup boto environment for gsutil to use
   os.environ['BOTO_CONFIG'] = _BOTO_CONFIG

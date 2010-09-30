@@ -40,7 +40,7 @@ class TestUpdateFile(unittest.TestCase):
     else:
       self.fail('Could not find "%s %s" in version file' % (key, val))
 
-  def testAddVariableThatDoesnotExist(self):
+  def testAddVariableThatDoesNotExist(self):
     """Add in a new variable that was no present in the file."""
     key = 'x86-testcase'
     value = '1234567'
@@ -56,7 +56,7 @@ class TestUpdateFile(unittest.TestCase):
     self._verify_key_pair(key, val)
     prebuilt.UpdateLocalFile(self.version_file, key, new_val)
     self._verify_key_pair(key, new_val)
-    
+
 
 class TestPrebuiltFilters(unittest.TestCase):
 
@@ -92,15 +92,14 @@ class TestPrebuiltFilters(unittest.TestCase):
 
 
 class TestPrebuilt(unittest.TestCase):
+  fake_path = '/b/cbuild/build/chroot/build/x86-dogfood/'
+  bin_package_mock = ['packages/x11-misc/shared-mime-info-0.70.tbz2',
+                      'packages/x11-misc/util-macros-1.5.0.tbz2',
+                      'packages/x11-misc/xbitmaps-1.1.0.tbz2',
+                      'packages/x11-misc/read-edid-1.4.2.tbz2',
+                      'packages/x11-misc/xdg-utils-1.0.2-r3.tbz2']
 
-  files_to_sync = ['/b/cbuild/build/chroot/build/x86-dogfood/packages/x11-misc/shared-mime-info-0.70.tbz2',
-                   '/b/cbuild/build/chroot/build/x86-dogfood/packages/x11-misc/util-macros-1.5.0.tbz2',
-                   '/b/cbuild/build/chroot/build/x86-dogfood/packages/x11-misc/xbitmaps-1.1.0.tbz2',
-                   '/b/cbuild/build/chroot/build/x86-dogfood/packages/x11-misc/read-edid-1.4.2.tbz2',
-                   '/b/cbuild/build/chroot/build/x86-dogfood/packages/x11-misc/xdg-utils-1.0.2-r3.tbz2']
-
-  strip_path = '/b/cbuild/build/chroot/build/x86-dogfood/'
-
+  files_to_sync = [os.path.join(fake_path, file) for file in bin_package_mock]
 
   def setUp(self):
     self.mox = mox.Mox()
@@ -109,25 +108,22 @@ class TestPrebuilt(unittest.TestCase):
     self.mox.UnsetStubs()
     self.mox.VerifyAll()
 
-
   def _generate_dict_results(self, gs_bucket_path):
     """
     Generate a dictionary result similar to GenerateUploadDict
     """
     results = {}
     for entry in self.files_to_sync:
-      results[entry] = os.path.join(gs_bucket_path,
-                                 entry.replace(self.strip_path, '').lstrip('/'))
+      results[entry] = os.path.join(
+        gs_bucket_path, entry.replace(self.fake_path, '').lstrip('/'))
     return results
-
 
   def testGenerateUploadDict(self):
     gs_bucket_path = 'gs://chromeos-prebuilt/host/version'
     self.mox.StubOutWithMock(cros_build_lib, 'ListFiles')
     cros_build_lib.ListFiles(' ').AndReturn(self.files_to_sync)
     self.mox.ReplayAll()
-    result = prebuilt.GenerateUploadDict(' ', gs_bucket_path, self.strip_path)
-    print result
+    result = prebuilt.GenerateUploadDict(' ', gs_bucket_path, self.fake_path)
     self.assertEqual(result, self._generate_dict_results(gs_bucket_path))
 
 
