@@ -21,7 +21,7 @@ DEFINE_boolean install_syslinux ${FLAGS_FALSE} \
 DEFINE_string from "/tmp/boot" \
   "Path the legacy bootloader templates are copied from. (Default /tmp/boot)"
 DEFINE_string to "/tmp/esp.img" \
-  "Path to esp image or ARM output MBR (Default: /tmp/esp.img)"
+  "Path to esp image (Default: /tmp/esp.img)"
 DEFINE_integer to_offset 0 \
   "Offset in bytes into 'to' if it is a file (Default: 0)"
 DEFINE_integer to_size -1 \
@@ -39,7 +39,7 @@ DEFINE_string kernel_partition_offset "0" \
 DEFINE_string kernel_partition_sectors "0" \
   "Kernel partition sectors (Default: 0)"
 DEFINE_string usb_disk /dev/sdb3 \
-  "Path syslinux should use to do a usb (or arm!) boot. Default: /dev/sdb3"
+  "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -102,8 +102,7 @@ if [[ ! -e "${FLAGS_to}" ]]; then
   # This shouldn't happen.
   info "Creating a new esp image at ${FLAGS_to}" anyway.
   # Create EFI System Partition to boot stock EFI BIOS (but not ChromeOS EFI
-  # BIOS). We only need this for x86, but it's simpler and safer to keep the
-  # disk images the same for both x86 and ARM.
+  # BIOS).  ARM uses this space to determine which partition is bootable.
   # NOTE: The size argument for mkfs.vfat is in 1024-byte blocks.
   # We'll hard-code it to 16M for now.
   ESP_BLOCKS=16384

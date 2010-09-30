@@ -49,8 +49,6 @@ DEFINE_boolean factory_install ${FLAGS_FALSE} \
 is also required in image_to_usb."
 DEFINE_boolean dev_install ${FLAGS_FALSE} \
   "Build a smaller image to overlay the dev recovery install shim on"
-DEFINE_string arm_extra_bootargs "" \
-  "Additional command line options to pass to the ARM kernel."
 DEFINE_integer rootfs_partition_size 1024 \
   "rootfs partition size in MiBs."
 DEFINE_integer rootfs_size 720 \
@@ -360,7 +358,6 @@ create_boot_desc() {
   --verity_algorithm="${FLAGS_verity_algorithm}"
   --keys_dir="${DEVKEYSDIR}"
   --usb_disk="${FLAGS_usb_disk}"
-  --arm_extra_bootargs="${FLAGS_arm_extra_bootargs}"
   --nocleanup_dirs
   ${enable_rootfs_verification_flag}
 EOF
@@ -637,8 +634,7 @@ create_base_image() {
 
   # cros_make_image_bootable will clobber vmlinuz.image for x86.
   # Until then, just copy the kernel to vmlinuz.image. It is
-  # expected in build_gpt.sh and needed by ARM until it supports the
-  # full, signed kernel partition format.
+  # expected in build_gpt.sh.
   cp "${ROOT_FS_DIR}/boot/vmlinuz" "${OUTPUT_DIR}/vmlinuz.image"
 
   # Create an empty esp image to be updated in by update_bootloaders.sh.
@@ -652,7 +648,6 @@ create_base_image() {
   ${SCRIPTS_DIR}/build_gpt.sh \
     --arch=${ARCH} \
     --board=${FLAGS_board} \
-    --arm_extra_bootargs="${FLAGS_arm_extra_bootargs}" \
     --rootfs_partition_size=${FLAGS_rootfs_partition_size} \
     "${OUTPUT_DIR}" \
     "${OUTPUT_DIR}/${image_name}"

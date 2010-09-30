@@ -26,8 +26,7 @@ fi
 
 info "Creating a new esp image at ${FLAGS_to}" anyway.
 # Create EFI System Partition to boot stock EFI BIOS (but not ChromeOS EFI
-# BIOS). We only need this for x86, but it's simpler and safer to keep the
-# disk images the same for both x86 and ARM.
+# BIOS).  ARM uses this space to determine which partition is bootable.
 # NOTE: The size argument for mkfs.vfat is in 1024-byte blocks.
 # We'll hard-code it to 16M for now.
 ESP_BLOCKS=16384
