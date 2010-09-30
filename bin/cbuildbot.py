@@ -208,6 +208,20 @@ def _UprevAllPackages(buildroot):
               '--tracking_branch="cros/master"'],
               cwd=cwd, enter_chroot=True)
 
+
+def _GetVMConstants(buildroot):
+  """Returns minimum (vdisk_size, statefulfs_size) recommended for VM's."""
+  cwd = os.path.join(buildroot, 'src', 'scripts', 'lib')
+  source_cmd = 'source %s/cros_vm_constants.sh' % cwd
+  vdisk_size = RunCommand([
+      '/bin/bash', '-c', '%s && echo $MIN_VDISK_SIZE_FULL' % source_cmd],
+       redirect_stdout=True)
+  statefulfs_size = RunCommand([
+      '/bin/bash', '-c', '%s && echo $MIN_STATEFUL_FS_SIZE_FULL' % source_cmd],
+       redirect_stdout=True)
+  return (vdisk_size.strip(), statefulfs_size.strip())
+
+
 # =========================== Main Commands ===================================
 
 def _FullCheckout(buildroot, rw_checkout=True, retries=_DEFAULT_RETRIES):
@@ -244,8 +258,10 @@ def _Build(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./build_packages'], cwd=cwd, enter_chroot=True)
 
+
 def _WipeOldOutput(buildroot):
   RunCommand(['rm', '-rf', 'src/build/images'], cwd=buildroot)
+
 
 def _BuildImage(buildroot):
   _WipeOldOutput(buildroot)
@@ -253,9 +269,30 @@ def _BuildImage(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./build_image', '--replace'], cwd=cwd, enter_chroot=True)
 
+
+def _BuildVMImageForTesting(buildroot):
+  (vdisk_size, statefulfs_size) = _GetVMConstants(buildroot)
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  RunCommand(['./image_to_vm.sh',
+              '--test_image',
+              '--full',
+              '--vdisk_size %s' % vdisk_size,
+              '--statefulfs_size %s' % statefulfs_size,
+              ], cwd=cwd, enter_chroot=True)
+
+
 def _RunUnitTests(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./cros_run_unit_tests'], cwd=cwd, enter_chroot=True)
+
+
+def _RunSmokeSuite(buildroot):
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  RunCommand(['bin/cros_run_vm_test',
+              '--no_graphics',
+              '--test_case',
+              'suite_Smoke',
+              ], cwd=cwd, error_ok=True)
 
 
 def _UprevPackages(buildroot, revisionfile, board):
@@ -383,6 +420,11 @@ def main():
       _RunUnitTests(buildroot)
 
     _BuildImage(buildroot)
+
+    if buildconfig['smoke_bvt']:
+      _BuildVMImageForTesting(buildroot)
+      _RunSmokeSuite(buildroot)
+
     if buildconfig['uprev']:
       if buildconfig['master']:
         # Master bot needs to check if the other slaves completed.

@@ -4,8 +4,6 @@
 #
 # Common vm functions for use in crosutils.
 
-. "$(dirname "$0")/cros_vm_constants.sh"
-
 DEFINE_string kvm_pid "" \
   "Use this pid file.  If it exists and is set, use the vm specified by pid."
 DEFINE_boolean no_graphics ${FLAGS_FALSE} "Runs the KVM instance silently."
@@ -48,7 +46,7 @@ function start_kvm() {
       snapshot="-snapshot"
     fi
 
-    sudo kvm -m ${DEFAULT_MEM} \
+    sudo kvm -m 1024 \
       -vga std \
       -pidfile "${KVM_PID_FILE}" \
       -daemonize \

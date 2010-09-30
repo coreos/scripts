@@ -18,6 +18,7 @@ important -- Master bot uses important bots to determine overall status.
 hostname -- Needed for 'important' slaves.  The hostname of the bot.  Should
             match hostname in slaves.cfg in buildbot checkout.
 unittests -- Runs unittests for packages.
+smoke_bvt -- Runs the test smoke suite in a qemu-based VM using KVM.
 
 """
 
@@ -29,6 +30,7 @@ config['default'] = {
   'master' : False,
   'important' : False,
   'unittests' : False,
+  'smoke_bvt' : False,
 }
 config['x86-generic-pre-flight-queue'] = {
   'board' : 'x86-generic',
@@ -37,6 +39,7 @@ config['x86-generic-pre-flight-queue'] = {
   'important' : False,
   'hostname' : 'chromeosbuild2',
   'unittests' : True,
+  'smoke_bvt' : True,
 }
 config['x86_pineview_bin'] = {
   'board' : 'x86-pineview',
@@ -45,6 +48,7 @@ config['x86_pineview_bin'] = {
   'important' : False,
   'hostname' : 'codf200.jail',
   'unittests': True,
+  'smoke_bvt' : True,
 }
 config['arm_tegra2_bin'] = {
   'board' : 'tegra2',
