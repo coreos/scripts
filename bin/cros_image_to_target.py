@@ -219,6 +219,12 @@ class CrosEnv(object):
                             infile=filename,
                             capture=True, oneline=True)
 
+  def GetSha256(self, filename):
+    return self.cmd.RunPipe([['openssl', 'dgst', '-sha256', '-binary'],
+                             ['openssl', 'base64']],
+                            infile=filename,
+                            capture=True, oneline=True)
+
   def GetDefaultBoard(self):
     def_board_file = self.CrosUtilsPath('.default_board')
     if not os.path.exists(def_board_file):
@@ -250,6 +256,7 @@ class CrosEnv(object):
     """Start the devserver clone."""
 
     PingUpdateResponse.Setup(self.GetHash(update_file),
+                             self.GetSha256(update_file),
                              self.GetSize(update_file))
 
     UpdateHandler.SetupUrl('/update', PingUpdateResponse())
@@ -423,6 +430,7 @@ class PingUpdateResponse(StringUpdateResponse):
       <updatecheck
       codebase="%s"
       hash="%s"
+      sha256="%s"
       needsadmin="false"
       size="%s"
       status="ok"/>
@@ -443,8 +451,9 @@ class PingUpdateResponse(StringUpdateResponse):
     self.content_type = 'text/xml'
 
   @staticmethod
-  def Setup(filehash, filesize):
+  def Setup(filehash, filesha256, filesize):
     PingUpdateResponse.file_hash = filehash
+    PingUpdateResponse.file_sha256 = filesha256
     PingUpdateResponse.file_size = filesize
 
   def Reply(self, handler, send_content=True, post_data=None):
@@ -462,7 +471,7 @@ class PingUpdateResponse(StringUpdateResponse):
       self.string = (self.payload_success_template %
                      (self.xmlns, self.SecondsSinceMidnight(),
                       self.app_id, 'http://%s/%s' % (host, UPDATE_FILENAME),
-                      self.file_hash, self.file_size))
+                      self.file_hash, self.file_sha256, self.file_size))
     else:
       self.string = (self.payload_failure_template %
                      (self.xmlns, self.SecondsSinceMidnight(), self.app_id))
