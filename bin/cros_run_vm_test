@@ -34,5 +34,5 @@ trap stop_kvm EXIT
 start_kvm "${FLAGS_image_path}"
 "$(dirname $0)"/../run_remote_tests.sh \
   --ssh_port=${FLAGS_ssh_port} \
-  --remote="${HOSTNAME}" \
+  --remote=127.0.0.1 \
   "${FLAGS_test_case}"
