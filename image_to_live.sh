@@ -25,6 +25,7 @@ DEFINE_boolean update_known_hosts ${FLAGS_FALSE} \
   "Update your known_hosts with the new remote instance's key."
 DEFINE_string update_log "update_engine.log" \
   "Path to log for the update_engine."
+DEFINE_boolean verify ${FLAGS_TRUE} "Verify image on device after update."
 
 # Flags for devserver.
 DEFINE_string archive_dir "" \
@@ -33,17 +34,21 @@ DEFINE_integer devserver_port 8080 \
   "Port to use for devserver."
 DEFINE_string image "" \
   "Update with this image path that is in this source checkout." i
+DEFINE_boolean update_stateful ${FLAGS_TRUE} \
+  "Perform update of stateful partition e.g. /var /usr/local."
 DEFINE_string update_url "" "Full url of an update image."
 
 # Flags for stateful update.
 DEFINE_string stateful_update_flag "" \
   "Flag to pass to stateful update e.g. old, clean, etc." s
 
-UPDATER_BIN='/usr/bin/update_engine_client'
-UPDATER_IDLE='UPDATE_STATUS_IDLE'
-UPDATER_NEED_REBOOT='UPDATE_STATUS_UPDATED_NEED_REBOOT'
-UPDATER_UPDATE_CHECK='UPDATE_STATUS_CHECKING_FOR_UPDATE'
-UPDATER_DOWNLOADING='UPDATE_STATUS_DOWNLOADING'
+UPDATER_BIN="/usr/bin/update_engine_client"
+UPDATER_IDLE="UPDATE_STATUS_IDLE"
+UPDATER_NEED_REBOOT="UPDATE_STATUS_UPDATED_NEED_REBOOT"
+UPDATER_UPDATE_CHECK="UPDATE_STATUS_CHECKING_FOR_UPDATE"
+UPDATER_DOWNLOADING="UPDATE_STATUS_DOWNLOADING"
+
+IMAGE_PATH=""
 
 function kill_all_devservers {
   # Using ! here to avoid exiting with set -e is insufficient, so use
@@ -89,9 +94,12 @@ function start_dev_server {
   if [ -n "${FLAGS_image}" ]; then
     devserver_flags="${devserver_flags} \
         --image $(reinterpret_path_for_chroot ${FLAGS_image})"
+    IMAGE_PATH="${FLAGS_image}"
+
   elif [ -n "${FLAGS_archive_dir}" ]; then
     devserver_flags="${devserver_flags} \
         --archive_dir $(reinterpret_path_for_chroot ${FLAGS_archive_dir}) -t"
+    IMAGE_PATH="${FLAGS_archive_dir}/chromiumos_test_image.bin"
   fi
 
   info "Starting devserver with flags ${devserver_flags}"
@@ -258,6 +266,31 @@ function remote_reboot {
   done
 }
 
+function verify_image {
+  info "Verifying image."
+  "${SCRIPTS_DIR}/mount_gpt_image.sh" --from "$(dirname ${IMAGE_PATH})" \
+                     --image "$(basename ${IMAGE_PATH})" \
+                     --read_only
+
+  local lsb_release=$(cat /tmp/m/etc/lsb-release)
+  info "Verifying image with release:"
+  echo ${lsb_release}
+
+  "${SCRIPTS_DIR}/mount_gpt_image.sh" --unmount
+
+  remote_sh "cat /etc/lsb-release"
+  info "Remote image reports:"
+  echo ${REMOTE_OUT}
+
+  if [ "${lsb_release}" = "${REMOTE_OUT}" ]; then
+    info "Update was successful and image verified as ${lsb_release}."
+    return 0
+  else
+    warn "Image verification failed."
+    return 1
+  fi
+}
+
 function main() {
   assert_outside_chroot
 
@@ -267,6 +300,12 @@ function main() {
   eval set -- "${FLAGS_ARGV}"
 
   set -e
+
+  if [ ${FLAGS_verify} -eq ${FLAGS_TRUE} ] && \
+      [ -n "${FLAGS_update_url}" ]; then
+    warn "Verify is not compatible with setting an update url."
+    FLAGS_verify=${FLAGS_FALSE}
+  fi
 
   trap cleanup EXIT
 
@@ -284,11 +323,12 @@ function main() {
     start_dev_server
   fi
 
-  if [ "${FLAGS_update}" -eq "${FLAGS_TRUE}" ] && ! run_auto_update; then
+  if [ ${FLAGS_update} -eq ${FLAGS_TRUE} ] && ! run_auto_update; then
     die "Update was not successful."
   fi
 
-  if ! run_stateful_update; then
+  if [ ${FLAGS_update_stateful} -eq ${FLAGS_TRUE} ] && \
+      ! run_stateful_update; then
     warn "Stateful update was not successful."
   fi
 
@@ -304,10 +344,14 @@ function main() {
   fi
 
   remote_sh "grep ^CHROMEOS_RELEASE_DESCRIPTION= /etc/lsb-release"
-  local release_description=$(echo ${REMOTE_OUT} | cut -d '=' -f 2)
-  info "Update was successful and rebooted to $release_description"
+  if [ ${FLAGS_verify} -eq ${FLAGS_TRUE} ]; then
+    verify_image
+  else
+    local release_description=$(echo ${REMOTE_OUT} | cut -d '=' -f 2)
+    info "Update was successful and rebooted to $release_description"
+  fi
 
-  return 0
+  exit 0
 }
 
 main $@

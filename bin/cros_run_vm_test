@@ -8,6 +8,7 @@
 
 . "$(dirname $0)/../common.sh"
 . "$(dirname $0)/../lib/cros_vm_lib.sh"
+. "$(dirname "$0")/../lib/cros_vm_constants.sh"
 
 DEFINE_string image_path "" "Full path of the VM image"
 DEFINE_string test_case "" "Name of the test case to run"
@@ -18,12 +19,20 @@ set -e
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
-[ -n "${FLAGS_image_path}" ] || die "You must specify a path to an image"
-[ -n "${FLAGS_test_case}" ] || die "You must specify a test case"
+# Use latest if not specified.
+if [ -z "${FLAGS_image_path}" ]; then
+  LATEST_IMAGE="$(${SCRIPTS_DIR}/get_latest_image.sh)/${DEFAULT_QEMU_IMAGE}"
+  info "Using latest vm image ${LATEST_IMAGE}"
+  FLAGS_image_path=${LATEST_IMAGE}
+fi
+
+[ -e "${FLAGS_image_path}" ] || die "Image ${FLAGS_image_path} does not exist."
+
+[ -n "${FLAGS_test_case}" ] || die "You must specify a test case."
 
 trap stop_kvm EXIT
 start_kvm "${FLAGS_image_path}"
 "$(dirname $0)"/../run_remote_tests.sh \
   --ssh_port=${FLAGS_ssh_port} \
-  --remote="${HOSTNAME}" \
+  --remote=127.0.0.1 \
   "${FLAGS_test_case}"

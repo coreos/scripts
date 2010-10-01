@@ -11,7 +11,6 @@ DEFINE_boolean persist "${FLAGS_FALSE}" "Persist vm."
 DEFINE_boolean snapshot ${FLAGS_FALSE} "Don't commit changes to image."
 DEFINE_integer ssh_port 9222 "Port to tunnel ssh traffic over."
 
-
 KVM_PID_FILE=/tmp/kvm.$$.pid
 
 function get_pid() {

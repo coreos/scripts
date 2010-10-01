@@ -243,15 +243,12 @@ then
       echo "Installation must be done from inside the chroot."
       exit 1
     fi
-    #TODO(kwaters): fix when verified root works on ARM
-    [ "${FLAGS_arch}" = "ARM" ] && SKIP_VBLOCK="--skip_vblock"
 
     echo "Installing ${SRC_IMAGE} to ${FLAGS_to}..."
     "${FLAGS_build_root}/${FLAGS_board}/usr/sbin/chromeos-install" \
       --yes \
       --skip_src_removable \
       --skip_dst_removable \
-      ${SKIP_VBLOCK:-} \
       --arch="${FLAGS_arch}" \
       --payload_image="${SRC_IMAGE}" \
       --dst="${FLAGS_to}"

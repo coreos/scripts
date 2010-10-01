@@ -4,10 +4,20 @@
 
 """Common python commands used by various build scripts."""
 
+import inspect
+import os
 import subprocess
 import sys
 
 _STDOUT_IS_TTY = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
+
+# TODO(sosa):  Move logging to logging module.
+
+def GetCallerName():
+  """Returns the name of the calling module with __main__."""
+  top_frame = inspect.stack()[-1][0]
+  return os.path.basename(top_frame.f_code.co_filename)
+
 
 def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
                exit_code=False, redirect_stdout=False, redirect_stderr=False,
@@ -44,7 +54,8 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
 
   # Print out the command before running.
   if print_cmd:
-    Info('RunCommand: %s' % ' '.join(cmd))
+    Info('PROGRAM(%s) -> RunCommand: %s in dir %s' %
+         (GetCallerName(), ' '.join(cmd), cwd))
 
   try:
     proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
@@ -56,7 +67,7 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
     if not error_ok and proc.returncode:
       raise Exception('Command "%s" failed.\n' % (' '.join(cmd)) +
                       (error_message or error or output or ''))
-  except Exception,e:
+  except Exception, e:
     if not error_ok:
       raise
     else:

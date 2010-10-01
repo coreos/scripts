@@ -31,5 +31,6 @@ $(dirname $0)/../image_to_live.sh \
   --remote=${HOSTNAME} \
   --ssh_port=${FLAGS_ssh_port} \
   --stateful_update_flag=${stateful_flags} \
+  --verify \
   --image=$(readlink -f ${FLAGS_update_image_path})
 

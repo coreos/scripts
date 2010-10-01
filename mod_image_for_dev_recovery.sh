@@ -176,7 +176,7 @@ create_dev_recovery_image() {
   # Mount resized stateful FS and copy payload content to its root directory
   local temp_mnt=$(mktemp -d "/tmp/temp_mnt.XXXXXX")
   local loop_dev=$(get_loop_dev)
-  trap "umount_from_loop_dev ${temp_mnt} && cleanup_loop_dev ${loop_dev}" EXIT
+  trap "umount_from_loop_dev ${temp_mnt} && rm -f \"${temp_state}\"" EXIT
   mkdir -p "${temp_mnt}"
   sudo mount -o loop=${loop_dev} "${temp_state}" "${temp_mnt}"
   sudo cp -R "${FLAGS_payload_dir}" "${temp_mnt}"
@@ -189,7 +189,6 @@ create_dev_recovery_image() {
   # TODO(tgao): handle install script (for default and custom cases)
   local temp_img=$(update_partition_table $temp_state $resized_sectors)
 
-  rm -f "${temp_state}"
   # trap handler will clean up loop device and temp mount point
   echo ${temp_img}
 }

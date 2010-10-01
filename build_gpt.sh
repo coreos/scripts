@@ -21,8 +21,6 @@ DEFINE_string arch "" \
   "The target architecture (\"arm\" or \"x86\")."
 DEFINE_string board "$DEFAULT_BOARD" \
   "The board to build an image for."
-DEFINE_string arm_extra_bootargs "" \
-  "Additional command line options to pass to the ARM kernel."
 DEFINE_integer rootfs_partition_size 1024 \
   "rootfs parition size in MBs."
 
@@ -109,8 +107,7 @@ if [ ! -s ${ESP_IMG} ]; then
   exit 1
 fi
 
-# We'll need some code to put in the PMBR, for booting on legacy BIOS. Some ARM
-# systems will use a U-Boot script temporarily, but it goes in the same place.
+# We'll need some code to put in the PMBR, for booting on legacy BIOS.
 if [[ "$ARCH" = "arm" ]]; then
   PMBRCODE=/dev/zero
 else
@@ -121,18 +118,6 @@ fi
 # describing the partition table entries (see the comments in the source).
 install_gpt $OUTDEV $(numsectors $ROOTFS_IMG) $(numsectors $STATEFUL_IMG) \
     $PMBRCODE $(numsectors $ESP_IMG) false $FLAGS_rootfs_partition_size
-
-if [[ "$ARCH" = "arm" ]]; then
-  # assume /dev/mmcblk1. we could not get this from ${OUTDEV}
-  DEVICE=1
-  MBR_SCRIPT_UIMG=$(make_arm_mbr \
-    ${START_KERN_A} \
-    ${NUM_KERN_SECTORS} \
-    ${DEVICE} \
-    "${FLAGS_arm_extra_bootargs}")
-  sudo dd bs=1 count=`stat --printf="%s" ${MBR_SCRIPT_UIMG}` \
-     if="$MBR_SCRIPT_UIMG" of=${OUTDEV} conv=notrunc
-fi
 
 # Emit helpful scripts for testers, etc.
 ${SCRIPTS_DIR}/emit_gpt_scripts.sh "${OUTDEV}" "${IMAGEDIR}"

@@ -86,9 +86,6 @@ DEFINE_integer verity_max_ios 1024 \
 DEFINE_string verity_algorithm "sha1" \
   "Cryptographic hash algorithm used for kernel vboot."
 
-DEFINE_string arm_extra_bootargs "" \
-  "Additional command line options to pass to the ARM kernel."
-
 DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
   "Directory containing the signing keys."
 
@@ -199,8 +196,7 @@ make_image_bootable() {
   sudo dd if="${FLAGS_output_dir}/vmlinuz.image" of="${image}" \
     conv=notrunc bs=512 seek=${koffset}
 
-  # Update the bootloaders.  For legacy/efi x86, the EFI system partition
-  # will be updated and for arm, the mbr will be updated (for u-boot).
+  # Update the bootloaders.  The EFI system partition will be updated.
   local kernel_part=
   local usb_disk="${FLAGS_usb_disk}"
 
@@ -218,17 +214,8 @@ make_image_bootable() {
     # Install syslinux on the EFI System Partition.
     kernel_part="${kernel_part} --install_syslinux"
   elif [[ "${FLAGS_arch}" = "arm" ]]; then
-    # TODO(wad) mmcblk1p3 is hardcoded for arm for now!
-    usb_disk="/dev/mmcblk1p3"
-    # ARM doesn't support using the kernel image for kernel cmdline flags yet.
-    kernel_part="--kernel_cmdline=\"${FLAGS_arm_extra_bootargs}\" "
-    # TODO(wad) Integrate dmtable extraction into the arm build
-    # E.g.  $(cat ${FLAGS_output_dir}/boot.config | tr -s '\n' ' ')"
-    local kpart_offset="--kernel_partition_offset=${koffset}"
-    local kpart_size="--kernel_partition_sectors="
-    kpart_size="${kpart_size}$(partsize ${image} 2)"
-    kernel_part="${kernel_part} ${kpart_size} ${kpart_offset}"
-    info "Using addition bootloader arguments: ${kernel_part}"
+    # These flags are not used for ARM update_bootloaders.sh
+    kernel_part=""
   fi
 
   # Update partition 12
