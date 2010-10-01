@@ -4,10 +4,10 @@
 # found in the LICENSE file.
 
 import datetime
+import multiprocessing
 import optparse
 import os
 import sys
-from multiprocessing import Pool
 
 from chromite.lib import cros_build_lib
 """
@@ -32,7 +32,7 @@ Example of uploading x86-dogfood binhosts
 VER_FILE = 'src/third_party/chromiumos-overlay/chromeos/config/stable_versions'
 
 # as per http://crosbug.com/5855 always filter the below packages
-FILTER_PACKAGES = set()
+_FILTER_PACKAGES = set()
 _RETRIES = 3
 _HOST_PACKAGES_PATH = 'chroot/var/lib/portage/pkgs'
 _HOST_TARGET = 'amd64'
@@ -114,29 +114,30 @@ def LoadFilterFile(filter_file):
   """Load a file with keywords on a per line basis.
 
   Args:
-    filter_file: file to load into FILTER_PACKAGES
+    filter_file: file to load into _FILTER_PACKAGES
   """
   filter_fh = open(filter_file)
   try:
-    FILTER_PACKAGES.update([filter.strip() for filter in filter_fh])
+    _FILTER_PACKAGES.update([filter.strip() for filter in filter_fh])
   finally:
     filter_fh.close()
-  return FILTER_PACKAGES
+  return _FILTER_PACKAGES
 
 
 def ShouldFilterPackage(file_path):
   """Skip a particular file if it matches a pattern.
 
-  Skip any files that machine the list of packages to filter in FILTER_PACKAGES.
+  Skip any files that machine the list of packages to filter in
+  _FILTER_PACKAGES.
 
   Args:
-    file_path: string of a file path to inspect against FILTER_PACKAGES
+    file_path: string of a file path to inspect against _FILTER_PACKAGES
 
   Returns:
     True if we should filter the package,
     False otherwise.
   """
-  for name in FILTER_PACKAGES:
+  for name in _FILTER_PACKAGES:
     if name in file_path:
       print 'FILTERING %s' % file_path
       return True
@@ -181,7 +182,7 @@ def RemoteUpload(files, pool=10):
   """
   # TODO(scottz) port this to use _RunManyParallel when it is available in
   # cros_build_lib
-  pool = Pool(processes=pool)
+  pool = multiprocessing.Pool(processes=pool)
   workers = []
   for local_file, remote_path in files.iteritems():
     workers.append((local_file, remote_path))
@@ -232,7 +233,7 @@ def UploadPrebuilt(build_path, bucket, board=None, git_file=None):
 
   if not board:
     # We are uploading host packages
-    # TODO: eventually add support for different host_targets
+    # TODO(scottz): eventually add support for different host_targets
     package_path = os.path.join(build_path, _HOST_PACKAGES_PATH)
     gs_path = os.path.join(bucket, _GS_HOST_PATH, version)
     strip_pattern = package_path
@@ -256,7 +257,7 @@ def UploadPrebuilt(build_path, bucket, board=None, git_file=None):
 
 def usage(parser, msg):
   """Display usage message and parser help then exit with 1."""
-  print msg
+  print >> sys.stderr, msg
   parser.print_help()
   sys.exit(1)
 
