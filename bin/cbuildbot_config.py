@@ -48,7 +48,6 @@ config['x86_pineview_bin'] = {
   'important' : False,
   'hostname' : 'codf200.jail',
   'unittests': True,
-  'smoke_bvt' : True,
 }
 config['arm_tegra2_bin'] = {
   'board' : 'tegra2',

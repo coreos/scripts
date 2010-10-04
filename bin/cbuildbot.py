@@ -263,6 +263,14 @@ def _WipeOldOutput(buildroot):
   RunCommand(['rm', '-rf', 'src/build/images'], cwd=buildroot)
 
 
+def _EnableLocalAccount(buildroot):
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  # Set local account for test images.
+  RunCommand(['./enable_localaccount.sh',
+             'chronos'],
+             print_cmd=False, cwd=cwd)
+
+
 def _BuildImage(buildroot):
   _WipeOldOutput(buildroot)
 
@@ -415,6 +423,7 @@ def main():
     if buildconfig['uprev']:
       _UprevPackages(buildroot, revisionfile, board=buildconfig['board'])
 
+    _EnableLocalAccount(buildroot)
     _Build(buildroot)
     if buildconfig['unittests']:
       _RunUnitTests(buildroot)

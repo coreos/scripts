@@ -272,7 +272,7 @@ setup_env
 # hand-sync'd some subdirs and edited files in others.
 # In that case, check against origin/HEAD and mark** revision.
 # Use git:8 chars of sha1
-REVISION=$(git rev-parse --short=8 HEAD)
+REVISION=$(cd ${FLAGS_trunk}/src/scripts ; git rev-parse --short=8 HEAD)
 CHROOT_PASSTHRU="CHROMEOS_REVISION=$REVISION BUILDBOT_BUILD=$FLAGS_build_number CHROMEOS_OFFICIAL=$CHROMEOS_OFFICIAL"
 if [ -d "$HOME/.subversion" ]; then
   # Bind mounting .subversion into chroot

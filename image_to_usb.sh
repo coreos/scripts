@@ -236,7 +236,11 @@ then
 
   if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
     echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
-    sudo dd if="${SRC_IMAGE}" of="${FLAGS_to}" bs=4M
+    if type pv >/dev/null 2>&1; then
+      sudo pv -ptre "${SRC_IMAGE}" | sudo dd of="${FLAGS_to}" bs=4M oflag=sync
+    else
+      sudo dd if="${SRC_IMAGE}" of="${FLAGS_to}" bs=4M oflag=sync
+    fi
     sync
   else
     if [ ${INSIDE_CHROOT} -ne 1 ]; then
