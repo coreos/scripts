@@ -70,7 +70,6 @@ class TestPrebuiltFilters(unittest.TestCase):
                          'easy/alpha_beta-0.1.41.r3.ebuild',
                          'dev/j-t-r-0.1.r3.ebuild',]
     self.expected_filters = set(['salt-flavor', 'alpha_beta', 'j-t-r'])
- 
 
   def tearDown(self):
     if self.tmp_dir:
