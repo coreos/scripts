@@ -7,6 +7,7 @@ import datetime
 import multiprocessing
 import optparse
 import os
+import re
 import sys
 
 from chromite.lib import cros_build_lib
@@ -42,6 +43,14 @@ _BOTO_CONFIG = '/home/chrome-bot/external-boto'
 _GS_BOARD_PATH = 'board/%(board)s/%(version)s/'
 # We only support amd64 right now
 _GS_HOST_PATH = 'host/%s' % _HOST_TARGET
+# Private overlays to look at for builds to filter
+# relative to build path
+_PRIVATE_OVERLAY_DIR = 'src/private-overlays'
+
+
+class FiltersEmpty(Exception):
+  """Raised when filters are used but none are found."""
+  pass
 
 def UpdateLocalFile(filename, key, value):
   """Update the key in file with the value passed.
@@ -110,18 +119,28 @@ def GetVersion():
   return datetime.datetime.now().strftime('%d.%m.%y.%H%M%S')
 
 
-def LoadFilterFile(filter_file):
+def LoadPrivateFilters(build_path):
   """Load a file with keywords on a per line basis.
 
   Args:
     filter_file: file to load into _FILTER_PACKAGES
   """
-  filter_fh = open(filter_file)
-  try:
-    _FILTER_PACKAGES.update([filter.strip() for filter in filter_fh])
-  finally:
-    filter_fh.close()
-  return _FILTER_PACKAGES
+  # TODO(scottz): eventually use manifest.xml to find the proper
+  # private overlay path.
+  filter_path = os.path.join(build_path, _PRIVATE_OVERLAY_DIR)
+  files = cros_build_lib.ListFiles(filter_path)
+  filters = []
+  for file in files:
+    if file.endswith('.ebuild'):
+      basename = os.path.basename(file)
+      match = re.match('(.*?)-\d.*.ebuild', basename)
+      if match:
+        filters.append(match.group(1))
+
+  if not filters:
+    raise FiltersEmpty('No filters were returned')
+
+  _FILTER_PACKAGES.update(filters)
 
 
 def ShouldFilterPackage(file_path):
@@ -277,9 +296,9 @@ def main():
   parser.add_option('-u', '--upload', dest='upload',
                     default=None,
                     help='Upload to GS bucket')
-  parser.add_option('-f', '--filter', dest='filter_file',
-                    default=None,
-                    help='File to use for filtering GS bucket uploads')
+  parser.add_option('-f', '--filters', dest='filters', action='store_true',
+                    default=False,
+                    help='Turn on filtering of private ebuild packages')
 
   options, args = parser.parse_args()
   # Setup boto environment for gsutil to use
@@ -290,8 +309,8 @@ def main():
   if not options.upload:
     usage(parser, 'Error: you need to provide a gsutil upload bucket -u')
 
-  if options.filter_file:
-    LoadFilterFile(options.filter_file)
+  if options.filters:
+    LoadPrivateFilters(options.build_path)
 
   git_file = None
   if options.git_sync:

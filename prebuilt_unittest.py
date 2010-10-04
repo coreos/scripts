@@ -6,6 +6,7 @@
 import mox
 import os
 import prebuilt
+import shutil
 import tempfile
 import unittest
 from chromite.lib import cros_build_lib
@@ -61,34 +62,73 @@ class TestUpdateFile(unittest.TestCase):
 class TestPrebuiltFilters(unittest.TestCase):
 
   def setUp(self):
-    self.FAUX_FILTERS = set(['oob', 'bibby', 'bob'])
-    temp_fd, self.filter_filename = tempfile.mkstemp()
-    os.write(temp_fd, '\n'.join(self.FAUX_FILTERS))
-    os.close(temp_fd)
+    self.tmp_dir = tempfile.mkdtemp()
+    self.private_dir = os.path.join(self.tmp_dir,
+                                    prebuilt._PRIVATE_OVERLAY_DIR)
+    self.private_structure_base = 'chromeos-overlay/chromeos-base'
+    self.private_pkgs = ['test-package/salt-flavor-0.1.r3.ebuild',
+                         'easy/alpha_beta-0.1.41.r3.ebuild',
+                         'dev/j-t-r-0.1.r3.ebuild',]
+    self.expected_filters = set(['salt-flavor', 'alpha_beta', 'j-t-r'])
+ 
 
   def tearDown(self):
-    os.remove(self.filter_filename)
+    if self.tmp_dir:
+      shutil.rmtree(self.tmp_dir)
 
-  def testLoadFilterFile(self):
-    """
-    Call filter packages with a list of packages that should be filtered
-    and ensure they are.
-    """
-    loaded_filters = prebuilt.LoadFilterFile(self.filter_filename)
-    self.assertEqual(self.FAUX_FILTERS, loaded_filters)
+  def _CreateNestedDir(self, tmp_dir, dir_structure):
+    for entry in dir_structure:
+      full_path = os.path.join(os.path.join(tmp_dir, entry))
+      # ensure dirs are created
+      try:
+        os.makedirs(os.path.dirname(full_path))
+        if full_path.endswith('/'):
+          # we only want to create directories
+          return
+      except OSError, err:
+        if err.errno == errno.EEXIST:
+          # we don't care if the dir already exists
+          pass
+        else:
+          raise
+      # create dummy files
+      tmp = open(full_path, 'w')
+      tmp.close()
 
+  def _LoadPrivateMockFilters(self):
+    """Load mock filters as defined in the setUp function."""
+    dir_structure = [os.path.join(self.private_structure_base, entry)
+                     for entry in self.private_pkgs]
+
+    self._CreateNestedDir(self.private_dir, dir_structure)
+    prebuilt.LoadPrivateFilters(self.tmp_dir)
+ 
   def testFilterPattern(self):
     """Check that particular packages are filtered properly."""
-    prebuilt.LoadFilterFile(self.filter_filename)
-    file_list = ['/usr/local/package/oob',
-                 '/usr/local/package/other/path/valid',
-                 '/var/tmp/bibby.file',
-                 '/tmp/b/o/b']
-    expected_list = ['/usr/local/package/other/path/valid',
-                     '/tmp/b/o/b']
-    filtered_list = [file for file in file_list if not
+    self._LoadPrivateMockFilters()
+    packages = ['/some/dir/area/j-t-r-0.1.r3.tbz',
+                '/var/pkgs/new/alpha_beta-0.2.3.4.tbz',
+                '/usr/local/cache/good-0.1.3.tbz',
+                '/usr-blah/b_d/salt-flavor-0.0.3.tbz']
+    expected_list = ['/usr/local/cache/good-0.1.3.tbz']
+    filtered_list = [file for file in packages if not
                      prebuilt.ShouldFilterPackage(file)]
     self.assertEqual(expected_list, filtered_list)
+
+  def testLoadPrivateFilters(self):
+    self._LoadPrivateMockFilters()
+    prebuilt.LoadPrivateFilters(self.tmp_dir)
+    self.assertEqual(self.expected_filters, prebuilt._FILTER_PACKAGES)
+
+  def testEmptyFiltersErrors(self):
+    """Ensure LoadPrivateFilters errors if an empty list is generated."""
+    os.makedirs(os.path.join(self.tmp_dir, prebuilt._PRIVATE_OVERLAY_DIR))
+    try:
+      prebuilt.LoadPrivateFilters(self.tmp_dir)
+    except prebuilt.FiltersEmpty:
+      return
+
+    self.fail('Exception was not raised for empty list')
 
 
 class TestPrebuilt(unittest.TestCase):
