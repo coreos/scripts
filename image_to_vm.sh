@@ -74,7 +74,7 @@ fi
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
 # Default to the most recent image
 if [ -z "${FLAGS_from}" ] ; then
-  FLAGS_from="$(./get_latest_image.sh)"
+  FLAGS_from="$(./get_latest_image.sh --board=${FLAGS_board})"
 else
   pushd "${FLAGS_from}" && FLAGS_from=`pwd` && popd
 fi
