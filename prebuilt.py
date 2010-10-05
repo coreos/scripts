@@ -120,10 +120,11 @@ def GetVersion():
 
 
 def LoadPrivateFilters(build_path):
-  """Load a file with keywords on a per line basis.
+  """Load private filters based on ebuilds found under _PRIVATE_OVERLAY_DIR.
 
+  This function adds filters to the global set _FILTER_PACKAGES.
   Args:
-    filter_file: file to load into _FILTER_PACKAGES
+    build_path: Path that _PRIVATE_OVERLAY_DIR is in.
   """
   # TODO(scottz): eventually use manifest.xml to find the proper
   # private overlay path.

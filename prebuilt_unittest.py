@@ -122,12 +122,8 @@ class TestPrebuiltFilters(unittest.TestCase):
   def testEmptyFiltersErrors(self):
     """Ensure LoadPrivateFilters errors if an empty list is generated."""
     os.makedirs(os.path.join(self.tmp_dir, prebuilt._PRIVATE_OVERLAY_DIR))
-    try:
-      prebuilt.LoadPrivateFilters(self.tmp_dir)
-    except prebuilt.FiltersEmpty:
-      return
-
-    self.fail('Exception was not raised for empty list')
+    self.assertRaises(prebuilt.FiltersEmpty, prebuilt.LoadPrivateFilters,
+                      self.tmp_dir)
 
 
 class TestPrebuilt(unittest.TestCase):
