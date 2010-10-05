@@ -19,7 +19,7 @@ HOSTNAME=$(hostname)
 # Major/minor versions.
 # Primarily for product marketing.
 export CHROMEOS_VERSION_MAJOR=0
-export CHROMEOS_VERSION_MINOR=8
+export CHROMEOS_VERSION_MINOR=9
 
 # Branch number.
 # Increment by 1 in a new release branch.
