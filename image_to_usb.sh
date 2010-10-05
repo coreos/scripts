@@ -263,14 +263,7 @@ else
   echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
   cp -f "${SRC_IMAGE}" "${FLAGS_to}"
 
-  echo "Done.  To copy to a USB drive, outside the chroot, do something like:"
-  echo "   sudo dd if=${FLAGS_to} of=/dev/sdX bs=4M"
+  echo "Done.  To copy to a USB drive, do something like:"
+  echo "   sudo dd if=${FLAGS_to} of=/dev/sdX bs=4M oflag=sync"
   echo "where /dev/sdX is the entire drive."
-  if [ ${INSIDE_CHROOT} -eq 1 ]
-  then
-    example=$(basename "${FLAGS_to}")
-    echo "NOTE: Since you are currently inside the chroot, and you'll need to"
-    echo "run dd outside the chroot, the path to the USB image will be"
-    echo "different (ex: ~/chromeos/trunk/src/build/images/SOME_DIR/$example)."
-  fi
 fi
