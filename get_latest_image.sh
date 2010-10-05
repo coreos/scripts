@@ -21,8 +21,7 @@ eval set -- "${FLAGS_ARGV}"
 
 # Check on the board that they are trying to set up.
 if [ -z "$FLAGS_board" ] ; then
-  echo "Error: --board required."
-  exit 1
+  die "Error: --board required."
 fi
 
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"

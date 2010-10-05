@@ -11,17 +11,7 @@ import optparse
 import os
 import xml.etree.ElementTree as ElementTree
 
-from cros_build_lib import Die
-
-
-def _FindRepoDir():
-  cwd = os.getcwd()
-  while cwd != '/':
-    repo_dir = os.path.join(cwd, '.repo')
-    if os.path.isdir(repo_dir):
-      return repo_dir
-    cwd = os.path.dirname(cwd)
-  return None
+from cros_build_lib import Die, FindRepoDir
 
 
 def _ReadManifest(manifest, err_not_found=False):
@@ -96,7 +86,7 @@ class LocalManifest:
 
 
 def main(argv):
-  repo_dir = _FindRepoDir()
+  repo_dir = FindRepoDir()
   if not repo_dir:
     Die("Unable to find repo dir.")
 

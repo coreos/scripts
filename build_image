@@ -751,7 +751,7 @@ fi
 
 print_time_elapsed
 
-echo "To copy to USB keyfob, OUTSIDE the chroot, do something like:"
+echo "To copy to USB keyfob, do something like:"
 echo "  ./image_to_usb.sh --from=${OUTSIDE_OUTPUT_DIR} --to=/dev/sdX"
 echo "To convert to VMWare image, INSIDE the chroot, do something like:"
 echo "  ./image_to_vm.sh --from=${OUTSIDE_OUTPUT_DIR} --board=${BOARD}"

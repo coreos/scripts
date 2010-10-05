@@ -10,7 +10,7 @@ import sys
 import unittest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../lib'))
-from cros_build_lib import RunCommand, Info, Warning
+from cros_build_lib import RunCommand, Info, Warning, ReinterpretPathForChroot
 
 _KVM_PID_FILE = '/tmp/harness_pid'
 _SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), '..')
@@ -18,6 +18,7 @@ _FULL_VDISK_SIZE = 6072
 _FULL_STATEFULFS_SIZE = 2048
 
 global base_image_path
+global board
 global target_image_path
 
 _VERIFY_SUITE = 'suite_Smoke'
@@ -106,9 +107,11 @@ class VirtualAUTest(unittest.TestCase, AUTest):
       Info('Qemu image not found, creating one.')
       RunCommand(['%s/image_to_vm.sh' % _SCRIPTS_DIR,
                   '--full',
-                  '--from %s' % os.path.dirname(base_image_path),
+                  '--from %s' % ReinterpretPathForChroot(
+                      os.path.dirname(base_image_path)),
                   '--vdisk_size %s' % _FULL_VDISK_SIZE,
                   '--statefulfs_size %s' % _FULL_STATEFULFS_SIZE,
+                  '--board %s' % board,
                   '--test_image'], enter_chroot=True)
     else:
       Info('Using existing VM image')
@@ -153,6 +156,8 @@ if __name__ == '__main__':
                     help='path to the base image.')
   parser.add_option('-t', '--target_image',
                     help='path to the target image')
+  parser.add_option('-r', '--board',
+                    help='board for the images')
   # Set the usage to include flags.
   parser.set_usage(parser.format_help())
   # Parse existing sys.argv so we can pass rest to unittest.main.
@@ -160,11 +165,15 @@ if __name__ == '__main__':
 
   base_image_path = options.base_image
   target_image_path = options.target_image
+  board = options.board
 
   if not base_image_path:
     parser.error('Need path to base image for vm.')
 
   if not target_image_path:
     parser.error('Need path to target image to update with.')
+
+  if not board:
+    parser.error('Need board to convert base image to vm.')
 
   unittest.main()
