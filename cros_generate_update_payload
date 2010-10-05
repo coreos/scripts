@@ -57,7 +57,7 @@ extract_partition_to_temp_file() {
   local filename="$1"
   local partition="$2"
   local temp_file=$(mktemp /tmp/generate_update_payload.XXXXXX)
-  
+
   local offset=$(partoffset "${filename}" ${partition})  # 512-byte sectors
   local length=$(partsize "${filename}" ${partition})  # 512-byte sectors
   local bs=512
@@ -99,6 +99,7 @@ DEFINE_boolean old_style "$FLAGS_TRUE" "Generate an old-style .gz full update."
 DEFINE_string output "" "Output file"
 DEFINE_boolean patch_kernel "$FLAGS_FALSE" "Whether or not to patch the kernel \
 with the patch from the stateful partition (default: false)"
+DEFINE_string private_key "" "Path to private key in .pem format."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -128,7 +129,7 @@ fi
 
 if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
   echo "Generating a delta update"
-  
+
   # Sanity check that the real generator exists:
   GENERATOR="$(dirname "$0")/../platform/update_engine/delta_generator"
   [ -x "$GENERATOR" ] || die "$GENERATOR doesn't exist, or isn't executable"
@@ -144,42 +145,42 @@ if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
   md5sum "$SRC_KERNEL"
   echo md5sum of src root:
   md5sum "$SRC_ROOT"
-  
+
   DST_KERNEL=$(extract_partition_to_temp_file "$FLAGS_image" 2)
   if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
     patch_kernel "$FLAGS_image" "$DST_KERNEL"
   fi
   DST_ROOT=$(extract_partition_to_temp_file "$FLAGS_image" 3)
-  
+
   SRC_MNT=$(mktemp -d /tmp/src_root.XXXXXX)
   sudo mount -o loop,ro "$SRC_ROOT" "$SRC_MNT"
 
   DST_MNT=$(mktemp -d /tmp/src_root.XXXXXX)
   sudo mount -o loop,ro "$DST_ROOT" "$DST_MNT"
-  
+
   sudo "$GENERATOR" \
       -new_dir "$DST_MNT" -new_image "$DST_ROOT" -new_kernel "$DST_KERNEL" \
       -old_dir "$SRC_MNT" -old_image "$SRC_ROOT" -old_kernel "$SRC_KERNEL" \
-      -out_file "$FLAGS_output"
-  
+      -out_file "$FLAGS_output" -private_key "$FLAGS_private_key"
+
   trap - INT TERM EXIT
   cleanup noexit
   echo "Done generating delta."
 else
   echo "Generating full update"
-  
+
   trap cleanup INT TERM EXIT
   DST_KERNEL=$(extract_partition_to_temp_file "$FLAGS_image" 2)
   if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
     patch_kernel "$FLAGS_image" "$DST_KERNEL"
   fi
   DST_ROOT=$(extract_partition_to_temp_file "$FLAGS_image" 3)
-  
+
   GENERATOR="$(dirname "$0")/mk_memento_images.sh"
 
   CROS_GENERATE_UPDATE_PAYLOAD_CALLED=1 "$GENERATOR" "$DST_KERNEL" "$DST_ROOT"
   mv "$(dirname "$DST_KERNEL")/update.gz" "$FLAGS_output"
-  
+
   trap - INT TERM EXIT
   cleanup noexit
   echo "Done generating full update."
