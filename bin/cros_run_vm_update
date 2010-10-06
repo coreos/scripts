@@ -9,7 +9,7 @@
 . "$(dirname $0)/../common.sh"
 . "$(dirname $0)/../lib/cros_vm_lib.sh"
 
-DEFINE_string stateful_flags "" "Flags to pass to stateful update." s
+DEFINE_string stateful_update_flag "" "Flags to pass to stateful update." s
 DEFINE_string update_image_path "" "Path of the image to update to." u
 DEFINE_string vm_image_path "" "Path of the VM image to update from." v
 
@@ -30,7 +30,7 @@ start_kvm "${FLAGS_vm_image_path}"
 $(dirname $0)/../image_to_live.sh \
   --remote=${HOSTNAME} \
   --ssh_port=${FLAGS_ssh_port} \
-  --stateful_update_flag=${stateful_flags} \
+  --stateful_update_flag=${FLAGS_stateful_update_flag} \
   --verify \
   --image=$(readlink -f ${FLAGS_update_image_path})
 
