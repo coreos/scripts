@@ -227,7 +227,21 @@ function main() {
     fi
     echo ""
     echo_color "yellow" ">>> Running ${type} test " ${control_file}
+    local control_file_name=$(basename "${control_file}")
     local short_name=$(basename $(dirname "${control_file}"))
+
+    # testName/control --> testName
+    # testName/control.bvt --> testName.bvt
+    # testName/control.regression --> testName.regression
+    # testName/some_control --> testName.some_control
+    if [[ "${control_file_name}" != control ]]; then
+      if [[ "${control_file_name}" == control.* ]]; then
+        short_name=${short_name}.${control_file_name/control./}
+      else
+        short_name=${short_name}.${control_file_name}
+      fi
+    fi
+
     local results_dir_name="${short_name}"
     local results_dir="${TMP_INSIDE_CHROOT}/${results_dir_name}"
     rm -rf "${results_dir}"
