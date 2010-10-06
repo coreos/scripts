@@ -300,7 +300,7 @@ def _RunSmokeSuite(buildroot):
               '--no_graphics',
               '--test_case',
               'suite_Smoke',
-              ], cwd=cwd, error_ok=True)
+              ], cwd=cwd, error_ok=False)
 
 
 def _UprevPackages(buildroot, revisionfile, board):
