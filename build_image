@@ -69,13 +69,13 @@ DEFINE_string usb_disk /dev/sdb3 \
 
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
-DEFINE_integer verity_error_behavior 2 \
-  "Kernel verified boot error behavior (0: I/O errors, 1: reboot, 2: nothing) \
-Default: 2"
+DEFINE_integer verity_error_behavior 1 \
+  "Kernel verified boot error behavior (0: I/O errors, 1: panic, 2: nothing) \
+Default: 1"
 DEFINE_integer verity_depth 1 \
   "Kernel verified boot hash tree depth. Default: 1"
-DEFINE_integer verity_max_ios 1024 \
-  "Number of outstanding I/O operations dm-verity caps at. Default: 1024"
+DEFINE_integer verity_max_ios -1 \
+  "Number of outstanding I/O operations dm-verity caps at. Default: -1"
 DEFINE_string verity_algorithm "sha1" \
   "Cryptographic hash algorithm used for kernel vboot. Default : sha1"
 
