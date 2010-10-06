@@ -100,6 +100,9 @@ DEFINE_string espfs_mountpoint "/tmp/espfs" \
 DEFINE_boolean use_dev_keys ${FLAGS_FALSE} \
   "Use developer keys for signing. (Default: false)"
 
+# TODO(sosa):  Remove once known images no longer use this in their config.
+DEFINE_string arm_extra_bootargs "" "DEPRECATED FLAG.  Do not use."
+
 # Parse the boot.desc and any overrides
 eval set -- "${BOOT_DESC} ${FLAG_OVERRIDES}"
 FLAGS "${@}" || exit 1
