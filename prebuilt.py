@@ -35,6 +35,7 @@ VER_FILE = 'src/third_party/chromiumos-overlay/chromeos/config/stable_versions'
 # as per http://crosbug.com/5855 always filter the below packages
 _FILTER_PACKAGES = set()
 _RETRIES = 3
+_GSUTIL_BIN = '/b/third_party/gsutil/gsutil'
 _HOST_PACKAGES_PATH = 'chroot/var/lib/portage/pkgs'
 _HOST_TARGET = 'amd64'
 _BOARD_PATH = 'chroot/build/%(board)s'
@@ -51,6 +52,12 @@ _PRIVATE_OVERLAY_DIR = 'src/private-overlays'
 class FiltersEmpty(Exception):
   """Raised when filters are used but none are found."""
   pass
+
+
+class UploadFailed(Exception):
+  """Raised when one of the files uploaded failed."""
+  pass
+
 
 def UpdateLocalFile(filename, key, value):
   """Update the key in file with the value passed.
@@ -170,12 +177,15 @@ def _GsUpload(args):
 
   Args:
     args: a tuple of two arguments that contains local_file and remote_file.
+
+  Returns:
+    Return the arg tuple of two if the upload failed
   """
   (local_file, remote_file) = args
   if ShouldFilterPackage(local_file):
     return
 
-  cmd = 'gsutil cp -a public-read %s %s' % (local_file, remote_file)
+  cmd = '%s cp -a public-read %s %s' % (_GSUTIL_BIN, local_file, remote_file)
   # TODO(scottz): port to use _Run or similar when it is available in
   # cros_build_lib.
   for attempt in range(_RETRIES):
@@ -189,6 +199,7 @@ def _GsUpload(args):
     # with it but for now just print an error.
     print 'Retry failed uploading %s -> %s, giving up' % (local_file,
                                                           remote_file)
+    return args
 
 
 def RemoteUpload(files, pool=10):
@@ -199,6 +210,9 @@ def RemoteUpload(files, pool=10):
   Args:
     files: dictionary with keys to local files and values to remote path.
     pool: integer of maximum proesses to have at the same time.
+
+  Returns:
+    Return a list of tuple arguments of the failed uploads
   """
   # TODO(scottz) port this to use _RunManyParallel when it is available in
   # cros_build_lib
@@ -210,8 +224,7 @@ def RemoteUpload(files, pool=10):
   result = pool.map_async(_GsUpload, workers, chunksize=1)
   while True:
     try:
-      result.get(60*60)
-      break
+      return result.get(60*60)
     except multiprocessing.TimeoutError:
       pass
 
@@ -269,7 +282,9 @@ def UploadPrebuilt(build_path, bucket, board=None, git_file=None):
   upload_files = GenerateUploadDict(package_path, gs_path, strip_pattern)
 
   print 'Uploading %s' % package_string
-  RemoteUpload(upload_files)
+  failed_uploads = RemoteUpload(upload_files)
+  if failed_uploads:
+    raise UploadFailed('Error uploading:\n%s' % '\n'.join(failed_uploads))
 
   if git_file:
     RevGitFile(git_file, package_string, version)

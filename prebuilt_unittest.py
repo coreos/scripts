@@ -161,6 +161,11 @@ class TestPrebuilt(unittest.TestCase):
     result = prebuilt.GenerateUploadDict(' ', gs_bucket_path, self.fake_path)
     self.assertEqual(result, self._generate_dict_results(gs_bucket_path))
 
+  def testFailonUploadFail(self):
+    """Make sure we fail if one of the upload processes fail."""
+    files = {'test': '/uasd'}
+    self.assertEqual(prebuilt.RemoteUpload(files), [('test', '/uasd')])
+
 
 if __name__ == '__main__':
   unittest.main()
