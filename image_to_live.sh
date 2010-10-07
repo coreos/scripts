@@ -100,6 +100,13 @@ function start_dev_server {
     devserver_flags="${devserver_flags} \
         --archive_dir $(reinterpret_path_for_chroot ${FLAGS_archive_dir}) -t"
     IMAGE_PATH="${FLAGS_archive_dir}/chromiumos_test_image.bin"
+  else
+    # IMAGE_PATH should be the newest image and learn the board from
+    # the target.
+    FLAGS_board=""
+    learn_board
+    IMAGE_PATH="$($(dirname "$0")/get_latest_image.sh --board="${FLAGS_board}")"
+    IMAGE_PATH="${IMAGE_PATH}/chromiumos_image.bin"
   fi
 
   info "Starting devserver with flags ${devserver_flags}"
