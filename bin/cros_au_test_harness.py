@@ -124,7 +124,7 @@ class RealAUTest(unittest.TestCase, AUTest):
         ], enter_chroot=False)
 
 
-  def NotVerifyImage(self):
+  def VerifyImage(self):
     """Verifies an image using run_remote_tests.sh with verification suite."""
     RunCommand([
         '%s/run_remote_tests.sh' % self.crosutils,
@@ -229,10 +229,12 @@ if __name__ == '__main__':
   if not board:
     parser.error('Need board to convert base image to vm.')
 
+  return_code = 0
+
   # Only run the test harness we care about.
   if options.type == 'vm':
     suite = unittest.TestLoader().loadTestsFromTestCase(VirtualAUTest)
-    unittest.TextTestRunner(verbosity=2).run(suite)
+    return_code = unittest.TextTestRunner(verbosity=2).run(suite)
   elif options.type == 'real':
     if not options.remote:
       parser.error('Real tests require a remote test machine.')
@@ -240,6 +242,8 @@ if __name__ == '__main__':
       remote = options.remote
 
     suite = unittest.TestLoader().loadTestsFromTestCase(RealAUTest)
-    unittest.TextTestRunner(verbosity=2).run(suite)
+    return_code = unittest.TextTestRunner(verbosity=2).run(suite)
   else:
     parser.error('Could not parse harness type %s.' % options.type)
+
+  sys.exit(return_code)
