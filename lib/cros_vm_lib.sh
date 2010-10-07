@@ -12,6 +12,7 @@ DEFINE_boolean snapshot ${FLAGS_FALSE} "Don't commit changes to image."
 DEFINE_integer ssh_port 9222 "Port to tunnel ssh traffic over."
 
 KVM_PID_FILE=/tmp/kvm.$$.pid
+LIVE_VM_IMAGE=
 
 function get_pid() {
   sudo cat "${KVM_PID_FILE}"
@@ -55,7 +56,33 @@ function start_kvm() {
       ${snapshot} \
       -net user,hostfwd=tcp::${FLAGS_ssh_port}-:22 \
       -hda "${1}"
+
+    LIVE_VM_IMAGE="${1}"
   fi
+}
+
+# Checks to see if we can access the target virtual machine with ssh.
+function ssh_ping() {
+  "$(dirname $0)"/../ssh_test.sh \
+    --ssh_port=${FLAGS_ssh_port} \
+    --remote=127.0.0.1
+}
+
+# Tries to ssh into live image $1 times.  After first failure, a try involves
+# shutting down and restarting kvm.
+function retry_until_ssh() {
+  local can_ssh_into=1
+  local retries=0
+  ssh_ping && can_ssh_into=0
+
+  while [ ${can_ssh_into} -eq 1 ] && [ ${retries} -lt ${1} ]; do
+    echo "Failed to connect to virtual machine, retrying ... " >&2
+    stop_kvm || echo "Could not stop kvm.  Retrying anyway." >&2
+    start_kvm "${LIVE_VM_IMAGE}"
+    ssh_ping && can_ssh_into=0
+    retries=$((retries + 1))
+  done
+  return ${can_ssh_into}
 }
 
 function stop_kvm() {
@@ -63,10 +90,15 @@ function stop_kvm() {
     echo "Persist requested.  Use --ssh_port ${FLAGS_ssh_port} " \
       "--kvm_pid ${KVM_PID_FILE} to re-connect to it."
   else
-    echo "Stopping the KVM instance"
+    echo "Stopping the KVM instance" >&2
     local pid=$(get_pid)
-    echo "Killing ${pid}"
-    sudo kill ${pid}
-    sudo rm "${KVM_PID_FILE}"
+    if [ -n "${pid}" ]; then
+      echo "Killing ${pid}"
+      sudo kill ${pid}
+      sudo rm "${KVM_PID_FILE}"
+    else
+      echo "No kvm pid found to stop." >&2
+      return 1
+    fi
   fi
 }
