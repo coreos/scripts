@@ -28,8 +28,9 @@ if [ $# -lt 2 ]; then
   exit 1
 fi
 
-BOOT_DESC_FILE="${1}/boot.desc"
-IMAGE="${1}/${2}"
+IMAGE_DIR="$(readlink -f "${1}")"
+BOOT_DESC_FILE="${IMAGE_DIR}/boot.desc"
+IMAGE="${IMAGE_DIR}/${2}"
 shift
 shift
 FLAG_OVERRIDES="${@}"
@@ -98,6 +99,9 @@ DEFINE_string espfs_mountpoint "/tmp/espfs" \
 
 DEFINE_boolean use_dev_keys ${FLAGS_FALSE} \
   "Use developer keys for signing. (Default: false)"
+
+# TODO(sosa):  Remove once known images no longer use this in their config.
+DEFINE_string arm_extra_bootargs "" "DEPRECATED FLAG.  Do not use."
 
 # Parse the boot.desc and any overrides
 eval set -- "${BOOT_DESC} ${FLAG_OVERRIDES}"
@@ -232,6 +236,16 @@ make_image_bootable() {
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${FLAGS_rootfs_mountpoint}" \
     -s "${FLAGS_statefulfs_mountpoint}"
 }
+
+# Use default of current image location if the output dir doesn't exist.
+if [ ! -d ${FLAGS_output_dir} ]; then
+  warn "Output dir not found, using ${IMAGE_DIR}."
+  FLAGS_output_dir="${IMAGE_DIR}"
+  FLAGS_rootfs_hash="${IMAGE_DIR}/rootfs.hash"
+  FLAGS_rootfs_mountpoint="${IMAGE_DIR}/rootfs_dir"
+  FLAGS_statefulfs_mountpoint="${IMAGE_DIR}/stateful_dir"
+  FLAGS_espfs_mountpoint="${IMAGE_DIR}/esp"
+fi
 
 # Create the directories if they don't exist.
 mkdir -p ${FLAGS_rootfs_mountpoint}

@@ -56,8 +56,12 @@ cleanup() {
 extract_partition_to_temp_file() {
   local filename="$1"
   local partition="$2"
-  local temp_file=$(mktemp /tmp/generate_update_payload.XXXXXX)
-
+  local temp_file="$3"
+  if [ -z "$temp_file" ]; then
+    temp_file=$(mktemp /tmp/cros_generate_update_payload.XXXXXX)
+    echo "$temp_file"
+  fi
+  
   local offset=$(partoffset "${filename}" ${partition})  # 512-byte sectors
   local length=$(partsize "${filename}" ${partition})  # 512-byte sectors
   local bs=512
@@ -71,7 +75,6 @@ extract_partition_to_temp_file() {
     warn "partition offset or length not at 2MiB boundary"
   fi
   dd if="$filename" of="$temp_file" bs=$bs count="$length" skip="$offset"
-  echo "$temp_file"
 }
 
 patch_kernel() {
@@ -92,6 +95,25 @@ patch_kernel() {
   STATE_LOOP_DEV=""
 }
 
+extract_kern_root() {
+  local bin_file="$1"
+  local kern_out="$2"
+  local root_out="$3"
+  
+  if [ -z "$kern_out" ]; then
+    die "missing kernel output filename"
+  fi
+  if [ -z "$root_out" ]; then
+    die "missing root output filename"
+  fi
+  
+  extract_partition_to_temp_file "$bin_file" 2 "$kern_out"
+  if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
+    patch_kernel "$bin_file" "$kern_out"
+  fi
+  extract_partition_to_temp_file "$bin_file" 3 "$root_out"
+}
+
 DEFINE_string image "" "The image that should be sent to clients."
 DEFINE_string src_image "" "Optional: a source image. If specified, this makes\
  a delta update."
@@ -100,6 +122,8 @@ DEFINE_string output "" "Output file"
 DEFINE_boolean patch_kernel "$FLAGS_FALSE" "Whether or not to patch the kernel \
 with the patch from the stateful partition (default: false)"
 DEFINE_string private_key "" "Path to private key in .pem format."
+DEFINE_boolean extract "$FLAGS_FALSE" "If set, extract old/new kernel/rootfs \
+to [old|new]_[kern|root].dat. Useful for debugging (default: false)"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -113,6 +137,17 @@ if [ -n "$FLAGS_src_image" ]; then
 fi
 
 locate_gpt
+
+if [ "$FLAGS_extract" -eq "$FLAGS_TRUE" ]; then
+  if [ -n "$FLAGS_src_image" ]; then
+    extract_kern_root "$FLAGS_src_image" old_kern.dat old_root.dat
+  fi
+  if [ -n "$FLAGS_image" ]; then
+    extract_kern_root "$FLAGS_image" new_kern.dat new_root.dat
+  fi
+  echo Done extracting kernel/root
+  exit 0
+fi
 
 DELTA=$FLAGS_TRUE
 [ -n "$FLAGS_output" ] || die \
