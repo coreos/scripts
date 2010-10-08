@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Create a marker file indicating that we are in mod_for_test
+echo "Setting /home to be mounted exec"
+sed -i -e 's/#mod_for_test#//g' ${ROOT_FS_DIR}/sbin/chromeos_startup
