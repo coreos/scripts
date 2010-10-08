@@ -158,11 +158,11 @@ if [ -z "$FLAGS_src_image" ]; then
   if [ "$FLAGS_old_style" = "$FLAGS_TRUE" ]; then
     echo "Generating an old-style full update"
   else
-    die "Generating a new-style full update not yet supported"
+    echo "Generating a new-style full update"
   fi
 fi
 
-if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
+if [ "$DELTA" -eq "$FLAGS_TRUE" -o "$FLAGS_old_style" -eq "$FLAGS_FALSE" ]; then
   echo "Generating a delta update"
 
   # Sanity check that the real generator exists:
@@ -170,16 +170,18 @@ if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
   [ -x "$GENERATOR" ] || die "$GENERATOR doesn't exist, or isn't executable"
 
   trap cleanup INT TERM EXIT
-  SRC_KERNEL=$(extract_partition_to_temp_file "$FLAGS_src_image" 2)
-  if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
-    patch_kernel "$FLAGS_src_image" "$SRC_KERNEL"
-  fi
-  SRC_ROOT=$(extract_partition_to_temp_file "$FLAGS_src_image" 3)
+  if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
+    SRC_KERNEL=$(extract_partition_to_temp_file "$FLAGS_src_image" 2)
+    if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
+      patch_kernel "$FLAGS_src_image" "$SRC_KERNEL"
+    fi
+    SRC_ROOT=$(extract_partition_to_temp_file "$FLAGS_src_image" 3)
 
-  echo md5sum of src kernel:
-  md5sum "$SRC_KERNEL"
-  echo md5sum of src root:
-  md5sum "$SRC_ROOT"
+    echo md5sum of src kernel:
+    md5sum "$SRC_KERNEL"
+    echo md5sum of src root:
+    md5sum "$SRC_ROOT"
+  fi
 
   DST_KERNEL=$(extract_partition_to_temp_file "$FLAGS_image" 2)
   if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
@@ -187,20 +189,31 @@ if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
   fi
   DST_ROOT=$(extract_partition_to_temp_file "$FLAGS_image" 3)
 
-  SRC_MNT=$(mktemp -d /tmp/src_root.XXXXXX)
-  sudo mount -o loop,ro "$SRC_ROOT" "$SRC_MNT"
+  if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
+    SRC_MNT=$(mktemp -d /tmp/src_root.XXXXXX)
+    sudo mount -o loop,ro "$SRC_ROOT" "$SRC_MNT"
 
-  DST_MNT=$(mktemp -d /tmp/src_root.XXXXXX)
-  sudo mount -o loop,ro "$DST_ROOT" "$DST_MNT"
+    DST_MNT=$(mktemp -d /tmp/src_root.XXXXXX)
+    sudo mount -o loop,ro "$DST_ROOT" "$DST_MNT"
 
-  sudo "$GENERATOR" \
-      -new_dir "$DST_MNT" -new_image "$DST_ROOT" -new_kernel "$DST_KERNEL" \
-      -old_dir "$SRC_MNT" -old_image "$SRC_ROOT" -old_kernel "$SRC_KERNEL" \
-      -out_file "$FLAGS_output" -private_key "$FLAGS_private_key"
+    sudo "$GENERATOR" \
+        -new_dir "$DST_MNT" -new_image "$DST_ROOT" -new_kernel "$DST_KERNEL" \
+        -old_dir "$SRC_MNT" -old_image "$SRC_ROOT" -old_kernel "$SRC_KERNEL" \
+        -out_file "$FLAGS_output" -private_key "$FLAGS_private_key"
+  else
+    "$GENERATOR" \
+        -new_image "$DST_ROOT" -new_kernel "$DST_KERNEL" \
+        -out_file "$FLAGS_output" -private_key "$FLAGS_private_key"
+  fi
 
   trap - INT TERM EXIT
   cleanup noexit
-  echo "Done generating delta."
+  
+  if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
+    echo "Done generating delta."
+  else
+    echo "Done generating new style full update."
+  fi
 else
   echo "Generating full update"
 
