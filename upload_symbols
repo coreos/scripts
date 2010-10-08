@@ -32,10 +32,10 @@ SYM_UPLOAD="sym_upload"
 
 ANY_ERRORS=0
 
-ERR_FILE=$(mktemp "/tmp/err.XXXX")
+OUT_DIR=$(mktemp -d "/tmp/err.XXXX")
 
 function cleanup() {
-  rm -f "${ERR_FILE}"
+  rm -rf "${OUT_DIR}"
 }
 
 function really_upload() {
@@ -63,10 +63,11 @@ function upload_file() {
   if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
     info "Uploading ${upload_file}"
   fi
-  if ! "${SYM_UPLOAD}" "${upload_file}" "${upload_url}" > /dev/null \
-      2> "${ERR_FILE}"; then
+  "${SYM_UPLOAD}" "${upload_file}" "${upload_url}" > "${OUT_DIR}/stdout" \
+    2> "${OUT_DIR}/stderr"
+  if ! grep -q "Successfully sent the symbol file." "${OUT_DIR}/stdout"; then
     error "Unable to upload symbols in ${upload_file}:"
-    cat "${ERR_FILE}"
+    cat "${OUT_DIR}/stderr"
     ANY_ERRORS=1
     return 1
   fi
