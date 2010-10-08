@@ -127,7 +127,8 @@ def GrabZipAndExtractImage(zip_url, download_folder, image_name) :
     fh.close()
 
 
-def RunAUTestHarness(board, channel, latest_url_base, zip_server_base):
+def RunAUTestHarness(board, channel, latest_url_base, zip_server_base,
+                     no_graphics, type, remote):
   """Runs the auto update test harness.
 
   The auto update test harness encapsulates testing the auto-update mechanism
@@ -140,22 +141,33 @@ def RunAUTestHarness(board, channel, latest_url_base, zip_server_base):
     channel: the channel to run the au test harness against.
     latest_url_base: base url for getting latest links.
     zip_server_base:  base url for zipped images.
+    no_graphics: boolean - If True, disable graphics during vm test.
+    type: which test harness to run.  Possible values: real, vm.
+    remote: ip address for real test harness run.
   """
   crosutils_root = os.path.join(os.path.dirname(__file__), '..')
   download_folder = os.path.abspath('latest_download')
   zip_url = GetLatestZipUrl(board, channel, latest_url_base, zip_server_base)
   GrabZipAndExtractImage(zip_url, download_folder, _IMAGE_TO_EXTRACT)
 
+  no_graphics_flag = ''
+  if no_graphics: no_graphics_flag = '--no_graphics'
+
   # Tests go here.
   latest_image = RunCommand(['./get_latest_image.sh', '--board=%s' % board],
                             cwd=crosutils_root, redirect_stdout=True,
-                            print_cmd=True)
+                            print_cmd=True).strip()
 
   RunCommand(['bin/cros_au_test_harness',
               '--base_image=%s' % os.path.join(download_folder,
                                                  _IMAGE_TO_EXTRACT),
-              '--target_image=%s' % latest_image,
-              '--board=%s' % board], cwd=crosutils_root)
+              '--target_image=%s' % os.path.join(latest_image,
+                                                 _IMAGE_TO_EXTRACT),
+              no_graphics_flag,
+              '--board=%s' % board,
+              '--type=%s' % type,
+              '--remote=%s' % remote,
+             ], cwd=crosutils_root)
 
 
 def main():
@@ -168,6 +180,13 @@ def main():
                     help='Base url for latest links.')
   parser.add_option('-z', '--zipbase',
                     help='Base url for hosted images.')
+  parser.add_option('--no_graphics', action='store_true', default=False,
+                    help='Disable graphics for the vm test.')
+  parser.add_option('--type', default='vm',
+                    help='type of test to run: [vm, real]. Default: vm.')
+  parser.add_option('--remote', default='0.0.0.0',
+                    help='For real tests, ip address of the target machine.')
+
   # Set the usage to include flags.
   parser.set_usage(parser.format_help())
   (options, args) = parser.parse_args()
@@ -188,7 +207,8 @@ def main():
     parser.error('Need zip url base to get images.')
 
   RunAUTestHarness(options.board, options.channel, options.latestbase,
-                   options.zipbase)
+                   options.zipbase, options.no_graphics, options.type,
+                   options.remote)
 
 
 if __name__ == '__main__':

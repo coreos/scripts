@@ -275,12 +275,14 @@ function main() {
     ${enter_chroot} ${autotest} --board "${FLAGS_board}" -m "${FLAGS_remote}" \
       --ssh-port ${FLAGS_ssh_port} \
       "${option}" "${control_file}" -r "${results_dir}" ${verbose} \
-      "${passthrough_args}"
+      "${passthrough_args}" >&2
   done
 
   echo ""
   echo_color "yellow" ">>> Test results:"
   ./generate_test_report "${TMP}" --strip="${TMP}/"
+
+  print_time_elapsed
 }
 
 main "$@"

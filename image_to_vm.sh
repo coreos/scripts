@@ -163,7 +163,7 @@ else
         seek=$((STATEFUL_SIZE_BYTES - 1))
     # Resize the partition.
     sudo losetup "${STATEFUL_LOOP_DEV}" "${TEMP_STATE}"
-    sudo e2fsck -f "${STATEFUL_LOOP_DEV}"
+    sudo e2fsck -pf "${STATEFUL_LOOP_DEV}"
     sudo resize2fs "${STATEFUL_LOOP_DEV}"
     sudo losetup -d "${STATEFUL_LOOP_DEV}"
   fi

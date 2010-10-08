@@ -358,6 +358,8 @@ function main() {
     info "Update was successful and rebooted to $release_description"
   fi
 
+  print_time_elapsed
+
   exit 0
 }
 
