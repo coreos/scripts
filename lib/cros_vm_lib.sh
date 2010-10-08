@@ -28,15 +28,15 @@ function start_kvm() {
     local pid=$(get_pid)
     # Check if the process exists.
     if ps -p ${pid} > /dev/null ; then
-      echo "Using a pre-created KVM instance specified by ${FLAGS_kvm_pid}."
+      echo "Using a pre-created KVM instance specified by ${FLAGS_kvm_pid}." >&2
     else
       # Let's be safe in case they specified a file that isn't a pid file.
-      echo "File ${KVM_PID_FILE} exists but specified pid doesn't."
+      echo "File ${KVM_PID_FILE} exists but specified pid doesn't." >&2
       exit 1
     fi
   else
     # No pid specified by PID file.  Let's create a VM instance in this case.
-    echo "Starting a KVM instance"
+    echo "Starting a KVM instance" >&2
     local nographics=""
     local usesnapshot=""
     if [ ${FLAGS_no_graphics} -eq ${FLAGS_TRUE} ]; then
@@ -65,7 +65,7 @@ function start_kvm() {
 function ssh_ping() {
   "$(dirname $0)"/../ssh_test.sh \
     --ssh_port=${FLAGS_ssh_port} \
-    --remote=127.0.0.1
+    --remote=127.0.0.1 >&2
 }
 
 # Tries to ssh into live image $1 times.  After first failure, a try involves
@@ -88,12 +88,12 @@ function retry_until_ssh() {
 function stop_kvm() {
   if [ "${FLAGS_persist}" -eq "${FLAGS_TRUE}" ]; then
     echo "Persist requested.  Use --ssh_port ${FLAGS_ssh_port} " \
-      "--kvm_pid ${KVM_PID_FILE} to re-connect to it."
+      "--kvm_pid ${KVM_PID_FILE} to re-connect to it." >&2
   else
     echo "Stopping the KVM instance" >&2
     local pid=$(get_pid)
     if [ -n "${pid}" ]; then
-      echo "Killing ${pid}"
+      echo "Killing ${pid}" >&2
       sudo kill ${pid}
       sudo rm "${KVM_PID_FILE}"
     else

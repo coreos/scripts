@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Simple wrapper scipt to start a vm using the vm lib.
+
+. "$(dirname $0)/../common.sh"
+. "$(dirname $0)/../lib/cros_vm_lib.sh"
+. "$(dirname "$0")/../lib/cros_vm_constants.sh"
+
+DEFINE_string image_path "" "Full path of the VM image"
+
+set -e
+
+# Parse command line.
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Use latest if not specified.
+if [ -z "${FLAGS_image_path}" ]; then
+  LATEST_IMAGE="$(${SCRIPTS_DIR}/get_latest_image.sh)/${DEFAULT_QEMU_IMAGE}"
+  info "Using latest vm image ${LATEST_IMAGE}"
+  FLAGS_image_path=${LATEST_IMAGE}
+fi
+
+[ -e "${FLAGS_image_path}" ] || die "Image ${FLAGS_image_path} does not exist."
+
+start_kvm "${FLAGS_image_path}"
+
+echo "ssh root@${HOSTNAME} -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no"
