@@ -237,7 +237,10 @@ then
   if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
     echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
     if type pv >/dev/null 2>&1; then
-      sudo pv -ptre "${SRC_IMAGE}" | sudo dd of="${FLAGS_to}" bs=4M oflag=sync
+      # pv displays file size in k=1024 while dd uses k=1000.
+      # To prevent confusion, we suppress the summary report from dd.
+      sudo pv -ptreb -B 4m "${SRC_IMAGE}" |
+        sudo dd of="${FLAGS_to}" bs=4M oflag=sync status=noxfer
     else
       sudo dd if="${SRC_IMAGE}" of="${FLAGS_to}" bs=4M oflag=sync
     fi
