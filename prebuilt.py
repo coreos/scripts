@@ -212,7 +212,7 @@ def RemoteUpload(files, pool=10):
     pool: integer of maximum proesses to have at the same time.
 
   Returns:
-    Return a list of tuple arguments of the failed uploads
+    Return a set of tuple arguments of the failed uploads
   """
   # TODO(scottz) port this to use _RunManyParallel when it is available in
   # cros_build_lib
@@ -224,7 +224,7 @@ def RemoteUpload(files, pool=10):
   result = pool.map_async(_GsUpload, workers, chunksize=1)
   while True:
     try:
-      return result.get(60*60)
+      return set(result.get(60*60))
     except multiprocessing.TimeoutError:
       pass
 
@@ -283,8 +283,9 @@ def UploadPrebuilt(build_path, bucket, board=None, git_file=None):
 
   print 'Uploading %s' % package_string
   failed_uploads = RemoteUpload(upload_files)
-  if failed_uploads:
-    raise UploadFailed('Error uploading:\n%s' % '\n'.join(failed_uploads))
+  if len(failed_uploads) > 1 or (None not in failed_uploads):
+    error_msg = ['%s -> %s\n' % args for args in failed_uploads]
+    raise UploadFailed('Error uploading:\n%s' % error_msg)
 
   if git_file:
     RevGitFile(git_file, package_string, version)
