@@ -63,6 +63,8 @@ DEFINE_boolean preserve ${FLAGS_FALSE} \
 kernel/firmware not updated)"
 DEFINE_boolean fast ${DEFAULT_FAST} \
   "Call many emerges in parallel"
+DEFINE_string boot_args "noinitrd" \
+  "Additional boot arguments to pass to the commandline"
 
 DEFINE_string usb_disk /dev/sdb3 \
   "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
@@ -346,6 +348,7 @@ create_boot_desc() {
   cat <<EOF > ${OUTPUT_DIR}/boot.desc
   --arch="${ARCH}"
   --output_dir="${OUTPUT_DIR}"
+  --boot_args="${FLAGS_boot_args}"
   --rootfs_size="${FLAGS_rootfs_size}"
   --rootfs_hash_pad="${FLAGS_rootfs_hash_pad}"
   --rootfs_hash="${ROOT_FS_HASH}"
@@ -615,6 +618,7 @@ create_base_image() {
   ${SCRIPTS_DIR}/create_legacy_bootloader_templates.sh \
     --arch=${ARCH} \
     --to="${ROOT_FS_DIR}"/boot \
+    --boot_args="${FLAGS_boot_args}" \
     --install \
     ${enable_rootfs_verification}
 

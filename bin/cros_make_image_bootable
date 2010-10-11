@@ -68,6 +68,9 @@ DEFINE_string usb_disk "/dev/sdb3" \
 DEFINE_boolean cleanup_dirs ${FLAGS_TRUE} \
   "Whether the mount dirs should be removed on completion."
 
+DEFINE_string boot_args "noinitrd" \
+  "Additional boot arguments to pass to the commandline"
+
 DEFINE_integer rootfs_size 720 \
   "rootfs filesystem size in MBs."
 # ceil(0.1 * rootfs_size) is a good minimum.
@@ -157,6 +160,7 @@ make_image_bootable() {
     --hd_vblock="${FLAGS_output_dir}/vmlinuz_hd.vblock" \
     --vmlinuz="${FLAGS_rootfs_mountpoint}/boot/vmlinuz" \
     --working_dir="${FLAGS_output_dir}" \
+    --boot_args="${FLAGS_boot_args}" \
     --keep_work \
     --rootfs_image=${root_dev} \
     --rootfs_hash=${FLAGS_rootfs_hash} \

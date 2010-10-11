@@ -37,7 +37,7 @@ set -e
 
 # Common kernel command-line args
 common_args="quiet console=tty2 init=/sbin/init boot=local rootwait ro noresume"
-common_args="${common_args} noswap loglevel=1"
+common_args="${common_args} noswap loglevel=1 ${FLAGS_boot_args}"
 
 # Common verified boot command-line args
 verity_common="dm_verity.error_behavior=${FLAGS_verity_error_behavior}"
