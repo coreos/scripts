@@ -116,9 +116,10 @@ class EBuildTest(mox.MoxTestBase):
 
   def testFindEBuildPath(self):
     self.mox.StubOutWithMock(cros_mark_as_stable, '_SimpleRunCommand')
-    cros_mark_as_stable._SimpleRunCommand(
-        'equery-x86-generic which %s 2> /dev/null' % self.package).AndReturn(
-            self.ebuild_path)
+    cmd = ('ACCEPT_KEYWORDS="x86 arm amd64" '
+           'equery-x86-generic which %s 2> /dev/null')
+    cros_mark_as_stable._SimpleRunCommand(cmd % self.package).AndReturn(
+        self.ebuild_path)
     self.mox.ReplayAll()
     path = cros_mark_as_stable._EBuild._FindEBuildPath(self.package)
     self.mox.VerifyAll()
