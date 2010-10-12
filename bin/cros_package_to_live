@@ -33,8 +33,11 @@ FLAGS "$@" || exit 1
 TMP=$(mktemp -d /tmp/cros_package_to_live.XXXX)
 
 function cleanup {
-    if [ "${mount_type}" = ro ]; then
+    if [ "${root_mount_type}" = ro ]; then
         remote_sh "mount -o remount,ro /" || /bin/true
+    fi
+    if [ "${var_mount_noexec}" = yes ]; then
+        remote_sh "mount -o remount,noexec /var" || /bin/true
     fi
     cleanup_remote_access
     rm -rf "${TMP}"
@@ -65,11 +68,19 @@ fi
 
 PKGROOT="${FLAGS_build_root}/${FLAGS_board}/packages"
 
+# Temporarily clear read-only flag on / if it is set
 remote_sh "grep '\S* / ' /proc/mounts | tail -1 | awk '{ print \$4 }' |
            cut -d, -f1"
-mount_type=$REMOTE_OUT
-if [ "${mount_type}" = ro ]; then
+root_mount_type=${REMOTE_OUT}
+if [ "${root_mount_type}" = ro ]; then
     remote_sh "mount -o remount,rw /"
+fi
+
+# Temporarily clear noexec flag on /var if it is set
+remote_sh "grep '\S* /var ' /proc/mounts | tail -1 | awk '{ print \$4 }'"
+if expr "${REMOTE_OUT}" : '.*noexec' >/dev/null; then
+    var_mount_noexec=yes
+    remote_sh "mount -o remount,exec /var"
 fi
 
 for pkg in $@; do
