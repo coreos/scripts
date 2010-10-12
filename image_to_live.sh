@@ -89,7 +89,7 @@ function reinterpret_path_for_chroot() {
 
 function start_dev_server {
   kill_all_devservers
-  local devserver_flags=${FLAGS_devserver_port}
+  local devserver_flags=
   # Parse devserver flags.
   if [ -n "${FLAGS_image}" ]; then
     devserver_flags="${devserver_flags} \
@@ -111,7 +111,8 @@ function start_dev_server {
 
   info "Starting devserver with flags ${devserver_flags}"
   ./enter_chroot.sh "sudo ./start_devserver ${devserver_flags} \
-       --client_prefix=ChromeOSUpdateEngine > ${FLAGS_server_log} 2>&1" &
+       --client_prefix=ChromeOSUpdateEngine \
+       --port=${FLAGS_devserver_port} > ${FLAGS_server_log} 2>&1" &
 
   echo -n "Waiting on devserver to start"
   until netstat -anp 2>&1 | grep 0.0.0.0:${FLAGS_devserver_port} > /dev/null
