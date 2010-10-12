@@ -6,11 +6,12 @@
 
 """Unit tests for ctest."""
 
-import ctest
 import mox
 import os
 import unittest
 import urllib
+
+import ctest
 
 _TEST_BOOT_DESC = """
   --arch="x86"
@@ -35,6 +36,7 @@ class CrosTestTest(mox.MoxTestBase):
     self.image_url = '%s/%s/%s/%s/%s.zip' % (self.zipbase, self.channel,
                                              self.board, self.version,
                                              self.image_name)
+    self.test_regex = 'ChromeOS-\d+\.\d+\.\d+\.\d+-.*\.zip'
 
   def testModifyBootDesc(self):
     """Tests to make sure we correctly modify a boot desc."""
@@ -74,6 +76,23 @@ class CrosTestTest(mox.MoxTestBase):
     self.assertEquals(ctest.GetLatestZipUrl(self.board, self.channel,
                                             self.latestbase, self.zipbase),
                       self.image_url)
+    self.mox.VerifyAll()
+
+  def testGetLatestZipFromBadUrl(self):
+    """Tests whether GetLatestZipUrl returns correct url given bad link."""
+    self.mox.StubOutWithMock(urllib, 'urlopen')
+    self.mox.StubOutWithMock(ctest, 'GetNewestLinkFromZipBase')
+    m_file = self.mox.CreateMock(file)
+
+    urllib.urlopen('%s/%s/LATEST-%s' % (self.latestbase, self.channel,
+                   self.board)).AndRaise(IOError('Cannot open url.'))
+    ctest.GetNewestLinkFromZipBase(self.board, self.channel,
+                                   self.zipbase).AndReturn(self.image_url)
+
+    self.mox.ReplayAll()
+    self.assertEquals(ctest.GetLatestZipUrl(self.board, self.channel,
+                                            self.latestbase, self.zipbase),
+                                            self.image_url)
     self.mox.VerifyAll()
 
   def testGrabZipAndExtractImageUseCached(self):
@@ -159,6 +178,50 @@ class CrosTestTest(mox.MoxTestBase):
         self.download_folder, ctest._IMAGE_TO_EXTRACT)).AndReturn(False)
 
     self.CommonDownloadAndExtractImage()
+
+  def testGetLatestLinkFromPage(self):
+    """Tests whether we get the latest link from a url given a regex."""
+    test_url = 'test_url'
+    test_html = """
+    <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+    <html>
+    <body>
+    <h1>Test Index</h1>
+    <a href="ZsomeCruft">Cruft</a>
+    <a href="YotherCruft">Cruft</a>
+    <a href="ChromeOS-0.9.12.4-blahblah.zip">testlink1/</a>
+    <a href="ChromeOS-0.9.12.4-blahblah.zip.other/">testlink2/</a>
+    <a href="ChromeOS-Factory-0.9.12.4-blahblah.zip/">testlink3/</a>
+    </body></html>
+    """
+    self.mox.StubOutWithMock(urllib, 'urlopen')
+    m_file = self.mox.CreateMock(file)
+
+    urllib.urlopen(test_url).AndReturn(m_file)
+    m_file.read().AndReturn(test_html)
+    m_file.close()
+
+    self.mox.ReplayAll()
+    latest_link = ctest.GetLatestLinkFromPage(test_url, regex=self.test_regex)
+    self.assertTrue(latest_link == 'ChromeOS-0.9.12.4-blahblah.zip')
+    self.mox.VerifyAll()
+
+
+class HTMLDirectoryParserTest(unittest.TestCase):
+  """Test class for HTMLDirectoryParser."""
+
+  def setUp(self):
+    self.test_regex = '\d+\.\d+\.\d+\.\d+/'
+
+  def testHandleStarttagGood(self):
+    parser = ctest.HTMLDirectoryParser(regex=self.test_regex)
+    parser.handle_starttag('a', [('href', '0.9.74.1/')])
+    self.assertTrue('0.9.74.1' in parser.link_list)
+
+  def testHandleStarttagBad(self):
+    parser = ctest.HTMLDirectoryParser(regex=self.test_regex)
+    parser.handle_starttag('a', [('href', 'ZsomeCruft/')])
+    self.assertTrue('ZsomeCruft' not in parser.link_list)
 
 
 if __name__ == '__main__':

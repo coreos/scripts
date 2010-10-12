@@ -9,14 +9,45 @@
 import fileinput
 import optparse
 import os
+import re
 import sys
 import traceback
 import urllib
+import HTMLParser
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../lib'))
-from cros_build_lib import Info, RunCommand, ReinterpretPathForChroot
+from cros_build_lib import Info
+from cros_build_lib import ReinterpretPathForChroot
+from cros_build_lib import RunCommand
+from cros_build_lib import Warning
 
 _IMAGE_TO_EXTRACT = 'chromiumos_test_image.bin'
+
+class HTMLDirectoryParser(HTMLParser.HTMLParser):
+  """HTMLParser for parsing the default apache file index."""
+
+  def __init__(self, regex):
+    HTMLParser.HTMLParser.__init__(self)
+    self.regex_object = re.compile(regex)
+    self.link_list = []
+
+  def handle_starttag(self, tag, attrs):
+    """Overrides from HTMLParser and is called at the start of every tag.
+
+    This implementation grabs attributes from links (i.e. <a ... > </a>
+    and adds the target from href=<target> if the <target> matches the
+    regex given at the start.
+    """
+    if not tag.lower() == 'a':
+      return
+
+    for attr in attrs:
+      if not attr[0].lower() == 'href':
+        continue
+
+      match = self.regex_object.match(attr[1])
+      if match:
+        self.link_list.append(match.group(0).rstrip('/'))
 
 
 def ModifyBootDesc(download_folder, redirect_file=None):
@@ -62,6 +93,40 @@ def ModifyBootDesc(download_folder, redirect_file=None):
   fileinput.close()
 
 
+def GetLatestLinkFromPage(url, regex):
+  """Returns the latest link from the given url that matches regex.
+
+  Args:
+    url: Url to download and parse.
+    regex: Regular expression to match links against.
+  """
+  url_file = urllib.urlopen(url)
+  url_html = url_file.read()
+  url_file.close()
+
+  # Parses links with versions embedded.
+  url_parser = HTMLDirectoryParser(regex=regex)
+  url_parser.feed(url_html)
+  return max(url_parser.link_list)
+
+
+def GetNewestLinkFromZipBase(board, channel, zip_server_base):
+  """Returns the url to the newest image from the zip server.
+
+  Args:
+    board: board for the image zip.
+    channel: channel for the image zip.
+    zip_server_base:  base url for zipped images.
+  """
+  zip_base = os.path.join(zip_server_base, channel, board)
+  latest_version = GetLatestLinkFromPage(zip_base, '\d+\.\d+\.\d+\.\d+/')
+
+  zip_dir = os.path.join(zip_base, latest_version)
+  zip_name = GetLatestLinkFromPage(zip_dir,
+                                   'ChromeOS-\d+\.\d+\.\d+\.\d+-.*\.zip')
+  return os.path.join(zip_dir, zip_name)
+
+
 def GetLatestZipUrl(board, channel, latest_url_base, zip_server_base):
   """Returns the url of the latest image zip for the given arguments.
 
@@ -71,18 +136,24 @@ def GetLatestZipUrl(board, channel, latest_url_base, zip_server_base):
     latest_url_base: base url for latest links.
     zip_server_base:  base url for zipped images.
   """
-  # Grab the latest image info.
-  latest_file_url = os.path.join(latest_url_base, channel,
-                                 'LATEST-%s' % board)
-  latest_image_file = urllib.urlopen(latest_file_url)
-  latest_image = latest_image_file.read()
-  latest_image_file.close()
+  if latest_url_base:
+    try:
+      # Grab the latest image info.
+      latest_file_url = os.path.join(latest_url_base, channel,
+                                   'LATEST-%s' % board)
+      latest_image_file = urllib.urlopen(latest_file_url)
+      latest_image = latest_image_file.read()
+      latest_image_file.close()
+      # Convert bin.gz into zip.
+      latest_image = latest_image.replace('.bin.gz', '.zip')
+      version = latest_image.split('-')[1]
+      zip_base = os.path.join(zip_server_base, channel, board)
+      return os.path.join(zip_base, version, latest_image)
+    except IOError:
+      Warning(('Could not use latest link provided, defaulting to parsing'
+               ' latest from zip url base.'))
 
-  # Convert bin.gz into zip.
-  latest_image = latest_image.replace('.bin.gz', '.zip')
-  version = latest_image.split('-')[1]
-  zip_base = os.path.join(zip_server_base, channel, board)
-  return os.path.join(zip_base, version, latest_image)
+  return GetNewestLinkFromZipBase(board, channel, zip_server_base)
 
 
 def GrabZipAndExtractImage(zip_url, download_folder, image_name) :
@@ -200,9 +271,6 @@ def main():
 
   if not options.channel:
     parser.error('Need channel for image to compare against.')
-
-  if not options.latestbase:
-    parser.error('Need latest url base to get images.')
 
   if not options.zipbase:
     parser.error('Need zip url base to get images.')
