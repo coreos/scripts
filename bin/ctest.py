@@ -10,6 +10,7 @@ import fileinput
 import optparse
 import os
 import sys
+import traceback
 import urllib
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../lib'))
@@ -212,4 +213,9 @@ def main():
 
 
 if __name__ == '__main__':
-  main()
+  try:
+    main()
+  except Exception:
+    print "Got exception."
+    traceback.print_exc(file=sys.stdout)
+
