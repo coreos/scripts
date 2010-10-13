@@ -14,7 +14,8 @@
 
 get_default_board
 
-DEFINE_string args "" "Command line arguments for test, separated with comma" a
+DEFINE_string args "" \
+    "Command line arguments for test. Quoted and space separated if multiple." a
 DEFINE_string board "$DEFAULT_BOARD" \
     "The board for which you are building autotest"
 DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
