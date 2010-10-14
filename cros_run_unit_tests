@@ -42,10 +42,10 @@ function record_test_failure() {
 
 function run_unit_test() {
   FEATURES="-buildpkg -digest noauto" \
-    ebuild-${FLAGS_board} "${1}" clean unpack configure test
+    ebuild-${FLAGS_board} "${1}" clean unpack prepare configure test
 }
 
-# Parse command line and die if unexpected paramters given.
+# Parse command line and die if unexpected parameters given.
 FLAGS_HELP="usage: ${0} [flags]"
 FLAGS "${@}" || exit 1
 eval set -- "${FLAGS_ARGV}"
