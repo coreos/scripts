@@ -61,7 +61,7 @@ extract_partition_to_temp_file() {
     temp_file=$(mktemp /tmp/cros_generate_update_payload.XXXXXX)
     echo "$temp_file"
   fi
-  
+
   local offset=$(partoffset "${filename}" ${partition})  # 512-byte sectors
   local length=$(partsize "${filename}" ${partition})  # 512-byte sectors
   local bs=512
@@ -99,14 +99,14 @@ extract_kern_root() {
   local bin_file="$1"
   local kern_out="$2"
   local root_out="$3"
-  
+
   if [ -z "$kern_out" ]; then
     die "missing kernel output filename"
   fi
   if [ -z "$root_out" ]; then
     die "missing root output filename"
   fi
-  
+
   extract_partition_to_temp_file "$bin_file" 2 "$kern_out"
   if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
     patch_kernel "$bin_file" "$kern_out"
@@ -124,6 +124,8 @@ with the patch from the stateful partition (default: false)"
 DEFINE_string private_key "" "Path to private key in .pem format."
 DEFINE_boolean extract "$FLAGS_FALSE" "If set, extract old/new kernel/rootfs \
 to [old|new]_[kern|root].dat. Useful for debugging (default: false)"
+DEFINE_boolean full_kernel "$FLAGS_FALSE" "Generate a full kernel update even \
+if generating a delta update (default: false)"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -171,14 +173,18 @@ if [ "$DELTA" -eq "$FLAGS_TRUE" -o "$FLAGS_old_style" -eq "$FLAGS_FALSE" ]; then
 
   trap cleanup INT TERM EXIT
   if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
-    SRC_KERNEL=$(extract_partition_to_temp_file "$FLAGS_src_image" 2)
-    if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
-      patch_kernel "$FLAGS_src_image" "$SRC_KERNEL"
+    if [ "$FLAGS_full_kernel" -eq "$FLAGS_FALSE" ]; then
+      SRC_KERNEL=$(extract_partition_to_temp_file "$FLAGS_src_image" 2)
+      if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
+        patch_kernel "$FLAGS_src_image" "$SRC_KERNEL"
+      fi
+      echo md5sum of src kernel:
+      md5sum "$SRC_KERNEL"
+    else
+      echo "Generating a full kernel update."
     fi
     SRC_ROOT=$(extract_partition_to_temp_file "$FLAGS_src_image" 3)
 
-    echo md5sum of src kernel:
-    md5sum "$SRC_KERNEL"
     echo md5sum of src root:
     md5sum "$SRC_ROOT"
   fi
@@ -208,7 +214,7 @@ if [ "$DELTA" -eq "$FLAGS_TRUE" -o "$FLAGS_old_style" -eq "$FLAGS_FALSE" ]; then
 
   trap - INT TERM EXIT
   cleanup noexit
-  
+
   if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
     echo "Done generating delta."
   else
