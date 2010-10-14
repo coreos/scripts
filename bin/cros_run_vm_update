@@ -28,7 +28,7 @@ trap stop_kvm EXIT
 start_kvm "${FLAGS_vm_image_path}"
 
 $(dirname $0)/../image_to_live.sh \
-  --remote=${HOSTNAME} \
+  --remote=127.0.0.1 \
   --ssh_port=${FLAGS_ssh_port} \
   --stateful_update_flag=${FLAGS_stateful_update_flag} \
   --verify \
