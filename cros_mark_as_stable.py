@@ -68,10 +68,30 @@ def _Print(message):
   if gflags.FLAGS.verbose:
     Info(message)
 
+
+def _BuildEBuildDictionary(overlays, package_list, commit_id_list):
+  for index in range(len(package_list)):
+    package = package_list[index]
+    commit_id = ''
+    if commit_id_list:
+      commit_id = commit_id_list[index]
+    ebuild = _EBuild(package, commit_id)
+    if ebuild.ebuild_path:
+      for overlay in overlays:
+        if ebuild.ebuild_path.startswith(overlay):
+          overlays[overlay].append(ebuild)
+          break
+      else:
+        Die('No overlay found for %s' % ebuild.ebuild_path)
+    else:
+      Die('No ebuild found for %s' % package)
+
+
 def _CheckOnStabilizingBranch():
   """Returns true if the git branch is on the stabilizing branch."""
   current_branch = _SimpleRunCommand('git branch | grep \*').split()[1]
   return current_branch == _STABLE_BRANCH_NAME
+
 
 def _CheckSaneArguments(package_list, commit_id_list, command):
   """Checks to make sure the flags are sane.  Dies if arguments are not sane."""
@@ -217,7 +237,7 @@ class _EBuild(object):
     path = _SimpleRunCommand(equery_cmd)
     if path:
       _Print('Unstable ebuild found at %s' % path)
-    return path
+    return path.rstrip()
 
   @classmethod
   def _ParseEBuildPath(cls, ebuild_path):
@@ -276,8 +296,10 @@ class EBuildStableMarker(object):
                                          self._ebuild.current_revision + 1)
 
     _Print('Creating new stable ebuild %s' % new_ebuild_path)
-    shutil.copyfile('%s-9999.ebuild' % self._ebuild.ebuild_path_no_version,
-                    new_ebuild_path)
+    workon_ebuild = '%s-9999.ebuild' % self._ebuild.ebuild_path_no_version
+    if not os.path.exists(workon_ebuild):
+      Die('Missing 9999 ebuild: %s' % workon_ebuild)
+    shutil.copyfile(workon_ebuild, new_ebuild_path)
 
     for line in fileinput.input(new_ebuild_path, inplace=1):
       # Has to be done here to get changes to sys.stdout from fileinput.input.
@@ -336,41 +358,38 @@ def main(argv):
     commit_id_list = None
   _CheckSaneArguments(package_list, commit_id_list, command)
 
-  overlay_directory = '%s/third_party/chromiumos-overlay' % gflags.FLAGS.srcroot
+  overlays = {
+    '%s/private-overlays/chromeos-overlay' % gflags.FLAGS.srcroot: [],
+    '%s/third_party/chromiumos-overlay' % gflags.FLAGS.srcroot: []
+  }
+  _BuildEBuildDictionary(overlays, package_list, commit_id_list)
 
-  os.chdir(overlay_directory)
+  for overlay, ebuilds in overlays.items():
+    if not os.path.exists(overlay):
+      continue
+    os.chdir(overlay)
 
-  if command == 'clean':
-    _Clean()
-  elif command == 'commit':
-    work_branch = _GitBranch(_STABLE_BRANCH_NAME)
-    work_branch.CreateBranch()
-    if not work_branch.Exists():
-      Die('Unable to create stabilizing branch in %s' %
-                               overlay_directory)
-    index = 0
-    try:
-      for index in range(len(package_list)):
-        # Gather the package and optional commit id to work on.
-        package = package_list[index]
-        commit_id = ""
-        if commit_id_list:
-          commit_id = commit_id_list[index]
-
-        _Print('Working on %s' % package)
-        worker = EBuildStableMarker(_EBuild(package, commit_id))
-        worker.RevEBuild(commit_id)
-        worker.CommitChange(_GIT_COMMIT_MESSAGE % (package, commit_id))
-
-    except (OSError, IOError), e:
-      Warning('An exception occurred\n'
-              'Only the following packages were revved: %s\n'
-              'Note you will have to go into %s'
-              'and reset the git repo yourself.' %
-              (package_list[:index], overlay_directory))
-      raise e
-  elif command == 'push':
-    _PushChange()
+    if command == 'clean':
+      _Clean()
+    elif command == 'push':
+      _PushChange()
+    elif command == 'commit' and ebuilds:
+      work_branch = _GitBranch(_STABLE_BRANCH_NAME)
+      work_branch.CreateBranch()
+      if not work_branch.Exists():
+        Die('Unable to create stabilizing branch in %s' % overlay)
+      for ebuild in ebuilds:
+        try:
+          _Print('Working on %s' % ebuild.package)
+          worker = EBuildStableMarker(ebuild)
+          worker.RevEBuild(ebuild.commit_id)
+          message = _GIT_COMMIT_MESSAGE % (ebuild.package, ebuild.commit_id)
+          worker.CommitChange(message)
+        except (OSError, IOError):
+          Warning('Cannot rev %s\n' % ebuild.package,
+                  'Note you will have to go into %s '
+                  'and reset the git repo yourself.' % overlay)
+          raise
 
 
 if __name__ == '__main__':
