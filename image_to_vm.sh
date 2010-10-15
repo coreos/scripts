@@ -280,7 +280,7 @@ fi
 
 if [ "${FLAGS_format}" == "qemu" ]; then
   echo "If you have qemu-kvm installed, you can start the image by:"
-  echo "sudo kvm -m ${FLAGS_mem} -vga std -pidfile /tmp/kvm.pid -net nic " \
+  echo "sudo kvm -m ${FLAGS_mem} -vga std -pidfile /tmp/kvm.pid -net nic,model=e1000 " \
        "-net user,hostfwd=tcp::922-:22 \\"
   echo "        -hda ${FLAGS_to}/${DEFAULT_QEMU_IMAGE}"
 fi
