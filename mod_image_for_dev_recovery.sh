@@ -93,9 +93,8 @@ create_dev_recovery_image() {
   mkdir -p "${temp_mnt}"
   sudo mount -o loop=${loop_dev} "${temp_state}" "${temp_mnt}"
   trap "umount_from_loop_dev ${temp_mnt} && rm -f \"${temp_state}\"" EXIT
-  sudo cp -R "${FLAGS_payload_dir}" "${temp_mnt}"
-  sudo mv "${temp_mnt}/$(basename ${FLAGS_payload_dir})" \
-    "${temp_mnt}/dev_payload"
+  sudo cp -R "${FLAGS_payload_dir}" "${temp_mnt}/dev_payload"
+
   # Mark image as dev recovery
   sudo touch "${temp_mnt}/.recovery"
   sudo touch "${temp_mnt}/.dev_recovery"
