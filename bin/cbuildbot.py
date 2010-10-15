@@ -228,7 +228,7 @@ def _FullCheckout(buildroot, rw_checkout=True, retries=_DEFAULT_RETRIES):
   """Performs a full checkout and clobbers any previous checkouts."""
   RunCommand(['sudo', 'rm', '-rf', buildroot])
   MakeDir(buildroot, parents=True)
-  RunCommand(['repo', 'init', '-u', 'http://src.chromium.org/git/manifest'],
+  RunCommand(['repo', 'init', '-u', 'http://git.chromium.org/git/manifest'],
              cwd=buildroot, input='\n\ny\n')
   RepoSync(buildroot, rw_checkout, retries)
 
