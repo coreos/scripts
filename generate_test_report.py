@@ -167,6 +167,8 @@ class ReportGenerator(object):
     tests = self._results.keys()
     tests.sort()
 
+    tests_with_errors = []
+
     width = self.GetTestColumnWidth()
     line = ''.ljust(width + 5, '-')
 
@@ -182,6 +184,8 @@ class ReportGenerator(object):
         tests_pass += 1
       else:
         color = Color.RED
+        tests_with_errors.append(test)
+
       status_entry = self._color.Color(color, status_entry)
       print test_entry + status_entry
 
@@ -203,6 +207,23 @@ class ReportGenerator(object):
     percent_pass = 100 * tests_pass / total_tests
     pass_str = '%d/%d (%d%%)' % (tests_pass, total_tests, percent_pass)
     print 'Total PASS: ' + self._color.Color(Color.BOLD, pass_str)
+
+    # Print out the client debug information for failed tests.
+    if self._options.print_debug:
+      for test in tests_with_errors:
+        debug_file_regex = os.path.join(self._options.strip, test, 'debug',
+                                       'client.*.DEBUG')
+        for path in glob.glob(debug_file_regex):
+          try:
+            fh = open(path)
+            print ('\n========== DEBUG FILE %s FOR TEST %s ==============\n' % (
+                   path, test))
+            print fh.read()
+            print('\n=========== END DEBUG %s FOR TEST %s ===============\n' % (
+                   path, test))
+            fh.close()
+          except:
+            print 'Could not open %s' % path
 
   def Run(self):
     """Runs report generation."""
@@ -232,6 +253,9 @@ def main():
                     ' [default: \'%default\']')
   parser.add_option('--no-strip', dest='strip', const='', action='store_const',
                     help='Don\'t strip a prefix from test directory names')
+  parser.add_option('--no-debug', dest='print_debug', action='store_false',
+                    default=True,
+                    help='Do not print out the debug log when a test fails.')
   (options, args) = parser.parse_args()
 
   if not args:
