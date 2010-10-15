@@ -69,6 +69,20 @@ function remote_reboot_sh {
   remote_sh "$@"
 }
 
+# Returns the hostname of this machine.
+# It tries to find the ipaddress using ifconfig, however, it will
+# default to $HOSTNAME on failure.  We try to use the ip address first as
+# some targets may have dns resolution issues trying to contact back
+# to us.
+function get_hostname {
+  local hostname
+  # Try to parse ifconfig for ip address
+  hostname=$(ifconfig eth0 \
+      | grep 'inet addr' \
+      | sed 's/.\+inet addr:\(\S\+\).\+/\1/') || hostname=${HOSTNAME}
+  echo ${hostname}
+}
+
 # Reinterprets path from outside the chroot for use inside.
 # $1 - The path to reinterpret.
 function reinterpret_path_for_chroot() {
@@ -169,7 +183,7 @@ function get_devserver_url {
   local devserver_url=""
   if [ ${FLAGS_ignore_hostname} -eq ${FLAGS_TRUE} ]; then
     if [ -z ${FLAGS_update_url} ]; then
-      devserver_url="http://$HOSTNAME:${FLAGS_devserver_port}/update"
+      devserver_url="http://$(get_hostname):${FLAGS_devserver_port}/update"
     else
       devserver_url="${FLAGS_update_url}"
     fi
