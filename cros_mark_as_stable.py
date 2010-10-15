@@ -123,8 +123,7 @@ def _PrintUsageAndDie(error_message=''):
     command_usage += '  %s: %s\n' % (command, _COMMAND_DICTIONARY[command])
   commands_str = '|'.join(commands)
   Warning('Usage: %s FLAGS [%s]\n\n%s\nFlags:%s' % (sys.argv[0], commands_str,
-                                                    command_usage,
-                                                    gflags.FLAGS))
+                                                  command_usage, gflags.FLAGS))
   if error_message:
     Die(error_message)
   else:

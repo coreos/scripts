@@ -99,8 +99,6 @@ if [ -n "${PACKAGE_LIST}" ] ; then
   ./cros_mark_as_stable --board ${FLAGS_board} -p "${PACKAGE_LIST}" \
     -i "${COMMIT_ID_LIST}" -t ${FLAGS_tracking_branch} commit  || \
     die "Could not mark all packages as stable"
-
-  ./cros_workon start ${PACKAGE_LIST}
 else
   info "No candidate packages to be marked"
 fi

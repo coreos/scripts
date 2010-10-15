@@ -345,14 +345,6 @@ def _UprevCleanup(buildroot, error_ok=False):
               '--tracking_branch="cros/master"', 'clean'],
              cwd=cwd, error_ok=error_ok)
 
-  workon_packages = RunCommand(['./cros_workon', 'list'],
-                               enter_chroot=True, cwd=cwd, error_ok=error_ok,
-                               redirect_stdout=True)
-  if workon_packages:
-    Info('Cleaning up workon packages %s' % workon_packages)
-    RunCommand(['./cros_workon', 'stop'] + workon_packages.split(),
-               enter_chroot=True, cwd=cwd, error_ok=False)
-
 
 def _UprevPush(buildroot):
   """Pushes uprev changes to the main line."""
@@ -447,6 +439,7 @@ def main():
         # Master bot needs to check if the other slaves completed.
         if cbuildbot_comm.HaveSlavesCompleted(config):
           _UprevPush(buildroot)
+          _UprevCleanup(buildroot)
         else:
           # At least one of the slaves failed or we timed out.
           _UprevCleanup(buildroot)
@@ -456,7 +449,7 @@ def main():
         if buildconfig['important']:
           cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
 
-      _UprevCleanup(buildroot)
+        _UprevCleanup(buildroot)
   except:
     # Send failure to master bot.
     if not buildconfig['master'] and buildconfig['important']:
