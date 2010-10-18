@@ -30,8 +30,6 @@ Example of uploading x86-dogfood binhosts
 ./prebuilt.py -b x86-dogfood -p /b/cbuild/build/ -u gs://chromeos-prebuilt  -g
 """
 
-VER_FILE = 'src/third_party/chromiumos-overlay/chromeos/config/stable_versions'
-
 # as per http://crosbug.com/5855 always filter the below packages
 _FILTER_PACKAGES = set()
 _RETRIES = 3
@@ -47,6 +45,12 @@ _GS_HOST_PATH = 'host/%s' % _HOST_TARGET
 # Private overlays to look at for builds to filter
 # relative to build path
 _PRIVATE_OVERLAY_DIR = 'src/private-overlays'
+_BINHOST_BASE_DIR = 'src/overlays'
+_BINHOST_BASE_URL = 'http://commondatastorage.googleapis.com/chromeos-prebuilt'
+_PREBUILT_BASE_DIR = 'src/third_party/chromiumos-overlay/chromeos/config/'
+# Created in the event of new host targets becoming available
+_PREBUILT_MAKE_CONF = {'amd64': os.path.join(_PREBUILT_BASE_DIR,
+                                             'make.conf.amd64-host')}
 
 
 class FiltersEmpty(Exception):
@@ -58,31 +62,43 @@ class UploadFailed(Exception):
   """Raised when one of the files uploaded failed."""
   pass
 
+class UnknownBoardFormat(Exception):
+  """Raised when a function finds an unknown board format."""
+  pass
 
-def UpdateLocalFile(filename, key, value):
+
+def UpdateLocalFile(filename, value, key='PORTAGE_BINHOST'):
   """Update the key in file with the value passed.
   File format:
-    key value
+    key="value"
+  Note quotes are added automatically
 
   Args:
     filename: Name of file to modify.
-    key: The variable key to update.
     value: Value to write with the key.
+    key: The variable key to update. (Default: PORTAGE_BINHOST)
   """
   file_fh = open(filename)
   file_lines = []
   found = False
   for line in file_fh:
-    file_var, file_val = line.split()
+    if '=' not in line:
+      # Skip any line without an equal in it and just write it out
+      file_lines.append(line)
+      continue
+
+    file_var, file_val = line.split('=')
+    keyval_str = '%(key)s=%(value)s'
     if file_var == key:
       found = True
-      print 'Updating %s %s to %s %s' % (file_var, file_val, key, value)
-      file_lines.append('%s %s' % (key, value))
+      print 'Updating %s=%s to %s="%s"' % (file_var, file_val, key, value)
+      value = '"%s"' % value
+      file_lines.append(keyval_str % {'key': key, 'value': value})
     else:
-      file_lines.append('%s %s' % (file_var, file_val))
+      file_lines.append(keyval_str % {'key': file_var, 'value': file_val})
 
   if not found:
-    file_lines.append('%s %s' % (key, value))
+    file_lines.append(keyval_str % {'key': key, 'value': value})
 
   file_fh.close()
   # write out new file
@@ -91,7 +107,7 @@ def UpdateLocalFile(filename, key, value):
   new_file_fh.close()
 
 
-def RevGitFile(filename, key, value):
+def RevGitFile(filename, value):
   """Update and push the git file.
 
   Args:
@@ -103,18 +119,20 @@ def RevGitFile(filename, key, value):
   prebuilt_branch = 'prebuilt_branch'
   old_cwd = os.getcwd()
   os.chdir(os.path.dirname(filename))
+
+  cros_build_lib.RunCommand('repo sync', shell=True)
   cros_build_lib.RunCommand('repo start %s  .' % prebuilt_branch, shell=True)
-  UpdateLocalFile(filename, key, value)
-  description = 'Update BINHOST key/value %s %s' % (key, value)
-  print description
   git_ssh_config_cmd = (
     'git config url.ssh://git@gitrw.chromium.org:9222.pushinsteadof '
     'http://git.chromium.org/git')
+  cros_build_lib.RunCommand(git_ssh_config_cmd, shell=True)
+  description = 'Update PORTAGE_BINHOST="%s" in %s' % (value, file)
+  print description
   try:
-    cros_build_lib.RunCommand(git_ssh_config_cmd, shell=True)
-    cros_build_lib.RunCommand('git pull', shell=True)
+    UpdateLocalFile(filename, value)
     cros_build_lib.RunCommand('git config push.default tracking', shell=True)
     cros_build_lib.RunCommand('git commit -am "%s"' % description, shell=True)
+    cros_build_lib.RunCommand('repo sync', shell=True)
     cros_build_lib.RunCommand('git push', shell=True)
   finally:
     cros_build_lib.RunCommand('repo abandon %s .' % prebuilt_branch, shell=True)
@@ -251,7 +269,36 @@ def GenerateUploadDict(local_path, gs_path, strip_str):
   return upload_files
 
 
-def UploadPrebuilt(build_path, bucket, board=None, git_file=None):
+def DetermineMakeConfFile(target):
+  """Determine the make.conf file that needs to be updated for prebuilts.
+
+    Args:
+      target: String representation of the board. This includes host and board
+        targets
+
+    Returns
+      A string path to a make.conf file to be updated.
+  """
+  if _HOST_TARGET == target:
+    # We are host.
+    # Without more examples of hosts this is a kludge for now.
+    # TODO(Scottz): as new host targets come online expand this to
+    # work more like boards.
+    make_path =  _PREBUILT_MAKE_CONF[target]
+  elif re.match('.*?-.*?_.*', target):
+    # We are a board variant
+    overlay_str = 'overlay-variant-%s' % target.replace('_', '-')
+    make_path = os.path.join(_BINHOST_BASE_DIR, overlay_str, 'make.conf')
+  elif re.match('.*?-\w+', target):
+    overlay_str = 'overlay-%s' % target
+    make_path = os.path.join(_BINHOST_BASE_DIR, overlay_str, 'make.conf')
+  else:
+    raise UnknownBoardFormat('Unknown format: %s' % target)
+
+  return os.path.join(make_path)
+
+
+def UploadPrebuilt(build_path, bucket, version, board=None, git_sync=False):
   """Upload Host prebuilt files to Google Storage space.
 
   Args:
@@ -259,10 +306,9 @@ def UploadPrebuilt(build_path, bucket, board=None, git_file=None):
     bucket: The Google Storage bucket to upload to.
     board: The board to upload to Google Storage, if this is None upload
       host packages.
-    git_file: If set, update this file with a host/version combo, commit and
-      push it.
+    git_sync: If set, update make.conf of target to reference the latest
+      prebuilt packages genereated here.
   """
-  version = GetVersion()
 
   if not board:
     # We are uploading host packages
@@ -271,13 +317,17 @@ def UploadPrebuilt(build_path, bucket, board=None, git_file=None):
     gs_path = os.path.join(bucket, _GS_HOST_PATH, version)
     strip_pattern = package_path
     package_string = _HOST_TARGET
+    git_file = os.path.join(build_path, _PREBUILT_MAKE_CONF[_HOST_TARGET])
+    url_suffix = '%s/%s' % (_GS_HOST_PATH, version)
   else:
     board_path = os.path.join(build_path, _BOARD_PATH % {'board': board})
     package_path = os.path.join(board_path, 'packages')
     package_string = board
     strip_pattern = board_path
-    gs_path = os.path.join(bucket, _GS_BOARD_PATH % {'board': board,
-                                                     'version': version})
+    remote_board_path = _GS_BOARD_PATH % {'board': board, 'version': version}
+    gs_path = os.path.join(bucket, remote_board_path)
+    git_file = os.path.join(build_path, DetermineMakeConfFile(board))
+    url_suffix = remote_board_path
 
   upload_files = GenerateUploadDict(package_path, gs_path, strip_pattern)
 
@@ -287,8 +337,9 @@ def UploadPrebuilt(build_path, bucket, board=None, git_file=None):
     error_msg = ['%s -> %s\n' % args for args in failed_uploads]
     raise UploadFailed('Error uploading:\n%s' % error_msg)
 
-  if git_file:
-    RevGitFile(git_file, package_string, version)
+  if git_sync:
+    url_value = '%s/%s' % (_BINHOST_BASE_URL, url_suffix)
+    RevGitFile(git_file, url_value)
 
 
 def usage(parser, msg):
@@ -313,6 +364,9 @@ def main():
   parser.add_option('-u', '--upload', dest='upload',
                     default=None,
                     help='Upload to GS bucket')
+  parser.add_option('-V', '--prepend-version', dest='prepend_version',
+                    default=None,
+                    help='Add an identifier to the front of the version')
   parser.add_option('-f', '--filters', dest='filters', action='store_true',
                     default=False,
                     help='Turn on filtering of private ebuild packages')
@@ -329,16 +383,17 @@ def main():
   if options.filters:
     LoadPrivateFilters(options.build_path)
 
-  git_file = None
-  if options.git_sync:
-    git_file = os.path.join(options.build_path, VER_FILE)
+  version = GetVersion()
+  if options.prepend_version:
+    version = '%s-%s' % (options.prepend_version, version)
 
   if options.sync_host:
-    UploadPrebuilt(options.build_path, options.upload, git_file=git_file)
+    UploadPrebuilt(options.build_path, options.upload, version,
+                   git_sync=options.git_sync)
 
   if options.board:
-    UploadPrebuilt(options.build_path, options.upload, board=options.board,
-                   git_file=git_file)
+    UploadPrebuilt(options.build_path, options.upload, version,
+                   board=options.board, git_sync=options.git_sync)
 
 
 if __name__ == '__main__':

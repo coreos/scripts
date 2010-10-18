@@ -14,7 +14,9 @@ from chromite.lib import cros_build_lib
 class TestUpdateFile(unittest.TestCase):
 
   def setUp(self):
-    self.contents_str = ['stage 20100309/stage3-amd64-20100309.tar.bz2',
+    self.contents_str = ['# comment that should be skipped',
+                         'PKGDIR="/var/lib/portage/pkgs"',
+                         'PORTAGE_BINHOST="http://no.thanks.com"',
                          'portage portage-20100310.tar.bz2']
     temp_fd, self.version_file = tempfile.mkstemp()
     os.write(temp_fd, '\n'.join(self.contents_str))
@@ -33,29 +35,35 @@ class TestUpdateFile(unittest.TestCase):
 
   def _verify_key_pair(self, key, val):
     file_contents = self._read_version_file()
+    # ensure key for verify is wrapped on quotes
+    if '"' not in val:
+      val = '"%s"' % val
     for entry in file_contents:
-      file_key, file_val = entry.split()
+      if '=' not in entry:
+        continue
+      file_key, file_val = entry.split('=')
       if file_key == key:
         if val == file_val:
           break
     else:
-      self.fail('Could not find "%s %s" in version file' % (key, val))
+      self.fail('Could not find "%s=%s" in version file' % (key, val))
 
   def testAddVariableThatDoesNotExist(self):
     """Add in a new variable that was no present in the file."""
-    key = 'x86-testcase'
+    key = 'PORTAGE_BINHOST'
     value = '1234567'
-    prebuilt.UpdateLocalFile(self.version_file, key, value)
+    prebuilt.UpdateLocalFile(self.version_file, value)
+    print self.version_file
     current_version_str = self._read_version_file()
     self._verify_key_pair(key, value)
+    print self.version_file
 
   def testUpdateVariable(self):
     """Test updating a variable that already exists."""
-    # take first entry in contents
-    key, val = self.contents_str[0].split()
+    key, val = self.contents_str[2].split('=')
     new_val = 'test_update'
     self._verify_key_pair(key, val)
-    prebuilt.UpdateLocalFile(self.version_file, key, new_val)
+    prebuilt.UpdateLocalFile(self.version_file, new_val)
     self._verify_key_pair(key, new_val)
 
 
@@ -164,7 +172,23 @@ class TestPrebuilt(unittest.TestCase):
   def testFailonUploadFail(self):
     """Make sure we fail if one of the upload processes fail."""
     files = {'test': '/uasd'}
-    self.assertEqual(prebuilt.RemoteUpload(files), [('test', '/uasd')])
+    self.assertEqual(prebuilt.RemoteUpload(files), set([('test', '/uasd')]))
+
+  def testDetermineMakeConf(self):
+    """Test the different known variants of boards for proper path discovery."""
+    targets = {'amd64': os.path.join(prebuilt._PREBUILT_MAKE_CONF['amd64']),
+               'x86-generic': os.path.join(prebuilt._BINHOST_BASE_DIR,
+                                           'overlay-x86-generic', 'make.conf'),
+               'arm-tegra2_vogue': os.path.join(
+                    prebuilt._BINHOST_BASE_DIR,
+                    'overlay-variant-arm-tegra2-vogue', 'make.conf'),}
+    for target in targets:
+      self.assertEqual(prebuilt.DetermineMakeConfFile(target), targets[target])
+
+  def testDetermineMakeConfGarbage(self):
+    """Ensure an exception is raised on bad input."""
+    self.assertRaises(prebuilt.UnknownBoardFormat, prebuilt.DetermineMakeConfFile,
+                      'asdfasdf')
 
 
 if __name__ == '__main__':
