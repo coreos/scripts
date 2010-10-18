@@ -21,7 +21,6 @@ DEFINE_string board "$DEFAULT_BOARD" \
 DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
 DEFINE_boolean cleanup ${FLAGS_FALSE} "Clean up temp directory"
 DEFINE_integer iterations 1 "Iterations to run every top level test" i
-DEFINE_string prepackaged_autotest "" "Use this prepackaged autotest dir"
 DEFINE_string results_dir_root "" "alternate root results directory"
 DEFINE_boolean verbose ${FLAGS_FALSE} "Show verbose autoserv output" v
 
@@ -156,17 +155,8 @@ function main() {
 
   remote_access_init
 
-  local autotest_dir=""
-  if [[ -z "${FLAGS_prepackaged_autotest}" ]]; then
-    learn_board
-    if [[ -n "${CROS_WORKON_SRCROOT}" ]]; then
-      autotest_dir="/build/${FLAGS_board}/usr/local/autotest"
-    else
-      autotest_dir="${GCLIENT_ROOT}/src/third_party/autotest/files"
-    fi
-  else
-    autotest_dir="${FLAGS_prepackaged_autotest}"
-  fi
+  learn_board
+  autotest_dir="${FLAGS_chroot}/build/${FLAGS_board}/usr/local/autotest"
 
   local control_files_to_run=""
   local chrome_autotests="${CHROME_ROOT}/src/chrome/test/chromeos/autotest/files"
@@ -253,14 +243,11 @@ function main() {
 
     RAN_ANY_TESTS=${FLAGS_TRUE}
 
-    # HACK: Temporary hack for cros-workon conversion
-    [[ -n "${CROS_WORKON_SRCROOT}" ]] && WORKON_SUFFIX=_workon
-
     local enter_chroot=""
-    local autotest="${GCLIENT_ROOT}/src/scripts/autotest${WORKON_SUFFIX}"
+    local autotest="${GCLIENT_ROOT}/src/scripts/autotest_workon"
     if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
       enter_chroot="./enter_chroot.sh --chroot ${FLAGS_chroot} --"
-      autotest="./autotest${WORKON_SUFFIX}"
+      autotest="./autotest_workon"
     fi
 
     # Remove chrome autotest location prefix from control_file if needed
