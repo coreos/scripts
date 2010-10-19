@@ -12,6 +12,10 @@
 
 MAX_RETRIES=3
 
+get_default_board
+
+DEFINE_string board "$DEFAULT_BOARD" \
+    "The board for which you built autotest."
 DEFINE_string image_path "" "Full path of the VM image"
 DEFINE_string test_case "" "Name of the test case to run"
 
@@ -23,7 +27,8 @@ eval set -- "${FLAGS_ARGV}"
 
 # Use latest if not specified.
 if [ -z "${FLAGS_image_path}" ]; then
-  LATEST_IMAGE="$(${SCRIPTS_DIR}/get_latest_image.sh)/${DEFAULT_QEMU_IMAGE}"
+  LATEST_IMAGE="$(${SCRIPTS_DIR}/get_latest_image.sh \
+      --board=${FLAGS_board})/${DEFAULT_QEMU_IMAGE}"
   info "Using latest vm image ${LATEST_IMAGE}"
   FLAGS_image_path=${LATEST_IMAGE}
 fi
@@ -37,6 +42,7 @@ start_kvm "${FLAGS_image_path}"
 info "Checking for ssh access to virtual machine."
 retry_until_ssh ${MAX_RETRIES}
 "$(dirname $0)"/../run_remote_tests.sh \
+  --board=${FLAGS_board} \
   --ssh_port=${FLAGS_ssh_port} \
   --remote=127.0.0.1 \
   "${FLAGS_test_case}"
