@@ -212,7 +212,7 @@ class ReportGenerator(object):
     if self._options.print_debug:
       for test in tests_with_errors:
         debug_file_regex = os.path.join(self._options.strip, test, 'debug',
-                                       'client.*.DEBUG')
+                                       '%s*.DEBUG' % os.path.basename(test))
         for path in glob.glob(debug_file_regex):
           try:
             fh = open(path)
