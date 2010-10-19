@@ -254,6 +254,10 @@ then
   exit 0
 fi
 
+# Apply any hacks needed to update the chroot.
+chroot_hacks_from_outside "${FLAGS_chroot}"
+
+
 # Make sure we unmount before exiting
 trap teardown_env EXIT
 setup_env
