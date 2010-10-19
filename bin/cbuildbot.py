@@ -233,10 +233,15 @@ def _FullCheckout(buildroot, rw_checkout=True, retries=_DEFAULT_RETRIES):
   RepoSync(buildroot, rw_checkout, retries)
 
 
+def _PreFlightRinse(buildroot):
+  """Cleans up any leftover state from previous runs."""
+  RunCommand(['sudo', 'killall', 'kvm'], error_ok=True)
+  _UprevCleanup(buildroot, error_ok=True)
+
+
 def _IncrementalCheckout(buildroot, rw_checkout=True,
                          retries=_DEFAULT_RETRIES):
   """Performs a checkout without clobbering previous checkout."""
-  _UprevCleanup(buildroot, error_ok=True)
   RepoSync(buildroot, rw_checkout, retries)
 
 
@@ -410,6 +415,7 @@ def main():
     if not os.path.isdir(buildroot):
       _FullCheckout(buildroot)
     else:
+      _PreFlightRinse(buildroot)
       _IncrementalCheckout(buildroot)
 
     chroot_path = os.path.join(buildroot, 'chroot')
