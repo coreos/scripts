@@ -97,6 +97,25 @@ if [ -z "${FLAGS_board}" ] ; then
   exit 1
 fi
 
+check_blacklist() {
+  info "Verifying that the base image does not contain a blacklisted package."
+  info "Generating list of packages for chromeos-base/chromeos."
+  local package_blacklist_file="${SCRIPTS_DIR}/chromeos_blacklist"
+  if [ ! -e "${package_blacklist_file}" ]; then
+    warn "Missing blacklist file."
+    return
+  fi
+  local blacklisted_packages=$(${SCRIPTS_DIR}/get_package_list \
+      --board="${FLAGS_board}" chromeos-base/chromeos \
+      | grep -x -f "${package_blacklist_file}")
+  if [ -n "${blacklisted_packages}" ]; then
+    die "Blacklisted packages found: ${blacklisted_packages}."
+  fi
+  info "No blacklisted packages found."
+}
+
+check_blacklist
+
 # Verify user didn't specify incompatible flags for dev install shim
 if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ] &&
    [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ] ; then
