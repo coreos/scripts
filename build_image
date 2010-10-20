@@ -427,6 +427,18 @@ update_dev_packages() {
         ${ROOT_FS_DIR}/usr/local/lib/python2.6/site-packages/pygtk.pth"
   fi
 
+  # If python is installed on stateful-dev, fix python symlinks.
+  local python_path="/usr/local/bin/python2.6"
+  if [ -e "${ROOT_FS_DIR}${python_path}" ]; then
+    info "Fixing python symlinks for developer and test images."
+    local python_paths="/usr/bin/python /usr/local/bin/python \
+        /usr/bin/python2 /usr/local/bin/python2"
+    for path in ${python_paths}; do
+      sudo rm -f "${ROOT_FS_DIR}${path}"
+      sudo ln -s  ${python_path} "${ROOT_FS_DIR}${path}"
+    done
+  fi
+
   # Check that the image has been correctly created.  Only do it if not
   # building a factory install image and not a dev install shim, as the
   # INSTALL_MASK for it will make test_image fail.
