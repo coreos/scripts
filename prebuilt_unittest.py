@@ -191,5 +191,41 @@ class TestPrebuilt(unittest.TestCase):
                       'asdfasdf')
 
 
+class TestPackagesFileFiltering(unittest.TestCase):
+
+  def setUp(self):
+    self.mox = mox.Mox()
+
+  def tearDown(self):
+    self.mox.UnsetStubs()
+    self.mox.VerifyAll()
+
+  def testFilterAllPackages(self):
+    self.mox.StubOutWithMock(prebuilt, 'ShouldFilterPackage')
+    prebuilt.ShouldFilterPackage("public1").AndReturn(False)
+    prebuilt.ShouldFilterPackage("private").AndReturn(True)
+    prebuilt.ShouldFilterPackage("public2").AndReturn(False)
+    full_packages_file = [
+      "foo: bar\n", "\n",
+      "CPV: public1\n", "foo: bar1\n", "\n",
+      "CPV: private\n", "foo: bar2\n", "\n",
+      "CPV: public2\n", "foo: bar3\n", "\n",
+    ]
+    private_packages_file = [
+      "foo: bar\n", "\n",
+      "CPV: public1\n", "foo: bar1\n", "\n",
+      "CPV: public2\n", "foo: bar3\n", "\n",
+    ]
+    self.mox.ReplayAll()
+    temp_packages_file = tempfile.NamedTemporaryFile()
+    temp_packages_file.write("".join(full_packages_file))
+    temp_packages_file.flush()
+    new_packages_file = prebuilt.FilterPackagesFile(temp_packages_file.name)
+    new_contents = open(new_packages_file.name).read()
+    self.assertEqual("".join(private_packages_file), new_contents)
+    self.assertEqual("".join(private_packages_file), new_packages_file.read())
+    new_packages_file.close()
+
+
 if __name__ == '__main__':
   unittest.main()

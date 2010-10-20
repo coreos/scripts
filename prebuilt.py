@@ -9,6 +9,7 @@ import optparse
 import os
 import re
 import sys
+import tempfile
 
 from chromite.lib import cros_build_lib
 """
@@ -190,6 +191,63 @@ def ShouldFilterPackage(file_path):
   return False
 
 
+def _ShouldFilterPackageFileSection(section):
+  """Return whether an section in the package file should be filtered out.
+
+  Args:
+    section: The section, as a list of strings.
+
+  Returns:
+    True if the section should be excluded.
+  """
+
+  for line in section:
+    if line.startswith("CPV: "):
+      package = line.replace("CPV: ", "").rstrip()
+      if ShouldFilterPackage(package):
+        return True
+  else:
+    return False
+
+
+def FilterPackagesFile(packages_filename):
+  """Read a portage Packages file and filter out private packages.
+
+  The new, filtered packages file is written to a temporary file.
+
+  Args:
+    packages_filename: The filename of the Packages file.
+
+  Returns:
+    filtered_packages: A filtered Packages file, as a NamedTemporaryFile.
+  """
+
+  packages_file = open(packages_filename)
+  filtered_packages = tempfile.NamedTemporaryFile()
+  section = []
+  for line in packages_file:
+    if line == "\n":
+      if not _ShouldFilterPackageFileSection(section):
+        # Looks like this section doesn't contain a private package. Write it
+        # out.
+        filtered_packages.write("".join(section))
+
+      # Start next section.
+      section = []
+
+    section.append(line)
+  else:
+    if not _ShouldFilterPackageFileSection(section):
+      filtered_packages.write("".join(section))
+  packages_file.close()
+
+  # Flush contents to disk.
+  filtered_packages.flush()
+  filtered_packages.seek(0)
+
+  return filtered_packages
+
+
 def _GsUpload(args):
   """Upload to GS bucket.
 
@@ -202,6 +260,10 @@ def _GsUpload(args):
   (local_file, remote_file) = args
   if ShouldFilterPackage(local_file):
     return
+
+  if local_file.endswith("/Packages"):
+    filtered_packages_file = FilterPackagesFile(local_file)
+    local_file = filtered_packages_file.name
 
   cmd = '%s cp -a public-read %s %s' % (_GSUTIL_BIN, local_file, remote_file)
   # TODO(scottz): port to use _Run or similar when it is available in
