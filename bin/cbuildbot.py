@@ -395,6 +395,9 @@ def main():
   parser.add_option('--clobber', action='store_true', dest='clobber',
                     default=False,
                     help='Clobbers an old checkout before syncing')
+  parser.add_option('--debug', action='store_true', dest='debug',
+                    default=False,
+                    help='Override some options to run as a developer.')
   (options, args) = parser.parse_args()
 
   buildroot = options.buildroot
@@ -441,21 +444,23 @@ def main():
       _RunSmokeSuite(buildroot)
 
     if buildconfig['uprev']:
-      if buildconfig['master']:
-        # Master bot needs to check if the other slaves completed.
-        if cbuildbot_comm.HaveSlavesCompleted(config):
-          _UprevPush(buildroot)
-          _UprevCleanup(buildroot)
-        else:
-          # At least one of the slaves failed or we timed out.
-          _UprevCleanup(buildroot)
-          Die('CBUILDBOT - One of the slaves has failed!!!')
-      else:
-        # Publish my status to the master if its expecting it.
-        if buildconfig['important']:
-          cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
+      # Don't push changes for developers.
+      if options.debug:
+        if buildconfig['master']:
+          # Master bot needs to check if the other slaves completed.
+          if cbuildbot_comm.HaveSlavesCompleted(config):
+            _UprevPush(buildroot)
+          else:
+            # At least one of the slaves failed or we timed out.
+            _UprevCleanup(buildroot)
+            Die('CBUILDBOT - One of the slaves has failed!!!')
 
-        _UprevCleanup(buildroot)
+        else:
+          # Publish my status to the master if its expecting it.
+          if buildconfig['important']:
+            cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
+
+      _UprevCleanup(buildroot)
   except:
     # Send failure to master bot.
     if not buildconfig['master'] and buildconfig['important']:
