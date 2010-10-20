@@ -101,10 +101,18 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
 fi
 
 mkdir -p "${FLAGS_working_dir}"
+
+# Only let dm-verity block if rootfs verification is configured.
+dev_wait=0
+if [[ ${FLAGS_root} = "/dev/dm-0" ]]; then
+  dev_wait=1
+fi
+
 cat <<EOF > "${FLAGS_working_dir}/boot.config"
 root=${FLAGS_root}
 dm_verity.error_behavior=${FLAGS_verity_error_behavior}
 dm_verity.max_bios=${FLAGS_verity_max_ios}
+dm_verity.dev_wait=${dev_wait}
 ${verity_args}
 ${FLAGS_boot_args}
 EOF

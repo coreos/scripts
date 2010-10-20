@@ -35,6 +35,12 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 set -e
 
+# Only let dm-verity block if rootfs verification is configured.
+dev_wait=0
+if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
+  dev_wait=1
+fi
+
 # Common kernel command-line args
 common_args="quiet console=tty2 init=/sbin/init boot=local rootwait ro noresume"
 common_args="${common_args} noswap loglevel=1 ${FLAGS_boot_args}"
@@ -42,6 +48,9 @@ common_args="${common_args} noswap loglevel=1 ${FLAGS_boot_args}"
 # Common verified boot command-line args
 verity_common="dm_verity.error_behavior=${FLAGS_verity_error_behavior}"
 verity_common="${verity_common} dm_verity.max_bios=${FLAGS_verity_max_ios}"
+# Ensure that dm-verity waits for its device.
+# TODO(wad) should add a timeout that display a useful message
+verity_common="${verity_common} dm_verity.dev_wait=${dev_wait}"
 
 # Populate the x86 rootfs to support legacy and EFI bios config templates.
 # The templates are used by the installer to populate partition 12 with
