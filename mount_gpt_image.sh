@@ -79,7 +79,14 @@ function get_gpt_partitions() {
   # Mount the rootfs partition using a loopback device.
   local offset=$(partoffset "${FLAGS_from}/${filename}" 3)
   local ro_flag=""
-  [ ${FLAGS_read_only} -eq ${FLAGS_TRUE} ] && ro_flag="-o ro"
+  if [ ${FLAGS_read_only} -eq ${FLAGS_TRUE} ]; then
+    ro_flag="-o ro"
+  else
+    # Make sure any callers can actually mount and modify the fs
+    # if desired.
+    # cros_make_image_bootable should restore the bit if needed.
+    enable_rw_mount "${FLAGS_from}/${filename}" "$(( offset * 512 ))"
+  fi
 
   sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
     "${FLAGS_from}/${filename}" "${FLAGS_rootfs_mountpt}"

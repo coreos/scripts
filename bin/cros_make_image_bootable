@@ -148,6 +148,15 @@ make_image_bootable() {
   root_dev=$(mount | grep -- "on ${FLAGS_rootfs_mountpoint} type" |
              cut -f1 -d' ' | tail -1)
 
+  # Make the filesystem un-mountable as read-write.
+  # mount_gpt_image.sh will undo this as needed.
+  # TODO(wad) make sure there is parity in the signing scripts.
+  if [ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]; then
+    # TODO(wad) this would be a good place to reset any other ext2 metadata.
+    warn "Disabling r/w mount of the root filesystem"
+    disable_rw_mount "$root_dev"
+  fi
+
   if [ ${FLAGS_use_dev_keys} -eq ${FLAGS_TRUE} ]; then
     use_dev_keys="--use_dev_keys"
   fi

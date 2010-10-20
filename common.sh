@@ -323,7 +323,7 @@ V_BOLD_YELLOW="\e[1;33m"
 
 function info {
   echo -e >&2 "${V_BOLD_GREEN}INFO   : $1${V_VIDOFF}"
-} 
+}
 
 function warn {
   echo -e >&2 "${V_BOLD_YELLOW}WARNING: $1${V_VIDOFF}"
@@ -447,6 +447,47 @@ setup_symlinks_on_root() {
   fi
 
   sudo ln -s "${var_target}" "${dev_image_root}/var"
+}
+
+# These two helpers clobber the ro compat value in our root filesystem.
+#
+# When the system is built with --enable_rootfs_verification, bit-precise
+# integrity checking is performed.  That precision poses a usability issue on
+# systems that automount partitions with recognizable filesystems, such as
+# ext2/3/4.  When the filesystem is mounted 'rw', ext2 metadata will be
+# automatically updated even if no other writes are performed to the
+# filesystem.  In addition, ext2+ does not support a "read-only" flag for a
+# given filesystem.  That said, forward and backward compatibility of
+# filesystem features are supported by tracking if a new feature breaks r/w or
+# just write compatibility.  We abuse the read-only compatibility flag[1] in
+# the filesystem header by setting the high order byte (le) to FF.  This tells
+# the kernel that features R24-R31 are all enabled.  Since those features are
+# undefined on all ext-based filesystem, all standard kernels will refuse to
+# mount the filesystem as read-write -- only read-only[2].
+#
+# [1] 32-bit flag we are modifying:
+#  http://git.chromium.org/cgi-bin/gitweb.cgi?p=kernel.git;a=blob;f=include/linux/ext2_fs.h#l417
+# [2] Mount behavior is enforced here:
+#  http://git.chromium.org/cgi-bin/gitweb.cgi?p=kernel.git;a=blob;f=fs/ext2/super.c#l857
+#
+# N.B., if the high order feature bits are used in the future, we will need to
+#       revisit this technique.
+disable_rw_mount() {
+  local rootfs="$1"
+  local offset="${2-0}"  # in bytes
+  local ro_compat_offset=$((0x467 + 3))  # Set 'highest' byte
+  echo -ne '\xff' |
+    sudo dd of="$rootfs" seek=$((offset + ro_compat_offset)) \
+            conv=notrunc count=1 bs=1
+}
+
+enable_rw_mount() {
+  local rootfs="$1"
+  local offset="${2-0}"
+  local ro_compat_offset=$((0x467 + 3))  # Set 'highest' byte
+  echo -ne '\x00' |
+    sudo dd of="$rootfs" seek=$((offset + ro_compat_offset)) \
+            conv=notrunc count=1 bs=1
 }
 
 # Get current timestamp. Assumes common.sh runs at startup.

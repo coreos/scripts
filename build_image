@@ -488,8 +488,6 @@ create_base_image() {
 
   trap "cleanup && delete_prompt" EXIT
 
-  UUID=$(uuidgen)
-
   # Create and format the root file system.
 
   # Check for loop device before creating image.
@@ -510,13 +508,22 @@ create_base_image() {
      seek=$((ROOT_SIZE_BYTES + ROOT_HASH_PAD - 1))
   sudo losetup "${LOOP_DEV}" "${ROOT_FS_IMG}"
   # Specify a block size and block count to avoid using the hash pad.
-  sudo mkfs.ext3 -b 4096 "${LOOP_DEV}" "$((ROOT_SIZE_BYTES / 4096))"
+  sudo mkfs.ext2 -b 4096 "${LOOP_DEV}" "$((ROOT_SIZE_BYTES / 4096))"
 
   # Tune and mount rootfs.
-  # TODO(wad) rename the disk label to match the GPT since we
-  #           can't change it later.
-  DISK_LABEL="C-KEYFOB"
-  sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${LOOP_DEV}"
+  DISK_LABEL="C-ROOT"
+  # Disable checking and minimize metadata differences across builds
+  # and wasted reserved space.
+  sudo tune2fs -L "${DISK_LABEL}" \
+               -U clear \
+               -T 20091119110000 \
+               -c 0 \
+               -i 0 \
+               -m 0 \
+               -r 0 \
+               -e remount-ro \
+                "${LOOP_DEV}"
+  # TODO(wad) call tune2fs prior to finalization to set the mount count to 0.
   sudo mount "${LOOP_DEV}" "${ROOT_FS_DIR}"
 
   # Create stateful partition of the same size as the rootfs.
