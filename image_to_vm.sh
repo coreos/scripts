@@ -180,6 +180,7 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 mkdir -p "${TEMP_MNT}"
+enable_rw_mount "${TEMP_ROOTFS}"
 sudo mount -o loop "${TEMP_ROOTFS}" "${TEMP_MNT}"
 mkdir -p "${TEMP_ESP_MNT}"
 sudo mount -o loop "${TEMP_ESP}" "${TEMP_ESP_MNT}"
