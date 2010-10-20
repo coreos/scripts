@@ -475,8 +475,8 @@ setup_symlinks_on_root() {
 disable_rw_mount() {
   local rootfs="$1"
   local offset="${2-0}"  # in bytes
-  local ro_compat_offset=$((0x467 + 3))  # Set 'highest' byte
-  echo -ne '\xff' |
+  local ro_compat_offset=$((0x464 + 3))  # Set 'highest' byte
+  printf '\377' |
     sudo dd of="$rootfs" seek=$((offset + ro_compat_offset)) \
             conv=notrunc count=1 bs=1
 }
@@ -484,8 +484,8 @@ disable_rw_mount() {
 enable_rw_mount() {
   local rootfs="$1"
   local offset="${2-0}"
-  local ro_compat_offset=$((0x467 + 3))  # Set 'highest' byte
-  echo -ne '\x00' |
+  local ro_compat_offset=$((0x464 + 3))  # Set 'highest' byte
+  printf '\000' |
     sudo dd of="$rootfs" seek=$((offset + ro_compat_offset)) \
             conv=notrunc count=1 bs=1
 }
