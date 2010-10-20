@@ -47,7 +47,7 @@ trap do_cleanup EXIT
 #
 echo "Fetching kernel from root image..."
 mkdir /tmp/kernel_fetch.$$
-sudo mount -o loop "${FLAGS_from}/rootfs.image" /tmp/kernel_fetch.$$
+sudo mount -o ro,loop "${FLAGS_from}/rootfs.image" /tmp/kernel_fetch.$$
 
 echo "Writing kernel to ${FLAGS_to} at ${FLAGS_offset}..."
 sudo "${SCRIPTS_DIR}"/file_copy.py \
