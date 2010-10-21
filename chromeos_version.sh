@@ -26,7 +26,7 @@ export CHROMEOS_VERSION_MINOR=9
 # Increment by 2 in trunk after making a release branch.
 # Does not reset on a major/minor change (always increases).
 # (Trunk is always odd; branches are always even).
-export CHROMEOS_VERSION_BRANCH=94
+export CHROMEOS_VERSION_BRANCH=93
 
 # Patch number.
 # Increment by 1 each release on a branch.
@@ -85,7 +85,7 @@ export CHROMEOS_VERSION_STRING=\
 # URL to chrome archive
 export CHROME_BASE=
 # directory containing chrome-chromeos.zip - an svn rev or a full version
-export CHROME_BUILD=8.0.552.10
+export CHROME_BUILD=
 
 # Print (and remember) version info.
 echo "ChromeOS version information:"
