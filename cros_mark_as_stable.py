@@ -14,7 +14,6 @@ import re
 import shutil
 import subprocess
 import sys
-from portage.versions import pkgsplit, pkgsplit, vercmp
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'lib'))
 from cros_build_lib import Info, RunCommand, Warning, Die
@@ -74,6 +73,7 @@ def _Print(message):
 
 def _BestEBuild(ebuilds):
   """Returns the newest EBuild from a list of EBuild objects."""
+  from portage.versions import vercmp
   winner = ebuilds[0]
   for ebuild in ebuilds[1:]:
     if vercmp(winner.version, ebuild.version) < 0:
@@ -279,6 +279,7 @@ class _EBuild(object):
     Uses equery to find the ebuild path and sets data about an ebuild for
     easy reference.
     """
+    from portage.versions import pkgsplit
     self.ebuild_path = path
     (self.ebuild_path_no_revision,
      self.ebuild_path_no_version,
