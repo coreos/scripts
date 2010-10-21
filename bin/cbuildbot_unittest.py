@@ -113,8 +113,8 @@ class CBuildBotTest(mox.MoxTestBase):
     m_file.read().AndReturn(self._test_string)
     m_file.close()
 
-    cbuildbot.RunCommand(['./cros_mark_all_as_stable',
-                     '--tracking_branch="cros/master"'],
+    cbuildbot.RunCommand(['./cros_mark_as_stable', '--all',
+                     '--tracking_branch="cros/master"', 'commit'],
                      cwd='%s/src/scripts' % self._buildroot,
                      enter_chroot=True)
 
@@ -133,8 +133,8 @@ class CBuildBotTest(mox.MoxTestBase):
     m_file.read().AndReturn('None')
     m_file.close()
 
-    cbuildbot.RunCommand(['./cros_mark_all_as_stable',
-                         '--tracking_branch="cros/master"'],
+    cbuildbot.RunCommand(['./cros_mark_as_stable', '--all',
+                         '--tracking_branch="cros/master"', 'commit'],
                          cwd='%s/src/scripts' % self._buildroot,
                          enter_chroot=True)
 

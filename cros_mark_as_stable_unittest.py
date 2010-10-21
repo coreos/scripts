@@ -89,46 +89,35 @@ class EBuildTest(mox.MoxTestBase):
 
   def setUp(self):
     mox.MoxTestBase.setUp(self)
-    self.package = 'test_package'
-    self.ebuild_path = '/path/test_package-0.0.1-r1.ebuild'
-    self.ebuild_path_no_rev = '/path/test_package-0.0.1.ebuild'
 
   def testInit(self):
-    self.mox.StubOutWithMock(cros_mark_as_stable._EBuild, '_FindEBuildPath')
     self.mox.StubOutWithMock(cros_mark_as_stable._EBuild, '_ParseEBuildPath')
 
-    cros_mark_as_stable._EBuild._FindEBuildPath(
-        self.package).AndReturn(self.ebuild_path)
+    ebuild_path = '/overlay/cat/test_package/test_package-0.0.1-r1.ebuild'
     cros_mark_as_stable._EBuild._ParseEBuildPath(
-        self.ebuild_path).AndReturn(['/path/test_package-0.0.1',
-                                     '/path/test_package',
-                                     1])
-    self.mox.ReplayAll()
-    ebuild = cros_mark_as_stable._EBuild(self.package, 'my_id')
-    self.mox.VerifyAll()
-    self.assertEquals(ebuild.package, self.package)
-    self.assertEquals(ebuild.ebuild_path, self.ebuild_path)
-    self.assertEquals(ebuild.ebuild_path_no_revision,
-                      '/path/test_package-0.0.1')
-    self.assertEquals(ebuild.ebuild_path_no_version, '/path/test_package')
-    self.assertEquals(ebuild.current_revision, 1)
-    self.assertEquals(ebuild.commit_id, 'my_id')
+        ebuild_path).AndReturn(['/overlay/cat/test_package-0.0.1',
+                                '/overlay/cat/test_package',
+                                1])
+    self.mox.StubOutWithMock(cros_mark_as_stable.fileinput, 'input')
+    mock_file = ['EAPI=2', 'CROS_WORKON_COMMIT=old_id',
+                 'KEYWORDS=\"~x86 ~arm\"', 'src_unpack(){}']
+    cros_mark_as_stable.fileinput.input(ebuild_path).AndReturn(mock_file)
 
-  def testFindEBuildPath(self):
-    self.mox.StubOutWithMock(cros_mark_as_stable, '_SimpleRunCommand')
-    cmd = ('ACCEPT_KEYWORDS="x86 arm amd64" '
-           'equery-x86-generic which %s 2> /dev/null')
-    cros_mark_as_stable._SimpleRunCommand(cmd % self.package).AndReturn(
-        self.ebuild_path)
     self.mox.ReplayAll()
-    path = cros_mark_as_stable._EBuild._FindEBuildPath(self.package)
+    ebuild = cros_mark_as_stable._EBuild(ebuild_path)
     self.mox.VerifyAll()
-    self.assertEquals(path, self.ebuild_path)
+    self.assertEquals(ebuild.package, 'cat/test_package')
+    self.assertEquals(ebuild.ebuild_path, ebuild_path)
+    self.assertEquals(ebuild.ebuild_path_no_revision,
+                      '/overlay/cat/test_package-0.0.1')
+    self.assertEquals(ebuild.ebuild_path_no_version,
+                      '/overlay/cat/test_package')
+    self.assertEquals(ebuild.current_revision, 1)
 
   def testParseEBuildPath(self):
     # Test with ebuild with revision number.
     no_rev, no_version, revision = cros_mark_as_stable._EBuild._ParseEBuildPath(
-        self.ebuild_path)
+        '/path/test_package-0.0.1-r1.ebuild')
     self.assertEquals(no_rev, '/path/test_package-0.0.1')
     self.assertEquals(no_version, '/path/test_package')
     self.assertEquals(revision, 1)
@@ -136,7 +125,7 @@ class EBuildTest(mox.MoxTestBase):
   def testParseEBuildPathNoRevisionNumber(self):
     # Test with ebuild without revision number.
     no_rev, no_version, revision = cros_mark_as_stable._EBuild._ParseEBuildPath(
-        self.ebuild_path_no_rev)
+        '/path/test_package-0.0.1.ebuild')
     self.assertEquals(no_rev, '/path/test_package-0.0.1')
     self.assertEquals(no_version, '/path/test_package')
     self.assertEquals(revision, 0)
@@ -147,6 +136,8 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
   def setUp(self):
     mox.MoxTestBase.setUp(self)
     self.mox.StubOutWithMock(cros_mark_as_stable, '_SimpleRunCommand')
+    self.mox.StubOutWithMock(cros_mark_as_stable, 'RunCommand')
+    self.mox.StubOutWithMock(os, 'unlink')
     self.m_ebuild = self.mox.CreateMock(cros_mark_as_stable._EBuild)
     self.m_ebuild.package = 'test_package'
     self.m_ebuild.current_revision = 1
@@ -175,8 +166,43 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     m_file.write('CROS_WORKON_COMMIT="my_id"\n')
     m_file.write('KEYWORDS="x86 arm"')
     m_file.write('src_unpack(){}')
+    diff_cmd = ['diff', '-Bu', self.m_ebuild.ebuild_path,
+                self.revved_ebuild_path]
+    cros_mark_as_stable.RunCommand(diff_cmd, exit_code=True,
+                                   print_cmd=False).AndReturn(1)
     cros_mark_as_stable._SimpleRunCommand('git add ' + self.revved_ebuild_path)
     cros_mark_as_stable._SimpleRunCommand('git rm ' + self.m_ebuild.ebuild_path)
+
+    self.mox.ReplayAll()
+    marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
+    marker.RevEBuild('my_id', redirect_file=m_file)
+    self.mox.VerifyAll()
+
+  def testRevUnchangedEBuild(self):
+    self.mox.StubOutWithMock(cros_mark_as_stable.fileinput, 'input')
+    self.mox.StubOutWithMock(cros_mark_as_stable.os.path, 'exists')
+    self.mox.StubOutWithMock(cros_mark_as_stable.shutil, 'copyfile')
+    m_file = self.mox.CreateMock(file)
+
+    # Prepare mock fileinput.  This tests to make sure both the commit id
+    # and keywords are changed correctly.
+    mock_file = ['EAPI=2', 'CROS_WORKON_COMMIT=old_id',
+                 'KEYWORDS=\"~x86 ~arm\"', 'src_unpack(){}']
+
+    ebuild_9999 = self.m_ebuild.ebuild_path_no_version + '-9999.ebuild'
+    cros_mark_as_stable.os.path.exists(ebuild_9999).AndReturn(True)
+    cros_mark_as_stable.shutil.copyfile(ebuild_9999, self.revved_ebuild_path)
+    cros_mark_as_stable.fileinput.input(self.revved_ebuild_path,
+                                        inplace=1).AndReturn(mock_file)
+    m_file.write('EAPI=2')
+    m_file.write('CROS_WORKON_COMMIT="my_id"\n')
+    m_file.write('KEYWORDS="x86 arm"')
+    m_file.write('src_unpack(){}')
+    diff_cmd = ['diff', '-Bu', self.m_ebuild.ebuild_path,
+                self.revved_ebuild_path]
+    cros_mark_as_stable.RunCommand(diff_cmd, exit_code=True,
+                                   print_cmd=False).AndReturn(0)
+    cros_mark_as_stable.os.unlink(self.revved_ebuild_path)
 
     self.mox.ReplayAll()
     marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
@@ -205,6 +231,10 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     m_file.write('CROS_WORKON_COMMIT="my_id"\n')
     m_file.write('KEYWORDS="x86 arm"')
     m_file.write('src_unpack(){}')
+    diff_cmd = ['diff', '-Bu', self.m_ebuild.ebuild_path,
+                self.revved_ebuild_path]
+    cros_mark_as_stable.RunCommand(diff_cmd, exit_code=True,
+                                   print_cmd=False).AndReturn(1)
     cros_mark_as_stable._SimpleRunCommand('git add ' + self.revved_ebuild_path)
     cros_mark_as_stable._SimpleRunCommand('git rm ' + self.m_ebuild.ebuild_path)
 
@@ -231,49 +261,44 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     #self.mox.VerifyAll()
     pass
 
+
+class _Package(object):
+  def __init__(self, package):
+    self.package = package
+
+
 class BuildEBuildDictionaryTest(mox.MoxTestBase):
 
   def setUp(self):
     mox.MoxTestBase.setUp(self)
-    self.mox.StubOutWithMock(cros_mark_as_stable, '_SimpleRunCommand')
-    self.ebuild_path = '/path/test_package-0.0.1-r1.ebuild'
-    self.package = "test_package"
+    self.mox.StubOutWithMock(cros_mark_as_stable.os, 'walk')
+    self.mox.StubOutWithMock(cros_mark_as_stable, 'RunCommand')
+    self.package = 'chromeos-base/test_package'
+    self.root = '/overlay/chromeos-base/test_package'
+    self.package_path = self.root + '/test_package-0.0.1.ebuild'
+    paths = [[self.root, [], []]]
+    cros_mark_as_stable.os.walk("/overlay").AndReturn(paths)
+    self.mox.StubOutWithMock(cros_mark_as_stable, '_FindStableEBuilds')
 
-  def testValidPackage(self):
-    overlays = {"/path": []}
-    cmd = ('ACCEPT_KEYWORDS="x86 arm amd64" '
-           'equery-x86-generic which %s 2> /dev/null' % self.package)
-    cros_mark_as_stable._SimpleRunCommand(cmd).AndReturn(self.ebuild_path)
+
+  def testWantedPackage(self):
+    overlays = {"/overlay": []}
+    package = _Package(self.package)
+    cros_mark_as_stable._FindStableEBuilds([]).AndReturn(package)
     self.mox.ReplayAll()
-    cros_mark_as_stable._BuildEBuildDictionary(overlays, [self.package], [])
-    self.assertEquals(len(overlays), 1)
-    self.assertEquals(overlays["/path"][0].package, self.package)
+    cros_mark_as_stable._BuildEBuildDictionary(overlays, False, [self.package])
     self.mox.VerifyAll()
-
-  def testPackageInDifferentOverlay(self):
-    self.mox.StubOutWithMock(cros_mark_as_stable, 'Die')
-    cros_mark_as_stable.Die("No overlay found for %s" % self.ebuild_path)
-    cmd = ('ACCEPT_KEYWORDS="x86 arm amd64" '
-           'equery-x86-generic which %s 2> /dev/null' % self.package)
-    cros_mark_as_stable._SimpleRunCommand(cmd).AndReturn(self.ebuild_path)
-    overlays = {"/newpath": []}
-    self.mox.ReplayAll()
-    cros_mark_as_stable._BuildEBuildDictionary(overlays, [self.package], [])
     self.assertEquals(len(overlays), 1)
-    self.assertEquals(overlays["/newpath"], [])
-    self.mox.VerifyAll()
+    self.assertEquals(overlays["/overlay"], [package])
 
-  def testMissingPackage(self):
-    self.mox.StubOutWithMock(cros_mark_as_stable, 'Die')
-    cros_mark_as_stable.Die("No ebuild found for %s" % self.package)
-    cmd = ('ACCEPT_KEYWORDS="x86 arm amd64" '
-           'equery-x86-generic which %s 2> /dev/null' % self.package)
-    cros_mark_as_stable._SimpleRunCommand(cmd).AndReturn("")
+  def testUnwantedPackage(self):
+    overlays = {"/overlay": []}
+    package = _Package(self.package)
+    cros_mark_as_stable._FindStableEBuilds([]).AndReturn(package)
     self.mox.ReplayAll()
-    overlays = {"/path": []}
-    cros_mark_as_stable._BuildEBuildDictionary(overlays, [self.package], [])
+    cros_mark_as_stable._BuildEBuildDictionary(overlays, False, [])
     self.assertEquals(len(overlays), 1)
-    self.assertEquals(overlays["/path"], [])
+    self.assertEquals(overlays["/overlay"], [])
     self.mox.VerifyAll()
 
 

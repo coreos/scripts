@@ -14,9 +14,10 @@ import re
 import shutil
 import subprocess
 import sys
+from portage.versions import pkgsplit, pkgsplit, vercmp
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'lib'))
-from cros_build_lib import Info, Warning, Die
+from cros_build_lib import Info, RunCommand, Warning, Die
 
 
 gflags.DEFINE_string('board', 'x86-generic',
@@ -38,6 +39,8 @@ gflags.DEFINE_string('srcroot', '%s/trunk/src' % os.environ['HOME'],
 gflags.DEFINE_string('tracking_branch', 'cros/master',
                      'Used with commit to specify branch to track against.',
                      short_name='t')
+gflags.DEFINE_boolean('all', False,
+                      'Mark all packages as stable.')
 gflags.DEFINE_boolean('verbose', False,
                       'Prints out verbose information about what is going on.',
                       short_name='v')
@@ -69,22 +72,81 @@ def _Print(message):
     Info(message)
 
 
-def _BuildEBuildDictionary(overlays, package_list, commit_id_list):
-  for index in range(len(package_list)):
-    package = package_list[index]
-    commit_id = ''
-    if commit_id_list:
-      commit_id = commit_id_list[index]
-    ebuild = _EBuild(package, commit_id)
-    if ebuild.ebuild_path:
-      for overlay in overlays:
-        if ebuild.ebuild_path.startswith(overlay):
-          overlays[overlay].append(ebuild)
-          break
-      else:
-        Die('No overlay found for %s' % ebuild.ebuild_path)
-    else:
-      Die('No ebuild found for %s' % package)
+def _BestEBuild(ebuilds):
+  """Returns the newest EBuild from a list of EBuild objects."""
+  winner = ebuilds[0]
+  for ebuild in ebuilds[1:]:
+    if vercmp(winner.version, ebuild.version) < 0:
+      winner = ebuild
+  return winner
+
+
+def _FindStableEBuilds(files):
+  """Return a list of stable ebuilds from specified list of files.
+
+  Args:
+    files: List of files.
+  """
+  workon_dir = False
+  stable_ebuilds = []
+  unstable_ebuilds = []
+  for path in files:
+    if path.endswith('.ebuild') and not os.path.islink(path):
+      ebuild = _EBuild(path)
+      if ebuild.is_workon:
+        workon_dir = True
+        if ebuild.is_stable:
+          stable_ebuilds.append(ebuild)
+        else:
+          unstable_ebuilds.append(ebuild)
+
+  # If we found a workon ebuild in this directory, apply some sanity checks.
+  if workon_dir:
+    if len(unstable_ebuilds) > 1:
+      Die('Found multiple unstable ebuilds in %s' % root)
+    if len(stable_ebuilds) > 1:
+      stable_ebuilds = [_BestEBuild(stable_ebuilds)]
+
+      # Print a warning if multiple stable ebuilds are found in the same
+      # directory. Storing multiple stable ebuilds is error-prone because
+      # the older ebuilds will not get rev'd.
+      #
+      # We make a special exception for x11-drivers/xf86-video-msm for legacy
+      # reasons.
+      if stable_ebuilds[0].package != 'x11-drivers/xf86-video-msm':
+        Warning('Found multiple stable ebuilds in %s' % root)
+
+    if not unstable_ebuilds:
+      Die('Missing 9999 ebuild in %s' % root)
+    if not stable_ebuilds:
+      Die('Missing stable ebuild in %s' % root)
+
+  if stable_ebuilds:
+    return stable_ebuilds[0]
+  else:
+    return None
+
+
+def _BuildEBuildDictionary(overlays, all, packages):
+  """Build a dictionary of the ebuilds in the specified overlays.
+
+  overlays: A map which maps overlay directories to arrays of stable EBuilds
+    inside said directories.
+  all: Whether to include all ebuilds in the specified directories. If true,
+    then we gather all packages in the directories regardless of whether
+    they are in our set of packages.
+  packages: A set of the packages we want to gather.
+  """
+  for overlay in overlays:
+    for root_dir, dirs, files in os.walk(overlay):
+      # Add stable ebuilds to overlays[overlay].
+      paths = [os.path.join(root_dir, path) for path in files]
+      ebuild = _FindStableEBuilds(paths)
+
+      # If the --all option isn't used, we only want to update packages that
+      # are in packages.
+      if ebuild and (all or ebuild.package in packages):
+        overlays[overlay].append(ebuild)
 
 
 def _CheckOnStabilizingBranch():
@@ -93,19 +155,16 @@ def _CheckOnStabilizingBranch():
   return current_branch == _STABLE_BRANCH_NAME
 
 
-def _CheckSaneArguments(package_list, commit_id_list, command):
+def _CheckSaneArguments(package_list, command):
   """Checks to make sure the flags are sane.  Dies if arguments are not sane."""
   if not command in _COMMAND_DICTIONARY.keys():
     _PrintUsageAndDie('%s is not a valid command' % command)
-  if not gflags.FLAGS.packages and command == 'commit':
+  if not gflags.FLAGS.packages and command == 'commit' and not gflags.FLAGS.all:
     _PrintUsageAndDie('Please specify at least one package')
   if not gflags.FLAGS.board and command == 'commit':
     _PrintUsageAndDie('Please specify a board')
   if not os.path.isdir(gflags.FLAGS.srcroot):
     _PrintUsageAndDie('srcroot is not a valid path')
-  if commit_id_list and (len(package_list) != len(commit_id_list)):
-    _PrintUsageAndDie(
-        'Package list is not the same length as the commit id list')
 
 
 def _Clean():
@@ -214,30 +273,76 @@ class _GitBranch(object):
 class _EBuild(object):
   """Wrapper class for an ebuild."""
 
-  def __init__(self, package, commit_id=None):
+  def __init__(self, path):
     """Initializes all data about an ebuild.
 
     Uses equery to find the ebuild path and sets data about an ebuild for
     easy reference.
     """
-    self.package = package
-    self.ebuild_path = self._FindEBuildPath(package)
+    self.ebuild_path = path
     (self.ebuild_path_no_revision,
      self.ebuild_path_no_version,
      self.current_revision) = self._ParseEBuildPath(self.ebuild_path)
-    self.commit_id = commit_id
+    _, self.category, pkgpath, filename = path.rsplit('/', 3)
+    filename_no_suffix = os.path.join(filename.replace('.ebuild', ''))
+    self.pkgname, version_no_rev, rev = pkgsplit(filename_no_suffix)
+    self.version = '%s-%s' % (version_no_rev, rev)
+    self.package = '%s/%s' % (self.category, self.pkgname)
+    self.is_workon = False
+    self.is_stable = False
 
-  @classmethod
-  def _FindEBuildPath(cls, package):
-    """Static method that returns the full path of an ebuild."""
-    _Print('Looking for unstable ebuild for %s' % package)
-    equery_cmd = (
-        'ACCEPT_KEYWORDS="x86 arm amd64" equery-%s which %s 2> /dev/null'
-            % (gflags.FLAGS.board, package))
-    path = _SimpleRunCommand(equery_cmd)
-    if path:
-      _Print('Unstable ebuild found at %s' % path)
-    return path.rstrip()
+    for line in fileinput.input(path):
+      if line.startswith('inherit ') and 'cros-workon' in line:
+        self.is_workon = True
+      elif (line.startswith('KEYWORDS=') and '~' not in line and
+            ('amd64' in line or 'x86' in line or 'arm' in line)):
+        self.is_stable = True
+    fileinput.close()
+
+  def GetCommitId(self):
+    """Get the commit id for this ebuild."""
+
+    # Grab and evaluate CROS_WORKON variables from this ebuild.
+    unstable_ebuild = '%s-9999.ebuild' % self.ebuild_path_no_version
+    cmd = ('CROS_WORKON_LOCALNAME="%s" CROS_WORKON_PROJECT="%s" '
+           'eval $(grep -E "^CROS_WORKON" %s) && '
+           'echo $CROS_WORKON_PROJECT '
+           '$CROS_WORKON_LOCALNAME/$CROS_WORKON_SUBDIR'
+           % (self.pkgname, self.pkgname, unstable_ebuild))
+    project, subdir = _SimpleRunCommand(cmd).split()
+
+    # Calculate srcdir.
+    srcroot = gflags.FLAGS.srcroot
+    if self.category == 'chromeos-base':
+      dir = 'platform'
+    else:
+      dir = 'third_party'
+    srcdir = os.path.join(srcroot, dir, subdir)
+
+    # TODO(anush): This hack is only necessary because the kernel ebuild has
+    # 'if' statements, so we can't grab the CROS_WORKON_LOCALNAME properly.
+    # We should clean up the kernel ebuild and remove this hack.
+    if not os.path.exists(srcdir) and subdir == 'kernel/':
+      srcdir = os.path.join(srcroot, 'third_party/kernel/files')
+
+    if not os.path.exists(srcdir):
+      Die('Cannot find commit id for %s' % self.ebuild_path)
+
+    # Verify that we're grabbing the commit id from the right project name.
+    # NOTE: chromeos-kernel has the wrong project name, so it fails this
+    # check.
+    # TODO(davidjames): Fix the project name in the chromeos-kernel ebuild.
+    cmd = 'cd %s && git config --get remote.cros.projectname' % srcdir
+    actual_project =_SimpleRunCommand(cmd).rstrip()
+    if project not in (actual_project, 'chromeos-kernel'):
+      Die('Project name mismatch for %s (%s != %s)' % (unstable_ebuild, project,
+          actual_project))
+
+    # Get commit id.
+    output = _SimpleRunCommand('cd %s && git rev-parse HEAD' % srcdir)
+    if not output:
+      Die('Missing commit id for %s' % self.ebuild_path)
+    return output.rstrip()
 
   @classmethod
   def _ParseEBuildPath(cls, ebuild_path):
@@ -317,11 +422,21 @@ class EBuildStableMarker(object):
         redirect_file.write(line)
     fileinput.close()
 
-    _Print('Adding new stable ebuild to git')
-    _SimpleRunCommand('git add %s' % new_ebuild_path)
+    # If the new ebuild is identical to the old ebuild, return False and
+    # delete our changes.
+    old_ebuild_path = self._ebuild.ebuild_path
+    diff_cmd = ['diff', '-Bu', old_ebuild_path, new_ebuild_path]
+    if 0 == RunCommand(diff_cmd, exit_code=True,
+                       print_cmd=gflags.FLAGS.verbose):
+      os.unlink(new_ebuild_path)
+      return False
+    else:
+      _Print('Adding new stable ebuild to git')
+      _SimpleRunCommand('git add %s' % new_ebuild_path)
 
-    _Print('Removing old ebuild from git')
-    _SimpleRunCommand('git rm %s' % self._ebuild.ebuild_path)
+      _Print('Removing old ebuild from git')
+      _SimpleRunCommand('git rm %s' % old_ebuild_path)
+      return True
 
   def CommitChange(self, message):
     """Commits current changes in git locally.
@@ -352,17 +467,16 @@ def main(argv):
     _PrintUsageAndDie(str(e))
 
   package_list = gflags.FLAGS.packages.split()
-  if gflags.FLAGS.commit_ids:
-    commit_id_list = gflags.FLAGS.commit_ids.split()
-  else:
-    commit_id_list = None
-  _CheckSaneArguments(package_list, commit_id_list, command)
+  _CheckSaneArguments(package_list, command)
 
   overlays = {
     '%s/private-overlays/chromeos-overlay' % gflags.FLAGS.srcroot: [],
     '%s/third_party/chromiumos-overlay' % gflags.FLAGS.srcroot: []
   }
-  _BuildEBuildDictionary(overlays, package_list, commit_id_list)
+  all = gflags.FLAGS.all
+
+  if command == 'commit':
+    _BuildEBuildDictionary(overlays, all, package_list)
 
   for overlay, ebuilds in overlays.items():
     if not os.path.exists(overlay):
@@ -374,17 +488,19 @@ def main(argv):
     elif command == 'push':
       _PushChange()
     elif command == 'commit' and ebuilds:
-      work_branch = _GitBranch(_STABLE_BRANCH_NAME)
-      work_branch.CreateBranch()
-      if not work_branch.Exists():
-        Die('Unable to create stabilizing branch in %s' % overlay)
       for ebuild in ebuilds:
         try:
           _Print('Working on %s' % ebuild.package)
           worker = EBuildStableMarker(ebuild)
-          worker.RevEBuild(ebuild.commit_id)
-          message = _GIT_COMMIT_MESSAGE % (ebuild.package, ebuild.commit_id)
-          worker.CommitChange(message)
+          commit_id = ebuild.GetCommitId()
+          if worker.RevEBuild(commit_id):
+            if not _CheckOnStabilizingBranch():
+              work_branch = _GitBranch(_STABLE_BRANCH_NAME)
+              work_branch.CreateBranch()
+              if not work_branch.Exists():
+                Die('Unable to create stabilizing branch in %s' % overlay)
+            message = _GIT_COMMIT_MESSAGE % (ebuild.package, commit_id)
+            worker.CommitChange(message)
         except (OSError, IOError):
           Warning('Cannot rev %s\n' % ebuild.package,
                   'Note you will have to go into %s '

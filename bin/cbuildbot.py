@@ -184,19 +184,15 @@ def _UprevFromRevisionList(buildroot, revision_list):
     return
 
   package_str = ''
-  commit_str = ''
   for package, revision in revision_list:
     package_str += package + ' '
-    commit_str += revision + ' '
 
   package_str = package_str.strip()
-  commit_str = commit_str.strip()
 
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./cros_mark_as_stable',
               '--tracking_branch="cros/master"',
               '--packages="%s"' % package_str,
-              '--commit_ids="%s"' % commit_str,
               'commit'],
               cwd=cwd, enter_chroot=True)
 
@@ -204,8 +200,8 @@ def _UprevFromRevisionList(buildroot, revision_list):
 def _UprevAllPackages(buildroot):
   """Uprevs all packages that have been updated since last uprev."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./cros_mark_all_as_stable',
-              '--tracking_branch="cros/master"'],
+  RunCommand(['./cros_mark_as_stable', '--all',
+              '--tracking_branch="cros/master"', 'commit'],
               cwd=cwd, enter_chroot=True)
 
 
