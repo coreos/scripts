@@ -136,8 +136,7 @@ function mount_image() {
 
 # Find the last image built on the board.
 if [ ${FLAGS_most_recent} -eq ${FLAGS_TRUE} ] ; then
-  IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
-  FLAGS_from="${IMAGES_DIR}/$(ls -t ${IMAGES_DIR} 2>&-| head -1)"
+  FLAGS_from="$(./get_latest_image.sh --board="${FLAGS_board}")"
 fi
 
 # Turn path into an absolute path.
