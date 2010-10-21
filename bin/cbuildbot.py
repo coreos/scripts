@@ -445,7 +445,7 @@ def main():
 
     if buildconfig['uprev']:
       # Don't push changes for developers.
-      if options.debug:
+      if not options.debug:
         if buildconfig['master']:
           # Master bot needs to check if the other slaves completed.
           if cbuildbot_comm.HaveSlavesCompleted(config):
