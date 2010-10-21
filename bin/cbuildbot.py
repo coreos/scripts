@@ -83,7 +83,7 @@ def _GetAllGitRepos(buildroot, debug=False):
                       redirect_stderr=True, print_cmd=debug)
 
   # Extract all lines containg a project.
-  extract_cmd = ["grep", "project name="]
+  extract_cmd = ['grep', 'project name=']
   output = RunCommand(extract_cmd, cwd=buildroot, input=output,
                       redirect_stdout=True, print_cmd=debug)
   # Parse line using re to get tuple.
@@ -289,8 +289,8 @@ def _BuildVMImageForTesting(buildroot):
   RunCommand(['./image_to_vm.sh',
               '--test_image',
               '--full',
-              '--vdisk_size %s' % vdisk_size,
-              '--statefulfs_size %s' % statefulfs_size,
+              '--vdisk_size=%s' % vdisk_size,
+              '--statefulfs_size=%s' % statefulfs_size,
               ], cwd=cwd, enter_chroot=True)
 
 
@@ -303,8 +303,7 @@ def _RunSmokeSuite(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['bin/cros_run_vm_test',
               '--no_graphics',
-              '--test_case',
-              'suite_Smoke',
+              '--test_case=suite_Smoke',
               ], cwd=cwd, error_ok=False)
 
 
@@ -356,7 +355,7 @@ def _UprevPush(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./cros_mark_as_stable', '--srcroot=..',
               '--tracking_branch="cros/master"',
-              '--push_options', '--bypass-hooks -f', 'push'],
+              '--push_options="--bypass-hooks -f"', 'push'],
              cwd=cwd)
 
 

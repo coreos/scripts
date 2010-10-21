@@ -227,11 +227,11 @@ class VirtualAUTest(unittest.TestCase, AUTest):
       Info('Qemu image not found, creating one.')
       RunCommand(['%s/image_to_vm.sh' % self.crosutils,
                   '--full',
-                  '--from %s' % ReinterpretPathForChroot(
+                  '--from=%s' % ReinterpretPathForChroot(
                       os.path.dirname(base_image_path)),
-                  '--vdisk_size %s' % _FULL_VDISK_SIZE,
-                  '--statefulfs_size %s' % _FULL_STATEFULFS_SIZE,
-                  '--board %s' % board,
+                  '--vdisk_size=%s' % _FULL_VDISK_SIZE,
+                  '--statefulfs_size=%s' % _FULL_STATEFULFS_SIZE,
+                  '--board=%s' % board,
                   '--test_image'], enter_chroot=True)
     else:
       Info('Using existing VM image')

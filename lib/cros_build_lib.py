@@ -54,8 +54,8 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
 
   # Print out the command before running.
   if print_cmd:
-    Info('PROGRAM(%s) -> RunCommand: %s in dir %s' %
-         (GetCallerName(), ' '.join(cmd), cwd))
+    Info('PROGRAM(%s) -> RunCommand: %r in dir %s' %
+         (GetCallerName(), cmd, cwd))
 
   try:
     proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
@@ -65,7 +65,7 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
       return proc.returncode
 
     if not error_ok and proc.returncode:
-      raise Exception('Command "%s" failed.\n' % (' '.join(cmd)) +
+      raise Exception('Command "%r" failed.\n' % (cmd) +
                       (error_message or error or output or ''))
   except Exception, e:
     if not error_ok:
