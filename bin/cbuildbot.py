@@ -7,9 +7,11 @@
 """CBuildbot is wrapper around the build process used by the pre-flight queue"""
 
 import errno
+import heapq
 import re
 import optparse
 import os
+import shutil
 import sys
 
 import cbuildbot_comm
@@ -19,6 +21,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../lib'))
 from cros_build_lib import Die, Info, RunCommand, Warning
 
 _DEFAULT_RETRIES = 3
+ARCHIVE_BASE = '/var/www/archive'
+ARCHIVE_COUNT = 10
 
 # ======================== Utility functions ================================
 
@@ -325,11 +329,17 @@ def _RunUnitTests(buildroot):
   RunCommand(['./cros_run_unit_tests'], cwd=cwd, enter_chroot=True)
 
 
-def _RunSmokeSuite(buildroot):
+def _RunSmokeSuite(buildroot, results_dir):
+  results_dir_in_chroot = os.path.join(buildroot, 'chroot',
+                                       results_dir.lstrip('/'))
+  if os.path.exists(results_dir_in_chroot):
+    shutil.rmtree(results_dir_in_chroot)
+
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['bin/cros_run_vm_test',
               '--no_graphics',
               '--test_case=suite_Smoke',
+              '--results_dir_root=%s' % results_dir,
               ], cwd=cwd, error_ok=False)
 
 
@@ -376,6 +386,50 @@ def _UprevPush(buildroot, tracking_branch, board):
               '--tracking_branch="%s"' % tracking_branch,
               '--push_options="--bypass-hooks -f"', 'push'],
              cwd=cwd)
+
+
+def _ArchiveTestResults(buildroot, board, archive_dir, test_results_dir):
+  """Archives the test results into the www dir for later use.
+
+  Takes the results from the test_results_dir and dumps them into the archive
+  dir specified.  This also archives the last qemu image.
+
+  board:  Board to find the qemu image.
+  archive_dir:  Path from ARCHIVE_BASE to store image.
+  test_results_dir: Path from buildroot/chroot to find test results.  This must
+    a subdir of /tmp.
+  """
+  test_results_dir = test_results_dir.lstrip('/')
+  if not os.path.exists(ARCHIVE_BASE):
+    os.makedirs(ARCHIVE_BASE)
+  else:
+    dir_entries = os.listdir(ARCHIVE_BASE)
+    if len(dir_entries) >= ARCHIVE_COUNT:
+      oldest_dirs = heapq.nsmallest((len(dir_entries) - ARCHIVE_COUNT) + 1,
+                                    [filename for filename in dir_entries],
+                                    key=lambda fn: os.stat(fn).st_mtime)
+      Info('Removing archive dirs %s' % oldest_dirs)
+      for oldest_dir in oldest_dirs:
+        shutil.rmtree(os.path.join(ARCHIVE_BASE, oldest_dir))
+
+  archive_target = os.path.join(ARCHIVE_BASE, str(archive_dir))
+  if os.path.exists(archive_target):
+    shutil.rmtree(archive_target)
+
+  results_path = os.path.join(buildroot, 'chroot', test_results_dir)
+  RunCommand(['sudo', 'chmod', '-R', '+r', results_path])
+  try:
+    shutil.copytree(results_path, archive_target)
+  except:
+    Warning('Some files could not be copied')
+
+  image_name = 'chromiumos_qemu_image.bin'
+  image_path = os.path.join(buildroot, 'src', 'build', 'images', board,
+                            'latest', image_name)
+  RunCommand(['gzip', '-f', image_path])
+  shutil.copyfile(image_path + '.gz', os.path.join(archive_target,
+                                                   image_name + '.gz'))
+
 
 
 def _GetConfig(config_name):
@@ -463,7 +517,13 @@ def main():
 
     if buildconfig['smoke_bvt']:
       _BuildVMImageForTesting(buildroot)
-      _RunSmokeSuite(buildroot)
+      test_results_dir = '/tmp/run_remote_tests.%s' % options.buildnumber
+      try:
+        _RunSmokeSuite(buildroot, test_results_dir)
+      finally:
+        _ArchiveTestResults(buildroot, buildconfig['board'],
+                            archive_dir=options.buildnumber,
+                            test_results_dir=test_results_dir)
 
     if buildconfig['uprev']:
       # Don't push changes for developers.

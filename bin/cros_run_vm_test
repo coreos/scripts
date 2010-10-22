@@ -17,6 +17,7 @@ get_default_board
 DEFINE_string board "$DEFAULT_BOARD" \
     "The board for which you built autotest."
 DEFINE_string image_path "" "Full path of the VM image"
+DEFINE_string results_dir_root "" "alternate root results directory"
 DEFINE_string test_case "" "Name of the test case to run"
 
 set -e
@@ -45,4 +46,5 @@ retry_until_ssh ${MAX_RETRIES}
   --board=${FLAGS_board} \
   --ssh_port=${FLAGS_ssh_port} \
   --remote=127.0.0.1 \
+  --results_dir_root="${FLAGS_results_dir_root}" \
   "${FLAGS_test_case}"
