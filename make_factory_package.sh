@@ -28,7 +28,8 @@ DEFINE_string firmware_updater "" \
   "If set, include the firmware shellball into the server configuration"
 DEFINE_string release "" \
   "Directory and file containing release image: /path/chromiumos_image.bin"
-
+DEFINE_string subfolder "" \
+  "If set, the name of the subfolder to put the payload items inside"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -55,6 +56,13 @@ fi
 OMAHA_DIR=${SRC_ROOT}/platform/dev
 OMAHA_DATA_DIR=${OMAHA_DIR}/static/
 
+# Note: The subfolder flag can only append configs.  That means you will need
+# to have unique board IDs for every time you run.  If you delete miniomaha.conf
+# you can still use this flag and it will start fresh.
+if [ -n "${FLAGS_subfolder}" ] ; then
+  OMAHA_DATA_DIR=${OMAHA_DIR}/static/${FLAGS_subfolder}/
+fi
+
 if [ ${INSIDE_CHROOT} -eq 0 ]; then
   echo "Caching sudo authentication"
   sudo -v
@@ -74,7 +82,9 @@ prepare_omaha() {
   rm -rf ${OMAHA_DATA_DIR}/efi.gz
   rm -rf ${OMAHA_DATA_DIR}/oem.gz
   rm -rf ${OMAHA_DATA_DIR}/state.gz
-  rm -rf ${OMAHA_DIR}/miniomaha.conf
+  if [ ! -f "${OMAHA_DATA_DIR}" ] ; then
+    mkdir -p ${OMAHA_DATA_DIR}
+  fi
 }
 
 prepare_dir() {
@@ -151,20 +161,32 @@ if [ ! -z ${FLAGS_firmware_updater} ] ; then
   echo "firmware: ${firmware_hash}"
 fi
 
-echo -n "
-config = [
- {
+# If the file does exist and we are using the subfolder flag we are going to
+# append another config.
+if [ -n "${FLAGS_subfolder}" ] && \
+   [ -f "${OMAHA_DIR}"/miniomaha.conf"" ] ; then
+  # Remove the ']' from the last line of the file so we can add another config.
+  sed -i '$d' < ${OMAHA_DIR}/miniomaha.conf
+else
+  echo -e "config = [" > ${OMAHA_DIR}/miniomaha.conf
+fi
+
+if [ -n "${FLAGS_subfolder}" ] ; then
+  subfolder="${FLAGS_subfolder}/"
+fi
+
+echo -n "{
    'qual_ids': set([\"${FLAGS_board}\"]),
-   'factory_image': 'rootfs-test.gz',
+   'factory_image': '"${subfolder}"rootfs-test.gz',
    'factory_checksum': '${test_hash}',
-   'release_image': 'rootfs-release.gz',
+   'release_image': '"${subfolder}"rootfs-release.gz',
    'release_checksum': '${release_hash}',
-   'oempartitionimg_image': 'oem.gz',
+   'oempartitionimg_image': '"${subfolder}"oem.gz',
    'oempartitionimg_checksum': '${oem_hash}',
-   'efipartitionimg_image': 'efi.gz',
+   'efipartitionimg_image': '"${subfolder}"efi.gz',
    'efipartitionimg_checksum': '${efi_hash}',
-   'stateimg_image': 'state.gz',
-   'stateimg_checksum': '${state_hash}'," > ${OMAHA_DIR}/miniomaha.conf
+   'stateimg_image': '"${subfolder}"state.gz',
+   'stateimg_checksum': '${state_hash}'," >> ${OMAHA_DIR}/miniomaha.conf
 
 if [ ! -z "${FLAGS_firmware_updater}" ]  ; then
   echo -n "
