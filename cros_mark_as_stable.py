@@ -70,11 +70,11 @@ def _CleanStalePackages(board, package_array):
     Info('Cleaning up stale packages %s.' % package_array)
     unmerge_board_cmd = ['emerge-%s' % board, '--unmerge']
     unmerge_board_cmd.extend(package_array)
-    RunCommand(unmerge_board_cmd, env=env)
+    RunCommand(unmerge_board_cmd)
 
     unmerge_host_cmd = ['sudo', 'emerge', '--unmerge']
     unmerge_host_cmd.extend(package_array)
-    RunCommand(unmerge_host_cmd, env=env)
+    RunCommand(unmerge_host_cmd)
 
     RunCommand(['eclean-%s' % board, '-d', 'packages'], redirect_stderr=True)
     RunCommand(['sudo', 'eclean', '-d', 'packages'], redirect_stderr=True)
