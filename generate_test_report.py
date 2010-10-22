@@ -216,11 +216,16 @@ class ReportGenerator(object):
         for path in glob.glob(debug_file_regex):
           try:
             fh = open(path)
-            print ('\n========== DEBUG FILE %s FOR TEST %s ==============\n' % (
-                   path, test))
-            print fh.read()
-            print('\n=========== END DEBUG %s FOR TEST %s ===============\n' % (
-                   path, test))
+            print >> sys.stderr, (
+                '\n========== DEBUG FILE %s FOR TEST %s ==============\n' % (
+                path, test))
+            out = fh.read()
+            while out:
+              print >> sys.stderr, out
+              out = fh.read()
+            print >> sys.stderr, (
+                 '\n=========== END DEBUG %s FOR TEST %s ===============\n' % (
+                 path, test))
             fh.close()
           except:
             print 'Could not open %s' % path
