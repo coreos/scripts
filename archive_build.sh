@@ -58,20 +58,26 @@ DEFAULT_USED=
 # Reset "default" FLAGS_from based on passed-in board if not set on cmd-line
 if [ "$FLAGS_from" = "$DEFAULT_FROM" ]
 then
-  FLAGS_from="${IMAGES_DIR}/$FLAGS_board/$(ls -t1 \
-              $IMAGES_DIR/$FLAGS_board 2>&-| head -1)"
+  # Keep the directory name of the current image set (*.bin).
+  IMG_DIR="$(ls -t1 ${IMAGES_DIR}/${FLAGS_board} 2>&-| head -1)"
+  FLAGS_from="${IMAGES_DIR}/${FLAGS_board}/${IMG_DIR}"
   DEFAULT_USED=1
 fi
 
 # Die on any errors.
 set -e
 
-if [ -z $DEFAULT_USED ] && [ $FLAGS_test_mod -eq $FLAGS_TRUE ]
+if [ -z $DEFAULT_USED ]
 then
-  echo "test_mod requires that the default from path be used."
-  echo "If non default behavior is desired, run mod_image_for_test manually"
-  echo "re-run archive build without test_mod"
-  exit 1
+  if [ $FLAGS_test_mod -eq $FLAGS_TRUE ] || \
+     [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ] || \
+     [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ]
+  then
+      echo "test_mod requires that the default from path be used."
+      echo "If non default behavior is desired, run mod_image_for_test manually"
+      echo "re-run archive build without test_mod"
+      exit 1
+  fi
 fi
 
 if [ ! -d "$FLAGS_from" ]
@@ -152,25 +158,31 @@ then
       "--factory"
 fi
 
-if [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]
-then
-  echo "Modifying image for factory install"
-  do_chroot_mod "${FLAGS_from}/chromiumos_factory_install_image.bin" \
-      "--factory_install"
-fi
-
 # Modify for recovery
 if [ $FLAGS_official_build -eq $FLAGS_TRUE ]
 then
-    BUILDVER=$(ls -t1 $IMAGES_DIR/$FLAGS_board 2>&-| head -1)
-    CHROOT_IMAGE_DIR=/home/$USER/trunk/src/build/images/$FLAGS_board/$BUILDVER
-   ./enter_chroot.sh -- ./mod_image_for_recovery.sh --board $FLAGS_board \
+  BUILDVER=$(ls -t1 $IMAGES_DIR/$FLAGS_board 2>&-| head -1)
+  CHROOT_IMAGE_DIR=/home/$USER/trunk/src/build/images/$FLAGS_board/$BUILDVER
+  ./enter_chroot.sh -- ./mod_image_for_recovery.sh --board $FLAGS_board \
     --image $CHROOT_IMAGE_DIR/chromiumos_base_image.bin
 fi
 
 # Remove the developer build if test image is also built.
 if [ $FLAGS_test_mod -eq $FLAGS_TRUE ] ; then
   rm -f ${SRC_IMAGE}
+fi
+
+# Build differently sized shims. Currently only factory install shim is
+# supported, TODO(tgao): Add developer shim.
+if [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]
+then
+  echo "Building factory install shim."
+  ./enter_chroot.sh -- ./build_image --board $FLAGS_board --factory_install
+
+  # Get the install shim dir: It is the newest build.
+  # This is the output dir for the factory shim, the factory test and
+  # release umages will remain in IMG_DIR, defined previously.
+  SHIM_DIR="$(ls -t1 $IMAGES_DIR/$FLAGS_board 2>&-| head -1)"
 fi
 
 # Zip the build
@@ -182,8 +194,17 @@ zip -r "${ZIPFILE}" ${MANIFEST}
 if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
    [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]
 then
-  FACTORY_MANIFEST=`ls | grep factory`
-  zip -r "${FACTORY_ZIPFILE}" ${FACTORY_MANIFEST}
+  # We need to have directory structure for factory package, as
+  # signing and packaging utilities need unpack_partitions.sh.
+  echo "Compressing factory software"
+  pushd ..
+  [ -n "${SHIM_DIR}" ] && ln -sf "${SHIM_DIR}" factory_shim
+  [ -n "${IMG_DIR}" ] && ln -sf "${IMG_DIR}" factory_test
+  FACTORY_MANIFEST=`find factory_shim factory_test -follow \
+      -type f  | grep -E "(factory_image|factory_install|partition)"`
+  zip "${FACTORY_ZIPFILE}" ${FACTORY_MANIFEST}
+  echo "Zipped"
+  popd
   chmod 644 "${FACTORY_ZIPFILE}"
 fi
 cd -
