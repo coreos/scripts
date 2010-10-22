@@ -75,21 +75,6 @@ end script
 EOF
 
 patch -d ${ROOT_FS_DIR} -Np1 <<EOF
-diff --git old/etc/init/software-update.conf new/etc/init/software-update.conf
-index 28c9086..9ebf2b9 100644
---- old/etc/init/software-update.conf
-+++ new/etc/init/software-update.conf
-@@ -7,7 +7,7 @@
- #
- # when boot reaches login prompt, start up software update check.
- 
--start on stopped boot-complete
-+start on never
- 
- respawn
-EOF
-
-patch -d ${ROOT_FS_DIR} -Np1 <<EOF
 diff -Nau old/etc/init/chrontel.conf new/etc/init/
 --- old/etc/init/chrontel.conf	2010-08-05 16:32:55.000000000 -0700
 +++ new/etc/init/chrontel.conf	2010-08-05 16:32:45.000000000 -0700
