@@ -177,7 +177,7 @@ def _ParseRevisionString(revision_string, repo_dictionary):
   return revisions.items()
 
 
-def _UprevFromRevisionList(buildroot, tracking_branch, revision_list):
+def _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board):
   """Uprevs based on revision list."""
   if not revision_list:
     Info('No packages found to uprev')
@@ -191,16 +191,18 @@ def _UprevFromRevisionList(buildroot, tracking_branch, revision_list):
 
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./cros_mark_as_stable',
+              '--board=%s' % board,
               '--tracking_branch="%s"' % tracking_branch,
               '--packages="%s"' % package_str,
               'commit'],
               cwd=cwd, enter_chroot=True)
 
 
-def _UprevAllPackages(buildroot, tracking_branch):
+def _UprevAllPackages(buildroot, tracking_branch, board):
   """Uprevs all packages that have been updated since last uprev."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./cros_mark_as_stable', '--all',
+              '--board=%s' % board,
               '--tracking_branch="%s"' % tracking_branch, 'commit'],
               cwd=cwd, enter_chroot=True)
 
@@ -218,11 +220,12 @@ def _GetVMConstants(buildroot):
   return (vdisk_size.strip(), statefulfs_size.strip())
 
 
-def _GitCleanup(buildroot):
+def _GitCleanup(buildroot, board):
   """Clean up git branch after previous uprev attempt."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   if os.path.exists(cwd):
     RunCommand(['./cros_mark_as_stable', '--srcroot=..',
+                '--board=%s' % board,
                 '--tracking_branch="cros/master"', 'clean'],
                cwd=cwd, error_ok=True)
 
@@ -246,9 +249,9 @@ def _WipeOldOutput(buildroot):
 # =========================== Main Commands ===================================
 
 
-def _PreFlightRinse(buildroot):
+def _PreFlightRinse(buildroot, board):
   """Cleans up any leftover state from previous runs."""
-  _GitCleanup(buildroot)
+  _GitCleanup(buildroot, board)
   _CleanUpMountPoints(buildroot)
   RunCommand(['sudo', 'killall', 'kvm'], error_ok=True)
 
@@ -359,16 +362,17 @@ def _UprevPackages(buildroot, tracking_branch, revisionfile, board):
   #  print >> sys.stderr, 'CBUILDBOT Revision list found %s' % revisions
   #  revision_list = _ParseRevisionString(revisions,
   #      _CreateRepoDictionary(buildroot, board))
-  #  _UprevFromRevisionList(buildroot, tracking_branch, revision_list)
+  #  _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board)
   #else:
   Info('CBUILDBOT Revving all')
-  _UprevAllPackages(buildroot, tracking_branch)
+  _UprevAllPackages(buildroot, tracking_branch, board)
 
 
-def _UprevPush(buildroot, tracking_branch):
+def _UprevPush(buildroot, tracking_branch, board):
   """Pushes uprev changes to the main line."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./cros_mark_as_stable', '--srcroot=..',
+              '--board=%s' % board,
               '--tracking_branch="%s"' % tracking_branch,
               '--push_options="--bypass-hooks -f"', 'push'],
              cwd=cwd)
@@ -432,7 +436,7 @@ def main():
     sys.exit(1)
 
   try:
-    _PreFlightRinse(buildroot)
+    _PreFlightRinse(buildroot, buildconfig['board'])
     if options.clobber or not os.path.isdir(buildroot):
       _FullCheckout(buildroot, tracking_branch, url=options.url)
     else:
@@ -467,7 +471,7 @@ def main():
         if buildconfig['master']:
           # Master bot needs to check if the other slaves completed.
           if cbuildbot_comm.HaveSlavesCompleted(config):
-            _UprevPush(buildroot, tracking_branch)
+            _UprevPush(buildroot, tracking_branch, buildconfig['board'])
           else:
             Die('CBUILDBOT - One of the slaves has failed!!!')
 

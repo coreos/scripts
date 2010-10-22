@@ -169,7 +169,8 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     diff_cmd = ['diff', '-Bu', self.m_ebuild.ebuild_path,
                 self.revved_ebuild_path]
     cros_mark_as_stable.RunCommand(diff_cmd, exit_code=True,
-                                   print_cmd=False).AndReturn(1)
+                                   print_cmd=False, redirect_stderr=True,
+                                   redirect_stdout=True).AndReturn(1)
     cros_mark_as_stable._SimpleRunCommand('git add ' + self.revved_ebuild_path)
     cros_mark_as_stable._SimpleRunCommand('git rm ' + self.m_ebuild.ebuild_path)
 
@@ -201,7 +202,8 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     diff_cmd = ['diff', '-Bu', self.m_ebuild.ebuild_path,
                 self.revved_ebuild_path]
     cros_mark_as_stable.RunCommand(diff_cmd, exit_code=True,
-                                   print_cmd=False).AndReturn(0)
+                                   print_cmd=False, redirect_stderr=True,
+                                   redirect_stdout=True).AndReturn(0)
     cros_mark_as_stable.os.unlink(self.revved_ebuild_path)
 
     self.mox.ReplayAll()
@@ -234,7 +236,8 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     diff_cmd = ['diff', '-Bu', self.m_ebuild.ebuild_path,
                 self.revved_ebuild_path]
     cros_mark_as_stable.RunCommand(diff_cmd, exit_code=True,
-                                   print_cmd=False).AndReturn(1)
+                                   print_cmd=False, redirect_stderr=True,
+                                   redirect_stdout=True).AndReturn(1)
     cros_mark_as_stable._SimpleRunCommand('git add ' + self.revved_ebuild_path)
     cros_mark_as_stable._SimpleRunCommand('git rm ' + self.m_ebuild.ebuild_path)
 

@@ -19,7 +19,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'lib'))
 from cros_build_lib import Info, RunCommand, Warning, Die
 
 
-gflags.DEFINE_string('board', 'x86-generic',
+gflags.DEFINE_string('board', '',
                      'Board for which the package belongs.', short_name='b')
 gflags.DEFINE_string('packages', '',
                      'Space separated list of packages to mark as stable.',
