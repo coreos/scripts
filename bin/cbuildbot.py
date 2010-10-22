@@ -218,7 +218,40 @@ def _GetVMConstants(buildroot):
   return (vdisk_size.strip(), statefulfs_size.strip())
 
 
+def _GitCleanup(buildroot):
+  """Clean up git branch after previous uprev attempt."""
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  if os.path.exists(cwd):
+    RunCommand(['./cros_mark_as_stable', '--srcroot=..',
+                '--tracking_branch="cros/master"', 'clean'],
+               cwd=cwd, error_ok=True)
+
+
+def _CleanUpMountPoints(buildroot):
+  """Cleans up any stale mount points from previous runs."""
+  mount_output = RunCommand(['mount'], redirect_stdout=True)
+  mount_pts_in_buildroot = RunCommand(['grep', buildroot], input=mount_output,
+                                      redirect_stdout=True, error_ok=True)
+
+  for mount_pt_str in mount_pts_in_buildroot.splitlines():
+    mount_pt = mount_pt_str.rpartition(' type ')[0].partition(' on ')[2]
+    RunCommand(['sudo', 'umount', '-l', mount_pt], error_ok=True)
+
+
+def _WipeOldOutput(buildroot):
+  """Wipes out build output directories."""
+  RunCommand(['rm', '-rf', 'src/build/images'], cwd=buildroot)
+
+
 # =========================== Main Commands ===================================
+
+
+def _PreFlightRinse(buildroot):
+  """Cleans up any leftover state from previous runs."""
+  _GitCleanup(buildroot)
+  _CleanUpMountPoints(buildroot)
+  RunCommand(['sudo', 'killall', 'kvm'], error_ok=True)
+
 
 def _FullCheckout(buildroot, rw_checkout=True, retries=_DEFAULT_RETRIES):
   """Performs a full checkout and clobbers any previous checkouts."""
@@ -227,12 +260,6 @@ def _FullCheckout(buildroot, rw_checkout=True, retries=_DEFAULT_RETRIES):
   RunCommand(['repo', 'init', '-u', 'http://git.chromium.org/git/manifest'],
              cwd=buildroot, input='\n\ny\n')
   RepoSync(buildroot, rw_checkout, retries)
-
-
-def _PreFlightRinse(buildroot):
-  """Cleans up any leftover state from previous runs."""
-  RunCommand(['sudo', 'killall', 'kvm'], error_ok=True)
-  _UprevCleanup(buildroot, error_ok=True)
 
 
 def _IncrementalCheckout(buildroot, rw_checkout=True,
@@ -258,10 +285,6 @@ def _Build(buildroot):
   """Wrapper around build_packages."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./build_packages'], cwd=cwd, enter_chroot=True)
-
-
-def _WipeOldOutput(buildroot):
-  RunCommand(['rm', '-rf', 'src/build/images'], cwd=buildroot)
 
 
 def _EnableLocalAccount(buildroot):
@@ -338,14 +361,6 @@ def _UprevPackages(buildroot, revisionfile, board):
   _UprevAllPackages(buildroot)
 
 
-def _UprevCleanup(buildroot, error_ok=False):
-  """Clean up after a previous uprev attempt."""
-  cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./cros_mark_as_stable', '--srcroot=..',
-              '--tracking_branch="cros/master"', 'clean'],
-             cwd=cwd, error_ok=error_ok)
-
-
 def _UprevPush(buildroot):
   """Pushes uprev changes to the main line."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
@@ -398,10 +413,6 @@ def main():
   buildroot = options.buildroot
   revisionfile = options.revisionfile
 
-  # Passed option to clobber.
-  if options.clobber:
-    RunCommand(['sudo', 'rm', '-rf', buildroot])
-
   if len(args) >= 1:
     buildconfig = _GetConfig(args[-1])
   else:
@@ -410,10 +421,10 @@ def main():
     sys.exit(1)
 
   try:
-    if not os.path.isdir(buildroot):
+    _PreFlightRinse(buildroot)
+    if options.clobber or not os.path.isdir(buildroot):
       _FullCheckout(buildroot)
     else:
-      _PreFlightRinse(buildroot)
       _IncrementalCheckout(buildroot)
 
     chroot_path = os.path.join(buildroot, 'chroot')
@@ -446,8 +457,6 @@ def main():
           if cbuildbot_comm.HaveSlavesCompleted(config):
             _UprevPush(buildroot)
           else:
-            # At least one of the slaves failed or we timed out.
-            _UprevCleanup(buildroot)
             Die('CBUILDBOT - One of the slaves has failed!!!')
 
         else:
@@ -455,7 +464,6 @@ def main():
           if buildconfig['important']:
             cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
 
-      _UprevCleanup(buildroot)
   except:
     # Send failure to master bot.
     if not buildconfig['master'] and buildconfig['important']:
