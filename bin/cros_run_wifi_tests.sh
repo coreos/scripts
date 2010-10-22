@@ -123,6 +123,10 @@ while read line; do
   set $line
   if [ "${FLAGS_cell}" = "$cell_no" -o "${FLAGS_client}" = "$1" -o \
        "${FLAGS_client}" = "$4" ] ; then
+    if [ "$5" = "0.0.0.0" -o "$4" = "0.0.0.0" ]; then
+      # Error -- these should never be zeroes
+      break
+    fi
     echo "$4"
     echo "router_addr=$5"
     if [ "$6" != "0.0.0.0" ] ; then
