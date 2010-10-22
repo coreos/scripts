@@ -66,9 +66,11 @@ fi
 if [ "${FLAGS_full}" -eq "${FLAGS_TRUE}" ] && \
     ( [[ ${FLAGS_vdisk_size} < ${MIN_VDISK_SIZE_FULL} ]] || \
       [[ ${FLAGS_statefulfs_size} < ${MIN_STATEFUL_FS_SIZE_FULL} ]]); then
-  die "Disk is too small for full, please select a vdisk size greater than \
-${MIN_VDISK_SIZE_FULL} and statefulfs size greater than \
+  warn "Disk is too small for full, using minimum:  vdisk size equal to \
+${MIN_VDISK_SIZE_FULL} and statefulfs size equal to \
 ${MIN_STATEFUL_FS_SIZE_FULL}."
+  FLAGS_vdisk_size=${MIN_VDISK_SIZE_FULL}
+  FLAGS_statefulfs_size=${MIN_STATEFUL_FS_SIZE_FULL}
 fi
 
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
