@@ -177,7 +177,7 @@ def _ParseRevisionString(revision_string, repo_dictionary):
   return revisions.items()
 
 
-def _UprevFromRevisionList(buildroot, revision_list):
+def _UprevFromRevisionList(buildroot, tracking_branch, revision_list):
   """Uprevs based on revision list."""
   if not revision_list:
     Info('No packages found to uprev')
@@ -191,17 +191,17 @@ def _UprevFromRevisionList(buildroot, revision_list):
 
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./cros_mark_as_stable',
-              '--tracking_branch="cros/master"',
+              '--tracking_branch="%s"' % tracking_branch,
               '--packages="%s"' % package_str,
               'commit'],
               cwd=cwd, enter_chroot=True)
 
 
-def _UprevAllPackages(buildroot):
+def _UprevAllPackages(buildroot, tracking_branch):
   """Uprevs all packages that have been updated since last uprev."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./cros_mark_as_stable', '--all',
-              '--tracking_branch="cros/master"', 'commit'],
+              '--tracking_branch="%s"' % tracking_branch, 'commit'],
               cwd=cwd, enter_chroot=True)
 
 
@@ -253,12 +253,16 @@ def _PreFlightRinse(buildroot):
   RunCommand(['sudo', 'killall', 'kvm'], error_ok=True)
 
 
-def _FullCheckout(buildroot, rw_checkout=True, retries=_DEFAULT_RETRIES):
+def _FullCheckout(buildroot, tracking_branch, rw_checkout=True,
+                  retries=_DEFAULT_RETRIES,
+                  url='http://git.chromium.org/git/manifest'):
   """Performs a full checkout and clobbers any previous checkouts."""
   RunCommand(['sudo', 'rm', '-rf', buildroot])
   MakeDir(buildroot, parents=True)
-  RunCommand(['repo', 'init', '-u', 'http://git.chromium.org/git/manifest'],
-             cwd=buildroot, input='\n\ny\n')
+  branch = tracking_branch.split('/');
+  RunCommand(['repo', 'init', '-u',
+             url, '-b',
+             '%s' % branch[-1]], cwd=buildroot, input='\n\ny\n')
   RepoSync(buildroot, rw_checkout, retries)
 
 
@@ -326,7 +330,7 @@ def _RunSmokeSuite(buildroot):
               ], cwd=cwd, error_ok=False)
 
 
-def _UprevPackages(buildroot, revisionfile, board):
+def _UprevPackages(buildroot, tracking_branch, revisionfile, board):
   """Uprevs a package based on given revisionfile.
 
   If revisionfile is set to None or does not resolve to an actual file, this
@@ -355,17 +359,17 @@ def _UprevPackages(buildroot, revisionfile, board):
   #  print >> sys.stderr, 'CBUILDBOT Revision list found %s' % revisions
   #  revision_list = _ParseRevisionString(revisions,
   #      _CreateRepoDictionary(buildroot, board))
-  #  _UprevFromRevisionList(buildroot, revision_list)
+  #  _UprevFromRevisionList(buildroot, tracking_branch, revision_list)
   #else:
   Info('CBUILDBOT Revving all')
-  _UprevAllPackages(buildroot)
+  _UprevAllPackages(buildroot, tracking_branch)
 
 
-def _UprevPush(buildroot):
+def _UprevPush(buildroot, tracking_branch):
   """Pushes uprev changes to the main line."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./cros_mark_as_stable', '--srcroot=..',
-              '--tracking_branch="cros/master"',
+              '--tracking_branch="%s"' % tracking_branch,
               '--push_options="--bypass-hooks -f"', 'push'],
              cwd=cwd)
 
@@ -408,10 +412,17 @@ def main():
   parser.add_option('--debug', action='store_true', dest='debug',
                     default=False,
                     help='Override some options to run as a developer.')
+  parser.add_option('-t', '--tracking-branch', dest='tracking_branch',
+                    default='cros/master', help='Run the buildbot on a branch')
+  parser.add_option('-u', '--url', dest='url',
+                    default='http://git.chromium.org/git/manifest',
+                    help='Run the buildbot on internal manifest')
+
   (options, args) = parser.parse_args()
 
   buildroot = options.buildroot
   revisionfile = options.revisionfile
+  tracking_branch = options.tracking_branch
 
   if len(args) >= 1:
     buildconfig = _GetConfig(args[-1])
@@ -423,7 +434,7 @@ def main():
   try:
     _PreFlightRinse(buildroot)
     if options.clobber or not os.path.isdir(buildroot):
-      _FullCheckout(buildroot)
+      _FullCheckout(buildroot, tracking_branch, url=options.url)
     else:
       _IncrementalCheckout(buildroot)
 
@@ -436,7 +447,8 @@ def main():
       _SetupBoard(buildroot, board=buildconfig['board'])
 
     if buildconfig['uprev']:
-      _UprevPackages(buildroot, revisionfile, board=buildconfig['board'])
+      _UprevPackages(buildroot, tracking_branch, revisionfile,
+                     board=buildconfig['board'])
 
     _EnableLocalAccount(buildroot)
     _Build(buildroot)
@@ -455,7 +467,7 @@ def main():
         if buildconfig['master']:
           # Master bot needs to check if the other slaves completed.
           if cbuildbot_comm.HaveSlavesCompleted(config):
-            _UprevPush(buildroot)
+            _UprevPush(buildroot, tracking_branch)
           else:
             Die('CBUILDBOT - One of the slaves has failed!!!')
 
