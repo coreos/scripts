@@ -21,12 +21,6 @@ from cros_build_lib import Info, RunCommand, Warning, Die
 
 gflags.DEFINE_string('board', 'x86-generic',
                      'Board for which the package belongs.', short_name='b')
-gflags.DEFINE_string('commit_ids', '',
-                     """Optional list of commit ids for each package.
-                     This list must either be empty or have the same length as
-                     the packages list.  If not set all rev'd ebuilds will have
-                     empty commit id's.""",
-                     short_name='i')
 gflags.DEFINE_string('packages', '',
                      'Space separated list of packages to mark as stable.',
                      short_name='p')
@@ -71,6 +65,21 @@ def _Print(message):
     Info(message)
 
 
+def _CleanStalePackages(board, package_array):
+    """Cleans up stale package info from a previous build."""
+    Info('Cleaning up stale packages %s.' % package_array)
+    unmerge_board_cmd = ['emerge-%s' % board, '--unmerge']
+    unmerge_board_cmd.extend(package_array)
+    RunCommand(unmerge_board_cmd, env=env)
+
+    unmerge_host_cmd = ['sudo', 'emerge', '--unmerge']
+    unmerge_host_cmd.extend(package_array)
+    RunCommand(unmerge_host_cmd, env=env)
+
+    RunCommand(['eclean-%s' % board, '-d', 'packages'], redirect_stderr=True)
+    RunCommand(['sudo', 'eclean', '-d', 'packages'], redirect_stderr=True)
+
+
 def _BestEBuild(ebuilds):
   """Returns the newest EBuild from a list of EBuild objects."""
   from portage.versions import vercmp
@@ -103,7 +112,7 @@ def _FindStableEBuilds(files):
   # If we found a workon ebuild in this directory, apply some sanity checks.
   if workon_dir:
     if len(unstable_ebuilds) > 1:
-      Die('Found multiple unstable ebuilds in %s' % root)
+      Die('Found multiple unstable ebuilds in %s' % os.path.dirname(path))
     if len(stable_ebuilds) > 1:
       stable_ebuilds = [_BestEBuild(stable_ebuilds)]
 
@@ -114,12 +123,12 @@ def _FindStableEBuilds(files):
       # We make a special exception for x11-drivers/xf86-video-msm for legacy
       # reasons.
       if stable_ebuilds[0].package != 'x11-drivers/xf86-video-msm':
-        Warning('Found multiple stable ebuilds in %s' % root)
+        Warning('Found multiple stable ebuilds in %s' % os.path.dirname(path))
 
     if not unstable_ebuilds:
-      Die('Missing 9999 ebuild in %s' % root)
+      Die('Missing 9999 ebuild in %s' % os.path.dirname(path))
     if not stable_ebuilds:
-      Die('Missing stable ebuild in %s' % root)
+      Die('Missing stable ebuild in %s' % os.path.dirname(path))
 
   if stable_ebuilds:
     return stable_ebuilds[0]
@@ -138,9 +147,9 @@ def _BuildEBuildDictionary(overlays, all, packages):
   packages: A set of the packages we want to gather.
   """
   for overlay in overlays:
-    for root_dir, dirs, files in os.walk(overlay):
+    for package_dir, dirs, files in os.walk(overlay):
       # Add stable ebuilds to overlays[overlay].
-      paths = [os.path.join(root_dir, path) for path in files]
+      paths = [os.path.join(package_dir, path) for path in files]
       ebuild = _FindStableEBuilds(paths)
 
       # If the --all option isn't used, we only want to update packages that
@@ -334,7 +343,7 @@ class _EBuild(object):
     # check.
     # TODO(davidjames): Fix the project name in the chromeos-kernel ebuild.
     cmd = 'cd %s && git config --get remote.cros.projectname' % srcdir
-    actual_project =_SimpleRunCommand(cmd).rstrip()
+    actual_project = _SimpleRunCommand(cmd).rstrip()
     if project not in (actual_project, 'chromeos-kernel'):
       Die('Project name mismatch for %s (%s != %s)' % (unstable_ebuild, project,
           actual_project))
@@ -376,7 +385,7 @@ class EBuildStableMarker(object):
   def __init__(self, ebuild):
     self._ebuild = ebuild
 
-  def RevEBuild(self, commit_id="", redirect_file=None):
+  def RevEBuild(self, commit_id='', redirect_file=None):
     """Revs an ebuild given the git commit id.
 
     By default this class overwrites a new ebuild given the normal
@@ -393,6 +402,8 @@ class EBuildStableMarker(object):
     Raises:
         OSError: Error occurred while creating a new ebuild.
         IOError: Error occurred while writing to the new revved ebuild file.
+    Returns:
+      True if the revved package is different than the old ebuild.
     """
     # TODO(sosa):  Change to a check.
     if not self._ebuild:
@@ -413,7 +424,7 @@ class EBuildStableMarker(object):
         redirect_file = sys.stdout
       if line.startswith('KEYWORDS'):
         # Actually mark this file as stable by removing ~'s.
-        redirect_file.write(line.replace("~", ""))
+        redirect_file.write(line.replace('~', ''))
       elif line.startswith('EAPI'):
         # Always add new commit_id after EAPI definition.
         redirect_file.write(line)
@@ -423,12 +434,10 @@ class EBuildStableMarker(object):
         redirect_file.write(line)
     fileinput.close()
 
-    # If the new ebuild is identical to the old ebuild, return False and
-    # delete our changes.
     old_ebuild_path = self._ebuild.ebuild_path
     diff_cmd = ['diff', '-Bu', old_ebuild_path, new_ebuild_path]
-    if 0 == RunCommand(diff_cmd, exit_code=True,
-                       print_cmd=gflags.FLAGS.verbose):
+    if 0 == RunCommand(diff_cmd, exit_code=True, redirect_stdout=True,
+                       redirect_stderr=True, print_cmd=gflags.FLAGS.verbose):
       os.unlink(new_ebuild_path)
       return False
     else:
@@ -474,14 +483,12 @@ def main(argv):
     '%s/private-overlays/chromeos-overlay' % gflags.FLAGS.srcroot: [],
     '%s/third_party/chromiumos-overlay' % gflags.FLAGS.srcroot: []
   }
-  all = gflags.FLAGS.all
 
   if command == 'commit':
-    _BuildEBuildDictionary(overlays, all, package_list)
+    _BuildEBuildDictionary(overlays, gflags.FLAGS.all, package_list)
 
   for overlay, ebuilds in overlays.items():
-    if not os.path.exists(overlay):
-      continue
+    if not os.path.exists(overlay): continue
     os.chdir(overlay)
 
     if command == 'clean':
@@ -489,26 +496,34 @@ def main(argv):
     elif command == 'push':
       _PushChange()
     elif command == 'commit' and ebuilds:
+      work_branch = _GitBranch(_STABLE_BRANCH_NAME)
+      work_branch.CreateBranch()
+      if not work_branch.Exists():
+        Die('Unable to create stabilizing branch in %s' % overlay)
+
+      # Contains the array of packages we actually revved.
+      revved_packages = []
       for ebuild in ebuilds:
         try:
           _Print('Working on %s' % ebuild.package)
           worker = EBuildStableMarker(ebuild)
           commit_id = ebuild.GetCommitId()
           if worker.RevEBuild(commit_id):
-            if not _CheckOnStabilizingBranch():
-              work_branch = _GitBranch(_STABLE_BRANCH_NAME)
-              work_branch.CreateBranch()
-              if not work_branch.Exists():
-                Die('Unable to create stabilizing branch in %s' % overlay)
             message = _GIT_COMMIT_MESSAGE % (ebuild.package, commit_id)
             worker.CommitChange(message)
+            revved_packages.append(ebuild.package)
+
         except (OSError, IOError):
           Warning('Cannot rev %s\n' % ebuild.package,
                   'Note you will have to go into %s '
                   'and reset the git repo yourself.' % overlay)
           raise
 
+      if revved_packages:
+        _CleanStalePackages(gflags.FLAGS.board, revved_packages)
+      else:
+        work_branch.Delete()
+
 
 if __name__ == '__main__':
   main(sys.argv)
-
