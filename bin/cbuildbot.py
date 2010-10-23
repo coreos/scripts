@@ -426,7 +426,7 @@ def _ArchiveTestResults(buildroot, board, archive_dir, test_results_dir):
   image_name = 'chromiumos_qemu_image.bin'
   image_path = os.path.join(buildroot, 'src', 'build', 'images', board,
                             'latest', image_name)
-  RunCommand(['gzip', '-f', image_path])
+  RunCommand(['gzip', '-f', '--fast', image_path])
   shutil.copyfile(image_path + '.gz', os.path.join(archive_target,
                                                    image_name + '.gz'))
 
