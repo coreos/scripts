@@ -19,7 +19,7 @@ from cros_build_lib import Warning
 
 _KVM_PID_FILE = '/tmp/harness_pid'
 _FULL_VDISK_SIZE = 6072
-_FULL_STATEFULFS_SIZE = 2048
+_FULL_STATEFULFS_SIZE = 3074
 
 # Globals to communicate options to unit tests.
 global base_image_path
@@ -127,7 +127,7 @@ class AUTest(object):
     self.PrepareBase()
     # TODO(sosa): move to 100% once we start testing using the autotest paired
     # with the dev channel.
-    percent_passed = self.VerifyImage(42)
+    percent_passed = self.VerifyImage(10)
 
     # Update to - all tests should pass on new image.
     Info('Updating from base image on vm to target image.')
@@ -141,7 +141,7 @@ class AUTest(object):
 
   # TODO(sosa): Re-enable once we have a good way of checking for version
   # compatibility.
-  def NotestFullUpdateWipeStateful(self):
+  def testFullUpdateWipeStateful(self):
     """Tests if we can update after cleaning the stateful partition.
 
     This test checks that we can update successfully after wiping the
@@ -152,7 +152,7 @@ class AUTest(object):
     self.PrepareBase()
     # TODO(sosa): move to 100% once we start testing using the autotest paired
     # with the dev channel.
-    percent_passed = self.VerifyImage(42)
+    percent_passed = self.VerifyImage(10)
 
     # Update to - all tests should pass on new image.
     Info('Updating from base image on vm to target image and wiping stateful.')
