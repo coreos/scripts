@@ -131,8 +131,8 @@ class CBuildBotTest(mox.MoxTestBase):
     # Expected calls.
     os.path.exists(cbuildbot.ARCHIVE_BASE).AndReturn(True)
     os.listdir(os.path.join(cbuildbot.ARCHIVE_BASE)).AndReturn(dir_listing)
-    os.stat('file1').AndReturn(stat1)
-    os.stat('file2').AndReturn(stat2)
+    os.stat(os.path.join(cbuildbot.ARCHIVE_BASE, 'file1')).AndReturn(stat1)
+    os.stat(os.path.join(cbuildbot.ARCHIVE_BASE, 'file2')).AndReturn(stat2)
     # Should remove the oldest path.
     shutil.rmtree(os.path.join(cbuildbot.ARCHIVE_BASE, 'file2'))
 
@@ -145,7 +145,7 @@ class CBuildBotTest(mox.MoxTestBase):
     os.path.exists(path_to_archive_dir).AndReturn(False)
     cbuildbot.RunCommand(['sudo', 'chmod', '-R', '+r', path_to_results])
     shutil.copytree(path_to_results, path_to_archive_dir)
-    cbuildbot.RunCommand(['gzip', '-f', path_to_image])
+    cbuildbot.RunCommand(['gzip', '-f', '--fast', path_to_image])
     shutil.copyfile(path_to_image + '.gz', os.path.join(
         path_to_archive_dir, 'chromiumos_qemu_image.bin.gz'))
 

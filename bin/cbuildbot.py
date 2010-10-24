@@ -406,8 +406,8 @@ def _ArchiveTestResults(buildroot, board, archive_dir, test_results_dir):
     dir_entries = os.listdir(ARCHIVE_BASE)
     if len(dir_entries) >= ARCHIVE_COUNT:
       oldest_dirs = heapq.nsmallest((len(dir_entries) - ARCHIVE_COUNT) + 1,
-                                    [filename for filename in dir_entries],
-                                    key=lambda fn: os.stat(fn).st_mtime)
+          [os.path.join(ARCHIVE_BASE, filename) for filename in dir_entries],
+          key=lambda fn: os.stat(fn).st_mtime)
       Info('Removing archive dirs %s' % oldest_dirs)
       for oldest_dir in oldest_dirs:
         shutil.rmtree(os.path.join(ARCHIVE_BASE, oldest_dir))
