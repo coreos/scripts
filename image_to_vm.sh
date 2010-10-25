@@ -167,6 +167,7 @@ else
     sudo losetup "${STATEFUL_LOOP_DEV}" "${TEMP_STATE}"
     sudo e2fsck -pf "${STATEFUL_LOOP_DEV}"
     sudo resize2fs "${STATEFUL_LOOP_DEV}"
+    sync
     sudo losetup -d "${STATEFUL_LOOP_DEV}"
   fi
 fi
