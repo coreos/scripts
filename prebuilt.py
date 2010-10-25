@@ -381,7 +381,7 @@ def UploadPrebuilt(build_path, bucket, version, board=None, git_sync=False):
     strip_pattern = package_path
     package_string = _HOST_TARGET
     git_file = os.path.join(build_path, _PREBUILT_MAKE_CONF[_HOST_TARGET])
-    url_suffix = '%s/%s' % (_GS_HOST_PATH, version)
+    url_suffix = '%s/%s/' % (_GS_HOST_PATH, version)
   else:
     board_path = os.path.join(build_path, _BOARD_PATH % {'board': board})
     package_path = os.path.join(board_path, 'packages')
