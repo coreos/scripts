@@ -128,7 +128,7 @@ def RevGitFile(filename, value):
     'git config url.ssh://git@gitrw.chromium.org:9222.pushinsteadof '
     'http://git.chromium.org/git')
   cros_build_lib.RunCommand(git_ssh_config_cmd, shell=True)
-  description = 'Update PORTAGE_BINHOST="%s" in %s' % (value, file)
+  description = 'Update PORTAGE_BINHOST="%s" in %s' % (value, filename)
   print description
   try:
     UpdateLocalFile(filename, value)
