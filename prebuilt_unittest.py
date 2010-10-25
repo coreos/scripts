@@ -109,7 +109,7 @@ class TestPrebuiltFilters(unittest.TestCase):
 
     self._CreateNestedDir(self.private_dir, dir_structure)
     prebuilt.LoadPrivateFilters(self.tmp_dir)
- 
+
   def testFilterPattern(self):
     """Check that particular packages are filtered properly."""
     self._LoadPrivateMockFilters()
@@ -164,9 +164,9 @@ class TestPrebuilt(unittest.TestCase):
   def testGenerateUploadDict(self):
     gs_bucket_path = 'gs://chromeos-prebuilt/host/version'
     self.mox.StubOutWithMock(cros_build_lib, 'ListFiles')
-    cros_build_lib.ListFiles(' ').AndReturn(self.files_to_sync)
+    cros_build_lib.ListFiles(self.fake_path).AndReturn(self.files_to_sync)
     self.mox.ReplayAll()
-    result = prebuilt.GenerateUploadDict(' ', gs_bucket_path, self.fake_path)
+    result = prebuilt.GenerateUploadDict(self.fake_path, gs_bucket_path)
     self.assertEqual(result, self._generate_dict_results(gs_bucket_path))
 
   def testFailonUploadFail(self):

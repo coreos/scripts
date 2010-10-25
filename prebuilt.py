@@ -13,8 +13,10 @@ import tempfile
 
 from chromite.lib import cros_build_lib
 """
-This script is used to upload host prebuilts as well as board BINHOSTS to
-Google Storage.
+This script is used to upload host prebuilts as well as board BINHOSTS.
+
+If the URL starts with 'gs://', we upload using gsutil to Google Storage.
+Otherwise, rsync is used.
 
 After a build is successfully uploaded a file is updated with the proper
 BINHOST version as well as the target board. This file is defined in GIT_FILE
@@ -24,11 +26,14 @@ To read more about prebuilts/binhost binary packages please refer to:
 http://sites/chromeos/for-team-members/engineering/releng/prebuilt-binaries-for-streamlining-the-build-process
 
 
-Example of uploading prebuilt amd64 host files
+Example of uploading prebuilt amd64 host files to Google Storage:
 ./prebuilt.py -p /b/cbuild/build -s -u gs://chromeos-prebuilt
 
-Example of uploading x86-dogfood binhosts
+Example of uploading x86-dogfood binhosts to Google Storage:
 ./prebuilt.py -b x86-dogfood -p /b/cbuild/build/ -u gs://chromeos-prebuilt  -g
+
+Example of uploading prebuilt amd64 host files using rsync:
+./prebuilt.py -p /b/cbuild/build -s -u codf30.jail:/tmp
 """
 
 # as per http://crosbug.com/5855 always filter the below packages
@@ -39,10 +44,10 @@ _HOST_PACKAGES_PATH = 'chroot/var/lib/portage/pkgs'
 _HOST_TARGET = 'amd64'
 _BOARD_PATH = 'chroot/build/%(board)s'
 _BOTO_CONFIG = '/home/chrome-bot/external-boto'
-# board/board-target/version'
-_GS_BOARD_PATH = 'board/%(board)s/%(version)s/'
-# We only support amd64 right now
-_GS_HOST_PATH = 'host/%s' % _HOST_TARGET
+# board/board-target/version/packages/'
+_REL_BOARD_PATH = 'board/%(board)s/%(version)s/packages'
+# host/host-target/version/packages/'
+_REL_HOST_PATH = 'host/%(target)s/%(version)s/packages'
 # Private overlays to look at for builds to filter
 # relative to build path
 _PRIVATE_OVERLAY_DIR = 'src/private-overlays'
@@ -249,6 +254,31 @@ def FilterPackagesFile(packages_filename):
   return filtered_packages
 
 
+def _RetryRun(cmd, print_cmd=True, shell=False):
+  """Run the specified command, retrying if necessary.
+
+  Args:
+    cmd: The command to run.
+    print_cmd: Whether to print out the cmd.
+    shell: Whether to treat the command as a shell.
+
+  Returns:
+    True if the command succeeded. Otherwise, returns False.
+  """
+
+  # TODO(scottz): port to use _Run or similar when it is available in
+  # cros_build_lib.
+  for attempt in range(_RETRIES):
+    try:
+      output = cros_build_lib.RunCommand(cmd, print_cmd=print_cmd, shell=shell)
+      return True
+    except cros_build_lib.RunCommandError:
+      print 'Failed to run %s' % cmd
+  else:
+    print 'Retry failed run %s, giving up' % cmd
+    return False
+
+
 def _GsUpload(args):
   """Upload to GS bucket.
 
@@ -267,20 +297,8 @@ def _GsUpload(args):
     local_file = filtered_packages_file.name
 
   cmd = '%s cp -a public-read %s %s' % (_GSUTIL_BIN, local_file, remote_file)
-  # TODO(scottz): port to use _Run or similar when it is available in
-  # cros_build_lib.
-  for attempt in range(_RETRIES):
-    try:
-      output = cros_build_lib.RunCommand(cmd, print_cmd=False, shell=True)
-      break
-    except cros_build_lib.RunCommandError:
-      print 'Failed to sync %s -> %s, retrying' % (local_file, remote_file)
-  else:
-    # TODO(scottz): potentially return what failed so we can do something with
-    # with it but for now just print an error.
-    print 'Retry failed uploading %s -> %s, giving up' % (local_file,
-                                                          remote_file)
-    return args
+  if not _RetryRun(cmd, print_cmd=False, shell=True):
+    return (local_file, remote_file)
 
 
 def RemoteUpload(files, pool=10):
@@ -310,14 +328,12 @@ def RemoteUpload(files, pool=10):
       pass
 
 
-def GenerateUploadDict(local_path, gs_path, strip_str):
+def GenerateUploadDict(local_path, gs_path):
   """Build a dictionary of local remote file key pairs for gsutil to upload.
 
   Args:
     local_path: A path to the file on the local hard drive.
     gs_path: Path to upload in Google Storage.
-    strip_str: String to remove from the local_path so that the relative
-      file path can be tacked on to the gs_path.
 
   Returns:
     Returns a dictionary of file path/gs_dest_path pairs
@@ -325,7 +341,7 @@ def GenerateUploadDict(local_path, gs_path, strip_str):
   files_to_sync = cros_build_lib.ListFiles(local_path)
   upload_files = {}
   for file_path in files_to_sync:
-    filename = file_path.replace(strip_str, '').lstrip('/')
+    filename = file_path.replace(local_path, '').lstrip('/')
     gs_file_path = os.path.join(gs_path, filename)
     upload_files[file_path] = gs_file_path
 
@@ -361,12 +377,13 @@ def DetermineMakeConfFile(target):
   return os.path.join(make_path)
 
 
-def UploadPrebuilt(build_path, bucket, version, board=None, git_sync=False):
+def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
+                   board=None, git_sync=False):
   """Upload Host prebuilt files to Google Storage space.
 
   Args:
     build_path: The path to the root of the chroot.
-    bucket: The Google Storage bucket to upload to.
+    upload_location: The upload location.
     board: The board to upload to Google Storage, if this is None upload
       host packages.
     git_sync: If set, update make.conf of target to reference the latest
@@ -377,31 +394,35 @@ def UploadPrebuilt(build_path, bucket, version, board=None, git_sync=False):
     # We are uploading host packages
     # TODO(scottz): eventually add support for different host_targets
     package_path = os.path.join(build_path, _HOST_PACKAGES_PATH)
-    gs_path = os.path.join(bucket, _GS_HOST_PATH, version)
-    strip_pattern = package_path
+    url_suffix = _REL_HOST_PATH % {'version': version, 'target': _HOST_TARGET}
     package_string = _HOST_TARGET
     git_file = os.path.join(build_path, _PREBUILT_MAKE_CONF[_HOST_TARGET])
-    url_suffix = '%s/%s/' % (_GS_HOST_PATH, version)
   else:
     board_path = os.path.join(build_path, _BOARD_PATH % {'board': board})
     package_path = os.path.join(board_path, 'packages')
     package_string = board
-    strip_pattern = board_path
-    remote_board_path = _GS_BOARD_PATH % {'board': board, 'version': version}
-    gs_path = os.path.join(bucket, remote_board_path)
+    url_suffix = _REL_BOARD_PATH % {'board': board, 'version': version}
     git_file = os.path.join(build_path, DetermineMakeConfFile(board))
-    url_suffix = remote_board_path
+  remote_location = os.path.join(upload_location, url_suffix)
 
-  upload_files = GenerateUploadDict(package_path, gs_path, strip_pattern)
+  if upload_location.startswith('gs://'):
+    upload_files = GenerateUploadDict(package_path, remote_location)
 
-  print 'Uploading %s' % package_string
-  failed_uploads = RemoteUpload(upload_files)
-  if len(failed_uploads) > 1 or (None not in failed_uploads):
-    error_msg = ['%s -> %s\n' % args for args in failed_uploads]
-    raise UploadFailed('Error uploading:\n%s' % error_msg)
+    print 'Uploading %s' % package_string
+    failed_uploads = RemoteUpload(upload_files)
+    if len(failed_uploads) > 1 or (None not in failed_uploads):
+      error_msg = ['%s -> %s\n' % args for args in failed_uploads]
+      raise UploadFailed('Error uploading:\n%s' % error_msg)
+  else:
+    ssh_server, remote_path = remote_location.split(':', 1)
+    cmds = ['ssh %s mkdir -p %s' % (ssh_server, remote_path),
+            'rsync -av %s/ %s/' % (package_path, remote_location)]
+    for cmd in cmds:
+      if not _RetryRun(cmd, shell=True):
+        raise UploadFailed('Could not run %s' % cmd)
 
   if git_sync:
-    url_value = '%s/%s' % (_BINHOST_BASE_URL, url_suffix)
+    url_value = '%s/%s/' % (binhost_base_url, url_suffix)
     RevGitFile(git_file, url_value)
 
 
@@ -414,6 +435,9 @@ def usage(parser, msg):
 
 def main():
   parser = optparse.OptionParser()
+  parser.add_option('-H', '--binhost-base-url', dest='binhost_base_url',
+                    default=_BINHOST_BASE_URL,
+                    help='Base URL to use for binhost in make.conf updates')
   parser.add_option('-b', '--board', dest='board', default=None,
                     help='Board type that was built on this machine')
   parser.add_option('-p', '--build-path', dest='build_path',
@@ -426,7 +450,7 @@ def main():
                     help='Enable git version sync (This commits to a repo)')
   parser.add_option('-u', '--upload', dest='upload',
                     default=None,
-                    help='Upload to GS bucket')
+                    help='Upload location')
   parser.add_option('-V', '--prepend-version', dest='prepend_version',
                     default=None,
                     help='Add an identifier to the front of the version')
@@ -441,9 +465,13 @@ def main():
     usage(parser, 'Error: you need provide a chroot path')
 
   if not options.upload:
-    usage(parser, 'Error: you need to provide a gsutil upload bucket -u')
+    usage(parser, 'Error: you need to provide an upload location using -u')
 
   if options.filters:
+    # TODO(davidjames): It might be nice to be able to filter private ebuilds
+    # from rsync uploads as well, some day. But for now it's not needed.
+    if not options.upload.startswith("gs://"):
+      usage(parser, 'Error: filtering only works with gs:// paths')
     LoadPrivateFilters(options.build_path)
 
   version = GetVersion()
@@ -452,11 +480,12 @@ def main():
 
   if options.sync_host:
     UploadPrebuilt(options.build_path, options.upload, version,
-                   git_sync=options.git_sync)
+                   options.binhost_base_url, git_sync=options.git_sync)
 
   if options.board:
     UploadPrebuilt(options.build_path, options.upload, version,
-                   board=options.board, git_sync=options.git_sync)
+                   options.binhost_base_url, board=options.board,
+                   git_sync=options.git_sync)
 
 
 if __name__ == '__main__':
