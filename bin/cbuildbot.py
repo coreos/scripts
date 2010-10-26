@@ -224,13 +224,13 @@ def _GetVMConstants(buildroot):
   return (vdisk_size.strip(), statefulfs_size.strip())
 
 
-def _GitCleanup(buildroot, board):
+def _GitCleanup(buildroot, board, tracking_branch):
   """Clean up git branch after previous uprev attempt."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   if os.path.exists(cwd):
     RunCommand(['./cros_mark_as_stable', '--srcroot=..',
                 '--board=%s' % board,
-                '--tracking_branch="cros/master"', 'clean'],
+                '--tracking_branch="%s"' % tracking_branch, 'clean'],
                cwd=cwd, error_ok=True)
 
 
@@ -253,9 +253,9 @@ def _WipeOldOutput(buildroot):
 # =========================== Main Commands ===================================
 
 
-def _PreFlightRinse(buildroot, board):
+def _PreFlightRinse(buildroot, board, tracking_branch):
   """Cleans up any leftover state from previous runs."""
-  _GitCleanup(buildroot, board)
+  _GitCleanup(buildroot, board, tracking_branch)
   _CleanUpMountPoints(buildroot)
   RunCommand(['sudo', 'killall', 'kvm'], error_ok=True)
 
@@ -490,7 +490,7 @@ def main():
     sys.exit(1)
 
   try:
-    _PreFlightRinse(buildroot, buildconfig['board'])
+    _PreFlightRinse(buildroot, buildconfig['board'], tracking_branch)
     if options.clobber or not os.path.isdir(buildroot):
       _FullCheckout(buildroot, tracking_branch, url=options.url)
     else:
