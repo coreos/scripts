@@ -168,8 +168,8 @@ if [ "$DELTA" -eq "$FLAGS_TRUE" -o "$FLAGS_old_style" -eq "$FLAGS_FALSE" ]; then
   echo "Generating a delta update"
 
   # Sanity check that the real generator exists:
-  GENERATOR="$(dirname "$0")/../platform/update_engine/delta_generator"
-  [ -x "$GENERATOR" ] || die "$GENERATOR doesn't exist, or isn't executable"
+  GENERATOR="$(which delta_generator)"
+  [ -x "$GENERATOR" ] || die "can't find delta_generator"
 
   trap cleanup INT TERM EXIT
   if [ "$DELTA" -eq "$FLAGS_TRUE" ]; then
