@@ -67,7 +67,7 @@ fi
 # Die on any errors.
 set -e
 
-if [ -z $DEFAULT_USED ]
+if [ -z "$DEFAULT_USED" ]
 then
   if [ $FLAGS_test_mod -eq $FLAGS_TRUE ] || \
      [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ] || \
@@ -244,7 +244,7 @@ function gsutil_archive() {
     echo "Using gsutil to archive to ${OUT_PATH}..."
     ${FLAGS_gsutil} cp ${IN_PATH} ${FULL_OUT_PATH}
     ${FLAGS_gsutil} setacl ${FLAGS_acl} ${FULL_OUT_PATH}
-    if [ $FLAGS_gsd_gen_index != "" ]
+    if [ -n "$FLAGS_gsd_gen_index" ]
     then
       echo "Updating indexes..."
       ${FLAGS_gsd_gen_index} \
