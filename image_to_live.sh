@@ -346,6 +346,8 @@ function main() {
   fi
 
   if [ ${FLAGS_update} -eq ${FLAGS_TRUE} ] && ! run_auto_update; then
+    warn "Dumping update_engine.log for debugging and/or bug reporting."
+    tail -n 200 "${FLAGS_update_log}" >&2
     die "Update was not successful."
   fi
 
