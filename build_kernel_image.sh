@@ -131,8 +131,8 @@ if [[ "${FLAGS_arch}" = "x86" ]]; then
   mkdir -p ${FLAGS_working_dir}
   cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
     > "${FLAGS_working_dir}/config.txt"
-earlyprintk=serial,ttyS0,115200
-console=ttyS0,115200
+quiet
+console=tty2
 init=/sbin/init
 add_efi_memmap
 boot=local
@@ -141,7 +141,7 @@ ro
 noresume
 noswap
 i915.modeset=1
-loglevel=7
+loglevel=1
 cros_secure
 kern_guid=%U
 tpm_tis.force=1
