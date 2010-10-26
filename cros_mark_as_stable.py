@@ -174,6 +174,7 @@ def _CheckSaneArguments(package_list, command):
     _PrintUsageAndDie('Please specify a board')
   if not os.path.isdir(gflags.FLAGS.srcroot):
     _PrintUsageAndDie('srcroot is not a valid path')
+  gflags.FLAGS.srcroot = os.path.abspath(gflags.FLAGS.srcroot)
 
 
 def _Clean():
