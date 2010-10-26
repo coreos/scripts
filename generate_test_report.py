@@ -98,6 +98,10 @@ class ReportGenerator(object):
       if not os.path.isfile(status_file):
         return
 
+    # Remove false positives that are missing a debug dir.
+    if not os.path.exists(os.path.join(testdir, 'debug')):
+      return
+
     status_raw = open(status_file, 'r').read()
     status = 'FAIL'
     if (re.search(r'GOOD.+completed successfully', status_raw) and
