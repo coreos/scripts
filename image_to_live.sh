@@ -110,7 +110,7 @@ function reinterpret_path_for_chroot() {
 
 function start_dev_server {
   kill_all_devservers
-  local devserver_flags=
+  local devserver_flags="--pregenerate_update"
   # Parse devserver flags.
   if [ -n "${FLAGS_image}" ]; then
     devserver_flags="${devserver_flags} \
@@ -137,10 +137,11 @@ function start_dev_server {
        --client_prefix=ChromeOSUpdateEngine \
        --port=${FLAGS_devserver_port} > ${FLAGS_server_log} 2>&1" &
 
-  echo -n "Waiting on devserver to start"
+  info "Waiting on devserver to start"
+  info "note: be patient as the server generates the update before starting."
   until netstat -anp 2>&1 | grep 0.0.0.0:${FLAGS_devserver_port} > /dev/null
   do
-    sleep .5
+    sleep 5
     echo -n "."
   done
   echo ""
