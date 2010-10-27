@@ -33,6 +33,8 @@ _VERIFY_SUITE = 'suite_Smoke'
 
 class AUTest(object):
   """Abstract interface that defines an Auto Update test."""
+  source_image = ''
+  use_delta_updates = False
 
   def setUp(self):
     unittest.TestCase.setUp(self)
@@ -129,10 +131,14 @@ class AUTest(object):
     # with the dev channel.
     percent_passed = self.VerifyImage(10)
 
+    if self.use_delta_updates: self.source_image = base_image_path
+
     # Update to - all tests should pass on new image.
     Info('Updating from base image on vm to target image.')
     self.UpdateImage(target_image_path)
     self.VerifyImage(100)
+
+    if self.use_delta_updates: self.source_image = target_image_path
 
     # Update from - same percentage should pass that originally passed.
     Info('Updating from updated image on vm back to base image.')
@@ -154,10 +160,14 @@ class AUTest(object):
     # with the dev channel.
     percent_passed = self.VerifyImage(10)
 
+    if self.use_delta_updates: self.source_image = base_image_path
+
     # Update to - all tests should pass on new image.
     Info('Updating from base image on vm to target image and wiping stateful.')
     self.UpdateImage(target_image_path, 'clean')
     self.VerifyImage(100)
+
+    if self.use_delta_updates: self.source_image = target_image_path
 
     # Update from - same percentage should pass that originally passed.
     Info('Updating from updated image back to base image and wiping stateful.')
@@ -185,6 +195,7 @@ class RealAUTest(unittest.TestCase, AUTest):
         '--remote=%s' % remote,
         stateful_change_flag,
         '--verify',
+        '--src_image=%s' % self.source_image,
         ], enter_chroot=False)
 
 
@@ -250,6 +261,7 @@ class VirtualAUTest(unittest.TestCase, AUTest):
                 '--persist',
                 '--kvm_pid=%s' % _KVM_PID_FILE,
                 stateful_change_flag,
+                '--src_image=%s' % self.source_image,
                ], enter_chroot=False)
 
   def VerifyImage(self, percent_required_to_pass):
@@ -282,6 +294,9 @@ if __name__ == '__main__':
                     help='Remote address for real test.')
   parser.add_option('--no_graphics', action='store_true',
                     help='Disable graphics for the vm test.')
+  parser.add_option('--no_delta', action='store_false', default=True,
+                    dest='delta',
+                    help='Disable using delta updates.')
   # Set the usage to include flags.
   parser.set_usage(parser.format_help())
   # Parse existing sys.argv so we can pass rest to unittest.main.
@@ -304,8 +319,11 @@ if __name__ == '__main__':
   if not board:
     parser.error('Need board to convert base image to vm.')
 
+  # Communicate flags to tests.
   vm_graphics_flag = ''
   if options.no_graphics: vm_graphics_flag = '--no_graphics'
+
+  AUTest.use_delta_updates = options.delta
 
   # Only run the test harness we care about.
   if options.type == 'vm':
