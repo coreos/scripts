@@ -34,6 +34,8 @@ DEFINE_integer devserver_port 8080 \
   "Port to use for devserver."
 DEFINE_string image "" \
   "Update with this image path that is in this source checkout." i
+DEFINE_string src_image "" \
+  "Create a delta update by passing in the image on the remote machine."
 DEFINE_boolean update_stateful ${FLAGS_TRUE} \
   "Perform update of stateful partition e.g. /var /usr/local."
 DEFINE_string update_url "" "Full url of an update image."
@@ -84,21 +86,26 @@ function get_hostname {
 }
 
 # Reinterprets path from outside the chroot for use inside.
+# Returns "" if "" given.
 # $1 - The path to reinterpret.
 function reinterpret_path_for_chroot() {
-  local path_abs_path=$(readlink -f "${1}")
-  local gclient_root_abs_path=$(readlink -f "${GCLIENT_ROOT}")
+  if [ -z "${1}" ]; then
+    echo ""
+  else
+    local path_abs_path=$(readlink -f "${1}")
+    local gclient_root_abs_path=$(readlink -f "${GCLIENT_ROOT}")
 
-  # Strip the repository root from the path.
-  local relative_path=$(echo ${path_abs_path} \
-      | sed s:${gclient_root_abs_path}/::)
+    # Strip the repository root from the path.
+    local relative_path=$(echo ${path_abs_path} \
+        | sed s:${gclient_root_abs_path}/::)
 
-  if [ "${relative_path}" = "${path_abs_path}" ]; then
-    die "Error reinterpreting path.  Path ${1} is not within your source tree."
+    if [ "${relative_path}" = "${path_abs_path}" ]; then
+      die "Error reinterpreting path.  Path ${1} is not within source tree."
+    fi
+
+    # Prepend the chroot repository path.
+    echo "/home/${USER}/trunk/${relative_path}"
   fi
-
-  # Prepend the chroot repository path.
-  echo "/home/${USER}/trunk/${relative_path}"
 }
 
 function start_dev_server {
@@ -109,7 +116,6 @@ function start_dev_server {
     devserver_flags="${devserver_flags} \
         --image $(reinterpret_path_for_chroot ${FLAGS_image})"
     IMAGE_PATH="${FLAGS_image}"
-
   elif [ -n "${FLAGS_archive_dir}" ]; then
     devserver_flags="${devserver_flags} \
         --archive_dir $(reinterpret_path_for_chroot ${FLAGS_archive_dir}) -t"
@@ -122,6 +128,9 @@ function start_dev_server {
     IMAGE_PATH="$($(dirname "$0")/get_latest_image.sh --board="${FLAGS_board}")"
     IMAGE_PATH="${IMAGE_PATH}/chromiumos_image.bin"
   fi
+
+  devserver_flags="${devserver_flags} \
+      --src_image=\"$(reinterpret_path_for_chroot ${FLAGS_src_image})\""
 
   info "Starting devserver with flags ${devserver_flags}"
   ./enter_chroot.sh "sudo ./start_devserver ${devserver_flags} \

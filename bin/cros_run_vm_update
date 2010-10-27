@@ -9,6 +9,8 @@
 . "$(dirname $0)/../common.sh"
 . "$(dirname $0)/../lib/cros_vm_lib.sh"
 
+DEFINE_string src_image "" \
+  "Create a delta update by passing in the image on the remote machine."
 DEFINE_string stateful_update_flag "" "Flags to pass to stateful update." s
 DEFINE_string update_image_path "" "Path of the image to update to." u
 DEFINE_string vm_image_path "" "Path of the VM image to update from." v
@@ -31,6 +33,7 @@ $(dirname $0)/../image_to_live.sh \
   --remote=127.0.0.1 \
   --ssh_port=${FLAGS_ssh_port} \
   --stateful_update_flag=${FLAGS_stateful_update_flag} \
+  --src_image="${FLAGS_src_image}" \
   --verify \
   --image=$(readlink -f ${FLAGS_update_image_path})
 
