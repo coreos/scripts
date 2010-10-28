@@ -265,6 +265,20 @@ then
     "${LAST_CHANGE}/${HWQUAL_NAME}.tar.bz2"
 fi
 
+# Construct prebuilt upload command.
+# This will upload prebuilt packages to Google Storage.
+prebuilt_cmd="${SCRIPTS_DIR}/prebuilt.py"
+prebuilt_cmd="$prebuilt_cmd -u gs://chromeos-prebuilt --git-sync -V master"
+prebuilt_cmd="$prebuilt_cmd -p $(readlink -f ../..) -b ${FLAGS_board}"
+
+if [ "${FLAGS_BOARD}" == "x86-generic" ]
+then
+  prebuilt_cmd="$prebuilt_cmd --sync-host"
+fi
+
+echo "Running $prebuilt_cmd"
+$prebuilt_cmd
+
 gsutil_archive "${ZIPFILE}" "${LAST_CHANGE}/${FLAGS_zipname}"
 
 if [ $FLAGS_archive_debug -eq $FLAGS_TRUE ]
