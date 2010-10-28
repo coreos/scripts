@@ -135,7 +135,17 @@ class AUTest(object):
 
     # Update to - all tests should pass on new image.
     Info('Updating from base image on vm to target image.')
-    self.UpdateImage(target_image_path)
+    try:
+      self.UpdateImage(target_image_path)
+    except:
+      if self.use_delta_updates:
+        Warning('Delta update failed, disabling delta updates and retrying.')
+        self.use_delta_updates = False
+        self.source_image = ''
+        self.UpdateImage(target_image_path)
+      else:
+        raise
+
     self.VerifyImage(100)
 
     if self.use_delta_updates: self.source_image = target_image_path
@@ -145,8 +155,6 @@ class AUTest(object):
     self.UpdateImage(base_image_path)
     self.VerifyImage(percent_passed)
 
-  # TODO(sosa): Re-enable once we have a good way of checking for version
-  # compatibility.
   def testFullUpdateWipeStateful(self):
     """Tests if we can update after cleaning the stateful partition.
 
