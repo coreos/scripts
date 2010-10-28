@@ -252,6 +252,8 @@ class VirtualAUTest(unittest.TestCase, AUTest):
   def UpdateImage(self, image_path, stateful_change='old'):
     """Updates VM image with image_path."""
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
+    if self.source_image == base_image_path:
+      self.source_image = self.vm_image_path
 
     RunCommand(['%s/cros_run_vm_update' % self.crosutilsbin,
                 '--update_image_path=%s' % image_path,
