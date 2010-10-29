@@ -367,7 +367,7 @@ def DetermineMakeConfFile(target):
     # TODO(Scottz): as new host targets come online expand this to
     # work more like boards.
     make_path =  _PREBUILT_MAKE_CONF[target]
-  elif re.match('.*?-.*?_.*', target):
+  elif re.match('.*?_.*', target):
     # We are a board variant
     overlay_str = 'overlay-variant-%s' % target.replace('_', '-')
     make_path = os.path.join(_BINHOST_BASE_DIR, overlay_str, 'make.conf')
