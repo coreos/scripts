@@ -234,6 +234,10 @@ class ReportGenerator(object):
           except:
             print 'Could not open %s' % path
 
+      # Sometimes the builders exit before these buffers are flushed.
+      sys.stderr.flush()
+      sys.stdout.flush()
+
   def Run(self):
     """Runs report generation."""
     self._CollectResults()
