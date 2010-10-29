@@ -47,7 +47,7 @@ function unmount_image() {
   # Don't die on error to force cleanup
   set +e
   # Reset symlinks in /usr/local.
-  if mount | egrep ".* ${FLAGS_rootfs_mountpt} .*\(rw,"; then
+  if mount | egrep ".* ${FLAGS_stateful_mountpt} .*\(rw,"; then
     setup_symlinks_on_root "/usr/local" "/var" \
       "${FLAGS_stateful_mountpt}"
     fix_broken_symlinks "${FLAGS_rootfs_mountpt}"
