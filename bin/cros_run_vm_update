@@ -35,5 +35,6 @@ $(dirname $0)/../image_to_live.sh \
   --stateful_update_flag=${FLAGS_stateful_update_flag} \
   --src_image="${FLAGS_src_image}" \
   --verify \
+  --for_vm \
   --image=$(readlink -f ${FLAGS_update_image_path})
 

@@ -32,6 +32,7 @@ DEFINE_string archive_dir "" \
   "Update using the test image in the image.zip in this directory." a
 DEFINE_integer devserver_port 8080 \
   "Port to use for devserver."
+DEFINE_boolean for_vm ${FLAGS_FALSE} "Image is for a vm."
 DEFINE_string image "" \
   "Update with this image path that is in this source checkout." i
 DEFINE_string src_image "" \
@@ -128,6 +129,9 @@ function start_dev_server {
     IMAGE_PATH="$($(dirname "$0")/get_latest_image.sh --board="${FLAGS_board}")"
     IMAGE_PATH="${IMAGE_PATH}/chromiumos_image.bin"
   fi
+
+  [ ${FLAGS_for_vm} -eq ${FLAGS_TRUE} ] && \
+      devserver_flags="${devserver_flags} --for_vm"
 
   devserver_flags="${devserver_flags} \
       --src_image=\"$(reinterpret_path_for_chroot ${FLAGS_src_image})\""

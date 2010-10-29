@@ -16,10 +16,11 @@ from cros_build_lib import ReinterpretPathForChroot
 from cros_build_lib import RunCommand
 from cros_build_lib import Warning
 
-
-_KVM_PID_FILE = '/tmp/harness_pid'
+# VM Constants.
 _FULL_VDISK_SIZE = 6072
 _FULL_STATEFULFS_SIZE = 3074
+_KVM_PID_FILE = '/tmp/harness_pid'
+_VERIFY_SUITE = 'suite_Smoke'
 
 # Globals to communicate options to unit tests.
 global base_image_path
@@ -28,8 +29,6 @@ global remote
 global target_image_path
 global vm_graphics_flag
 
-
-_VERIFY_SUITE = 'suite_Smoke'
 
 class AUTest(object):
   """Abstract interface that defines an Auto Update test."""
@@ -249,11 +248,11 @@ class VirtualAUTest(unittest.TestCase, AUTest):
 
   def PrepareBase(self):
     """Creates an update-able VM based on base image."""
+    self.vm_image_path = '%s/chromiumos_qemu_image.bin' % os.path.dirname(
+        base_image_path)
 
-    self.vm_image_path = ('%s/chromiumos_qemu_image.bin' % os.path.dirname(
-          base_image_path))
     if not os.path.exists(self.vm_image_path):
-      Info('Qemu image not found, creating one.')
+      Info('Qemu image %s not found, creating one.' % self.vm_image_path)
       RunCommand(['%s/image_to_vm.sh' % self.crosutils,
                   '--full',
                   '--from=%s' % ReinterpretPathForChroot(
@@ -263,7 +262,7 @@ class VirtualAUTest(unittest.TestCase, AUTest):
                   '--board=%s' % board,
                   '--test_image'], enter_chroot=True)
     else:
-      Info('Using existing VM image')
+      Info('Using existing VM image %s' % self.vm_image_path)
 
     self.assertTrue(os.path.exists(self.vm_image_path))
 
@@ -317,6 +316,8 @@ if __name__ == '__main__':
   parser.add_option('--no_delta', action='store_false', default=True,
                     dest='delta',
                     help='Disable using delta updates.')
+  parser.add_option('-q', '--quick_test', default=False, action='store_true',
+                    help='Use a basic test to verify image.')
   # Set the usage to include flags.
   parser.set_usage(parser.format_help())
   # Parse existing sys.argv so we can pass rest to unittest.main.
@@ -342,7 +343,7 @@ if __name__ == '__main__':
   # Communicate flags to tests.
   vm_graphics_flag = ''
   if options.no_graphics: vm_graphics_flag = '--no_graphics'
-
+  if options.quick_test: _VERIFY_SUITE = 'build_RootFilesystemSize'
   AUTest.use_delta_updates = options.delta
 
   # Only run the test harness we care about.
