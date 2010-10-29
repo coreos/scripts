@@ -267,7 +267,7 @@ then
 fi
 
 
-if [ $FLAGS_upload_prebuilt -eq $FLAGS_TRUE ]
+if [ $FLAGS_prebuilt_upload -eq $FLAGS_TRUE ]
 then
   # Construct prebuilt upload command.
   # This will upload prebuilt packages to Google Storage.
