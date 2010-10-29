@@ -269,7 +269,7 @@ fi
 # This will upload prebuilt packages to Google Storage.
 prebuilt_cmd="${SCRIPTS_DIR}/prebuilt.py"
 prebuilt_cmd="$prebuilt_cmd -u gs://chromeos-prebuilt --git-sync -V master"
-prebuilt_cmd="$prebuilt_cmd -p $(readlink -f ../..) -b ${FLAGS_board}"
+prebuilt_cmd="$prebuilt_cmd -p $(readlink -f ../../../..) -b ${FLAGS_board}"
 
 if [ "${FLAGS_BOARD}" == "x86-generic" ]
 then
