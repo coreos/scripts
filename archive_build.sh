@@ -45,6 +45,7 @@ DEFINE_string gsutil_archive "" \
 DEFINE_integer keep_max 0 "Maximum builds to keep in archive (0=all)"
 DEFINE_boolean official_build $FLAGS_FALSE "Set CHROMEOS_OFFICIAL=1 for release builds."
 DEFINE_boolean test_mod $FLAGS_TRUE "Modify image for testing purposes"
+DEFINE_boolean prebuilt_upload $FLAGS_FALSE "Upload prebuilt binary packages."
 DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
 DEFINE_string zipname "image.zip" "Name of zip file to create."
 
@@ -265,19 +266,23 @@ then
     "${LAST_CHANGE}/${HWQUAL_NAME}.tar.bz2"
 fi
 
-# Construct prebuilt upload command.
-# This will upload prebuilt packages to Google Storage.
-prebuilt_cmd="${SCRIPTS_DIR}/prebuilt.py"
-prebuilt_cmd="$prebuilt_cmd -u gs://chromeos-prebuilt --git-sync -V master"
-prebuilt_cmd="$prebuilt_cmd -p $(readlink -f ../../../..) -b ${FLAGS_board}"
 
-if [ "${FLAGS_BOARD}" == "x86-generic" ]
+if [ $FLAGS_upload_prebuilt -eq $FLAGS_TRUE ]
 then
-  prebuilt_cmd="$prebuilt_cmd --sync-host"
-fi
+  # Construct prebuilt upload command.
+  # This will upload prebuilt packages to Google Storage.
+  prebuilt_cmd="${SCRIPTS_DIR}/prebuilt.py"
+  prebuilt_cmd="$prebuilt_cmd -u gs://chromeos-prebuilt --git-sync -V master"
+  prebuilt_cmd="$prebuilt_cmd -p $(readlink -f ../../../..) -b ${FLAGS_board}"
 
-echo "Running $prebuilt_cmd"
-$prebuilt_cmd
+  if [ "${FLAGS_BOARD}" == "x86-generic" ]
+  then
+    prebuilt_cmd="$prebuilt_cmd --sync-host"
+  fi
+
+  echo "Running $prebuilt_cmd"
+  $prebuilt_cmd
+fi
 
 gsutil_archive "${ZIPFILE}" "${LAST_CHANGE}/${FLAGS_zipname}"
 
