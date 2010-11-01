@@ -21,6 +21,9 @@ from cros_build_lib import Info, RunCommand, Warning, Die
 
 gflags.DEFINE_string('board', '',
                      'Board for which the package belongs.', short_name='b')
+gflags.DEFINE_string('overlays', '',
+                     'Space separated list of overlays to modify.',
+                     short_name='o')
 gflags.DEFINE_string('packages', '',
                      'Space separated list of packages to mark as stable.',
                      short_name='p')
@@ -479,11 +482,13 @@ def main(argv):
 
   package_list = gflags.FLAGS.packages.split()
   _CheckSaneArguments(package_list, command)
-
-  overlays = {
-    '%s/private-overlays/chromeos-overlay' % gflags.FLAGS.srcroot: [],
-    '%s/third_party/chromiumos-overlay' % gflags.FLAGS.srcroot: []
-  }
+  if gflags.FLAGS.overlays:
+    overlays = dict((path, []) for path in gflags.FLAGS.overlays.split())
+  else:
+    overlays = {
+      '%s/private-overlays/chromeos-overlay' % gflags.FLAGS.srcroot: [],
+      '%s/third_party/chromiumos-overlay' % gflags.FLAGS.srcroot: []
+    }
 
   if command == 'commit':
     _BuildEBuildDictionary(overlays, gflags.FLAGS.all, package_list)

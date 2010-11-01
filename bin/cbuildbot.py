@@ -378,11 +378,20 @@ def _UprevPackages(buildroot, tracking_branch, revisionfile, board):
   _UprevAllPackages(buildroot, tracking_branch, board)
 
 
-def _UprevPush(buildroot, tracking_branch, board):
+def _UprevPush(buildroot, tracking_branch, board, overlays):
   """Pushes uprev changes to the main line."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
+  public_overlay = '%s/src/third_party/chromiumos-overlay' % buildroot
+  private_overlay = '%s/src/private-overlays/chromeos-overlay' % buildroot
+  if overlays == 'private':
+    overlays = [private_overlay]
+  elif overlays == 'public':
+    overlays = [public_overlay]
+  else:
+    overlays = [public_overlay, private_overlay]
   RunCommand(['./cros_mark_as_stable', '--srcroot=..',
               '--board=%s' % board,
+              '--overlays="%s"' % " ".join(overlays),
               '--tracking_branch="%s"' % tracking_branch,
               '--push_options="--bypass-hooks -f"', 'push'],
              cwd=cwd)
@@ -531,7 +540,8 @@ def main():
         if buildconfig['master']:
           # Master bot needs to check if the other slaves completed.
           if cbuildbot_comm.HaveSlavesCompleted(config):
-            _UprevPush(buildroot, tracking_branch, buildconfig['board'])
+            _UprevPush(buildroot, tracking_branch, buildconfig['board'],
+                       buildconfig['overlays'])
           else:
             Die('CBUILDBOT - One of the slaves has failed!!!')
 
