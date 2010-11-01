@@ -64,8 +64,10 @@ update_partition_table() {
   local resized_sectors=$3  # number of sectors in resized stateful partition
   local temp_img=$4
 
-  local kernel_offset=$(partoffset ${src_img} 2)
-  local kernel_count=$(partsize ${src_img} 2)
+  local kern_a_offset=$(partoffset ${src_img} 2)
+  local kern_a_count=$(partsize ${src_img} 2)
+  local kern_b_offset=$(partoffset ${src_img} 4)
+  local kern_b_count=$(partsize ${src_img} 4)
   local rootfs_offset=$(partoffset ${src_img} 3)
   local rootfs_count=$(partsize ${src_img} 3)
   local oem_offset=$(partoffset ${src_img} 8)
@@ -79,7 +81,8 @@ update_partition_table() {
   trap "rm -rf \"${temp_pmbr}\"" EXIT
   # Set up a new partition table
   install_gpt "${temp_img}" "${rootfs_count}" "${resized_sectors}" \
-    "${temp_pmbr}" "${esp_count}" false $(roundup ${rootfs_count})
+    "${temp_pmbr}" "${esp_count}" false \
+    $(((rootfs_count * 512)/(1024 * 1024)))
 
   # Copy into the partition parts of the file
   dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
@@ -88,7 +91,9 @@ update_partition_table() {
     seek="${START_STATEFUL}"
   # Copy the full kernel (i.e. with vboot sections)
   dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
-    seek="${START_KERN_A}" skip=${kernel_offset} count=${kernel_count}
+    seek="${START_KERN_A}" skip=${kern_a_offset} count=${kern_a_count}
+  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
+    seek="${START_KERN_B}" skip=${kern_b_offset} count=${kern_b_count}
   dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
     seek="${START_OEM}" skip=${oem_offset} count=${oem_count}
   dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \

@@ -4,27 +4,62 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Script to modify a pristine/dev Chrome OS image to be used for recovery
+# This script modifies a base image to act as a recovery installer.
+# If no kernel image is supplied, it will build a devkeys signed recovery
+# kernel.  Alternatively, a signed recovery kernel can be used to
+# create a Chromium OS recovery image.
 
+# Load common constants.  This should be the first executable line.
+# The path to common.sh should be relative to your script's location.
+. "$(dirname "$0")/common.sh"
+
+# Load functions and constants for chromeos-install
+. "$(dirname "$0")/chromeos-common.sh"
+
+# For update_partition_table
 . "$(dirname "$0")/resize_stateful_partition.sh"
 
-# Script must be run inside the chroot.
-restart_in_chroot_if_needed $*
+
+# We need to be in the chroot to emerge test packages.
+assert_inside_chroot
 
 get_default_board
 
-# Constants
-TEMP_IMG=$(mktemp "/tmp/temp_img.XXXXXX")
-RECOVERY_IMAGE="recovery_image.bin"
+DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built" b
+DEFINE_integer statefulfs_sectors 4096 \
+  "Number of sectors to use for the stateful filesystem"
+# Skips the build steps and just does the kernel swap.
+DEFINE_string kernel_image "" \
+    "Path to a pre-built recovery kernel"
+DEFINE_string kernel_outfile "" \
+    "Filename and path to emit the kernel outfile to. \
+If empty, emits to IMAGE_DIR."
+DEFINE_string image "" "Path to the image to use"
+DEFINE_string to "" \
+    "Path to the image to create. If empty, defaults to \
+IMAGE_DIR/recovery_image.bin."
+DEFINE_boolean kernel_image_only $FLAGS_FALSE \
+    "Emit the recovery kernel image only"
+DEFINE_boolean sync_keys $FLAGS_TRUE \
+    "Update the kernel to be installed with the vblock from stateful"
+DEFINE_integer jobs -1 \
+    "How many packages to build in parallel at maximum." j
+DEFINE_string build_root "/build" \
+    "The root location for board sysroots."
 
-DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built"
-DEFINE_string image "" "Location of the rootfs raw image file"
-DEFINE_string output "${RECOVERY_IMAGE}" \
-  "(optional) output image name. Default: ${RECOVERY_IMAGE}"
+DEFINE_string rootfs_hash "/tmp/rootfs.hash" \
+  "Path where the rootfs hash should be stored."
+
+# Keep in sync with build_image.
+DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
+  "Directory containing the signing keys."
 
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
+
+EMERGE_CMD="emerge"
+EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
 
 # No board, no default and no image set then we can't find the image
 if [ -z $FLAGS_image ] && [ -z $FLAGS_board ] ; then
@@ -32,7 +67,7 @@ if [ -z $FLAGS_image ] && [ -z $FLAGS_board ] ; then
   die "mod_image_for_recovery failed.  No board set and no image set"
 fi
 
-# We have a board name but no image set. Use image at default location
+# We have a board name but no image set.  Use image at default location
 if [ -z $FLAGS_image ] ; then
   IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
   FILENAME="chromiumos_image.bin"
@@ -40,7 +75,7 @@ if [ -z $FLAGS_image ] ; then
 fi
 
 # Turn path into an absolute path.
-FLAGS_image=$(eval readlink -f ${FLAGS_image})
+FLAGS_image=`eval readlink -f ${FLAGS_image}`
 
 # Abort early if we can't find the image
 if [ ! -f $FLAGS_image ] ; then
@@ -48,73 +83,284 @@ if [ ! -f $FLAGS_image ] ; then
   exit 1
 fi
 
-set -u
-set -e
+# What cross-build are we targeting?
+. "${FLAGS_build_root}/${FLAGS_board}/etc/make.conf.board_setup"
+# Figure out ARCH from the given toolchain.
+# TODO: Move to common.sh as a function after scripts are switched over.
+TC_ARCH=$(echo "${CHOST}" | awk -F'-' '{ print $1 }')
+case "${TC_ARCH}" in
+  arm*)
+    ARCH="arm"
+    error "ARM recovery mode is still in the works. Use a normal image for now."
+    ;;
+  *86)
+    ARCH="x86"
+    ;;
+  *)
+    error "Unable to determine ARCH from toolchain: ${CHOST}"
+    exit 1
+esac
 
-# Constants
-IMAGE_DIR="$(dirname "$FLAGS_image")"
+get_install_vblock() {
+  # If it exists, we need to copy the vblock over to stateful
+  # This is the real vblock and not the recovery vblock.
+  local stateful_offset=$(partoffset "$FLAGS_image" 1)
+  local stateful_mnt=$(mktemp -d)
+  local out=$(mktemp)
 
-# Creates a dev recovery image using an existing dev install shim
-# If successful, content of --payload_dir is copied to a directory named
-# "dev_payload" under the root of stateful partition.
-create_recovery_image() {
-  local src_img=$1  # base image
-  local src_state=$(mktemp "/tmp/src_state.XXXXXX")
-  local stateful_offset=$(partoffset ${src_img} 1)
-  local stateful_count=$(partsize ${src_img} 1)
+  set +e
+  sudo mount -o ro,loop,offset=$((stateful_offset * 512)) \
+             "$FLAGS_image" $stateful_mnt
+  sudo cp "$stateful_mnt/vmlinuz_hd.vblock"  "$out"
+  sudo chown $USER "$out"
 
-  dd if="${src_img}" of="${src_state}" conv=notrunc bs=512 \
-    skip=${stateful_offset} count=${stateful_count}
-
-  # Mount original stateful partition to figure out its actual size
-  local src_loop_dev=$(get_loop_dev)
-  trap "cleanup_loop_dev ${src_loop_dev}" EXIT
-
-  # Setup loop dev
-  sudo losetup $src_loop_dev $src_state
-  local block_size=$(sudo /sbin/dumpe2fs $src_loop_dev | grep "Block size:" \
-                     | tr -d ' ' | cut -f2 -d:)
-  echo "block_size = $block_size"
-  local min_size=$(sudo /sbin/resize2fs -P $src_loop_dev | tr -d ' ' \
-                   | cut -f2 -d:)
-  echo "min_size = $min_size $block_size blocks"
-
-  # Add 20%, convert to 512-byte sectors and round up to 2Mb boundary
-  local min_sectors=$(roundup $(((min_size * block_size * 120) / (512 * 100))))
-  echo "min_sectors = ${min_sectors} 512-byte blocks"
-  sudo e2fsck -fp "${src_loop_dev}"
-  # Resize using 512-byte sectors
-  sudo /sbin/resize2fs $src_loop_dev ${min_sectors}s
-
-  # Delete the loop
-  trap - EXIT
-  cleanup_loop_dev ${src_loop_dev}
-
-  # Truncate the image at the new size
-  dd if=/dev/zero of=$src_state bs=512 seek=$min_sectors count=0
-
-  # Mount and touch .recovery  # Soon not to be needed :/
-  local new_mnt=$(mktemp -d "/tmp/src_mnt.XXXXXX")
-  mkdir -p "${new_mnt}"
-  local new_loop_dev=$(get_loop_dev)
-  trap "cleanup_loop_dev ${new_loop_dev} && rmdir ${new_mnt} && \
-        rm -f ${src_state}" EXIT
-  sudo mount -o loop=${new_loop_dev} "${src_state}" "${new_mnt}"
-  trap "umount_from_loop_dev ${new_mnt} && rm -f ${src_state}" EXIT
-  sudo touch "${new_mnt}/.recovery"
-
-  (update_partition_table $src_img $src_state $min_sectors $TEMP_IMG)
-  # trap handler will handle unmount and clean up of loop device and temp files
+  sudo umount -d "$stateful_mnt"
+  rmdir "$stateful_mnt"
+  set -e
+  echo "$out"
 }
 
-# Main
-DST_PATH="${IMAGE_DIR}/${FLAGS_output}"
-echo "Making a copy of original image ${FLAGS_image}"
-(create_recovery_image $FLAGS_image)
+emerge_recovery_kernel() {
+  echo "Emerging custom recovery initramfs and kernel"
+  local emerge_flags="-uDNv1 --usepkg=n --selective=n"
 
-if [ -n ${TEMP_IMG} ] && [ -f ${TEMP_IMG} ]; then
-  mv -f $TEMP_IMG $DST_PATH
-  echo "Recovery image created at ${DST_PATH}"
-else
-  echo "Failed to create recovery image"
+  $EMERGE_BOARD_CMD \
+    $emerge_flags --binpkg-respect-use=y \
+    chromeos-initramfs || die "no initramfs"
+  USE="initramfs" $EMERGE_BOARD_CMD \
+                    $emerge_flags --binpkg-respect-use=y \
+                    virtual/kernel
+}
+
+create_recovery_kernel_image() {
+  local sysroot="${FLAGS_build_root}/${FLAGS_board}"
+  local vmlinuz="$sysroot/boot/vmlinuz"
+  local root_dev=$(sudo losetup -f)
+  local root_offset=$(partoffset "$FLAGS_image" 3)
+  local root_size=$(partsize "$FLAGS_image" 3)
+
+  sudo losetup \
+       -o $((root_offset * 512)) \
+       --sizelimit $((root_size * 512)) \
+       "$root_dev" \
+       "$FLAGS_image"
+
+  trap "sudo losetup -d $root_dev" EXIT
+
+  cros_root=/dev/sd%D%P
+  if [[ "${ARCH}" = "arm" ]]; then
+    cros_root='/dev/${devname}${rootpart}'
+  fi
+  if grep -q enable_rootfs_verification "${IMAGE_DIR}/boot.desc"; then
+    cros_root=/dev/dm-0
+  fi
+  # TODO(wad) LOAD FROM IMAGE KERNEL AND NOT BOOT.DESC
+  local verity_args=$(grep -- '--verity_' "${IMAGE_DIR}/boot.desc")
+  # Convert the args to the right names and clean up extra quoting.
+  # TODO(wad) just update these everywhere
+  verity_args=$(echo $verity_args | sed \
+    -e 's/verity_algorithm/verity_hash_alg/g' \
+    -e 's/verity_depth/verity_tree_depth/g' \
+    -e 's/"//g')
+
+  # Tie the installed recovery kernel to the final kernel.  If we don't
+  # do this, a normal recovery image could be used to drop an unsigned
+  # kernel on without a key-change check.
+  # Doing this here means that the kernel and initramfs creation can
+  # be done independently from the image to be modified as long as the
+  # chromeos-recovery interfaces are the same.  It allows for the signer
+  # to just compute the new hash and update the kernel command line during
+  # recovery image generation.  (Alternately, it means an image can be created,
+  # modified for recovery, then passed to a signer which can then sign both
+  # partitions appropriately without needing any external dependencies.)
+  local kern_offset=$(partoffset "$FLAGS_image" 2)
+  local kern_size=$(partsize "$FLAGS_image" 2)
+  local kern_tmp=$(mktemp)
+  local kern_hash=
+
+  dd if="$FLAGS_image" bs=512 count=$kern_size skip=$kern_offset of="$kern_tmp"
+  # We're going to use the real signing block.
+  if [ $FLAGS_sync_keys -eq $FLAGS_TRUE ]; then
+    dd if="$INSTALL_VBLOCK" of="$kern_tmp" conv=notrunc
+  fi
+  local kern_hash=$(sha1sum "$kern_tmp" | cut -f1 -d' ')
+  rm "$kern_tmp"
+
+  # TODO(wad) add FLAGS_boot_args support too.
+  ${SCRIPTS_DIR}/build_kernel_image.sh \
+    --arch="${ARCH}" \
+    --to="$RECOVERY_KERNEL_IMAGE" \
+    --hd_vblock="$RECOVERY_KERNEL_VBLOCK" \
+    --vmlinuz="$vmlinuz" \
+    --working_dir="${IMAGE_DIR}" \
+    --boot_args="panic=60 cros_recovery kern_b_hash=$kern_hash" \
+    --keep_work \
+    --rootfs_image=${root_dev} \
+    --rootfs_hash=${FLAGS_rootfs_hash} \
+    --root=${cros_root} \
+    --keys_dir="${FLAGS_keys_dir}" \
+    --nouse_dev_keys \
+    ${verity_args}
+  sudo rm "$FLAGS_rootfs_hash"
+  sudo losetup -d "$root_dev"
+  trap - RETURN
+
+  # Update the EFI System Partition configuration so that the kern_hash check
+  # passes.
+  local efi_dev=$(sudo losetup -f)
+  local efi_offset=$(partoffset "$FLAGS_image" 12)
+  local efi_size=$(partsize "$FLAGS_image" 12)
+
+  sudo losetup \
+       -o $((efi_offset * 512)) \
+       --sizelimit $((efi_size * 512)) \
+       "$efi_dev" \
+       "$FLAGS_image"
+  local efi_dir=$(mktemp -d)
+  trap "sudo losetup -d $efi_dev && rmdir \"$efi_dir\"" EXIT
+  sudo mount "$efi_dev" "$efi_dir"
+  sudo sed  -i -e "s/cros_legacy/cros_legacy kern_b_hash=$kern_hash/g" \
+    "$efi_dir/syslinux/usb.A.cfg" || true
+  # This will leave the hash in the kernel for all boots, but that should be
+  # safe.
+  sudo sed  -i -e "s/cros_efi/cros_efi kern_b_hash=$kern_hash/g" \
+    "$efi_dir/efi/boot/grub.cfg" || true
+  sudo umount "$efi_dir"
+  sudo losetup -d "$efi_dev"
+  rmdir "$efi_dir"
+  trap - EXIT
+}
+
+install_recovery_kernel() {
+  local kern_a_offset=$(partoffset "$RECOVERY_IMAGE" 2)
+  local kern_a_size=$(partsize "$RECOVERY_IMAGE" 2)
+  local kern_b_offset=$(partoffset "$RECOVERY_IMAGE" 4)
+  local kern_b_size=$(partsize "$RECOVERY_IMAGE" 4)
+  # Backup original kernel to KERN-B
+  dd if="$RECOVERY_IMAGE" of="$RECOVERY_IMAGE" bs=512 \
+     count=$kern_a_size \
+     skip=$kern_a_offset \
+     seek=$kern_b_offset \
+     conv=notrunc
+
+  # We're going to use the real signing block.
+  if [ $FLAGS_sync_keys -eq $FLAGS_TRUE ]; then
+    dd if="$INSTALL_VBLOCK" of="$RECOVERY_IMAGE" bs=512 \
+       seek=$kern_b_offset \
+       conv=notrunc
+  fi
+
+  # Install the recovery kernel as primary.
+  dd if="$RECOVERY_KERNEL_IMAGE" of="$RECOVERY_IMAGE" bs=512 \
+     seek=$kern_a_offset \
+     count=$kern_a_size \
+     conv=notrunc
+
+  # Repeat for the legacy bioses.
+  # Replace vmlinuz.A with the recovery version
+  local sysroot="${FLAGS_build_root}/${FLAGS_board}"
+  local vmlinuz="$sysroot/boot/vmlinuz"
+  local esp_offset=$(partoffset "$RECOVERY_IMAGE" 12)
+  local esp_mnt=$(mktemp -d)
+  set +e
+  local failed=0
+  sudo mount -o loop,offset=$((esp_offset * 512)) "$RECOVERY_IMAGE" "$esp_mnt"
+  sudo cp "$vmlinuz" "$esp_mnt/syslinux/vmlinuz.A" || failed=1
+  sudo umount -d "$esp_mnt"
+  rmdir "$esp_mnt"
+  set -e
+  if [ $failed -eq 1 ]; then
+    echo "Failed to copy recovery kernel to ESP"
+    return 1
+  fi
+  return 0
+}
+
+maybe_resize_stateful() {
+  # Rebuild the image with a 1 sector stateful partition
+  local err=0
+  local small_stateful=$(mktemp)
+  dd if=/dev/zero of="$small_stateful" bs=512 \
+    count=${FLAGS_statefulfs_sectors}
+  trap "rm $small_stateful" RETURN
+  # Don't bother with ext3 for such a small image.
+  /sbin/mkfs.ext2 -F -b 4096 "$small_stateful"
+
+  # If it exists, we need to copy the vblock over to stateful
+  # This is the real vblock and not the recovery vblock.
+  local new_stateful_mnt=$(mktemp -d)
+
+  set +e
+  sudo mount -o loop $small_stateful $new_stateful_mnt
+  sudo cp "$INSTALL_VBLOCK" "$new_stateful_mnt/vmlinuz_hd.vblock"
+  sudo mkdir "$new_stateful_mnt/var"
+  sudo umount -d "$new_stateful_mnt"
+  rmdir "$new_stateful_mnt"
+  set -e
+
+  # Create a recovery image of the right size
+  # TODO(wad) Make the developer script case create a custom GPT with
+  # just the kernel image and stateful.
+  update_partition_table "$FLAGS_image" "$small_stateful" 4096 "$RECOVERY_IMAGE"
+  return $err
+}
+
+# main process begins here.
+
+# Make sure this is really what the user wants, before nuking the device
+echo "Creating recovery image ${FLAGS_to} from ${FLAGS_image} . . . "
+
+set -e
+set -u
+
+IMAGE_DIR="$(dirname "$FLAGS_image")"
+IMAGE_NAME="$(basename "$FLAGS_image")"
+RECOVERY_IMAGE="${FLAGS_to:-$IMAGE_DIR/recovery_image.bin}"
+RECOVERY_KERNEL_IMAGE=\
+"${FLAGS_kernel_outfile:-${IMAGE_DIR}/recovery_vmlinuz.image}"
+RECOVERY_KERNEL_VBLOCK="${RECOVERY_KERNEL_IMAGE}.vblock"
+STATEFUL_DIR="$IMAGE_DIR/stateful_partition"
+SCRIPTS_DIR=$(dirname "$0")
+
+# Mounts gpt image and sets up var, /usr/local and symlinks.
+# If there's a dev payload, mount stateful
+#  offset=$(partoffset "${FLAGS_from}/${filename}" 1)
+#  sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
+#    "${FLAGS_from}/${filename}" "${FLAGS_stateful_mountpt}"
+# If not, resize stateful to 1 sector.
+#
+
+if [ $FLAGS_kernel_image_only -eq $FLAGS_TRUE -a \
+     -n "$FLAGS_kernel_image" ]; then
+  die "Cannot use --kernel_image_only with --kernel_image"
 fi
+
+INSTALL_VBLOCK=$(get_install_vblock)
+if [ -z "$INSTALL_VBLOCK" ]; then
+  die "Could not copy the vblock from stateful."
+fi
+
+if [ -z "$FLAGS_kernel_image" ]; then
+  emerge_recovery_kernel
+  create_recovery_kernel_image
+else
+  RECOVERY_KERNEL_IMAGE="$FLAGS_kernel_image"
+fi
+echo "Kernel emitted: $RECOVERY_KERNEL_IMAGE."
+
+if [ $FLAGS_kernel_image_only -eq $FLAGS_TRUE ]; then
+  echo "Kernel emitted. Stopping there."
+  rm "$INSTALL_VBLOCK"
+  exit 0
+fi
+
+rm "$RECOVERY_IMAGE" || true  # Start fresh :)
+
+trap "rm \"$RECOVERY_IMAGE\" && rm \"$INSTALL_VBLOCK\"" EXIT
+
+maybe_resize_stateful  # Also copies the image
+
+install_recovery_kernel
+
+print_time_elapsed
+trap - EXIT
