@@ -93,6 +93,19 @@ def ModifyBootDesc(download_folder, redirect_file=None):
   fileinput.close()
 
 
+def _GreaterVersion(version_a, version_b):
+  """Returns the higher version number of two version number strings."""
+  version_regex = re.compile('.*(\d+)\.(\d+)\.(\d+)\.(\d+).*')
+  version_a_tokens = version_regex.match(version_a).groups()
+  version_b_tokens = version_regex.match(version_b).groups()
+  for i in range(4):
+    (a, b) = (int(version_a_tokens[i]), int(version_b_tokens[i]))
+    if a != b:
+      if a > b: return version_a
+      return version_b
+  return version_a
+
+
 def GetLatestLinkFromPage(url, regex):
   """Returns the latest link from the given url that matches regex.
 
@@ -102,12 +115,13 @@ def GetLatestLinkFromPage(url, regex):
   """
   url_file = urllib.urlopen(url)
   url_html = url_file.read()
+
   url_file.close()
 
   # Parses links with versions embedded.
   url_parser = HTMLDirectoryParser(regex=regex)
   url_parser.feed(url_html)
-  return max(url_parser.link_list)
+  return reduce(_GreaterVersion, url_parser.link_list)
 
 
 def GetNewestLinkFromZipBase(board, channel, zip_server_base):
