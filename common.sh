@@ -77,6 +77,8 @@ fi
 # Load shflags
 if [[ -f /usr/lib/shflags ]]; then
   . /usr/lib/shflags
+elif [ -f ./lib/shflags/shflags ]; then
+  . "./lib/shflags/shflags"
 else
   . "${SRC_ROOT}/scripts/lib/shflags/shflags"
 fi
