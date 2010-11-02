@@ -51,7 +51,7 @@ DEFINE_boolean dev_install ${FLAGS_FALSE} \
   "Build a smaller image to overlay the dev recovery install shim on"
 DEFINE_integer rootfs_partition_size 1024 \
   "rootfs partition size in MiBs."
-DEFINE_integer rootfs_size 720 \
+DEFINE_integer rootfs_size 850 \
   "rootfs filesystem size in MiBs."
 # ceil(0.1 * rootfs_size) is a good minimum.
 DEFINE_integer rootfs_hash_pad 8 \
