@@ -53,6 +53,15 @@ config['x86-mario-pre-flight-queue'] = {
   'smoke_bvt' : True,
   'overlays': 'private',
 }
+config['x86-mario-pre-flight-branch'] = {
+  'board' : 'x86-mario',
+  'uprev' : True,
+  'master' : True,
+  'important' : False,
+  'unittests' : True,
+  'smoke_bvt' : True,
+  'overlays': True,
+}
 config['x86_agz_bin'] = {
   'board' : 'x86-agz',
   'uprev' : True,
