@@ -638,7 +638,8 @@ class DepGraphGenerator(object):
     # are blacklisting them from automatic rebuilds because one of their
     # dependencies needs to be recompiled.
     rebuild_blacklist = set()
-    for pkg in ("media-plugins/o3d", "dev-java/icedtea"):
+    for pkg in ("chromeos-base/chromeos-chrome", "media-plugins/o3d",
+                "dev-java/icedtea"):
       for match in final_db.match_pkgs(pkg):
         rebuild_blacklist.add(str(match.cpv))
 
