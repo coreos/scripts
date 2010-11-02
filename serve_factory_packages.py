@@ -122,11 +122,23 @@ def sign_build(image, output):
 
 
 def build_factory_packages(signed_image, base_image, fw_updater, folder, board):
-  """Build image and modify mini omaha config.
+  """Build factory packages and modify mini omaha config.
+
+  Args:
+    signed_image: signed image
+    base_image: base image
+    fw_updater: firmware updater
+    folder: destination folder to write packages
+    board: platform to build
   """
   cmd = ('./make_factory_package.sh --release %s --factory %s'
-         ' --firmware_updater %s --subfolder %s --board %s'
-         % (signed_image, base_image, fw_updater, folder, board))
+         ' --subfolder %s --board %s'
+         % (signed_image, base_image, folder, board))
+  if fw_updater:
+    cmd = '%s --firmware_updater %s' % (cmd, fw_updater)
+  else:
+    print ('No --firmware_updater specified. Not including firmware shellball.')
+
   print 'Building factory packages: %s' % cmd
   build_packages_process = KillableProcess(cmd, cwd=SCRIPTS_DIR)
   build_packages_process.start()
@@ -146,11 +158,12 @@ def main(argv):
 
   if not FLAGS.base_image:
     exit('No --base_image specified.')
-  if not FLAGS.firmware_updater:
-    exit('No --firmware_updater specified.')
+
+  if FLAGS.firmware_updater:
+    assert_is_file(FLAGS.firmware_updater,
+                   'Invalid or missing firmware updater.')
 
   assert_is_file(FLAGS.base_image, 'Invalid or missing base image.')
-  assert_is_file(FLAGS.firmware_updater, 'Invalid or missing firmware updater.')
 
   signed_image = os.path.join(os.path.dirname(FLAGS.base_image),
                               '%s_ssd_signed.bin' % FLAGS.board)
