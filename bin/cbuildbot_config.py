@@ -60,7 +60,7 @@ config['x86-mario-pre-flight-branch'] = {
   'important' : False,
   'unittests' : True,
   'smoke_bvt' : True,
-  'overlays': 'both'
+  'overlays': 'both',
 }
 config['x86_agz_bin'] = {
   'board' : 'x86-agz',
