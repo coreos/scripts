@@ -35,6 +35,7 @@ commands:
   start:  Moves an ebuild to live (intended to support development)
   stop:  Moves an ebuild to stable (use last known good)
   list:  List of live ebuilds (workon ebuilds if --all)
+  list-all:  List all of the live ebuilds for all setup boards
   iterate:  For each ebuild, cd to the source dir and run a commond"
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -53,6 +54,7 @@ shift
 [ -n "${FLAGS_board}" ] && [ "${FLAGS_host}" = ${FLAGS_TRUE} ] && \
   FLAGS_board="" # kill board
 [ -z "${FLAGS_board}" ] && [ "${FLAGS_host}" = ${FLAGS_FALSE} ] && \
+[ "${WORKON_CMD}" != "list-all" ] && \
   die "You must specify either --host or --board="
 
 if [ -n "${FLAGS_board}" ]; then
@@ -136,6 +138,18 @@ show_live_ebuilds () {
   sed -n 's/^[~=]\(.*\)-9999$/\1/p' "${WORKON_FILE}"
 }
 
+# Display ebuilds currently part of the live branch and open for development
+# for any board that currently has live ebuilds.
+show_all_live_ebuilds () {
+  for workon_file in ${WORKON_DIR}/*; do
+    if [ -s "${workon_file}" ]; then
+      echo -e "${V_BOLD_GREEN}$(basename ${workon_file}):${V_VIDOFF}"
+      sed -n 's/^[~=]\(.*\)-9999$/    \1/p' "${workon_file}"
+      echo ""
+    fi
+  done
+}
+
 # This is called only for "cros-workon start". We dont handle the "stop" case since the local changes are ignored anyway since the 9999.ebuild is masked and we dont want to deal with what to do with the user's local changes.
 regen_manifest_and_sync() {
   # Nothing to do unless you are working on the minilayout
@@ -208,7 +222,7 @@ if [ ${FLAGS_all} = "${FLAGS_TRUE}" ]; then
   case ${WORKON_CMD} in
     start) ATOM_LIST=$(show_workon_ebuilds ${BOARD_KEYWORD});;
     stop|iterate) ATOM_LIST=$(show_live_ebuilds);;
-    list) ;;
+    list|list-all) ;;
     *) die "--all is invalid for the given command";;
   esac
 else # not selected --all
@@ -228,6 +242,7 @@ case ${WORKON_CMD} in
   start)  ebuild_to_live "${ATOM_LIST}" ;;
   stop)   ebuild_to_stable "${ATOM_LIST}" ;;
   list)   [ ${FLAGS_all} = "${FLAGS_FALSE}" ] && show_live_ebuilds || show_workon_ebuilds ${BOARD_KEYWORD} ;;
+  list-all) show_all_live_ebuilds ;;
   iterate)ebuild_iterate "${ATOM_LIST}" ;;
   *)      die "$(basename $0): command '${WORKON_CMD}' not recognized" ;;
 esac
