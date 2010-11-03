@@ -65,7 +65,7 @@ if [ -b "$FLAGS_image" ]; then
 else
   max_kern_size=32768
   dd if=/dev/zero of="${FLAGS_image}" bs=512 count=0 \
-     seek=$((1 + max_kern_size + header_offset + stateful_sectors))
+     seek=$((1 + max_kern_size + (2 * header_offset) + stateful_sectors))
   sudo=""
 fi
 
@@ -99,7 +99,7 @@ kernel_sectors=$((kernel_bytes / 512))
 kernel_sectors=$(roundup $kernel_sectors)
 
 $sudo $GPT create $FLAGS_image
-trap "rm $FLAGS_image" ERR
+trap "rm $FLAGS_image; echo 'An error occurred! Rerun with -v for details.'" ERR
 
 offset=$header_offset
 $sudo $GPT add -b $offset -s $stateful_sectors \
@@ -119,4 +119,4 @@ $sudo $GPT boot -p -b "$PMBRCODE" -i 1 $FLAGS_image 1>&2
 
 $sudo $GPT show $FLAGS_image
 
-echo "Done."
+echo "Emitted $FLAGS_image successfully!"
