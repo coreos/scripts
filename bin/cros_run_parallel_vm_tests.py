@@ -9,6 +9,7 @@ import optparse
 import os
 import subprocess
 import sys
+import tempfile
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../lib'))
 from cros_build_lib import Die
@@ -26,7 +27,7 @@ class ParallelTestRunner(object):
   """
 
   def __init__(self, tests, base_ssh_port=_DEFAULT_BASE_SSH_PORT, board=None,
-               image_path=None, results_dir_root=None):
+               image_path=None, order_output=False, results_dir_root=None):
     """Constructs and initializes the test runner class.
 
     Args:
@@ -37,6 +38,8 @@ class ParallelTestRunner(object):
         board.
       image_path: Full path to the VM image. If none, cros_run_vm_tests will use
         the latest image.
+      order_output: If True, output of individual VMs will be piped to
+        temporary files and emitted at the end.
       results_dir_root: The results directory root. If provided, the results
         directory root for each test will be created under it with the SSH port
         appended to the test name.
@@ -45,6 +48,7 @@ class ParallelTestRunner(object):
     self._base_ssh_port = base_ssh_port
     self._board = board
     self._image_path = image_path
+    self._order_output = order_output
     self._results_dir_root = results_dir_root
 
   def _SpawnTests(self):
@@ -76,15 +80,23 @@ class ParallelTestRunner(object):
         args.append('--results_dir_root=%s/%s.%d' %
                     (self._results_dir_root, test, ssh_port))
       Info('Running %r...' % args)
-      proc = subprocess.Popen(args, stdin=dev_null)
+      output = None
+      if self._order_output:
+        output = tempfile.NamedTemporaryFile(prefix='parallel_vm_test_')
+        Info('Piping output to %s.' % output.name)
+      proc = subprocess.Popen(args, stdin=dev_null, stdout=output,
+                              stderr=output)
       test_info = { 'test': test,
-                    'proc': proc }
+                    'proc': proc,
+                    'output': output }
       spawned_tests.append(test_info)
       ssh_port = ssh_port + 1
     return spawned_tests
 
   def _WaitForCompletion(self, spawned_tests):
     """Waits for tests to complete and returns a list of failed tests.
+
+    If the test output was piped to a file, dumps the file contents to stdout.
 
     Args:
       spawned_tests: A list of test info objects (see _SpawnTests).
@@ -97,6 +109,14 @@ class ParallelTestRunner(object):
       proc = test_info['proc']
       proc.wait()
       if proc.returncode: failed_tests.append(test_info['test'])
+      output = test_info['output']
+      if output:
+        test = test_info['test']
+        Info('------ START %s:%s ------' % (test, output.name))
+        output.seek(0)
+        for line in output:
+          print line,
+        Info('------ END %s:%s ------' % (test, output.name))
     return failed_tests
 
   def Run(self):
@@ -120,6 +140,10 @@ def main():
   parser.add_option('--image_path',
                     help='Full path to the VM image. If none specified, '
                     'cros_run_vm_test will use the latest image.')
+  parser.add_option('--order_output', action='store_true', default=False,
+                    help='Rather than emitting interleaved progress output '
+                    'from the individual VMs, accumulate the outputs in '
+                    'temporary files and dump them at the end.')
   parser.add_option('--results_dir_root',
                     help='Root results directory. If none specified, each test '
                     'will store its results in a separate /tmp directory.')
@@ -130,7 +154,8 @@ def main():
     Die('no tests provided')
 
   runner = ParallelTestRunner(args, options.base_ssh_port, options.board,
-                              options.image_path, options.results_dir_root)
+                              options.image_path, options.order_output,
+                              options.results_dir_root)
   runner.Run()
 
 
