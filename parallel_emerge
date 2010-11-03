@@ -638,7 +638,8 @@ class DepGraphGenerator(object):
     # are blacklisting them from automatic rebuilds because one of their
     # dependencies needs to be recompiled.
     rebuild_blacklist = set()
-    for pkg in ("media-plugins/o3d", "dev-java/icedtea"):
+    for pkg in ("chromeos-base/chromeos-chrome", "media-plugins/o3d",
+                "dev-java/icedtea"):
       for match in final_db.match_pkgs(pkg):
         rebuild_blacklist.add(str(match.cpv))
 
@@ -1234,8 +1235,9 @@ def PrintDepsMap(deps_map):
 
 
 class EmergeJobState(object):
-  __slots__ = ["done", "filename", "last_output_seek", "last_output_timestamp",
-               "pkgname", "retcode", "start_timestamp", "target"]
+  __slots__ = ["done", "filename", "last_notify_timestamp", "last_output_seek",
+               "last_output_timestamp", "pkgname", "retcode", "start_timestamp",
+               "target"]
 
   def __init__(self, target, pkgname, done, filename, start_timestamp,
                retcode=None):
@@ -1252,6 +1254,11 @@ class EmergeJobState(object):
 
     # The filename where output is currently stored.
     self.filename = filename
+
+    # The timestamp of the last time we printed the name of the log file. We
+    # print this at the beginning of the job, so this starts at
+    # start_timestamp.
+    self.last_notify_timestamp = start_timestamp
 
     # The location (in bytes) of the end of the last complete line we printed.
     # This starts off at zero. We use this to jump to the right place when we
@@ -1548,26 +1555,43 @@ class EmergeQueue(object):
   def _Status(self):
     """Print status."""
     current_time = time.time()
-    seconds = current_time - GLOBAL_START
-    line = ("Pending %s, Ready %s, Running %s, Retrying %s, Total %s "
-            "[Time %dm%.1fs Load %s]")
-    qsize = self._emerge_queue.qsize()
-    self._Print(line % (len(self._deps_map), qsize, len(self._jobs) - qsize,
-                        len(self._retry_queue), self._total_jobs,
-                        seconds / 60, seconds % 60, self._LoadAvg()))
+    no_output = True
 
     # Print interim output every minute if --show-output is used. Otherwise,
-    # only print output if a job has been running for 60 minutes or more.
+    # print notifications about running packages every 2 minutes, and print
+    # full output for jobs that have been running for 60 minutes or more.
     if self._show_output:
       interval = 60
+      notify_interval = 0
     else:
       interval = 60 * 60
+      notify_interval = 60 * 2
     for target, job in self._jobs.iteritems():
       if job:
         last_timestamp = max(job.start_timestamp, job.last_output_timestamp)
         if last_timestamp + interval < current_time:
           self._print_queue.put(JobPrinter(job))
           job.last_output_timestamp = current_time
+          no_output = False
+        elif (notify_interval and
+              job.last_notify_timestamp + notify_interval < current_time):
+          job_seconds = current_time - job.start_timestamp
+          args = (job.pkgname, job_seconds / 60, job_seconds % 60, job.filename)
+          info = "Still building %s (%dm%.1fs). Logs in %s" % args
+          job.last_notify_timestamp = current_time
+          self._Print(info)
+          no_output = False
+
+    # If we haven't printed any messages yet, print a general status message
+    # here.
+    if no_output:
+      seconds = current_time - GLOBAL_START
+      line = ("Pending %s, Ready %s, Running %s, Retrying %s, Total %s "
+              "[Time %dm%.1fs Load %s]")
+      qsize = self._emerge_queue.qsize()
+      self._Print(line % (len(self._deps_map), qsize, len(self._jobs) - qsize,
+                          len(self._retry_queue), self._total_jobs,
+                          seconds / 60, seconds % 60, self._LoadAvg()))
 
   def _Finish(self, target):
     """Mark a target as completed and unblock dependecies."""

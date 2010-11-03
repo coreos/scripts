@@ -119,6 +119,7 @@ DEFINE_string src_image "" "Optional: a source image. If specified, this makes\
  a delta update."
 DEFINE_boolean old_style "$FLAGS_TRUE" "Generate an old-style .gz full update."
 DEFINE_string output "" "Output file"
+DEFINE_boolean outside_chroot "$FLAGS_FALSE" "Running outside of chroot."
 DEFINE_boolean patch_kernel "$FLAGS_FALSE" "Whether or not to patch the kernel \
 with the patch from the stateful partition (default: false)"
 DEFINE_string private_key "" "Path to private key in .pem format."
@@ -133,8 +134,13 @@ eval set -- "${FLAGS_ARGV}"
 
 set -e
 
-if [ -n "$FLAGS_src_image" ]; then
-  # We need to be in the chroot for generating delta images
+if [ -n "$FLAGS_src_image" ] && \
+   [ "$FLAGS_outside_chroot" -eq "$FLAGS_FALSE" ]; then
+  # We need to be in the chroot for generating delta images.
+  # by specifying --outside_chroot you can choose not to assert
+  # this will allow us to run this script outside chroot.
+  # Running this script outside chroot requires copying delta_generator binary
+  # and also copying few shared libraries with it.
   assert_inside_chroot
 fi
 
@@ -202,7 +208,7 @@ if [ "$DELTA" -eq "$FLAGS_TRUE" -o "$FLAGS_old_style" -eq "$FLAGS_FALSE" ]; then
     DST_MNT=$(mktemp -d /tmp/src_root.XXXXXX)
     sudo mount -o loop,ro "$DST_ROOT" "$DST_MNT"
 
-    sudo "$GENERATOR" \
+    sudo LD_LIBRARY_PATH=${LD_LIBRARY_PATH}  PATH=${PATH} "$GENERATOR" \
         -new_dir "$DST_MNT" -new_image "$DST_ROOT" -new_kernel "$DST_KERNEL" \
         -old_dir "$SRC_MNT" -old_image "$SRC_ROOT" -old_kernel "$SRC_KERNEL" \
         -out_file "$FLAGS_output" -private_key "$FLAGS_private_key"
