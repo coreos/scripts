@@ -15,21 +15,36 @@ from cros_build_lib import Die
 from cros_build_lib import Info
 
 
+_DEFAULT_BASE_SSH_PORT = 9222
+
 class ParallelTestRunner(object):
-  """Runs tests on VMs in parallel."""
+  """Runs tests on VMs in parallel.
 
-  _DEFAULT_START_SSH_PORT = 9222
+  This class is a simple wrapper around cros_run_vm_test that provides an easy
+  way to spawn several test instances in parallel and aggregate the results when
+  the tests complete.
+  """
 
-  def __init__(self, tests, results_dir_root=None):
+  def __init__(self, tests, base_ssh_port=_DEFAULT_BASE_SSH_PORT, board=None,
+               image_path=None, results_dir_root=None):
     """Constructs and initializes the test runner class.
 
     Args:
       tests: A list of test names (see run_remote_tests.sh).
+      base_ssh_port: The base SSH port. Spawned VMs listen to localhost SSH
+        ports incrementally allocated starting from the base one.
+      board: The target board. If none, cros_run_vm_tests will use the default
+        board.
+      image_path: Full path to the VM image. If none, cros_run_vm_tests will use
+        the latest image.
       results_dir_root: The results directory root. If provided, the results
         directory root for each test will be created under it with the SSH port
         appended to the test name.
     """
     self._tests = tests
+    self._base_ssh_port = base_ssh_port
+    self._board = board
+    self._image_path = image_path
     self._results_dir_root = results_dir_root
 
   def _SpawnTests(self):
@@ -43,7 +58,7 @@ class ParallelTestRunner(object):
         'test': the test name;
         'proc': the Popen process instance for this test run.
     """
-    ssh_port = self._DEFAULT_START_SSH_PORT
+    ssh_port = self._base_ssh_port
     spawned_tests = []
     # Test runs shouldn't need anything from stdin. However, it seems that
     # running with stdin leaves the terminal in a bad state so redirect from
@@ -55,6 +70,8 @@ class ParallelTestRunner(object):
                '--no_graphics',
                '--ssh_port=%d' % ssh_port,
                '--test_case=%s' % test ]
+      if self._board: args.append('--board=%s' % self._board)
+      if self._image_path: args.append('--image_path=%s' % self._image_path)
       if self._results_dir_root:
         args.append('--results_dir_root=%s/%s.%d' %
                     (self._results_dir_root, test, ssh_port))
@@ -92,14 +109,28 @@ class ParallelTestRunner(object):
 def main():
   usage = 'Usage: %prog [options] tests...'
   parser = optparse.OptionParser(usage=usage)
-  parser.add_option('--results_dir_root', help='Root results directory.')
+  parser.add_option('--base_ssh_port', type='int',
+                    default=_DEFAULT_BASE_SSH_PORT,
+                    help='Base SSH port. Spawned VMs listen to localhost SSH '
+                    'ports incrementally allocated starting from the base one. '
+                    '[default: %default]')
+  parser.add_option('--board',
+                    help='The target board. If none specified, '
+                    'cros_run_vm_test will use the default board.')
+  parser.add_option('--image_path',
+                    help='Full path to the VM image. If none specified, '
+                    'cros_run_vm_test will use the latest image.')
+  parser.add_option('--results_dir_root',
+                    help='Root results directory. If none specified, each test '
+                    'will store its results in a separate /tmp directory.')
   (options, args) = parser.parse_args()
 
   if not args:
     parser.print_help()
     Die('no tests provided')
 
-  runner = ParallelTestRunner(args, options.results_dir_root)
+  runner = ParallelTestRunner(args, options.base_ssh_port, options.board,
+                              options.image_path, options.results_dir_root)
   runner.Run()
 
 
