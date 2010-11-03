@@ -20,18 +20,28 @@ class ParallelTestRunner(object):
 
   _DEFAULT_START_SSH_PORT = 9222
 
-  def __init__(self, tests):
+  def __init__(self, tests, results_dir_root=None):
+    """Constructs and initializes the test runner class.
+
+    Args:
+      tests: A list of test names (see run_remote_tests.sh).
+      results_dir_root: The results directory root. If provided, the results
+        directory root for each test will be created under it with the SSH port
+        appended to the test name.
+    """
     self._tests = tests
+    self._results_dir_root = results_dir_root
 
   def _SpawnTests(self):
     """Spawns VMs and starts the test runs on them.
 
     Runs all tests in |self._tests|. Each test is executed on a separate VM.
 
-    Returns: A list of test process info objects containing the following
-    dictionary entries:
-      'test': the test name;
-      'proc': the Popen process instance for this test run.
+    Returns:
+      A list of test process info objects containing the following dictionary
+      entries:
+        'test': the test name;
+        'proc': the Popen process instance for this test run.
     """
     ssh_port = self._DEFAULT_START_SSH_PORT
     spawned_tests = []
@@ -45,6 +55,9 @@ class ParallelTestRunner(object):
                '--no_graphics',
                '--ssh_port=%d' % ssh_port,
                '--test_case=%s' % test ]
+      if self._results_dir_root:
+        args.append('--results_dir_root=%s/%s.%d' %
+                    (self._results_dir_root, test, ssh_port))
       Info('Running %r...' % args)
       proc = subprocess.Popen(args, stdin=dev_null)
       test_info = { 'test': test,
@@ -56,10 +69,11 @@ class ParallelTestRunner(object):
   def _WaitForCompletion(self, spawned_tests):
     """Waits for tests to complete and returns a list of failed tests.
 
-    Arguments:
+    Args:
       spawned_tests: A list of test info objects (see _SpawnTests).
 
-    Returns: A list of failed test names.
+    Returns:
+      A list of failed test names.
     """
     failed_tests = []
     for test_info in spawned_tests:
@@ -78,13 +92,14 @@ class ParallelTestRunner(object):
 def main():
   usage = 'Usage: %prog [options] tests...'
   parser = optparse.OptionParser(usage=usage)
+  parser.add_option('--results_dir_root', help='Root results directory.')
   (options, args) = parser.parse_args()
 
   if not args:
     parser.print_help()
     Die('no tests provided')
 
-  runner = ParallelTestRunner(args)
+  runner = ParallelTestRunner(args, options.results_dir_root)
   runner.Run()
 
 
