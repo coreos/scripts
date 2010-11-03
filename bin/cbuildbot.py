@@ -194,6 +194,8 @@ def _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board):
   package_str = package_str.strip()
 
   cwd = os.path.join(buildroot, 'src', 'scripts')
+  # TODO(davidjames): --foo="bar baz" only works here because we're using
+  # enter_chroot.
   RunCommand(['./cros_mark_as_stable',
               '--board=%s' % board,
               '--tracking_branch="%s"' % tracking_branch,
@@ -205,6 +207,8 @@ def _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board):
 def _UprevAllPackages(buildroot, tracking_branch, board):
   """Uprevs all packages that have been updated since last uprev."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
+  # TODO(davidjames): --foo="bar baz" only works here because we're using
+  # enter_chroot.
   RunCommand(['./cros_mark_as_stable', '--all',
               '--board=%s' % board,
               '--tracking_branch="%s"' % tracking_branch, 'commit'],
@@ -230,7 +234,7 @@ def _GitCleanup(buildroot, board, tracking_branch):
   if os.path.exists(cwd):
     RunCommand(['./cros_mark_as_stable', '--srcroot=..',
                 '--board=%s' % board,
-                '--tracking_branch="%s"' % tracking_branch, 'clean'],
+                '--tracking_branch=%s' % tracking_branch, 'clean'],
                cwd=cwd, error_ok=True)
 
 
@@ -391,9 +395,9 @@ def _UprevPush(buildroot, tracking_branch, board, overlays):
     overlays = [public_overlay, private_overlay]
   RunCommand(['./cros_mark_as_stable', '--srcroot=..',
               '--board=%s' % board,
-              '--overlays="%s"' % " ".join(overlays),
-              '--tracking_branch="%s"' % tracking_branch,
-              '--push_options="--bypass-hooks -f"', 'push'],
+              '--overlays=%s' % " ".join(overlays),
+              '--tracking_branch=%s' % tracking_branch,
+              '--push_options=--bypass-hooks -f', 'push'],
              cwd=cwd)
 
 
