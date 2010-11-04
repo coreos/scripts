@@ -93,8 +93,12 @@ def _BestEBuild(ebuilds):
   return winner
 
 
-def _FindStableEBuilds(files):
-  """Return a list of stable ebuilds from specified list of files.
+def _FindUprevCandidates(files):
+  """Return a list of uprev candidates from specified list of files.
+
+  Usually an uprev candidate is a the stable ebuild in a cros_workon directory.
+  However, if no such stable ebuild exists (someone just checked in the 9999
+  ebuild), this is the unstable ebuild.
 
   Args:
     files: List of files.
@@ -131,7 +135,8 @@ def _FindStableEBuilds(files):
     if not unstable_ebuilds:
       Die('Missing 9999 ebuild in %s' % os.path.dirname(path))
     if not stable_ebuilds:
-      Die('Missing stable ebuild in %s' % os.path.dirname(path))
+      Warning('Missing stable ebuild in %s' % os.path.dirname(path))
+      return unstable_ebuilds[0]
 
   if stable_ebuilds:
     return stable_ebuilds[0]
@@ -153,7 +158,7 @@ def _BuildEBuildDictionary(overlays, all, packages):
     for package_dir, dirs, files in os.walk(overlay):
       # Add stable ebuilds to overlays[overlay].
       paths = [os.path.join(package_dir, path) for path in files]
-      ebuild = _FindStableEBuilds(paths)
+      ebuild = _FindUprevCandidates(paths)
 
       # If the --all option isn't used, we only want to update packages that
       # are in packages.
@@ -377,8 +382,8 @@ class _EBuild(object):
     else:
       # Has no revision so we stripped the version number instead.
       ebuild_no_version = ebuild_no_rev
-      ebuild_no_rev = ebuild_path.rpartition('.ebuild')[0]
-      rev_string = "0"
+      ebuild_no_rev = ebuild_path.rpartition('9999.ebuild')[0] + '0.0.1'
+      rev_string = '0'
     revision = int(rev_string)
     return (ebuild_no_rev, ebuild_no_version, revision)
 
@@ -448,8 +453,10 @@ class EBuildStableMarker(object):
       _Print('Adding new stable ebuild to git')
       _SimpleRunCommand('git add %s' % new_ebuild_path)
 
-      _Print('Removing old ebuild from git')
-      _SimpleRunCommand('git rm %s' % old_ebuild_path)
+      if self._ebuild.is_stable:
+        _Print('Removing old ebuild from git')
+        _SimpleRunCommand('git rm %s' % old_ebuild_path)
+
       return True
 
   def CommitChange(self, message):
