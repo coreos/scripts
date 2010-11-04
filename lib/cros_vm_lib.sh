@@ -40,7 +40,7 @@ function start_kvm() {
     local nographics=""
     local usesnapshot=""
     if [ ${FLAGS_no_graphics} -eq ${FLAGS_TRUE} ]; then
-      nographics="-nographic"
+      nographics="-nographic -serial none"
     fi
 
     if [ ${FLAGS_snapshot} -eq ${FLAGS_TRUE} ]; then

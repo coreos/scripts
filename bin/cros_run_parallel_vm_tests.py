@@ -64,10 +64,6 @@ class ParallelTestRunner(object):
     """
     ssh_port = self._base_ssh_port
     spawned_tests = []
-    # Test runs shouldn't need anything from stdin. However, it seems that
-    # running with stdin leaves the terminal in a bad state so redirect from
-    # /dev/null.
-    dev_null = open('/dev/null')
     for test in self._tests:
       args = [ os.path.join(os.path.dirname(__file__), 'cros_run_vm_test'),
                '--snapshot',  # The image is shared so don't modify it.
@@ -84,8 +80,7 @@ class ParallelTestRunner(object):
       if self._order_output:
         output = tempfile.NamedTemporaryFile(prefix='parallel_vm_test_')
         Info('Piping output to %s.' % output.name)
-      proc = subprocess.Popen(args, stdin=dev_null, stdout=output,
-                              stderr=output)
+      proc = subprocess.Popen(args, stdout=output, stderr=output)
       test_info = { 'test': test,
                     'proc': proc,
                     'output': output }
