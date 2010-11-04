@@ -63,6 +63,21 @@ class AUTest(object):
 
     return int(percent_passed)
 
+  # TODO(sosa) - Remove try and convert function to DeltaUpdateImage().
+  def TryDeltaAndFallbackToFull(self, src_image, image, stateful_change='old'):
+    """Tries the delta update first if set and falls back to full update."""
+    if self.use_delta_updates:
+      try:
+        self.source_image = src_image
+        self.UpdateImage(image)
+      except:
+        Warning('Delta update failed, disabling delta updates and retrying.')
+        self.use_delta_updates = False
+        self.source_image = ''
+        self.UpdateImage(image)
+    else:
+      self.UpdateImage(image)
+
   def PrepareBase(self):
     """Prepares target with base_image_path."""
     pass
@@ -130,28 +145,14 @@ class AUTest(object):
     # with the dev channel.
     percent_passed = self.VerifyImage(10)
 
-    if self.use_delta_updates: self.source_image = base_image_path
-
     # Update to - all tests should pass on new image.
     Info('Updating from base image on vm to target image.')
-    try:
-      self.UpdateImage(target_image_path)
-    except:
-      if self.use_delta_updates:
-        Warning('Delta update failed, disabling delta updates and retrying.')
-        self.use_delta_updates = False
-        self.source_image = ''
-        self.UpdateImage(target_image_path)
-      else:
-        raise
-
+    self.TryDeltaAndFallbackToFull(base_image_path, target_image_path)
     self.VerifyImage(100)
-
-    if self.use_delta_updates: self.source_image = target_image_path
 
     # Update from - same percentage should pass that originally passed.
     Info('Updating from updated image on vm back to base image.')
-    self.UpdateImage(base_image_path)
+    self.TryDeltaAndFallbackToFull(target_image_path, base_image_path)
     self.VerifyImage(percent_passed)
 
   def testFullUpdateWipeStateful(self):
@@ -167,28 +168,14 @@ class AUTest(object):
     # with the dev channel.
     percent_passed = self.VerifyImage(10)
 
-    if self.use_delta_updates: self.source_image = base_image_path
-
     # Update to - all tests should pass on new image.
     Info('Updating from base image on vm to target image and wiping stateful.')
-    try:
-      self.UpdateImage(target_image_path, 'clean')
-    except:
-      if self.use_delta_updates:
-        Warning('Delta update failed, disabling delta updates and retrying.')
-        self.use_delta_updates = False
-        self.source_image = ''
-        self.UpdateImage(target_image_path)
-      else:
-        raise
-
+    self.TryDeltaAndFallbackToFull(base_image_path, target_image_path, 'clean')
     self.VerifyImage(100)
-
-    if self.use_delta_updates: self.source_image = target_image_path
 
     # Update from - same percentage should pass that originally passed.
     Info('Updating from updated image back to base image and wiping stateful.')
-    self.UpdateImage(base_image_path, 'clean')
+    self.TryDeltaAndFallbackToFull(target_image_path, base_image_path, 'clean')
     self.VerifyImage(percent_passed)
 
 

@@ -494,7 +494,9 @@ def main(argv):
     _BuildEBuildDictionary(overlays, gflags.FLAGS.all, package_list)
 
   for overlay, ebuilds in overlays.items():
-    if not os.path.exists(overlay): continue
+    if not os.path.exists(overlay):
+      Warning("Skipping %s" % overlay)
+      continue
     os.chdir(overlay)
 
     if command == 'clean':

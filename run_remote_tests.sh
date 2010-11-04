@@ -136,7 +136,7 @@ function main() {
   if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
     if [[ -n "${FLAGS_results_dir_root}" ]]; then
       TMP=${FLAGS_chroot}${FLAGS_results_dir_root}
-      mkdir -m 777 ${TMP}
+      mkdir -p -m 777 ${TMP}
     else
       TMP=$(mktemp -d ${FLAGS_chroot}/tmp/run_remote_tests.XXXX)
     fi
@@ -144,7 +144,7 @@ function main() {
   else
     if [[ -n "${FLAGS_results_dir_root}" ]]; then
       TMP=${FLAGS_results_dir_root}
-      mkdir -m 777 ${TMP}
+      mkdir -p -m 777 ${TMP}
     else
       TMP=$(mktemp -d /tmp/run_remote_tests.XXXX)
     fi
