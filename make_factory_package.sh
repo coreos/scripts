@@ -190,7 +190,7 @@ echo -n "{
 
 if [ ! -z "${FLAGS_firmware_updater}" ]  ; then
   echo -n "
-   'firmware_image': 'firmware.gz',
+   'firmware_image': '"${subfolder}"firmware.gz',
    'firmware_checksum': '${firmware_hash}'," >> ${OMAHA_DIR}/miniomaha.conf
 fi
 
