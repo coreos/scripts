@@ -191,11 +191,11 @@ menuentry "local image B" {
 }
 
 menuentry "verified image A" {
-  linux \$grubpartA/boot/vmlinuz ${common_args} ${verity_common} i915.modeset=1 cros_efi root=/dev/dm-0 dm="DMTABLEA"
+  linux \$grubpartA/boot/vmlinuz ${common_args} ${verity_common} i915.modeset=1 cros_efi root=/dev/dm-0 dm=\\"DMTABLEA\\"
 }
 
 menuentry "verified image B" {
-  linux \$grubpartB/boot/vmlinuz ${common_args} ${verity_common} i915.modeset=1 cros_efi root=/dev/dm-0 dm="DMTABLEB"
+  linux \$grubpartB/boot/vmlinuz ${common_args} ${verity_common} i915.modeset=1 cros_efi root=/dev/dm-0 dm=\\"DMTABLEB\\"
 }
 
 # FIXME: usb doesn't support verified boot for now
