@@ -464,7 +464,6 @@ class DepGraphGenerator(object):
     forced_flags = set(pkgsettings.useforce).union(pkgsettings.usemask)
 
     depgraph = self.emerge.depgraph
-
     flags = depgraph._reinstall_for_flags(forced_flags, cur_use,
                                           cur_iuse, now_use, now_iuse)
     return not flags
@@ -488,21 +487,21 @@ class DepGraphGenerator(object):
     # --workon and the dependencies have changed.
     emerge = self.emerge
     emerge_opts = emerge.opts.copy()
-    if self.mandatory_source or self.rebuild or self.force_remote_binary:
-      # Enable --emptytree so that we get the full tree, which we need for
-      # dependency analysis. By default, with this option, emerge optimizes
-      # the graph by removing uninstall instructions from the graph. By
-      # specifying --tree as well, we tell emerge that it's not safe to remove
-      # uninstall instructions because we're planning on analyzing the output.
-      emerge_opts["--tree"] = True
-      emerge_opts["--emptytree"] = True
 
-      # Tell emerge not to worry about use flags yet. We handle those inside
-      # parallel_emerge itself. Further, when we use the --force-remote-binary
-      # flag, we don't emerge to reject a package just because it has different
-      # use flags.
-      emerge_opts.pop("--newuse", None)
-      emerge_opts.pop("--reinstall", None)
+    # Enable --emptytree so that we get the full tree, which we need for
+    # dependency analysis. By default, with this option, emerge optimizes
+    # the graph by removing uninstall instructions from the graph. By
+    # specifying --tree as well, we tell emerge that it's not safe to remove
+    # uninstall instructions because we're planning on analyzing the output.
+    emerge_opts["--tree"] = True
+    emerge_opts["--emptytree"] = True
+
+    # Tell emerge not to worry about use flags yet. We handle those inside
+    # parallel_emerge itself. Further, when we use the --force-remote-binary
+    # flag, we don't emerge to reject a package just because it has different
+    # use flags.
+    emerge_opts.pop("--newuse", None)
+    emerge_opts.pop("--reinstall", None)
 
     # Create a list of packages to merge
     packages = set(emerge.cmdline_packages[:])
@@ -593,9 +592,25 @@ class DepGraphGenerator(object):
     frozen_config = depgraph._frozen_config
     vardb = frozen_config.trees[root]["vartree"].dbapi
     pkgsettings = frozen_config.pkgsettings[root]
+
+    # It's time to start worrying about use flags, if necessary.
+    for flag in ("--newuse", "--reinstall"):
+      if flag in emerge.opts:
+        emerge_opts[flag] = emerge.opts[flag]
+
     deps_info = {}
     for pkg in depgraph.altlist():
       if isinstance(pkg, Package):
+        # If we're not using --force-remote-binary, check what flags are being
+        # used by the real package.
+        if "--usepkgonly" not in emerge.opts:
+          try:
+            pkg = emerge.depgraph._pkg(pkg.cpv, "ebuild", emerge.root_config)
+          except portage.exception.PackageNotFound:
+            # This is a --force-remote-binary package.
+            pass
+        self.package_db[pkg.cpv] = pkg
+
         # If we're not in emptytree mode, and we're going to replace a package
         # that is already installed, then this operation is possibly optional.
         # ("--selective" mode is handled later, in RemoveInstalledPackages())
@@ -1149,9 +1164,7 @@ class DepGraphGenerator(object):
 
       # Calculate what packages need to be rebuilt due to changes in use flags.
       for pkg, db_pkg in prebuilt_pkgs.iteritems():
-        db_pkg_src = self.package_db.get(pkg)
-        if db_pkg_src and not self.CheckUseFlags(pkgsettings, db_pkg,
-                                                 db_pkg_src):
+        if not self.CheckUseFlags(pkgsettings, db_pkg, self.package_db[pkg]):
           MergeChildren(pkg, "mandatory_source")
 
       # Convert eligible packages to binaries.
@@ -1165,24 +1178,6 @@ class DepGraphGenerator(object):
         print "Prebuilt DB populated in %dm%.1fs" % (seconds / 60, seconds % 60)
 
       return prebuilt_pkgs
-
-    def AddRemainingPackages():
-      """Fill in packages that don't have entries in the package db.
-
-      Every package we are installing needs an entry in the package db.
-      This function should only be called after we have removed the
-      packages that are not being merged from our deps_map.
-      """
-      for pkg in deps_map:
-        if pkg not in self.package_db:
-          if deps_map[pkg]["action"] != "merge":
-            # We should only fill in packages that are being merged. If
-            # there's any other packages here, something funny is going on.
-            print "Missing entry for %s in package db" % pkg
-            sys.exit(1)
-
-          db_pkg = emerge.depgraph._pkg(pkg, "ebuild", emerge.root_config)
-          self.package_db[pkg] = db_pkg
 
     ReverseTree(deps_tree)
     BuildFinalPackageSet()
@@ -1223,7 +1218,6 @@ class DepGraphGenerator(object):
     if deps_map:
       if "--usepkg" in emerge.opts:
         UsePrebuiltPackages(remote_pkgs)
-      AddRemainingPackages()
     return deps_map
 
   def PrintInstallPlan(self, deps_map):
