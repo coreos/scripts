@@ -7,7 +7,7 @@
 
 Usage:
  ./parallel_emerge [--board=BOARD] [--workon=PKGS] [--no-workon-deps]
-                   [emerge args] package"
+                   [--force-remote-binary=PKGS] [emerge args] package
 
 Basic operation:
   Runs 'emerge -p --debug' to display dependencies, and stores a
@@ -84,6 +84,7 @@ from _emerge.Scheduler import Scheduler
 from _emerge.stdout_spinner import stdout_spinner
 import portage
 import portage.debug
+import portage.versions
 
 
 def Usage():
@@ -218,7 +219,8 @@ class DepGraphGenerator(object):
   """
 
   __slots__ = ["board", "emerge", "mandatory_source", "no_workon_deps",
-               "nomerge", "package_db", "rebuild", "show_output"]
+               "nomerge", "package_db", "rebuild", "show_output",
+               "force_remote_binary", "forced_remote_binary_packages"]
 
   def __init__(self):
     self.board = None
@@ -229,6 +231,8 @@ class DepGraphGenerator(object):
     self.package_db = {}
     self.rebuild = False
     self.show_output = False
+    self.force_remote_binary = set()
+    self.forced_remote_binary_packages = set()
 
   def ParseParallelEmergeArgs(self, argv):
     """Read the parallel emerge arguments from the command-line.
@@ -251,6 +255,11 @@ class DepGraphGenerator(object):
         workon_str = arg.replace("--workon=", "")
         package_list = shlex.split(" ".join(shlex.split(workon_str)))
         self.mandatory_source.update(package_list)
+      elif arg.startswith("--force-remote-binary="):
+        force_remote_binary = arg.replace("--force-remote-binary=", "")
+        force_remote_binary = \
+          shlex.split(" ".join(shlex.split(force_remote_binary)))
+        self.force_remote_binary.update(force_remote_binary)
       elif arg.startswith("--nomerge="):
         nomerge_str = arg.replace("--nomerge=", "")
         package_list = shlex.split(" ".join(shlex.split(nomerge_str)))
@@ -460,7 +469,7 @@ class DepGraphGenerator(object):
                                           cur_iuse, now_use, now_iuse)
     return not flags
 
-  def GenDependencyTree(self):
+  def GenDependencyTree(self, remote_pkgs):
     """Get dependency tree info from emerge.
 
     TODO(): Update cros_extract_deps to also use this code.
@@ -479,10 +488,7 @@ class DepGraphGenerator(object):
     # --workon and the dependencies have changed.
     emerge = self.emerge
     emerge_opts = emerge.opts.copy()
-    emerge_opts.pop("--getbinpkg", None)
-    if "--usepkgonly" not in emerge_opts:
-      emerge_opts.pop("--usepkg", None)
-    if self.mandatory_source or self.rebuild:
+    if self.mandatory_source or self.rebuild or self.force_remote_binary:
       # Enable --emptytree so that we get the full tree, which we need for
       # dependency analysis. By default, with this option, emerge optimizes
       # the graph by removing uninstall instructions from the graph. By
@@ -491,10 +497,30 @@ class DepGraphGenerator(object):
       emerge_opts["--tree"] = True
       emerge_opts["--emptytree"] = True
 
+      # Tell emerge not to worry about use flags yet. We handle those inside
+      # parallel_emerge itself. Further, when we use the --force-remote-binary
+      # flag, we don't emerge to reject a package just because it has different
+      # use flags.
+      emerge_opts.pop("--newuse", None)
+      emerge_opts.pop("--reinstall", None)
+
     # Create a list of packages to merge
     packages = set(emerge.cmdline_packages[:])
     if self.mandatory_source:
       packages.update(self.mandatory_source)
+    if self.force_remote_binary:
+      forced_pkgs = {}
+      for pkg in remote_pkgs:
+        category, pkgname, _, _ = portage.catpkgsplit(pkg)
+        full_pkgname = "%s/%s" % (category, pkgname)
+        if (pkgname in self.force_remote_binary or
+            full_pkgname in self.force_remote_binary):
+          forced_pkgs.setdefault(full_pkgname, []).append(pkg)
+
+      for pkgs in forced_pkgs.values():
+        forced_package = portage.versions.best(pkgs)
+        packages.add("=%s" % forced_package)
+        self.forced_remote_binary_packages.add(forced_package)
 
     # Tell emerge to be quiet. We print plenty of info ourselves so we don't
     # need any extra output from portage.
@@ -580,9 +606,6 @@ class DepGraphGenerator(object):
               optional = True
               break
 
-        # Add the package to our database.
-        self.package_db[str(pkg.cpv)] = pkg
-
         # Save off info about the package
         deps_info[str(pkg.cpv)] = {"idx": len(deps_info),
                                    "optional": optional}
@@ -611,7 +634,65 @@ class DepGraphGenerator(object):
       print "%s %s (%s)" % (depth, entry, action)
       self.PrintTree(deps[entry]["deps"], depth=depth + "  ")
 
-  def GenDependencyGraph(self, deps_tree, deps_info):
+  def RemotePackageDatabase(self, binhost_url):
+    """Grab the latest binary package database from the prebuilt server.
+
+    We need to know the modification times of the prebuilt packages so that we
+    know when it is OK to use these packages and when we should rebuild them
+    instead.
+
+    Args:
+      binhost_url: Base URL of remote packages (PORTAGE_BINHOST).
+
+    Returns:
+      A dict mapping package identifiers to modification times.
+    """
+
+    if not binhost_url:
+      return {}
+
+    def retry_urlopen(url, tries=3):
+      """Open the specified url, retrying if we run into network errors.
+
+      We do not retry for HTTP errors.
+
+      Args:
+        url: The specified url.
+        tries: The number of times to try.
+
+      Returns:
+        The result of urllib2.urlopen(url).
+      """
+      for i in range(tries):
+        try:
+          return urllib2.urlopen(url)
+        except urllib2.HTTPError as e:
+          raise
+        except urllib2.URLError as e:
+          if i + 1 == tries:
+            raise
+          else:
+            print "Cannot GET %s: %s" % (url, e)
+
+    url = os.path.join(binhost_url, "Packages")
+    try:
+      f = retry_urlopen(url)
+    except urllib2.HTTPError as e:
+      if e.code == 404:
+        return {}
+      else:
+        raise
+    prebuilt_pkgs = {}
+    for line in f:
+      if line.startswith("CPV: "):
+        pkg = line.replace("CPV: ", "").rstrip()
+      elif line.startswith("MTIME: "):
+        prebuilt_pkgs[pkg] = int(line[:-1].replace("MTIME: ", ""))
+    f.close()
+
+    return prebuilt_pkgs
+
+  def GenDependencyGraph(self, deps_tree, deps_info, remote_pkgs):
     """Generate a doubly linked dependency graph.
 
     Args:
@@ -660,6 +741,10 @@ class DepGraphGenerator(object):
     #    If true, indicates that this package must be installed. We don't care
     #    whether it's binary or source, unless the mandatory_source flag is
     #    also set.
+    #  - force_remote_binary:
+    #    If true, indicates that we want to update to the latest remote prebuilt
+    #    of this package. Packages that depend on this package should be built
+    #    from source.
     #
     deps_map = {}
 
@@ -678,7 +763,8 @@ class DepGraphGenerator(object):
         # Create an entry for the package
         action = packages[pkg]["action"]
         default_pkg = {"needs": {}, "provides": set(), "action": action,
-                       "mandatory_source": False, "mandatory": False}
+                       "mandatory_source": False, "mandatory": False,
+                       "force_remote_binary": False}
         this_pkg = deps_map.setdefault(pkg, default_pkg)
 
         # Create entries for dependencies of this package first.
@@ -909,64 +995,6 @@ class DepGraphGenerator(object):
       if this_pkg["action"] == "nomerge":
         this_pkg["action"] = "merge"
 
-    def RemotePackageDatabase(binhost_url):
-      """Grab the latest binary package database from the prebuilt server.
-
-      We need to know the modification times of the prebuilt packages so that we
-      know when it is OK to use these packages and when we should rebuild them
-      instead.
-
-      Args:
-        binhost_url: Base URL of remote packages (PORTAGE_BINHOST).
-
-      Returns:
-        A dict mapping package identifiers to modification times.
-      """
-
-      if not binhost_url:
-        return {}
-
-      def retry_urlopen(url, tries=3):
-        """Open the specified url, retrying if we run into network errors.
-
-        We do not retry for HTTP errors.
-
-        Args:
-          url: The specified url.
-          tries: The number of times to try.
-
-        Returns:
-          The result of urllib2.urlopen(url).
-        """
-        for i in range(tries):
-          try:
-            return urllib2.urlopen(url)
-          except urllib2.HTTPError as e:
-            raise
-          except urllib2.URLError as e:
-            if i + 1 == tries:
-              raise
-            else:
-              print "Cannot GET %s: %s" % (url, e)
-
-      url = binhost_url + "/Packages"
-      try:
-        f = retry_urlopen(url)
-      except urllib2.HTTPError as e:
-        if e.code == 404:
-          return {}
-        else:
-          raise
-      prebuilt_pkgs = {}
-      for line in f:
-        if line.startswith("CPV: "):
-          pkg = line.replace("CPV: ", "").rstrip()
-        elif line.startswith("MTIME: "):
-          prebuilt_pkgs[pkg] = int(line[:-1].replace("MTIME: ", ""))
-      f.close()
-
-      return prebuilt_pkgs
-
     def LocalPackageDatabase():
       """Get the modification times of the packages in the local database.
 
@@ -1019,7 +1047,7 @@ class DepGraphGenerator(object):
         """
         if pkg in cache:
           return cache[pkg]
-        if pkg not in pkg_db:
+        if pkg not in pkg_db and pkg not in self.forced_remote_binary_packages:
           cache[pkg] = False
         else:
           cache[pkg] = True
@@ -1081,7 +1109,7 @@ class DepGraphGenerator(object):
           else:
             MergeChildren(pkg, "mandatory_source")
 
-    def UsePrebuiltPackages():
+    def UsePrebuiltPackages(remote_pkgs):
       """Update packages that can use prebuilts to do so."""
       start = time.time()
 
@@ -1099,13 +1127,18 @@ class DepGraphGenerator(object):
 
       # Build list of prebuilt packages
       for pkg, info in deps_map.iteritems():
-        if info and not info["mandatory_source"] and info["action"] == "merge":
+        if info and info["action"] == "merge":
+          if (not info["force_remote_binary"] and info["mandatory_source"] or
+              "--usepkgonly" not in emerge.opts and pkg not in remote_pkgs):
+            continue
+
           db_keys = list(bindb._aux_cache_keys)
           try:
             db_vals = bindb.aux_get(pkg, db_keys + ["MTIME"])
           except KeyError:
             # No binary package
             continue
+
           mtime = int(db_vals.pop() or 0)
           metadata = zip(db_keys, db_vals)
           db_pkg = Package(built=True, cpv=pkg, installed=False,
@@ -1116,15 +1149,16 @@ class DepGraphGenerator(object):
 
       # Calculate what packages need to be rebuilt due to changes in use flags.
       for pkg, db_pkg in prebuilt_pkgs.iteritems():
-        db_pkg_src = self.package_db[pkg]
-        if not self.CheckUseFlags(pkgsettings, db_pkg, db_pkg_src):
+        db_pkg_src = self.package_db.get(pkg)
+        if db_pkg_src and not self.CheckUseFlags(pkgsettings, db_pkg,
+                                                 db_pkg_src):
           MergeChildren(pkg, "mandatory_source")
 
       # Convert eligible packages to binaries.
       for pkg, info in deps_map.iteritems():
-        if (info and not info["mandatory_source"] and
-            info["action"] == "merge" and pkg in prebuilt_pkgs):
-          self.package_db[pkg] = prebuilt_pkgs[pkg]
+        if info and info["action"] == "merge" and pkg in prebuilt_pkgs:
+          if not info["mandatory_source"] or info["force_remote_binary"]:
+            self.package_db[pkg] = prebuilt_pkgs[pkg]
 
       seconds = time.time() - start
       if "--quiet" not in emerge.opts:
@@ -1154,6 +1188,18 @@ class DepGraphGenerator(object):
     BuildFinalPackageSet()
     AddSecretDeps()
 
+    # Mark that we want to use remote binaries only for a particular package.
+    vardb = emerge.depgraph._frozen_config.trees[root]["vartree"].dbapi
+    for pkg in self.force_remote_binary:
+      for db_pkg in final_db.match_pkgs(pkg):
+        match = deps_map.get(str(db_pkg.cpv))
+        if match:
+          match["force_remote_binary"] = True
+
+          rebuild_blacklist.add(str(db_pkg.cpv))
+          if not vardb.match_pkgs(db_pkg.cpv):
+            MergeChildren(str(db_pkg.cpv), "mandatory")
+
     if self.no_workon_deps:
       for pkg in self.mandatory_source.copy():
         for db_pkg in final_db.match_pkgs(pkg):
@@ -1166,10 +1212,6 @@ class DepGraphGenerator(object):
       cycles = FindCycles()
       if self.rebuild:
         local_pkgs = LocalPackageDatabase()
-        remote_pkgs = {}
-        if "--getbinpkg" in emerge.opts:
-          binhost = emerge.settings["PORTAGE_BINHOST"]
-          remote_pkgs = RemotePackageDatabase(binhost)
         AutoRebuildDeps(local_pkgs, remote_pkgs, cycles)
 
     # We need to remove installed packages so that we can use the dependency
@@ -1180,7 +1222,7 @@ class DepGraphGenerator(object):
     SanitizeTree()
     if deps_map:
       if "--usepkg" in emerge.opts:
-        UsePrebuiltPackages()
+        UsePrebuiltPackages(remote_pkgs)
       AddRemainingPackages()
     return deps_map
 
@@ -1734,13 +1776,18 @@ def main():
       print " Skipping package %s on %s" % (nomerge_packages,
                                             deps.board or "root")
 
-  deps_tree, deps_info = deps.GenDependencyTree()
+  remote_pkgs = {}
+  if "--getbinpkg" in emerge.opts:
+    binhost = emerge.settings["PORTAGE_BINHOST"]
+    remote_pkgs = deps.RemotePackageDatabase(binhost)
+
+  deps_tree, deps_info = deps.GenDependencyTree(remote_pkgs)
 
   # You want me to be verbose? I'll give you two trees! Twice as much value.
   if "--tree" in emerge.opts and "--verbose" in emerge.opts:
     deps.PrintTree(deps_tree)
 
-  deps_graph = deps.GenDependencyGraph(deps_tree, deps_info)
+  deps_graph = deps.GenDependencyGraph(deps_tree, deps_info, remote_pkgs)
 
   # OK, time to print out our progress so far.
   deps.PrintInstallPlan(deps_graph)
