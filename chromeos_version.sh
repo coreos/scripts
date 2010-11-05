@@ -86,6 +86,7 @@ export CHROMEOS_VERSION_STRING=\
 export CHROME_BASE=
 # directory containing chrome-chromeos.zip - an svn rev or a full version
 export CHROME_BUILD=
+export CHROME_VERSION="$CHROME_BUILD"
 
 # Print (and remember) version info.
 echo "ChromeOS version information:"
