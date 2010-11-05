@@ -139,6 +139,7 @@ function start_dev_server {
   info "Starting devserver with flags ${devserver_flags}"
   ./enter_chroot.sh "sudo ./start_devserver ${devserver_flags} \
        --client_prefix=ChromeOSUpdateEngine \
+       --board=${FLAGS_board} \
        --port=${FLAGS_devserver_port} > ${FLAGS_server_log} 2>&1" &
 
   info "Waiting on devserver to start"
