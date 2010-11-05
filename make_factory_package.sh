@@ -166,7 +166,7 @@ fi
 if [ -n "${FLAGS_subfolder}" ] && \
    [ -f "${OMAHA_DIR}"/miniomaha.conf"" ] ; then
   # Remove the ']' from the last line of the file so we can add another config.
-  sed -i '$d' < ${OMAHA_DIR}/miniomaha.conf
+  sed -i '$d' ${OMAHA_DIR}/miniomaha.conf
 else
   echo -e "config = [" > ${OMAHA_DIR}/miniomaha.conf
 fi
