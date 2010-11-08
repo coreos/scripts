@@ -30,6 +30,7 @@ DEFINE_boolean verify ${FLAGS_TRUE} "Verify image on device after update."
 # Flags for devserver.
 DEFINE_string archive_dir "" \
   "Update using the test image in the image.zip in this directory." a
+DEFINE_string board "" "Override the board reported by the target"
 DEFINE_integer devserver_port 8080 \
   "Port to use for devserver."
 DEFINE_boolean for_vm ${FLAGS_FALSE} "Image is for a vm."
@@ -124,10 +125,11 @@ function start_dev_server {
   else
     # IMAGE_PATH should be the newest image and learn the board from
     # the target.
-    FLAGS_board=""
     learn_board
     IMAGE_PATH="$($(dirname "$0")/get_latest_image.sh --board="${FLAGS_board}")"
     IMAGE_PATH="${IMAGE_PATH}/chromiumos_image.bin"
+    devserver_flags="${devserver_flags} \
+        --image $(reinterpret_path_for_chroot ${IMAGE_PATH})"
   fi
 
   [ ${FLAGS_for_vm} -eq ${FLAGS_TRUE} ] && \
@@ -148,6 +150,10 @@ function start_dev_server {
   do
     sleep 5
     echo -n "."
+    if ! pgrep -f start_devserver > /dev/null; then
+      echo "Devserver failed, see dev_server.log."
+      exit 1
+    fi
   done
   echo ""
 }
