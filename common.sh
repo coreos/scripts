@@ -129,6 +129,7 @@ fi
 CHROOT_TRUNK_DIR="/home/$USER/trunk"
 
 # Install make for portage ebuilds.  Used by build_image and gmergefs.
+# TODO: Is /usr/local/autotest-chrome still used by anyone?
 DEFAULT_INSTALL_MASK="/usr/include /usr/man /usr/share/man /usr/share/doc \
   /usr/share/gtk-doc /usr/share/gtk-2.0 /usr/lib/gtk-2.0/include \
   /usr/share/info /usr/share/aclocal /usr/lib/gcc /usr/lib/pkgconfig \
@@ -143,7 +144,7 @@ FACTORY_INSTALL_MASK="/opt/google/chrome /opt/google/o3d /opt/netscape \
   /usr/share/ibus-pinyin /usr/share/libhangul /usr/share/locale \
   /usr/share/m17n /usr/share/mime /usr/share/sounds /usr/share/tts \
   /usr/share/X11 /usr/share/zoneinfo /usr/lib/debug
-  /usr/local/autotest /usr/local/autotest-chrome"
+  /usr/local/autotest /usr/local/autotest-chrome /usr/local/autotest-pkgs"
 
 # Check to ensure not running old scripts
 V_REVERSE='[7m'
