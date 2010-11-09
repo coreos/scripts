@@ -15,10 +15,12 @@ MAX_RETRIES=3
 get_default_board
 
 DEFINE_string board "$DEFAULT_BOARD" \
-    "The board for which you built autotest."
+    "The board for which you built autotest." b
 DEFINE_string image_path "" "Full path of the VM image"
 DEFINE_string results_dir_root "" "alternate root results directory"
 DEFINE_string test_case "" "Name of the test case to run"
+DEFINE_boolean use_emerged ${FLAGS_FALSE} \
+    "Force use of emerged autotest packages"
 
 set -e
 
@@ -44,6 +46,11 @@ if [ -z "${FLAGS_test_case}" ] && [ -z "${FLAGS_ARGV}" ]; then
   die "You must specify a test case."
 fi
 
+USE_EMERGED=
+if [[ ${FLAGS_use_emerged} -eq ${FLAGS_TRUE} ]]; then
+  USE_EMERGED="--use_emerged"
+fi
+
 tests=( )
 [ -n "${FLAGS_test_case}" ] && tests=( "${FLAGS_test_case}" )
 for test in ${FLAGS_ARGV}; do
@@ -59,4 +66,5 @@ retry_until_ssh ${MAX_RETRIES}
   --ssh_port=${FLAGS_ssh_port} \
   --remote=127.0.0.1 \
   --results_dir_root="${FLAGS_results_dir_root}" \
+  ${USE_EMERGED} \
   "${tests[@]}"
