@@ -10,6 +10,10 @@
 . "$(dirname $0)/../lib/cros_vm_lib.sh"
 . "$(dirname "$0")/../lib/cros_vm_constants.sh"
 
+get_default_board
+
+DEFINE_string board "${DEFAULT_BOARD}" \
+    "Board for VM image (unnecessary if path given)"
 DEFINE_string image_path "" "Full path of the VM image"
 
 set -e
@@ -20,7 +24,8 @@ eval set -- "${FLAGS_ARGV}"
 
 # Use latest if not specified.
 if [ -z "${FLAGS_image_path}" ]; then
-  LATEST_IMAGE="$(${SCRIPTS_DIR}/get_latest_image.sh)/${DEFAULT_QEMU_IMAGE}"
+  LATEST_IMAGE="$(${SCRIPTS_DIR}/get_latest_image.sh \
+          --board=${FLAGS_board})/${DEFAULT_QEMU_IMAGE}"
   info "Using latest vm image ${LATEST_IMAGE}"
   FLAGS_image_path=${LATEST_IMAGE}
 fi

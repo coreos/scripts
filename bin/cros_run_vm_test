@@ -24,7 +24,6 @@ set -e
 
 # Parse command line.
 FLAGS "$@" || exit 1
-eval set -- "${FLAGS_ARGV}"
 
 # Use latest if not specified.
 if [ -z "${FLAGS_image_path}" ]; then
@@ -36,7 +35,20 @@ fi
 
 [ -e "${FLAGS_image_path}" ] || die "Image ${FLAGS_image_path} does not exist."
 
-[ -n "${FLAGS_test_case}" ] || die "You must specify a test case."
+if [ -n "${FLAGS_test_case}" ]; then
+  warn "Use of --test_case=<test> is being deprecated.  Just pass test names \
+as separate command line arguments."
+fi
+
+if [ -z "${FLAGS_test_case}" ] && [ -z "${FLAGS_ARGV}" ]; then
+  die "You must specify a test case."
+fi
+
+tests=( )
+[ -n "${FLAGS_test_case}" ] && tests=( "${FLAGS_test_case}" )
+for test in ${FLAGS_ARGV}; do
+  tests=( "${tests[@]}" "$(remove_quotes "${test}")" )
+done
 
 trap stop_kvm EXIT
 start_kvm "${FLAGS_image_path}"
@@ -47,4 +59,4 @@ retry_until_ssh ${MAX_RETRIES}
   --ssh_port=${FLAGS_ssh_port} \
   --remote=127.0.0.1 \
   --results_dir_root="${FLAGS_results_dir_root}" \
-  "${FLAGS_test_case}"
+  "${tests[@]}"

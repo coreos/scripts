@@ -10,6 +10,7 @@ DEFINE_boolean no_graphics ${FLAGS_FALSE} "Runs the KVM instance silently."
 DEFINE_boolean persist "${FLAGS_FALSE}" "Persist vm."
 DEFINE_boolean snapshot ${FLAGS_FALSE} "Don't commit changes to image."
 DEFINE_integer ssh_port 9222 "Port to tunnel ssh traffic over."
+DEFINE_string vnc "" "VNC Server to display to instead of SDL."
 
 KVM_PID_FILE=/tmp/kvm.$$.pid
 LIVE_VM_IMAGE=
@@ -41,6 +42,9 @@ function start_kvm() {
     local usesnapshot=""
     if [ ${FLAGS_no_graphics} -eq ${FLAGS_TRUE} ]; then
       nographics="-nographic -serial none"
+    fi
+    if [ -n "${FLAGS_vnc}" ]; then
+      nographics="-vnc ${FLAGS_vnc}"
     fi
 
     if [ ${FLAGS_snapshot} -eq ${FLAGS_TRUE} ]; then
