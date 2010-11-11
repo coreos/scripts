@@ -459,7 +459,7 @@ def _GetConfig(config_name):
   return buildconfig
 
 
-def ResolveOverlays(overlays):
+def ResolveOverlays(buildroot, overlays):
   """Return the list of overlays to use for a given buildbot.
 
   Args:
@@ -521,7 +521,7 @@ def main():
     sys.exit(1)
 
   # Calculate list of overlay directories.
-  overlays = ResolveOverlays(buildconfig['overlays'])
+  overlays = ResolveOverlays(buildroot, buildconfig['overlays'])
 
   try:
     _PreFlightRinse(buildroot, buildconfig['board'], tracking_branch, overlays)
