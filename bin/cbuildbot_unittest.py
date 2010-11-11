@@ -166,15 +166,17 @@ class CBuildBotTest(mox.MoxTestBase):
     m_file.read().AndReturn(self._test_string)
     m_file.close()
 
+    overlays = [ '%s/src/third_party/chromiumos-overlay' % self._buildroot ]
     cbuildbot.RunCommand(['./cros_mark_as_stable', '--all',
                      '--board=%s' % self._test_board,
-                     '--tracking_branch="cros/master"', 'commit'],
+                     '--overlays=%s' % ':'.join(overlays),
+                     '--tracking_branch=cros/master', 'commit'],
                      cwd='%s/src/scripts' % self._buildroot,
                      enter_chroot=True)
 
     self.mox.ReplayAll()
     cbuildbot._UprevPackages(self._buildroot, self.tracking_branch,
-                             self._revision_file, self._test_board)
+                             self._revision_file, self._test_board, overlays)
     self.mox.VerifyAll()
 
   def testUprevAllPackages(self):
@@ -187,15 +189,18 @@ class CBuildBotTest(mox.MoxTestBase):
     m_file.read().AndReturn('None')
     m_file.close()
 
+    overlays = [ '%s/src/third_party/chromiumos-overlay' % self._buildroot ]
     cbuildbot.RunCommand(['./cros_mark_as_stable', '--all',
                          '--board=%s' % self._test_board,
-                         '--tracking_branch="cros/master"', 'commit'],
+                         '--overlays=%s' % ':'.join(overlays),
+                         '--tracking_branch=cros/master', 'commit'],
                          cwd='%s/src/scripts' % self._buildroot,
                          enter_chroot=True)
 
     self.mox.ReplayAll()
+    overlays = [ '%s/src/third_party/chromiumos-overlay' % self._buildroot ]
     cbuildbot._UprevPackages(self._buildroot, self.tracking_branch,
-                             self._revision_file, self._test_board)
+                             self._revision_file, self._test_board, overlays)
     self.mox.VerifyAll()
 
 
