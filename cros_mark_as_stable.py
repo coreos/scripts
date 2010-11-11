@@ -22,10 +22,10 @@ from cros_build_lib import Info, RunCommand, Warning, Die
 gflags.DEFINE_string('board', '',
                      'Board for which the package belongs.', short_name='b')
 gflags.DEFINE_string('overlays', '',
-                     'Colon-separated list of overlays to modify.',
+                     'Space separated list of overlays to modify.',
                      short_name='o')
 gflags.DEFINE_string('packages', '',
-                     'Colon-separated list of packages to mark as stable.',
+                     'Space separated list of packages to mark as stable.',
                      short_name='p')
 gflags.DEFINE_string('push_options', '',
                      'Options to use with git-cl push using push command.')
@@ -245,10 +245,7 @@ def _SimpleRunCommand(command):
   """Runs a shell command and returns stdout back to caller."""
   _Print('  + %s' % command)
   proc_handle = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
-  stdout = proc_handle.communicate()[0]
-  retcode = proc_handle.wait()
-  assert retcode == 0, "Return code %s for command: %s" % (retcode, command)
-  return stdout
+  return proc_handle.communicate()[0]
 
 
 # ======================= End Global Helper Functions ========================
@@ -490,16 +487,11 @@ def main(argv):
   except gflags.FlagsError, e :
     _PrintUsageAndDie(str(e))
 
-  package_list = gflags.FLAGS.packages.split(':')
+  package_list = gflags.FLAGS.packages.split()
   _CheckSaneArguments(package_list, command)
   if gflags.FLAGS.overlays:
-    overlays = {}
-    for path in gflags.FLAGS.overlays.split(':'):
-      if not os.path.exists(path):
-        Die('Cannot find overlay: %s' % path)
-      overlays[path] = []
+    overlays = dict((path, []) for path in gflags.FLAGS.overlays.split())
   else:
-    Warning('Missing --overlays argument')
     overlays = {
       '%s/private-overlays/chromeos-overlay' % gflags.FLAGS.srcroot: [],
       '%s/third_party/chromiumos-overlay' % gflags.FLAGS.srcroot: []
