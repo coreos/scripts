@@ -19,7 +19,8 @@
 . "$(dirname "$0")/chromeos-common.sh"
 
 # Load functions designed for image processing
-. "$(dirname "$0")/image_common.sh"
+. "$(dirname "$0")/lib/cros_image_common.sh" ||
+  die "Cannot load required library: lib/cros_image_common.sh; Abort."
 
 get_default_board
 

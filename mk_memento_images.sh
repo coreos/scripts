@@ -10,13 +10,13 @@
 
 set -e
 
-LIB_IMAGE_COMMON="$(dirname "$0")/image_common.sh"
-if ! . "$LIB_IMAGE_COMMON"; then
-  echo "Missing required library: $LIB_IMAGE_COMMON. Cannot continue."
+# Load functions designed for image processing
+if ! . "$(dirname "$0")/lib/cros_image_common.sh"; then
+  echo "ERROR: Cannot load required library: lib/cros_image_common.sh; Abort."
   exit 1
 fi
 
-if [ -z "$2" -o -z "$1" ]; then
+if [ -z "$2" -o -z "$1" ] || [ "${#@}" -ne 2 -a "${#@}" -ne 3 ]; then
   echo "usage: $0 path/to/kernel_partition_img path/to/rootfs_partition_img"
   echo "    or $0 path/to/chromiumos_img kern_part_no rootfs_part_no"
   exit 1
