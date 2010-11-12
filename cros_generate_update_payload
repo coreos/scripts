@@ -87,7 +87,7 @@ patch_kernel() {
   offset=$(($offset * 512))
   sudo losetup -o "$offset" "$STATE_LOOP_DEV" "$IMAGE"
   STATE_MNT=$(mktemp -d /tmp/state.XXXXXX)
-  sudo mount "$STATE_LOOP_DEV" "$STATE_MNT"
+  sudo mount --read-only "$STATE_LOOP_DEV" "$STATE_MNT"
   dd if="$STATE_MNT"/vmlinuz_hd.vblock of="$KERN_FILE" conv=notrunc
   sudo umount "$STATE_MNT"
   STATE_MNT=""
