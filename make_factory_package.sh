@@ -18,6 +18,9 @@
 # Load functions and constants for chromeos-install
 . "$(dirname "$0")/chromeos-common.sh"
 
+# Load functions designed for image processing
+. "$(dirname "$0")/image_common.sh"
+
 get_default_board
 
 # Flags
@@ -95,6 +98,50 @@ prepare_dir() {
   rm -rf state.gz
 }
 
+compress_and_hash_memento_image() {
+  local input_file="$1"
+
+  if has_part_tools; then
+    sudo "${SCRIPTS_DIR}/mk_memento_images.sh" "$input_file" 2 3 |
+      grep hash |
+      awk '{print $4}'
+  else
+    sudo "${SCRIPTS_DIR}/mk_memento_images.sh" part_2 part_3 |
+      grep hash |
+      awk '{print $4}'
+  fi
+}
+
+compress_and_hash_file() {
+  local input_file="$1"
+  local output_file="$2"
+
+  if [ -z "$input_file" ]; then
+    # Runs as a pipe processor
+    gzip_compress -c -9 |
+    tee "$output_file" |
+    openssl sha1 -binary |
+    openssl base64
+  else
+    gzip_compress -c -9 "$input_file" |
+    tee "$output_file" |
+    openssl sha1 -binary |
+    openssl base64
+  fi
+}
+
+compress_and_hash_partition() {
+  local input_file="$1"
+  local part_num="$2"
+  local output_file="$3"
+
+  if has_part_tools; then
+    dump_partition "$input_file" "$part_num" |
+    compress_and_hash_file "" "$output_file"
+  else
+    compress_and_hash_file "part_$part_num" "$output_file"
+  fi
+}
 
 # Clean up stale config and data files.
 prepare_omaha
@@ -108,21 +155,25 @@ echo "Output omaha config to ${OMAHA_DIR}/miniomaha.conf"
 
 prepare_dir
 
-sudo ./unpack_partitions.sh ${RELEASE_IMAGE} &> /dev/null
-release_hash=`sudo ${SCRIPTS_DIR}/mk_memento_images.sh part_2 part_3 \
-    | grep hash | awk '{print $4}'`
+if ! has_part_tools; then
+  #TODO(hungte) we can still avoid running unpack_partitions.sh
+  # by $(cat unpack_partitions.sh | grep Label | sed "s/#//" | grep ${name}" |
+  #      awk '{ print $1}') to fetch offset/size.
+  echo "Unpacking image ${RELEASE_IMAGE} ..." >&2
+  sudo ./unpack_partitions.sh "${RELEASE_IMAGE}" 2>/dev/null
+fi
+
+release_hash="$(compress_and_hash_memento_image "${RELEASE_IMAGE}")"
 sudo chmod a+rw update.gz
 mv update.gz rootfs-release.gz
 mv rootfs-release.gz ${OMAHA_DATA_DIR}
 echo "release: ${release_hash}"
 
-cat part_8 | gzip -9 > oem.gz
-oem_hash=`cat oem.gz | openssl sha1 -binary | openssl base64`
+oem_hash="$(compress_and_hash_partition "${RELEASE_IMAGE}" 8 "oem.gz")"
 mv oem.gz ${OMAHA_DATA_DIR}
 echo "oem: ${oem_hash}"
 
-cat part_12 | gzip -9 > efi.gz
-efi_hash=`cat efi.gz | openssl sha1 -binary | openssl base64`
+efi_hash="$(compress_and_hash_partition "${RELEASE_IMAGE}" 12 "efi.gz")"
 mv efi.gz ${OMAHA_DATA_DIR}
 echo "efi: ${efi_hash}"
 
@@ -132,17 +183,18 @@ popd > /dev/null
 pushd ${FACTORY_DIR} > /dev/null
 prepare_dir
 
+if ! has_part_tools; then
+  echo "Unpacking image ${FACTORY_IMAGE} ..." >&2
+  sudo ./unpack_partitions.sh "${FACTORY_IMAGE}" 2>/dev/null
+fi
 
-sudo ./unpack_partitions.sh ${FACTORY_IMAGE} &> /dev/null
-test_hash=`sudo ${SCRIPTS_DIR}//mk_memento_images.sh part_2 part_3 \
-    | grep hash | awk '{print $4}'`
+test_hash="$(compress_and_hash_memento_image "${FACTORY_IMAGE}")"
 sudo chmod a+rw update.gz
 mv update.gz rootfs-test.gz
 mv rootfs-test.gz ${OMAHA_DATA_DIR}
 echo "test: ${test_hash}"
 
-cat part_1 | gzip -9 > state.gz
-state_hash=`cat state.gz | openssl sha1 -binary | openssl base64`
+state_hash="$(compress_and_hash_partition "${FACTORY_IMAGE}" 1 "state.gz")"
 mv state.gz ${OMAHA_DATA_DIR}
 echo "state: ${state_hash}"
 
@@ -155,8 +207,7 @@ if [ ! -z ${FLAGS_firmware_updater} ] ; then
     exit 1
   fi
 
-  cat $SHELLBALL | gzip -9 > firmware.gz
-  firmware_hash=`cat firmware.gz | openssl sha1 -binary | openssl base64`
+  firmware_hash="$(compress_and_hash_file "$SHELLBALL" "firmware.gz")"
   mv firmware.gz ${OMAHA_DATA_DIR}
   echo "firmware: ${firmware_hash}"
 fi

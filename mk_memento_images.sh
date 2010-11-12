@@ -10,25 +10,64 @@
 
 set -e
 
+LIB_IMAGE_COMMON="$(dirname "$0")/image_common.sh"
+if ! . "$LIB_IMAGE_COMMON"; then
+  echo "Missing required library: $LIB_IMAGE_COMMON. Cannot continue."
+  exit 1
+fi
+
 if [ -z "$2" -o -z "$1" ]; then
   echo "usage: $0 path/to/kernel_partition_img path/to/rootfs_partition_img"
+  echo "    or $0 path/to/chromiumos_img kern_part_no rootfs_part_no"
   exit 1
 fi
 
 if [ "$CROS_GENERATE_UPDATE_PAYLOAD_CALLED" != "1" ]; then
   echo "WARNING:"
-  echo "This script should only be called from cros_generate_update_payload"
-  echo "Please run that script with --help to see how to use it."
+  echo " This script should only be called from cros_generate_update_payload"
+  echo " Please run that script with --help to see how to use it."
+fi
+
+if ! has_command pigz; then
+  (echo "WARNING:"
+   echo " Your system does not have pigz (parallel gzip) installed."
+   echo " COMPRESSING WILL BE VERY SLOW. It is recommended to install pigz"
+   if has_command apt-get; then
+     echo " by 'sudo apt-get install pigz'."
+   elif has_command emerge; then
+     echo  " by 'sudo emerge pigz'."
+   fi) >&2
 fi
 
 if [ $(whoami) = "root" ]; then
   echo "running $0 as root which is unneccessary"
 fi
 
-KPART="$1"
-ROOT_PART="$2"
-
-KPART_SIZE=$(stat -c%s "$KPART")
+# Determine the offset size, and file name of parameters
+if [ -z "$3" ]; then
+  # kernnel_img rootfs_img
+  KPART="$1"
+  ROOT_PART="$2"
+  KPART_SIZE=$(stat -c%s "$KPART")
+  ROOT_PART_SIZE=$(stat -c%s "$ROOT_PART")
+  KPART_OFFSET=0
+  KPART_SECTORS=$((KPART_SIZE / 512))
+  ROOT_OFFSET=0
+  ROOT_SECTORS=$((ROOT_PART_SIZE / 512))
+else
+  # chromiumos_img kern_part_no rootfs_part_no
+  KPART="$1"
+  ROOT_PART="$1"
+  KPART_OFFSET="$(part_offset "$KPART" "$2")" ||
+    err_die "cannot retieve kernel partition offset"
+  KPART_SECTORS="$(part_size "$KPART" "$2")" ||
+    err_die "cannot retieve kernel partition size"
+  ROOT_OFFSET="$(part_offset "$ROOT_PART" "$3")" ||
+    err_die "cannot retieve root partition offset"
+  ROOT_SECTORS="$(part_size "$ROOT_PART" "$3")" ||
+    err_die "cannot retieve root partition size"
+  KPART_SIZE=$((KPART_SECTORS * 512))
+fi
 
 # Sanity check size.
 if [ "$KPART_SIZE" -gt $((16 * 1024 * 1024)) ]; then
@@ -38,34 +77,31 @@ if [ "$KPART_SIZE" -gt $((16 * 1024 * 1024)) ]; then
 fi
 
 FINAL_OUT_FILE=$(dirname "$1")/update.gz
-UNCOMPRESSED_OUT_FILE="$FINAL_OUT_FILE.uncompressed"
 
-# First, write size of kernel partition in big endian as uint64 to out file
-# printf converts it to a number like 00000000003d0900. sed converts it to:
-# \\x00\\x00\\x00\\x00\\x00\\x3d\\x09\\x00, then xargs converts it to binary
-# with echo.
-printf %016x "$KPART_SIZE" | \
-  sed 's/\([0-9a-f][0-9a-f]\)/\\\\x\1/g' | \
-  xargs echo -ne > "$UNCOMPRESSED_OUT_FILE"
+# Update payload format:
+#  [kernel_size: big-endian uint64][kernel_blob][rootfs_blob]
 
-# Next, write kernel partition to the out file
-cat "$KPART" >> "$UNCOMPRESSED_OUT_FILE"
+# Prepare kernel_size by using printf as a number like 00000000003d0900, then
+# sed to convert as: \x00\x00\x00\x00\x00\x3d\x09\x00, finally echo -e to
+# convert into binary.
+KPART_SIZE_SIGNATURE="$(printf "%016x" "$KPART_SIZE" |
+                        sed 's/\([0-9a-f][0-9a-f]\)/\\x\1/g')"
 
-# Sanity check size of output file now
-if [ $(stat -c%s "$UNCOMPRESSED_OUT_FILE") -ne $((8 + $KPART_SIZE)) ]; then
-  echo "Kernel partition changed size during image generation. Aborting."
-  exit 1
-fi
+# Build the blob!
+CS_AND_RET_CODES="$(
+  (echo -en "$KPART_SIZE_SIGNATURE"
+    echo "Compressing kernel..." >&2
+    dump_partial_file "$KPART" "$KPART_OFFSET" "$KPART_SECTORS"
+    echo "Compressing rootfs..." >&2
+    dump_partial_file "$ROOT_PART" "$ROOT_OFFSET" "$ROOT_SECTORS") |
+  gzip_compress -9 -c |
+  tee "$FINAL_OUT_FILE" |
+  openssl sha1 -binary |
+  openssl base64 |
+  tr '\n' ' '
+  echo ${PIPESTATUS[*]})"
 
-# Put rootfs into the out file
-cat "$ROOT_PART" >> "$UNCOMPRESSED_OUT_FILE"
-
-# compress and hash
-CS_AND_RET_CODES=$(gzip -c "$UNCOMPRESSED_OUT_FILE" | \
-                   tee "$FINAL_OUT_FILE" | openssl sha1 -binary | \
-                   openssl base64 | tr '\n' ' '; \
-                   echo ${PIPESTATUS[*]})
-EXPECTED_RET_CODES="0 0 0 0 0"
+EXPECTED_RET_CODES="0 0 0 0 0 0"
 set -- $CS_AND_RET_CODES
 CALC_CS="$1"
 shift
@@ -74,7 +110,5 @@ if [ "$RET_CODES" != "$EXPECTED_RET_CODES" ]; then
   echo compression/hash failed. $RET_CODES
   exit 1
 fi
-
-rm "$UNCOMPRESSED_OUT_FILE"
 
 echo Success. hash is "$CALC_CS"
