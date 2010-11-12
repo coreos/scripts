@@ -22,10 +22,10 @@ from cros_build_lib import Info, RunCommand, Warning, Die
 gflags.DEFINE_string('board', '',
                      'Board for which the package belongs.', short_name='b')
 gflags.DEFINE_string('overlays', '',
-                     'Space separated list of overlays to modify.',
+                     'Colon-separated list of overlays to modify.',
                      short_name='o')
 gflags.DEFINE_string('packages', '',
-                     'Space separated list of packages to mark as stable.',
+                     'Colon-separated list of packages to mark as stable.',
                      short_name='p')
 gflags.DEFINE_string('push_options', '',
                      'Options to use with git-cl push using push command.')
@@ -245,7 +245,11 @@ def _SimpleRunCommand(command):
   """Runs a shell command and returns stdout back to caller."""
   _Print('  + %s' % command)
   proc_handle = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
-  return proc_handle.communicate()[0]
+  stdout = proc_handle.communicate()[0]
+  retcode = proc_handle.wait()
+  if retcode != 0:
+    raise subprocess.CalledProcessError(retcode, command, output=stdout)
+  return stdout
 
 
 # ======================= End Global Helper Functions ========================
@@ -323,7 +327,7 @@ class _EBuild(object):
 
     # Grab and evaluate CROS_WORKON variables from this ebuild.
     unstable_ebuild = '%s-9999.ebuild' % self.ebuild_path_no_version
-    cmd = ('CROS_WORKON_LOCALNAME="%s" CROS_WORKON_PROJECT="%s" '
+    cmd = ('export CROS_WORKON_LOCALNAME="%s" CROS_WORKON_PROJECT="%s"; '
            'eval $(grep -E "^CROS_WORKON" %s) && '
            'echo $CROS_WORKON_PROJECT '
            '$CROS_WORKON_LOCALNAME/$CROS_WORKON_SUBDIR'
@@ -341,10 +345,10 @@ class _EBuild(object):
     # TODO(anush): This hack is only necessary because the kernel ebuild has
     # 'if' statements, so we can't grab the CROS_WORKON_LOCALNAME properly.
     # We should clean up the kernel ebuild and remove this hack.
-    if not os.path.exists(srcdir) and subdir == 'kernel/':
+    if not os.path.isdir(srcdir) and subdir == 'kernel/':
       srcdir = os.path.join(srcroot, 'third_party/kernel/files')
 
-    if not os.path.exists(srcdir):
+    if not os.path.isdir(srcdir):
       Die('Cannot find commit id for %s' % self.ebuild_path)
 
     # Verify that we're grabbing the commit id from the right project name.
@@ -487,11 +491,16 @@ def main(argv):
   except gflags.FlagsError, e :
     _PrintUsageAndDie(str(e))
 
-  package_list = gflags.FLAGS.packages.split()
+  package_list = gflags.FLAGS.packages.split(':')
   _CheckSaneArguments(package_list, command)
   if gflags.FLAGS.overlays:
-    overlays = dict((path, []) for path in gflags.FLAGS.overlays.split())
+    overlays = {}
+    for path in gflags.FLAGS.overlays.split(':'):
+      if not os.path.isdir(path):
+        Die('Cannot find overlay: %s' % path)
+      overlays[path] = []
   else:
+    Warning('Missing --overlays argument')
     overlays = {
       '%s/private-overlays/chromeos-overlay' % gflags.FLAGS.srcroot: [],
       '%s/third_party/chromiumos-overlay' % gflags.FLAGS.srcroot: []
@@ -501,9 +510,13 @@ def main(argv):
     _BuildEBuildDictionary(overlays, gflags.FLAGS.all, package_list)
 
   for overlay, ebuilds in overlays.items():
-    if not os.path.exists(overlay):
+    if not os.path.isdir(overlay):
       Warning("Skipping %s" % overlay)
       continue
+
+    # TODO(davidjames): Currently, all code that interacts with git depends on
+    # the cwd being set to the overlay directory. We should instead pass in
+    # this parameter so that we don't need to modify the cwd globally.
     os.chdir(overlay)
 
     if command == 'clean':

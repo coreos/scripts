@@ -16,6 +16,7 @@ import unittest
 # Fixes circular dependency error.
 import cbuildbot_comm
 import cbuildbot
+from cros_build_lib import ReinterpretPathForChroot
 
 class CBuildBotTest(mox.MoxTestBase):
 
@@ -42,6 +43,10 @@ class CBuildBotTest(mox.MoxTestBase):
                                       ['dev-util/perf', '12345test'],
                                       ['chromos-base/libcros', '12345test']
                                      ]
+    self._overlays = ['%s/src/third_party/chromiumos-overlay' % self._buildroot]
+    self._chroot_overlays = [
+        ReinterpretPathForChroot(p) for p in self._overlays
+    ]
 
   def testParseRevisionString(self):
     """Test whether _ParseRevisionString parses string correctly."""
@@ -168,13 +173,15 @@ class CBuildBotTest(mox.MoxTestBase):
 
     cbuildbot.RunCommand(['./cros_mark_as_stable', '--all',
                      '--board=%s' % self._test_board,
-                     '--tracking_branch="cros/master"', 'commit'],
+                     '--overlays=%s' % ':'.join(self._chroot_overlays),
+                     '--tracking_branch=cros/master', 'commit'],
                      cwd='%s/src/scripts' % self._buildroot,
                      enter_chroot=True)
 
     self.mox.ReplayAll()
     cbuildbot._UprevPackages(self._buildroot, self.tracking_branch,
-                             self._revision_file, self._test_board)
+                             self._revision_file, self._test_board,
+                             self._overlays)
     self.mox.VerifyAll()
 
   def testUprevAllPackages(self):
@@ -189,13 +196,15 @@ class CBuildBotTest(mox.MoxTestBase):
 
     cbuildbot.RunCommand(['./cros_mark_as_stable', '--all',
                          '--board=%s' % self._test_board,
-                         '--tracking_branch="cros/master"', 'commit'],
+                         '--overlays=%s' % ':'.join(self._chroot_overlays),
+                         '--tracking_branch=cros/master', 'commit'],
                          cwd='%s/src/scripts' % self._buildroot,
                          enter_chroot=True)
 
     self.mox.ReplayAll()
     cbuildbot._UprevPackages(self._buildroot, self.tracking_branch,
-                             self._revision_file, self._test_board)
+                             self._revision_file, self._test_board,
+                             self._overlays)
     self.mox.VerifyAll()
 
 
