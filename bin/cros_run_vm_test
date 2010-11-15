@@ -21,8 +21,16 @@ DEFINE_string results_dir_root "" "alternate root results directory"
 DEFINE_string test_case "" "Name of the test case to run"
 DEFINE_boolean use_emerged ${FLAGS_FALSE} \
     "Force use of emerged autotest packages"
+DEFINE_string verify_chrome_version "" \
+    "Verify that this chrome version matches that on vm."
 
 set -e
+
+# Returns normally if the given $1 is a valid chrome version.
+chrome_version_is_valid() {
+  local chrome_version="$1"
+  echo ${chrome_version} | egrep '^[0-9]+.[0-9]+.[0-9]+.[0-9]+$' &> /dev/null
+}
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -61,10 +69,24 @@ trap stop_kvm EXIT
 start_kvm "${FLAGS_image_path}"
 info "Checking for ssh access to virtual machine."
 retry_until_ssh ${MAX_RETRIES}
+
+if [ -n "${FLAGS_verify_chrome_version}" ]; then
+  info "Verifying version of Chrome matches what we expect."
+  if chrome_version_is_valid "${FLAGS_verify_chrome_version}"; then
+    chrome_version_on_vm=$("$(dirname $0)/cros_get_chrome_version" \
+        --remote=127.0.0.1 \
+        --ssh_port=${FLAGS_ssh_port})
+    [[ ${chrome_version_on_vm} == ${FLAGS_verify_chrome_version} ]] || \
+        die "Chrome version mismatch.  VM reported ${chrome_version_on_vm}"
+  else
+    warn "${FLAGS_verify_chrome_version} is not a valid Chrome version"
+  fi
+fi
+
 "$(dirname $0)"/../run_remote_tests.sh \
-  --board=${FLAGS_board} \
-  --ssh_port=${FLAGS_ssh_port} \
-  --remote=127.0.0.1 \
-  --results_dir_root="${FLAGS_results_dir_root}" \
-  ${USE_EMERGED} \
-  "${tests[@]}"
+    --board=${FLAGS_board} \
+    --ssh_port=${FLAGS_ssh_port} \
+    --remote=127.0.0.1 \
+    --results_dir_root="${FLAGS_results_dir_root}" \
+    ${USE_EMERGED} \
+    "${tests[@]}"

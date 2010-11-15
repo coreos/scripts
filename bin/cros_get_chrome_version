@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Returns the version of Chrome running on a remote machine.
+
+. "$(dirname $0)/../common.sh"
+. "$(dirname $0)/../remote_access.sh"
+
+FLAGS "$@" || exit 1
+
+set -e
+
+# TMP necessary for remote_access_init.
+TMP=$(mktemp -d /tmp/cros_check_chrome_version.XXXX)
+trap "rm -rf ${TMP}" EXIT
+
+remote_access_init &> /dev/null
+
+remote_sh "/opt/google/chrome/chrome --version"
+CHROME_VERSION=$(echo ${REMOTE_OUT} | \
+    sed 's/.* \([0-9]\+.[0-9]\+.[0-9]\+.[0-9]\+\).*/\1/')
+echo "${CHROME_VERSION}"
