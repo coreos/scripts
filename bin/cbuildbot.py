@@ -18,7 +18,8 @@ import cbuildbot_comm
 from cbuildbot_config import config
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../lib'))
-from cros_build_lib import Die, Info, RunCommand, Warning
+from cros_build_lib import (Die, Info, ReinterpretPathForChroot, RunCommand,
+                            Warning)
 
 _DEFAULT_RETRIES = 3
 ARCHIVE_BASE = '/var/www/archive'
@@ -181,37 +182,38 @@ def _ParseRevisionString(revision_string, repo_dictionary):
   return revisions.items()
 
 
-def _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board):
+def _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board,
+                           overlays):
   """Uprevs based on revision list."""
   if not revision_list:
     Info('No packages found to uprev')
     return
 
-  package_str = ''
+  packages = []
   for package, revision in revision_list:
-    package_str += package + ' '
+    assert ':' not in package, 'Invalid package name: %s' % package
+    packages.append(package)
 
-  package_str = package_str.strip()
+  chroot_overlays = [ReinterpretPathForChroot(path) for path in overlays]
 
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  # TODO(davidjames): --foo="bar baz" only works here because we're using
-  # enter_chroot.
   RunCommand(['./cros_mark_as_stable',
               '--board=%s' % board,
-              '--tracking_branch="%s"' % tracking_branch,
-              '--packages="%s"' % package_str,
+              '--tracking_branch=%s' % tracking_branch,
+              '--overlays=%s' % ':'.join(chroot_overlays),
+              '--packages=%s' % ':'.join(packages),
               'commit'],
-              cwd=cwd, enter_chroot=True)
+             cwd=cwd, enter_chroot=True)
 
 
-def _UprevAllPackages(buildroot, tracking_branch, board):
+def _UprevAllPackages(buildroot, tracking_branch, board, overlays):
   """Uprevs all packages that have been updated since last uprev."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  # TODO(davidjames): --foo="bar baz" only works here because we're using
-  # enter_chroot.
+  chroot_overlays = [ReinterpretPathForChroot(path) for path in overlays]
   RunCommand(['./cros_mark_as_stable', '--all',
               '--board=%s' % board,
-              '--tracking_branch="%s"' % tracking_branch, 'commit'],
+              '--overlays=%s' % ':'.join(chroot_overlays),
+              '--tracking_branch=%s' % tracking_branch, 'commit'],
               cwd=cwd, enter_chroot=True)
 
 
@@ -228,12 +230,13 @@ def _GetVMConstants(buildroot):
   return (vdisk_size.strip(), statefulfs_size.strip())
 
 
-def _GitCleanup(buildroot, board, tracking_branch):
+def _GitCleanup(buildroot, board, tracking_branch, overlays):
   """Clean up git branch after previous uprev attempt."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   if os.path.exists(cwd):
     RunCommand(['./cros_mark_as_stable', '--srcroot=..',
                 '--board=%s' % board,
+                '--overlays=%s' % ':'.join(overlays),
                 '--tracking_branch=%s' % tracking_branch, 'clean'],
                cwd=cwd, error_ok=True)
 
@@ -257,9 +260,9 @@ def _WipeOldOutput(buildroot):
 # =========================== Main Commands ===================================
 
 
-def _PreFlightRinse(buildroot, board, tracking_branch):
+def _PreFlightRinse(buildroot, board, tracking_branch, overlays):
   """Cleans up any leftover state from previous runs."""
-  _GitCleanup(buildroot, board, tracking_branch)
+  _GitCleanup(buildroot, board, tracking_branch, overlays)
   _CleanUpMountPoints(buildroot)
   RunCommand(['sudo', 'killall', 'kvm'], error_ok=True)
 
@@ -347,7 +350,7 @@ def _RunSmokeSuite(buildroot, results_dir):
               ], cwd=cwd, error_ok=False)
 
 
-def _UprevPackages(buildroot, tracking_branch, revisionfile, board):
+def _UprevPackages(buildroot, tracking_branch, revisionfile, board, overlays):
   """Uprevs a package based on given revisionfile.
 
   If revisionfile is set to None or does not resolve to an actual file, this
@@ -376,26 +379,19 @@ def _UprevPackages(buildroot, tracking_branch, revisionfile, board):
   #  print >> sys.stderr, 'CBUILDBOT Revision list found %s' % revisions
   #  revision_list = _ParseRevisionString(revisions,
   #      _CreateRepoDictionary(buildroot, board))
-  #  _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board)
+  #  _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board,
+  #                         overlays)
   #else:
   Info('CBUILDBOT Revving all')
-  _UprevAllPackages(buildroot, tracking_branch, board)
+  _UprevAllPackages(buildroot, tracking_branch, board, overlays)
 
 
 def _UprevPush(buildroot, tracking_branch, board, overlays):
   """Pushes uprev changes to the main line."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  public_overlay = '%s/src/third_party/chromiumos-overlay' % buildroot
-  private_overlay = '%s/src/private-overlays/chromeos-overlay' % buildroot
-  if overlays == 'private':
-    overlays = [private_overlay]
-  elif overlays == 'public':
-    overlays = [public_overlay]
-  else:
-    overlays = [public_overlay, private_overlay]
   RunCommand(['./cros_mark_as_stable', '--srcroot=..',
               '--board=%s' % board,
-              '--overlays=%s' % " ".join(overlays),
+              '--overlays=%s' % ':'.join(overlays),
               '--tracking_branch=%s' % tracking_branch,
               '--push_options=--bypass-hooks -f', 'push'],
              cwd=cwd)
@@ -467,6 +463,34 @@ def _GetConfig(config_name):
   return buildconfig
 
 
+def _ResolveOverlays(buildroot, overlays):
+  """Return the list of overlays to use for a given buildbot.
+
+  Args:
+    buildroot: The root directory where the build occurs. Must be an absolute
+               path.
+    overlays: A string describing which overlays you want.
+              'private': Just the private overlay.
+              'public': Just the public overlay.
+              'both': Both the public and private overlays.
+  """
+  public_overlay = '%s/src/third_party/chromiumos-overlay' % buildroot
+  private_overlay = '%s/src/private-overlays/chromeos-overlay' % buildroot
+  if overlays == 'private':
+    paths = [private_overlay]
+  elif overlays == 'public':
+    paths = [public_overlay]
+  elif overlays == 'both':
+    paths = [public_overlay, private_overlay]
+  else:
+    Die('Incorrect overlay configuration: %s' % overlays)
+  for path in paths:
+    assert ':' not in path, 'Overlay must not contain colons: %s' % path
+    if not os.path.isdir(path):
+      Die('Missing overlay: %s' % path)
+  return paths
+
+
 def main():
   # Parse options
   usage = "usage: %prog [options] cbuildbot_config"
@@ -491,7 +515,7 @@ def main():
 
   (options, args) = parser.parse_args()
 
-  buildroot = options.buildroot
+  buildroot = os.path.abspath(options.buildroot)
   revisionfile = options.revisionfile
   tracking_branch = options.tracking_branch
 
@@ -502,8 +526,11 @@ def main():
     parser.print_usage()
     sys.exit(1)
 
+  # Calculate list of overlay directories.
+  overlays = _ResolveOverlays(buildroot, buildconfig['overlays'])
+
   try:
-    _PreFlightRinse(buildroot, buildconfig['board'], tracking_branch)
+    _PreFlightRinse(buildroot, buildconfig['board'], tracking_branch, overlays)
     if options.clobber or not os.path.isdir(buildroot):
       _FullCheckout(buildroot, tracking_branch, url=options.url)
     else:
@@ -519,7 +546,7 @@ def main():
 
     if buildconfig['uprev']:
       _UprevPackages(buildroot, tracking_branch, revisionfile,
-                     board=buildconfig['board'])
+                     buildconfig['board'], overlays)
 
     _EnableLocalAccount(buildroot)
     _Build(buildroot)
@@ -545,7 +572,7 @@ def main():
           # Master bot needs to check if the other slaves completed.
           if cbuildbot_comm.HaveSlavesCompleted(config):
             _UprevPush(buildroot, tracking_branch, buildconfig['board'],
-                       buildconfig['overlays'])
+                       overlays)
           else:
             Die('CBUILDBOT - One of the slaves has failed!!!')
 

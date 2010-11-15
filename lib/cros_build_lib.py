@@ -138,14 +138,19 @@ def Info(message):
       Color(_STDOUT_IS_TTY).Color(Color.BLUE, '\nINFO: ' + message))
 
 
-def FindRepoDir():
-  """Returns the nearest higher-level repo dir from the cwd."""
-  cwd = os.getcwd()
-  while cwd != '/':
-    repo_dir = os.path.join(cwd, '.repo')
+def FindRepoDir(path=None):
+  """Returns the nearest higher-level repo dir from the specified path.
+
+  Args:
+    path: The path to use. Defaults to cwd.
+  """
+  if path is None:
+    path = os.getcwd()
+  while path != '/':
+    repo_dir = os.path.join(path, '.repo')
     if os.path.isdir(repo_dir):
       return repo_dir
-    cwd = os.path.dirname(cwd)
+    path = os.path.dirname(path)
   return None
 
 
@@ -155,7 +160,7 @@ def ReinterpretPathForChroot(path):
   Keyword arguments:
     path: The path to reinterpret.  Must be in src tree.
   """
-  root_path = os.path.join(FindRepoDir(), '..')
+  root_path = os.path.join(FindRepoDir(path), '..')
 
   path_abs_path = os.path.abspath(path)
   root_abs_path = os.path.abspath(root_path)
