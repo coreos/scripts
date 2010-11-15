@@ -218,9 +218,28 @@ fi
 if [ -n "${FLAGS_subfolder}" ] && \
    [ -f "${OMAHA_DIR}"/miniomaha.conf"" ] ; then
   # Remove the ']' from the last line of the file so we can add another config.
-  sed -i '$d' ${OMAHA_DIR}/miniomaha.conf
+  while  [ -s "${OMAHA_DIR}/miniomaha.conf" ]; do
+    # If the last line is null
+    if [ -z "$(tail -1 "${OMAHA_DIR}/miniomaha.conf")" ]; then
+      sed -i '$d' "${OMAHA_DIR}/miniomaha.conf"
+    elif [ "$(tail -1 "${OMAHA_DIR}/miniomaha.conf")" != ']' ]; then
+      sed -i '$d' "${OMAHA_DIR}/miniomaha.conf"
+    else
+      break
+    fi
+  done
+
+  # Remove the last ]
+  if [ "$(tail -1 "${OMAHA_DIR}/miniomaha.conf")" = ']' ]; then
+    sed -i '$d' "${OMAHA_DIR}/miniomaha.conf"
+  fi
+
+  # If the file is empty, create it from scratch
+  if [ ! -s "${OMAHA_DIR}/miniomaha.conf" ]; then
+    echo "config = [" > "${OMAHA_DIR}/miniomaha.conf"
+  fi
 else
-  echo -e "config = [" > ${OMAHA_DIR}/miniomaha.conf
+  echo "config = [" > "${OMAHA_DIR}/miniomaha.conf"
 fi
 
 if [ -n "${FLAGS_subfolder}" ] ; then
