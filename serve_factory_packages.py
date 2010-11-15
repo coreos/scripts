@@ -37,7 +37,7 @@ FLAGS = gflags.FLAGS
 gflags.DEFINE_string('board', None, 'Platform to build.')
 gflags.DEFINE_string('base_image', None, 'Path to base image.')
 gflags.DEFINE_string('firmware_updater', None, 'Path to firmware updater.')
-
+gflags.DEFINE_boolean('start_devserver', False, 'Start devserver.')
 
 class KillableProcess():
   """A killable process.
@@ -77,7 +77,7 @@ class KillableProcess():
 
 def start_devserver():
   """Starts devserver."""
-  cmd = 'python devserver.py'
+  cmd = 'python devserver.py --factory_config miniomaha.conf'
   print 'Running command: %s' % cmd
   devserver_process = KillableProcess(cmd, cwd=DEVSERVER_DIR)
   devserver_process.start(wait=False)
@@ -174,7 +174,8 @@ def main(argv):
                          FLAGS.firmware_updater,
                          folder=FLAGS.board, board=FLAGS.board)
 
-  start_devserver()
+  if FLAGS.start_devserver:
+    start_devserver()
 
 
 if __name__ == '__main__':

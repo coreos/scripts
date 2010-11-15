@@ -139,8 +139,10 @@ if [ ${FLAGS_most_recent} -eq ${FLAGS_TRUE} ] ; then
   FLAGS_from="$(./get_latest_image.sh --board="${FLAGS_board}")"
 fi
 
-# Turn path into an absolute path.
+# Turn paths into absolute paths.
 FLAGS_from=`eval readlink -f ${FLAGS_from}`
+FLAGS_rootfs_mountpt=`eval readlink -f ${FLAGS_rootfs_mountpt}`
+FLAGS_stateful_mountpt=`eval readlink -f ${FLAGS_stateful_mountpt}`
 
 # Perform desired operation.
 if [ ${FLAGS_unmount} -eq ${FLAGS_TRUE} ] ; then

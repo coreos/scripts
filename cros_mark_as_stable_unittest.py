@@ -125,7 +125,7 @@ class EBuildTest(mox.MoxTestBase):
   def testParseEBuildPathNoRevisionNumber(self):
     # Test with ebuild without revision number.
     no_rev, no_version, revision = cros_mark_as_stable._EBuild._ParseEBuildPath(
-        '/path/test_package-0.0.1.ebuild')
+        '/path/test_package-9999.ebuild')
     self.assertEquals(no_rev, '/path/test_package-0.0.1')
     self.assertEquals(no_version, '/path/test_package')
     self.assertEquals(revision, 0)
@@ -139,6 +139,7 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     self.mox.StubOutWithMock(cros_mark_as_stable, 'RunCommand')
     self.mox.StubOutWithMock(os, 'unlink')
     self.m_ebuild = self.mox.CreateMock(cros_mark_as_stable._EBuild)
+    self.m_ebuild.is_stable = True
     self.m_ebuild.package = 'test_package'
     self.m_ebuild.current_revision = 1
     self.m_ebuild.ebuild_path_no_revision = '/path/test_package-0.0.1'
@@ -281,13 +282,13 @@ class BuildEBuildDictionaryTest(mox.MoxTestBase):
     self.package_path = self.root + '/test_package-0.0.1.ebuild'
     paths = [[self.root, [], []]]
     cros_mark_as_stable.os.walk("/overlay").AndReturn(paths)
-    self.mox.StubOutWithMock(cros_mark_as_stable, '_FindStableEBuilds')
+    self.mox.StubOutWithMock(cros_mark_as_stable, '_FindUprevCandidates')
 
 
   def testWantedPackage(self):
     overlays = {"/overlay": []}
     package = _Package(self.package)
-    cros_mark_as_stable._FindStableEBuilds([]).AndReturn(package)
+    cros_mark_as_stable._FindUprevCandidates([]).AndReturn(package)
     self.mox.ReplayAll()
     cros_mark_as_stable._BuildEBuildDictionary(overlays, False, [self.package])
     self.mox.VerifyAll()
@@ -297,7 +298,7 @@ class BuildEBuildDictionaryTest(mox.MoxTestBase):
   def testUnwantedPackage(self):
     overlays = {"/overlay": []}
     package = _Package(self.package)
-    cros_mark_as_stable._FindStableEBuilds([]).AndReturn(package)
+    cros_mark_as_stable._FindUprevCandidates([]).AndReturn(package)
     self.mox.ReplayAll()
     cros_mark_as_stable._BuildEBuildDictionary(overlays, False, [])
     self.assertEquals(len(overlays), 1)

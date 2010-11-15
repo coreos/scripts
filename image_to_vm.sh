@@ -37,7 +37,7 @@ DEFINE_integer rootfs_partition_size 1024 \
   "rootfs parition size in MBs."
 DEFINE_string state_image "" \
   "Stateful partition image (defaults to creating new statful partition)"
-DEFINE_integer statefulfs_size -1 \
+DEFINE_integer statefulfs_size 2048 \
   "Stateful partition size in MBs."
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
   "Copies normal image to chromiumos_test_image.bin, modifies it for test."
@@ -285,6 +285,6 @@ fi
 if [ "${FLAGS_format}" == "qemu" ]; then
   echo "If you have qemu-kvm installed, you can start the image by:"
   echo "sudo kvm -m ${FLAGS_mem} -vga std -pidfile /tmp/kvm.pid -net nic,model=e1000 " \
-       "-net user,hostfwd=tcp::922-:22 \\"
+       "-net user,hostfwd=tcp::9222-:22 \\"
   echo "        -hda ${FLAGS_to}/${DEFAULT_QEMU_IMAGE}"
 fi

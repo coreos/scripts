@@ -92,8 +92,8 @@ def UpdateLocalFile(filename, value, key='PORTAGE_BINHOST'):
     # Strip newlines from end of line. We already add newlines below.
     line = line.rstrip("\n")
 
-    if '=' not in line:
-      # Skip any line without an equal in it and just write it out.
+    if len(line.split('=')) != 2:
+      # Skip any line that doesn't fit key=val.
       file_lines.append(line)
       continue
 

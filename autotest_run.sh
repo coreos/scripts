@@ -37,6 +37,11 @@ CONFIG_SITE=/usr/share/config.site
 
 function setup_ssh() {
   eval $(ssh-agent) > /dev/null
+  # TODO(jrbarnette):  This is a temporary hack, slated for removal
+  # before it was ever created.  It's a bug, and you should fix it
+  # right away!
+  chmod 400 \
+    ${CHROMEOS_ROOT}/src/scripts/mod_for_test_scripts/ssh_keys/testing_rsa
   ssh-add \
     ${CHROMEOS_ROOT}/src/scripts/mod_for_test_scripts/ssh_keys/testing_rsa
 }

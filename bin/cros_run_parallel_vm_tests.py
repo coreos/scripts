@@ -27,7 +27,8 @@ class ParallelTestRunner(object):
   """
 
   def __init__(self, tests, base_ssh_port=_DEFAULT_BASE_SSH_PORT, board=None,
-               image_path=None, order_output=False, results_dir_root=None):
+               image_path=None, order_output=False, results_dir_root=None,
+               use_emerged=False):
     """Constructs and initializes the test runner class.
 
     Args:
@@ -50,6 +51,7 @@ class ParallelTestRunner(object):
     self._image_path = image_path
     self._order_output = order_output
     self._results_dir_root = results_dir_root
+    self._use_emerged = use_emerged
 
   def _SpawnTests(self):
     """Spawns VMs and starts the test runs on them.
@@ -64,10 +66,6 @@ class ParallelTestRunner(object):
     """
     ssh_port = self._base_ssh_port
     spawned_tests = []
-    # Test runs shouldn't need anything from stdin. However, it seems that
-    # running with stdin leaves the terminal in a bad state so redirect from
-    # /dev/null.
-    dev_null = open('/dev/null')
     for test in self._tests:
       args = [ os.path.join(os.path.dirname(__file__), 'cros_run_vm_test'),
                '--snapshot',  # The image is shared so don't modify it.
@@ -79,13 +77,13 @@ class ParallelTestRunner(object):
       if self._results_dir_root:
         args.append('--results_dir_root=%s/%s.%d' %
                     (self._results_dir_root, test, ssh_port))
+      if self._use_emerged: args.append('--use_emerged')
       Info('Running %r...' % args)
       output = None
       if self._order_output:
         output = tempfile.NamedTemporaryFile(prefix='parallel_vm_test_')
         Info('Piping output to %s.' % output.name)
-      proc = subprocess.Popen(args, stdin=dev_null, stdout=output,
-                              stderr=output)
+      proc = subprocess.Popen(args, stdout=output, stderr=output)
       test_info = { 'test': test,
                     'proc': proc,
                     'output': output }
@@ -147,6 +145,8 @@ def main():
   parser.add_option('--results_dir_root',
                     help='Root results directory. If none specified, each test '
                     'will store its results in a separate /tmp directory.')
+  parser.add_option('--use_emerged', action='store_true', default=False,
+                    help='Force use of emerged autotest packages')
   (options, args) = parser.parse_args()
 
   if not args:
@@ -155,7 +155,7 @@ def main():
 
   runner = ParallelTestRunner(args, options.base_ssh_port, options.board,
                               options.image_path, options.order_output,
-                              options.results_dir_root)
+                              options.results_dir_root, options.use_emerged)
   runner.Run()
 
 

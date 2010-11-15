@@ -1,0 +1,116 @@
+#!/usr/bin/python
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+"""A command to display summary statistics from runs of 'bootperf'.
+
+Command line options allow selecting from one of two sets of
+performance statistics:  The boot time statistics (selected by
+--timestats) measure time spent from kernel startup in milliseconds.
+The disk statistics (selected by --diskstats) measure total bytes
+read from the boot device since kernel startup.
+
+Boot time statistics are recorded as cumulative time (or disk read)
+since kernel startup, measured when specific events occur during
+boot.  Events include such things as 'startup', the moment when the
+upstart 'startup' job begins running, and 'login', when the
+Chrome OS login screen is displayed.  By default, all recorded events
+are included in the output; command line options allow restricting
+the view to a selected subset of events.
+
+Separate command line options allow selecting from one of two
+different display modes.  When --averages is selected, the display
+shows the average value and sample standard deviation (as a percent
+of the average) for all selected events.  The --averages display also
+calculates the time (or bytes) between adjacent events, and shows
+the avearage and sample standard deviation of the differences.
+
+The --rawdata display shows the raw data value associated with each
+event for each boot:  Each line of output represents the event values
+for one boot cycle.
+
+"""
+
+import sys
+import optparse
+
+import perfprinter
+
+
+_usage = "%prog [options] [results-directory ...]"
+_description = """\
+Summarize boot time performance results.  The result directory
+arguments are directories previously specified as output for the
+'bootperf' script.
+"""
+optparser = optparse.OptionParser(usage=_usage, description=_description)
+
+optgroup = optparse.OptionGroup(
+    optparser, "Selecting boot time or disk statistics (choose one)")
+optgroup.add_option(
+    "-d", "--diskstats", action="store_true",
+    dest="use_diskstats",
+    help="use statistics for bytes read since kernel startup")
+optgroup.add_option(
+    "-t", "--timestats", action="store_true",
+    dest="use_timestats",
+    help="use statistics for time since kernel startup (default)")
+optparser.add_option_group(optgroup)
+optparser.set_defaults(use_diskstats=False)
+optparser.set_defaults(use_timestats=False)
+
+optgroup = optparse.OptionGroup(optparser, "Event selection")
+optgroup.add_option(
+    "-e", "--event", action="append",
+    dest="eventnames",
+    help="restrict statistics to the comma-separated list of events")
+optparser.add_option_group(optgroup)
+
+optgroup = optparse.OptionGroup(
+    optparser, "Display mode selection (choose one)")
+optgroup.add_option(
+    "-a", "--averages", action="store_true",
+    dest="print_averages",
+    help="display a summary of the averages of chosen statistics (default)")
+optgroup.add_option(
+    "-r", "--rawdata", action="store_true",
+    dest="print_raw",
+    help="display raw data from all boot iterations")
+optparser.add_option_group(optgroup)
+optparser.set_defaults(print_averages=False)
+optparser.set_defaults(print_raw=False)
+
+
+def main(argv):
+  (options, args) = optparser.parse_args(argv)
+  if options.print_averages and options.print_raw:
+    print >>sys.stderr, "Can't use -a and -r together.\n"
+    optparser.print_help()
+    sys.exit(1)
+  elif options.print_raw:
+    printfunc = perfprinter.PrintRawData
+  else:
+    printfunc = perfprinter.PrintStatisticsSummary
+  if options.use_timestats and options.use_diskstats:
+    print >>sys.stderr, "Can't use -t and -d together.\n"
+    optparser.print_help()
+    sys.exit(1)
+  elif options.use_diskstats:
+    use_timestats = False
+  else:
+    use_timestats = True
+  if options.eventnames:
+    keylist = []
+    for kl in options.eventnames:
+      keylist.extend(kl.split(','))
+  else:
+    keylist = None
+  printfunc(args, use_timestats, keylist)
+
+if __name__ == "__main__":
+  if len(sys.argv) > 1:
+    main(sys.argv[1:])
+  else:
+    main(["."])

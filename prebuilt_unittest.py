@@ -17,7 +17,9 @@ class TestUpdateFile(unittest.TestCase):
     self.contents_str = ['# comment that should be skipped',
                          'PKGDIR="/var/lib/portage/pkgs"',
                          'PORTAGE_BINHOST="http://no.thanks.com"',
-                         'portage portage-20100310.tar.bz2']
+                         'portage portage-20100310.tar.bz2',
+                         'COMPILE_FLAGS="some_value=some_other"',
+                         ]
     temp_fd, self.version_file = tempfile.mkstemp()
     os.write(temp_fd, '\n'.join(self.contents_str))
     os.close(temp_fd)

@@ -27,7 +27,7 @@ get_default_board
 
 DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built" b
 DEFINE_integer statefulfs_sectors 4096 \
-  "Number of sectors to use for the stateful filesystem"
+  "Number of sectors to use for the stateful filesystem when minimizing"
 # Skips the build steps and just does the kernel swap.
 DEFINE_string kernel_image "" \
     "Path to a pre-built recovery kernel"
@@ -42,6 +42,12 @@ DEFINE_boolean kernel_image_only $FLAGS_FALSE \
     "Emit the recovery kernel image only"
 DEFINE_boolean sync_keys $FLAGS_TRUE \
     "Update the kernel to be installed with the vblock from stateful"
+DEFINE_boolean minimize_image $FLAGS_TRUE \
+    "Decides if the original image is used or a minimal recovery image is \
+created."
+DEFINE_boolean modify_in_place $FLAGS_FALSE \
+    "Modifies the source image in place. This cannot be used with \
+--minimize_image."
 DEFINE_integer jobs -1 \
     "How many packages to build in parallel at maximum." j
 DEFINE_string build_root "/build" \
@@ -50,6 +56,9 @@ DEFINE_string build_root "/build" \
 DEFINE_string rootfs_hash "/tmp/rootfs.hash" \
   "Path where the rootfs hash should be stored."
 
+DEFINE_boolean verbose $FLAGS_FALSE \
+    "Log all commands to stdout." v
+
 # Keep in sync with build_image.
 DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
   "Directory containing the signing keys."
@@ -57,6 +66,17 @@ DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
+
+if [ $FLAGS_verbose -eq $FLAGS_FALSE ]; then
+  exec 2>/dev/null
+  # Redirecting to stdout instead of stderr since
+  # we silence  stderr above.
+  die() {
+    echo -e "${V_BOLD_RED}ERROR  : $1${V_VIDOFF}"
+    exit 1
+  }
+fi
+set -x  # Make debugging with -v easy.
 
 EMERGE_CMD="emerge"
 EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
@@ -178,10 +198,11 @@ create_recovery_kernel_image() {
   local kern_tmp=$(mktemp)
   local kern_hash=
 
-  dd if="$FLAGS_image" bs=512 count=$kern_size skip=$kern_offset of="$kern_tmp"
+  dd if="$FLAGS_image" bs=512 count=$kern_size \
+     skip=$kern_offset of="$kern_tmp" 1>&2
   # We're going to use the real signing block.
   if [ $FLAGS_sync_keys -eq $FLAGS_TRUE ]; then
-    dd if="$INSTALL_VBLOCK" of="$kern_tmp" conv=notrunc
+    dd if="$INSTALL_VBLOCK" of="$kern_tmp" conv=notrunc 1>&2
   fi
   local kern_hash=$(sha1sum "$kern_tmp" | cut -f1 -d' ')
   rm "$kern_tmp"
@@ -200,7 +221,7 @@ create_recovery_kernel_image() {
     --root=${cros_root} \
     --keys_dir="${FLAGS_keys_dir}" \
     --nouse_dev_keys \
-    ${verity_args}
+    ${verity_args} 1>&2
   sudo rm "$FLAGS_rootfs_hash"
   sudo losetup -d "$root_dev"
   trap - RETURN
@@ -236,6 +257,13 @@ install_recovery_kernel() {
   local kern_a_size=$(partsize "$RECOVERY_IMAGE" 2)
   local kern_b_offset=$(partoffset "$RECOVERY_IMAGE" 4)
   local kern_b_size=$(partsize "$RECOVERY_IMAGE" 4)
+
+  if [ $kern_b_size -eq 1 ]; then
+    echo "Image was created with no KERN-B partition reserved!" 1>&2
+    echo "Cannot proceed." 1>&2
+    return 1
+  fi
+
   # Backup original kernel to KERN-B
   dd if="$RECOVERY_IMAGE" of="$RECOVERY_IMAGE" bs=512 \
      count=$kern_a_size \
@@ -277,14 +305,22 @@ install_recovery_kernel() {
 }
 
 maybe_resize_stateful() {
+  # If we're not minimizing, then just copy and go.
+  if [ $FLAGS_minimize_image -eq $FLAGS_FALSE ]; then
+    if [ "$FLAGS_image" != "$RECOVERY_IMAGE" ]; then
+      cp "$FLAGS_image" "$RECOVERY_IMAGE"
+    fi
+    return 0
+  fi
+
   # Rebuild the image with a 1 sector stateful partition
   local err=0
   local small_stateful=$(mktemp)
   dd if=/dev/zero of="$small_stateful" bs=512 \
-    count=${FLAGS_statefulfs_sectors}
+    count=${FLAGS_statefulfs_sectors} 1>&2
   trap "rm $small_stateful" RETURN
   # Don't bother with ext3 for such a small image.
-  /sbin/mkfs.ext2 -F -b 4096 "$small_stateful"
+  /sbin/mkfs.ext2 -F -b 4096 "$small_stateful" 1>&2
 
   # If it exists, we need to copy the vblock over to stateful
   # This is the real vblock and not the recovery vblock.
@@ -301,14 +337,20 @@ maybe_resize_stateful() {
   # Create a recovery image of the right size
   # TODO(wad) Make the developer script case create a custom GPT with
   # just the kernel image and stateful.
-  update_partition_table "$FLAGS_image" "$small_stateful" 4096 "$RECOVERY_IMAGE"
+  update_partition_table "$FLAGS_image" "$small_stateful" 4096 \
+                         "$RECOVERY_IMAGE" 1>&2
   return $err
 }
 
-# main process begins here.
+cleanup() {
+  set +e
+  if [ "$FLAGS_image" != "$RECOVERY_IMAGE" ]; then
+    rm "$RECOVERY_IMAGE"
+  fi
+  rm "$INSTALL_VBLOCK"
+}
 
-# Make sure this is really what the user wants, before nuking the device
-echo "Creating recovery image ${FLAGS_to} from ${FLAGS_image} . . . "
+# main process begins here.
 
 set -e
 set -u
@@ -335,6 +377,15 @@ if [ $FLAGS_kernel_image_only -eq $FLAGS_TRUE -a \
   die "Cannot use --kernel_image_only with --kernel_image"
 fi
 
+if [ $FLAGS_modify_in_place -eq $FLAGS_TRUE ]; then
+  if [ $FLAGS_minimize_image -eq $FLAGS_TRUE ]; then
+    die "Cannot use --modify_in_place and --minimize_image together."
+  fi
+  RECOVERY_IMAGE="${FLAGS_image}"
+fi
+
+echo "Creating recovery image from ${FLAGS_image}"
+
 INSTALL_VBLOCK=$(get_install_vblock)
 if [ -z "$INSTALL_VBLOCK" ]; then
   die "Could not copy the vblock from stateful."
@@ -343,10 +394,10 @@ fi
 if [ -z "$FLAGS_kernel_image" ]; then
   emerge_recovery_kernel
   create_recovery_kernel_image
+  echo "Recovery kernel created at $RECOVERY_KERNEL_IMAGE"
 else
   RECOVERY_KERNEL_IMAGE="$FLAGS_kernel_image"
 fi
-echo "Kernel emitted: $RECOVERY_KERNEL_IMAGE."
 
 if [ $FLAGS_kernel_image_only -eq $FLAGS_TRUE ]; then
   echo "Kernel emitted. Stopping there."
@@ -354,13 +405,16 @@ if [ $FLAGS_kernel_image_only -eq $FLAGS_TRUE ]; then
   exit 0
 fi
 
-rm "$RECOVERY_IMAGE" || true  # Start fresh :)
+if [ $FLAGS_modify_in_place -eq $FLAGS_FALSE ]; then
+  rm "$RECOVERY_IMAGE" || true  # Start fresh :)
+fi
 
-trap "rm \"$RECOVERY_IMAGE\" && rm \"$INSTALL_VBLOCK\"" EXIT
+trap cleanup EXIT
 
-maybe_resize_stateful  # Also copies the image
+maybe_resize_stateful  # Also copies the image if needed.
 
 install_recovery_kernel
 
+echo "Recovery image created at $RECOVERY_IMAGE"
 print_time_elapsed
 trap - EXIT
