@@ -23,7 +23,7 @@ function remote_cp_to() {
 # Copies a list of remote files specified in file $1 to local location
 # $2.  Directory paths in $1 are collapsed into $2.
 function remote_rsync_from() {
-  rsync -e "ssh -o StrictHostKeyChecking=no -o \
+  rsync -e "ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no -o \
             UserKnownHostsFile=$TMP_KNOWN_HOSTS" --no-R \
     --files-from=$1 root@${FLAGS_remote}:/ $2
 }

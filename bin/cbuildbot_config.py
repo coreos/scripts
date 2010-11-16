@@ -19,9 +19,9 @@ hostname -- Needed for 'important' slaves.  The hostname of the bot.  Should
             match hostname in slaves.cfg in buildbot checkout.
 unittests -- Runs unittests for packages.
 smoke_bvt -- Runs the test smoke suite in a qemu-based VM using KVM.
-overlays -- If this bot is a master bot, select what overlays to push changes
-            to. This can be 'public', 'private', or 'both'. There should only
-            be one bot pushing changes to each overlay.
+overlays -- Select what overlays to look at. This can be 'public', 'private'
+            or 'both'. There should only be one master bot pushing changes to
+            each overlay per branch.
 """
 
 
@@ -33,6 +33,7 @@ config['default'] = {
   'important' : False,
   'unittests' : False,
   'smoke_bvt' : False,
+  'overlays': 'public',
 }
 config['x86-generic-pre-flight-queue'] = {
   'board' : 'x86-generic',
@@ -69,6 +70,7 @@ config['x86_agz_bin'] = {
   'important' : False,
   'unittests' : True,
   'smoke_bvt' : True,
+  'overlays': 'private',
 }
 config['x86_dogfood_bin'] = {
   'board' : 'x86-dogfood',
@@ -77,52 +79,29 @@ config['x86_dogfood_bin'] = {
   'important' : False,
   'unittests' : True,
   'smoke_bvt' : True,
+  'overlays': 'private',
 }
 config['x86_pineview_bin'] = {
   'board' : 'x86-pineview',
   'uprev' : True,
   'master' : False,
   'important' : False,
-  'hostname' : 'codf200.jail',
   'unittests': True,
+  'overlays': 'public',
 }
 config['arm_tegra2_bin'] = {
   'board' : 'tegra2',
   'uprev' : True,
   'master' : False,
   'important' : False,
-  'hostname' : 'codg172.jail',
   'unittests' : False,
-}
-config['arm_voguev210_bin'] = {
-  'board' : 'voguev210',
-  'uprev' : True,
-  'master' : False,
-  'important' : False,
-  'hostname' : 'codf196.jail',
-  'unittests' : False,
-}
-config['arm_beagleboard_bin'] = {
-  'board' : 'beagleboard',
-  'master' : False,
-  'uprev' : True,
-  'important' : False,
-  'hostname' : 'codf202.jail',
-  'unittests' : False,
-}
-config['arm_st1q_bin'] = {
-  'board' : 'st1q',
-  'uprev' : True,
-  'master' : False,
-  'important' : False,
-  'hostname' : 'codg158.jail',
-  'unittests' : False,
+  'overlays': 'public',
 }
 config['arm_generic_bin'] = {
   'board' : 'arm-generic',
   'uprev' : True,
   'master' : False,
   'important' : False,
-  'hostname' : 'codg175.jail',
   'unittests' : False,
+  'overlays': 'public',
 }
