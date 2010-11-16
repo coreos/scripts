@@ -146,6 +146,7 @@ def FindRepoDir(path=None):
   """
   if path is None:
     path = os.getcwd()
+  path = os.path.abspath(path)
   while path != '/':
     repo_dir = os.path.join(path, '.repo')
     if os.path.isdir(repo_dir):
