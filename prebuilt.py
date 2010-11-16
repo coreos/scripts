@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 
 from chromite.lib import cros_build_lib
 """
@@ -129,13 +130,14 @@ def RevGitPushWithRetry(retries=5):
     Raises:
       GitPushFailed if push was unsuccessful after retries
   """
-  for retry in range(retries+1):
+  for retry in range(1, retries+1):
     try:
       cros_build_lib.RunCommand('repo sync .', shell=True)
       cros_build_lib.RunCommand('git push', shell=True)
       break
     except cros_build_lib.RunCommandError:
       print 'Error pushing changes trying again (%s/%s)' % (retry, retries)
+      time.sleep(5*retry)
   else:
     raise GitPushFailed('Failed to push change after %s retries' % retries)
 
