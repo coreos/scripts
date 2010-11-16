@@ -248,7 +248,8 @@ def _SimpleRunCommand(command):
   stdout = proc_handle.communicate()[0]
   retcode = proc_handle.wait()
   if retcode != 0:
-    raise subprocess.CalledProcessError(retcode, command, output=stdout)
+    _Print(stdout)
+    raise subprocess.CalledProcessError(retcode, command)
   return stdout
 
 
