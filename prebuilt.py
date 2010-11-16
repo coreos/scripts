@@ -73,6 +73,9 @@ class UnknownBoardFormat(Exception):
   """Raised when a function finds an unknown board format."""
   pass
 
+class GitPushFailed(Exception):
+  """Raised when a git push failed after retry."""
+
 
 def UpdateLocalFile(filename, value, key='PORTAGE_BINHOST'):
   """Update the key in file with the value passed.
@@ -117,21 +120,41 @@ def UpdateLocalFile(filename, value, key='PORTAGE_BINHOST'):
   new_file_fh.close()
 
 
-def RevGitFile(filename, value):
+def RevGitPushWithRetry(retries=5):
+  """Repo sync and then push git changes in flight.
+
+    Args:
+      retries: The number of times to retry before giving up, default: 5
+
+    Raises:
+      GitPushFailed if push was unsuccessful after retries
+  """
+  for retry in range(retries+1):
+    try:
+      cros_build_lib.RunCommand('repo sync .', shell=True)
+      cros_build_lib.RunCommand('git push', shell=True)
+      break
+    except cros_build_lib.RunCommandError:
+      print 'Error pushing changes trying again (%s/%s)' % (retry, retries)
+  else:
+    raise GitPushFailed('Failed to push change after %s retries' % retries) 
+
+
+def RevGitFile(filename, value, retries=5):
   """Update and push the git file.
 
-  Args:
-    filename: file to modify that is in a git repo already
-    key: board or host package type e.g. x86-dogfood
-    value: string representing the version of the prebuilt that has been
-      uploaded.
+    Args:
+      filename: file to modify that is in a git repo already
+      value: string representing the version of the prebuilt that has been
+        uploaded.
+      retries: The number of times to retry before giving up, default: 5
   """
   prebuilt_branch = 'prebuilt_branch'
   old_cwd = os.getcwd()
   os.chdir(os.path.dirname(filename))
 
-  cros_build_lib.RunCommand('repo sync', shell=True)
-  cros_build_lib.RunCommand('repo start %s  .' % prebuilt_branch, shell=True)
+  cros_build_lib.RunCommand('repo sync .', shell=True)
+  cros_build_lib.RunCommand('repo start %s .' % prebuilt_branch, shell=True)
   git_ssh_config_cmd = (
     'git config url.ssh://git@gitrw.chromium.org:9222.pushinsteadof '
     'http://git.chromium.org/git')
@@ -142,8 +165,7 @@ def RevGitFile(filename, value):
     UpdateLocalFile(filename, value)
     cros_build_lib.RunCommand('git config push.default tracking', shell=True)
     cros_build_lib.RunCommand('git commit -am "%s"' % description, shell=True)
-    cros_build_lib.RunCommand('repo sync', shell=True)
-    cros_build_lib.RunCommand('git push', shell=True)
+    RevGitPushWithRetry(retries)
   finally:
     cros_build_lib.RunCommand('repo abandon %s .' % prebuilt_branch, shell=True)
     os.chdir(old_cwd)
@@ -381,7 +403,7 @@ def DetermineMakeConfFile(target):
 
 
 def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
-                   board=None, git_sync=False):
+                   board=None, git_sync=False, git_sync_retries=5):
   """Upload Host prebuilt files to Google Storage space.
 
   Args:
@@ -391,6 +413,9 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
       host packages.
     git_sync: If set, update make.conf of target to reference the latest
       prebuilt packages genereated here.
+    git_sync_retries: How many times to retry pushing when updating git files.
+      This helps avoid failures when multiple bots are modifying the same Repo.
+      default: 5
   """
 
   if not board:
@@ -426,7 +451,7 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
 
   if git_sync:
     url_value = '%s/%s/' % (binhost_base_url, url_suffix)
-    RevGitFile(git_file, url_value)
+    RevGitFile(git_file, url_value, retries=git_sync_retries)
 
 
 def usage(parser, msg):
