@@ -667,9 +667,10 @@ class DepGraphGenerator(object):
       return {}
 
     def retry_urlopen(url, tries=3):
-      """Open the specified url, retrying if we run into network errors.
+      """Open the specified url, retrying if we run into temporary errors.
 
-      We do not retry for HTTP errors.
+      We retry for both network errors and 5xx Server Errors. We do not retry
+      for HTTP errors with a non-5xx code.
 
       Args:
         url: The specified url.
@@ -682,12 +683,17 @@ class DepGraphGenerator(object):
         try:
           return urllib2.urlopen(url)
         except urllib2.HTTPError as e:
-          raise
-        except urllib2.URLError as e:
-          if i + 1 == tries:
+          if i + 1 >= tries or e.code < 500:
             raise
           else:
-            print "Cannot GET %s: %s" % (url, e)
+            print "Cannot GET %s: %s" % (url, str(e))
+        except urllib2.URLError as e:
+          if i + 1 >= tries:
+            raise
+          else:
+            print "Cannot GET %s: %s" % (url, str(e))
+        print "Sleeping for 10 seconds before retrying..."
+        time.sleep(10)
 
     url = os.path.join(binhost_url, "Packages")
     try:
