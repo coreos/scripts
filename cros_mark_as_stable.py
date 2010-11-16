@@ -496,7 +496,7 @@ def main(argv):
   if gflags.FLAGS.overlays:
     overlays = {}
     for path in gflags.FLAGS.overlays.split(':'):
-      if not os.path.isdir(path):
+      if command != 'clean' and not os.path.isdir(path):
         Die('Cannot find overlay: %s' % path)
       overlays[path] = []
   else:
