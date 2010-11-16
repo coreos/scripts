@@ -137,7 +137,7 @@ def RevGitPushWithRetry(retries=5):
     except cros_build_lib.RunCommandError:
       print 'Error pushing changes trying again (%s/%s)' % (retry, retries)
   else:
-    raise GitPushFailed('Failed to push change after %s retries' % retries) 
+    raise GitPushFailed('Failed to push change after %s retries' % retries)
 
 
 def RevGitFile(filename, value, retries=5):
