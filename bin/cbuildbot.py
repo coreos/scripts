@@ -484,10 +484,6 @@ def _ResolveOverlays(buildroot, overlays):
     paths = [public_overlay, private_overlay]
   else:
     Die('Incorrect overlay configuration: %s' % overlays)
-  for path in paths:
-    assert ':' not in path, 'Overlay must not contain colons: %s' % path
-    if not os.path.isdir(path):
-      Die('Missing overlay: %s' % path)
   return paths
 
 
@@ -535,6 +531,12 @@ def main():
       _FullCheckout(buildroot, tracking_branch, url=options.url)
     else:
       _IncrementalCheckout(buildroot)
+
+    # Check that all overlays can be found.
+    for path in overlays:
+      assert ':' not in path, 'Overlay must not contain colons: %s' % path
+      if not os.path.isdir(path):
+        Die('Missing overlay: %s' % path)
 
     chroot_path = os.path.join(buildroot, 'chroot')
     if not os.path.isdir(chroot_path):
