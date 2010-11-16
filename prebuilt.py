@@ -136,8 +136,9 @@ def RevGitPushWithRetry(retries=5):
       cros_build_lib.RunCommand('git push', shell=True)
       break
     except cros_build_lib.RunCommandError:
-      print 'Error pushing changes trying again (%s/%s)' % (retry, retries)
-      time.sleep(5*retry)
+      if retry < retries:
+        print 'Error pushing changes trying again (%s/%s)' % (retry, retries)
+        time.sleep(5*retry)
   else:
     raise GitPushFailed('Failed to push change after %s retries' % retries)
 
