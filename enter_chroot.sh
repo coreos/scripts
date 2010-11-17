@@ -278,6 +278,11 @@ setup_env
 # Use git:8 chars of sha1
 REVISION=$(cd ${FLAGS_trunk}/src/scripts ; git rev-parse --short=8 HEAD)
 CHROOT_PASSTHRU="CHROMEOS_REVISION=$REVISION BUILDBOT_BUILD=$FLAGS_build_number CHROMEOS_OFFICIAL=$CHROMEOS_OFFICIAL"
+
+# Adding OEM AU APPID to CHROOT_PASSTHRU
+CHROOT_PASSTHRU="CHROMEOS_RELEASE_APPID=${CHROMEOS_RELEASE_APPID:-"{DEV-BUILD}"}\
+    ${CHROOT_PASSTHRU}"
+
 if [ -d "$HOME/.subversion" ]; then
   # Bind mounting .subversion into chroot
   info "mounting ~/.subversion into chroot"
