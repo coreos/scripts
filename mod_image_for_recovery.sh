@@ -284,6 +284,10 @@ install_recovery_kernel() {
      count=$kern_a_size \
      conv=notrunc
 
+  # Set the 'Success' flag to 1 (to prevent the firmware from updating
+  # the 'Tries' flag).
+  sudo $GPT add -i 2 -S 1 "$RECOVERY_IMAGE"
+
   # Repeat for the legacy bioses.
   # Replace vmlinuz.A with the recovery version
   local sysroot="${FLAGS_build_root}/${FLAGS_board}"
