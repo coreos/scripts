@@ -20,6 +20,8 @@ DEFINE_string board "$DEFAULT_BOARD" \
   "The board for which the image was built." b
 DEFINE_boolean read_only $FLAGS_FALSE \
   "Mount in read only mode -- skips stateful items."
+DEFINE_boolean safe $FLAGS_FALSE \
+  "Mount rootfs in read only mode."
 DEFINE_boolean unmount $FLAGS_FALSE \
   "Unmount previously mounted dir." u
 DEFINE_string from "/dev/sdc" \
@@ -64,9 +66,12 @@ function unmount_image() {
 
 function get_usb_partitions() {
   local ro_flag=""
+  local safe_flag=""
   [ ${FLAGS_read_only} -eq ${FLAGS_TRUE} ] && ro_flag="-o ro"
+  [ ${FLAGS_read_only} -eq ${FLAGS_TRUE} -o \
+    ${FLAGS_safe} -eq ${FLAGS_TRUE} ] && safe_flag="-o ro -t ext2"
 
-  sudo mount ${ro_flag} "${FLAGS_from}3" "${FLAGS_rootfs_mountpt}"
+  sudo mount ${safe_flag} "${FLAGS_from}3" "${FLAGS_rootfs_mountpt}"
   sudo mount ${ro_flag} "${FLAGS_from}1" "${FLAGS_stateful_mountpt}"
   if [[ -n "${FLAGS_esp_mountpt}" ]]; then
     sudo mount ${ro_flag} "${FLAGS_from}12" "${FLAGS_esp_mountpt}"
@@ -79,8 +84,15 @@ function get_gpt_partitions() {
   # Mount the rootfs partition using a loopback device.
   local offset=$(partoffset "${FLAGS_from}/${filename}" 3)
   local ro_flag=""
+  local safe_flag=""
+
   if [ ${FLAGS_read_only} -eq ${FLAGS_TRUE} ]; then
     ro_flag="-o ro"
+  fi
+
+  if [ ${FLAGS_read_only} -eq ${FLAGS_TRUE} -o \
+       ${FLAGS_safe} -eq ${FLAGS_TRUE} ]; then
+    safe_flag="-o ro -t ext2"
   else
     # Make sure any callers can actually mount and modify the fs
     # if desired.
@@ -88,7 +100,7 @@ function get_gpt_partitions() {
     enable_rw_mount "${FLAGS_from}/${filename}" "$(( offset * 512 ))"
   fi
 
-  sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
+  sudo mount ${safe_flag} -o loop,offset=$(( offset * 512 )) \
     "${FLAGS_from}/${filename}" "${FLAGS_rootfs_mountpt}"
 
   # Mount the stateful partition using a loopback device.
