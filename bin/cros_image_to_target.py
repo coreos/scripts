@@ -33,7 +33,7 @@ DEFAULT_IMAGE_NAME = 'chromiumos_image.bin'
 
 # The filenames we provide to clients to pull updates
 UPDATE_FILENAME = 'update.gz'
-STATEFUL_FILENAME = 'stateful.image.gz'
+STATEFUL_FILENAME = 'stateful.tgz'
 
 # How long do we wait for the server to start before launching client
 SERVER_STARTUP_WAIT = 1
@@ -192,23 +192,16 @@ class CrosEnv(object):
 
     return True
 
-  def BuildStateful(self, src, dst):
+  def BuildStateful(self, src, dst_dir, dst_file):
     """Create a stateful partition update image."""
 
-    if self.GetCached(src, dst):
-      self.Info('Using cached stateful %s' % dst)
+    if self.GetCached(src, dst_file):
+      self.Info('Using cached stateful %s' % dst_file)
       return True
 
-    cgpt = self.ChrootPath('/usr/bin/cgpt')
-    offset = self.cmd.OutputOneLine(cgpt, 'show', '-b', '-i', '1', src)
-    size = self.cmd.OutputOneLine(cgpt, 'show', '-s', '-i', '1', src)
-    if None in (size, offset):
-      self.Error('Unable to use cgpt to get image geometry')
-      return False
-
-    return self.cmd.RunPipe([['dd', 'if=%s' % src, 'bs=512',
-                              'skip=%s' % offset, 'count=%s' % size],
-                             ['gzip', '-c']], outfile=dst)
+    return self.cmd.Run(self.CrosUtilsPath(
+        'cros_generate_stateful_update_payload'),
+        '--image=%s' % src, '--output=%s' % dst_dir)
 
   def GetSize(self, filename):
     return os.path.getsize(filename)
@@ -614,7 +607,7 @@ def main(argv):
   stateful_file = os.path.join(image_directory, STATEFUL_FILENAME)
 
   if (not cros_env.GenerateUpdatePayload(image_file, update_file) or
-      not cros_env.BuildStateful(image_file, stateful_file)):
+      not cros_env.BuildStateful(image_file, image_directory, stateful_file)):
     cros_env.Fatal()
 
   cros_env.CreateServer(options.port, update_file, stateful_file)
