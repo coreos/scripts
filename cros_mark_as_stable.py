@@ -250,7 +250,7 @@ def PushChange(stable_branch, tracking_branch):
   for push_try in range(num_retries + 1):
     try:
       _SimpleRunCommand('git remote update')
-      merge_branch = GitBranch(merge_branch_name)
+      merge_branch = GitBranch(merge_branch_name, gflags.FLAGS.tracking_branch)
       merge_branch.CreateBranch()
       if not merge_branch.Exists():
         Die('Unable to create merge branch.')
