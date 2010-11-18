@@ -22,7 +22,7 @@ patch -d ${ROOT_FS_DIR} -Np1 <<EOF
 EOF
 
 patch -d ${ROOT_FS_DIR} -Np1 <<EOF
-diff -Naur old/etc/init/dump-boot-stats.conf new/etc/init/dump-boot-stats.conf
+diff -Naur old/etc/init/boot-complete.conf new/etc/init/boot-complete.conf
 --- old/etc/init/boot-complete.conf	2010-07-21 11:22:30.000000000 +0800
 +++ new/etc/init/boot-complete.conf	2010-07-21 22:13:36.000000000 +0800
 @@ -7,7 +7,7 @@
@@ -30,7 +30,7 @@ diff -Naur old/etc/init/dump-boot-stats.conf new/etc/init/dump-boot-stats.conf
  # Primarily, this means calculating boot time statistics.
  
 -start on login-prompt-ready
-+start on stopping startup
++start on started udev
  
  task
 EOF
@@ -43,7 +43,7 @@ cat > ${ROOT_FS_DIR}/etc/init/factory.conf <<EOF
 description   "Chrome OS factory startup stub"
 author        "chromium-os-dev@googlegroups.com"
 
-start on started udev
+start on stopped udev-addon
 stop on starting halt or starting reboot
 
 script
