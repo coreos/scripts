@@ -215,6 +215,7 @@ def _PushChange():
   Raises:
       OSError: Error occurred while pushing.
   """
+  num_retries = 5
 
   # TODO(sosa) - Add logic for buildbot to check whether other slaves have
   # completed and push this change only if they have.
@@ -229,16 +230,25 @@ def _PushChange():
                             gflags.FLAGS.tracking_branch + '..')
   description = 'Marking set of ebuilds as stable\n\n%s' % description
   merge_branch_name = 'merge_branch'
-  _SimpleRunCommand('git remote update')
-  merge_branch = _GitBranch(merge_branch_name)
-  merge_branch.CreateBranch()
-  if not merge_branch.Exists():
-    Die('Unable to create merge branch.')
-  _SimpleRunCommand('git merge --squash %s' % _STABLE_BRANCH_NAME)
-  _SimpleRunCommand('git commit -m "%s"' % description)
-  # Ugh. There has got to be an easier way to push to a tracking branch
-  _SimpleRunCommand('git config push.default tracking')
-  _SimpleRunCommand('git push')
+  for push_try in range(num_retries + 1):
+    try:
+      _SimpleRunCommand('git remote update')
+      merge_branch = _GitBranch(merge_branch_name)
+      merge_branch.CreateBranch()
+      if not merge_branch.Exists():
+        Die('Unable to create merge branch.')
+      _SimpleRunCommand('git merge --squash %s' % _STABLE_BRANCH_NAME)
+      _SimpleRunCommand('git commit -m "%s"' % description)
+      # Ugh. There has got to be an easier way to push to a tracking branch
+      _SimpleRunCommand('git config push.default tracking')
+      _SimpleRunCommand('git push')
+      break
+    except:
+      if push_try < num_retries:
+        Warning('Failed to push change, performing retry (%s/%s)' % (
+            push_try + 1, num_retries))
+      else:
+        raise
 
 
 def _SimpleRunCommand(command):
