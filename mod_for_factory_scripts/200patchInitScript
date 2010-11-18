@@ -6,8 +6,8 @@
 
 echo "Applying patch to init scripts."
 
-touch ${ROOT_FS_DIR}/root/.factory_test
-patch -d ${ROOT_FS_DIR} -Np1 <<EOF
+touch "${ROOT_FS_DIR}/root/.factory_test"
+patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
 --- old/etc/init/ui.conf	2010-04-28 21:28:38.886069000 -0700
 +++ new/etc/init/ui.conf	2010-04-28 21:29:42.676163000 -0700
 @@ -5,7 +5,7 @@
@@ -21,7 +21,7 @@ patch -d ${ROOT_FS_DIR} -Np1 <<EOF
  respawn
 EOF
 
-patch -d ${ROOT_FS_DIR} -Np1 <<EOF
+patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
 diff -Naur old/etc/init/boot-complete.conf new/etc/init/boot-complete.conf
 --- old/etc/init/boot-complete.conf	2010-07-21 11:22:30.000000000 +0800
 +++ new/etc/init/boot-complete.conf	2010-07-21 22:13:36.000000000 +0800
@@ -35,7 +35,7 @@ diff -Naur old/etc/init/boot-complete.conf new/etc/init/boot-complete.conf
  task
 EOF
 
-cat > ${ROOT_FS_DIR}/etc/init/factory.conf <<EOF
+cat >"${ROOT_FS_DIR}/etc/init/factory.conf" <<EOF
 # Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
@@ -49,18 +49,18 @@ stop on starting halt or starting reboot
 script
 cd /usr/local/autotest
 eval \$(./site_tests/suite_Factory/startx.sh)
-date >> /var/log/factory.log
+date >>/var/log/factory.log
 if [ ! -e factory_started ]; then
   touch factory_started
   cp -f site_tests/suite_Factory/control .
-  ./bin/autotest control >> /var/log/factory.log 2>&1
+  ./bin/autotest control >>/var/log/factory.log 2>&1
 else
-  ./tools/autotest >> /var/log/factory.log 2>&1
+  ./tools/autotest >>/var/log/factory.log 2>&1
 fi
 end script
 EOF
 
-cat > ${ROOT_FS_DIR}/etc/init/factorylog.conf <<EOF
+cat >"${ROOT_FS_DIR}/etc/init/factorylog.conf" <<EOF
 # Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
@@ -70,11 +70,11 @@ stop on starting halt or starting reboot
 
 respawn
 script
-tail -n 48 -F /var/log/factory.log > /dev/tty3
+tail -n 48 -F /var/log/factory.log >/dev/tty3
 end script
 EOF
 
-patch -d ${ROOT_FS_DIR} -Np1 <<EOF
+patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
 diff -Nau old/etc/init/chrontel.conf new/etc/init/
 --- old/etc/init/chrontel.conf	2010-08-05 16:32:55.000000000 -0700
 +++ new/etc/init/chrontel.conf	2010-08-05 16:32:45.000000000 -0700

@@ -6,17 +6,19 @@
 
 TEST_DIR="${ROOT_FS_DIR}/usr/local/autotest/site_tests/suite_Factory"
 
-pushd ${TEST_DIR} 1> /dev/null
+if [ -d "${TEST_DIR}" ]; then
+  pushd "${TEST_DIR}" >/dev/null
 
-# If there is a customize_$BOARD script for this board, let's run it.
-# This allows adding settings for specific factories or systems.
-CUSTOMIZE="customize_${BOARD}"
-if [ -e "${CUSTOMIZE}" ]; then
-  echo "Running ${CUSTOMIZE}"
-  "./${CUSTOMIZE}"
+  # If there is a customize_$BOARD script for this board, let's run it.
+  # This allows adding settings for specific factories or systems.
+  CUSTOMIZE="customize_${BOARD}"
+  if [ -e "${CUSTOMIZE}" ]; then
+    echo "Running ${CUSTOMIZE}"
+    "./${CUSTOMIZE}"
+  fi
+
+  # We don't need the customize script anymore.
+  rm -f customize_*
+
+  popd >/dev/null
 fi
-
-# We don't need the customize script anymore.
-rm -f customize_*
-
-popd 1> /dev/null
