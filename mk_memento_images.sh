@@ -28,13 +28,13 @@ if [ "$CROS_GENERATE_UPDATE_PAYLOAD_CALLED" != "1" ]; then
   echo " Please run that script with --help to see how to use it."
 fi
 
-if ! has_command pigz; then
+if ! image_has_command pigz; then
   (echo "WARNING:"
    echo " Your system does not have pigz (parallel gzip) installed."
    echo " COMPRESSING WILL BE VERY SLOW. It is recommended to install pigz"
-   if has_command apt-get; then
+   if image_has_command apt-get; then
      echo " by 'sudo apt-get install pigz'."
-   elif has_command emerge; then
+   elif image_has_command emerge; then
      echo  " by 'sudo emerge pigz'."
    fi) >&2
 fi
@@ -58,14 +58,14 @@ else
   # chromiumos_img kern_part_no rootfs_part_no
   KPART="$1"
   ROOT_PART="$1"
-  KPART_OFFSET="$(part_offset "$KPART" "$2")" ||
-    err_die "cannot retieve kernel partition offset"
-  KPART_SECTORS="$(part_size "$KPART" "$2")" ||
-    err_die "cannot retieve kernel partition size"
-  ROOT_OFFSET="$(part_offset "$ROOT_PART" "$3")" ||
-    err_die "cannot retieve root partition offset"
-  ROOT_SECTORS="$(part_size "$ROOT_PART" "$3")" ||
-    err_die "cannot retieve root partition size"
+  KPART_OFFSET="$(image_part_offset "$KPART" "$2")" ||
+    image_die "cannot retieve kernel partition offset"
+  KPART_SECTORS="$(image_part_size "$KPART" "$2")" ||
+    image_die "cannot retieve kernel partition size"
+  ROOT_OFFSET="$(image_part_offset "$ROOT_PART" "$3")" ||
+    image_die "cannot retieve root partition offset"
+  ROOT_SECTORS="$(image_part_size "$ROOT_PART" "$3")" ||
+    image_die "cannot retieve root partition size"
   KPART_SIZE=$((KPART_SECTORS * 512))
 fi
 
@@ -91,10 +91,10 @@ KPART_SIZE_SIGNATURE="$(printf "%016x" "$KPART_SIZE" |
 CS_AND_RET_CODES="$(
   (echo -en "$KPART_SIZE_SIGNATURE"
     echo "Compressing kernel..." >&2
-    dump_partial_file "$KPART" "$KPART_OFFSET" "$KPART_SECTORS"
+    image_dump_partial_file "$KPART" "$KPART_OFFSET" "$KPART_SECTORS"
     echo "Compressing rootfs..." >&2
-    dump_partial_file "$ROOT_PART" "$ROOT_OFFSET" "$ROOT_SECTORS") |
-  gzip_compress -9 -c |
+    image_dump_partial_file "$ROOT_PART" "$ROOT_OFFSET" "$ROOT_SECTORS") |
+  image_gzip_compress -c -9 |
   tee "$FINAL_OUT_FILE" |
   openssl sha1 -binary |
   openssl base64 |
