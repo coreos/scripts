@@ -144,6 +144,7 @@ install_autotest() {
       --exclude=site_tests/platform_StackProtector \
       --exclude=deps/chrome_test \
       --exclude=site_tests/desktopui_BrowserTest \
+      --exclude=site_tests/desktopui_PageCyclerTests \
       --exclude=site_tests/desktopui_UITest \
       --exclude=.svn \
       ${AUTOTEST_SRC}/client/* "${stateful_root}/${autotest_client}"
