@@ -6,15 +6,44 @@
 
 """Unit tests for cros_mark_as_stable.py."""
 
-
+import fileinput
 import mox
 import os
 import sys
 import unittest
 
-# Required to include '.' in the python path.
-sys.path.append(os.path.dirname(__file__))
 import cros_mark_as_stable
+
+class NonClassTests(mox.MoxTestBase):
+  def setUp(self):
+    mox.MoxTestBase.setUp(self)
+    self.mox.StubOutWithMock(cros_mark_as_stable, '_SimpleRunCommand')
+    self._branch = 'test_branch'
+    self._tracking_branch = 'cros/test'
+
+  def testPushChange(self):
+    git_log = 'Marking test_one as stable\nMarking test_two as stable\n'
+    fake_description = 'Marking set of ebuilds as stable\n\n%s' % git_log
+    self.mox.StubOutWithMock(cros_mark_as_stable, '_CheckOnStabilizingBranch')
+    self.mox.StubOutWithMock(cros_mark_as_stable.GitBranch, 'CreateBranch')
+    self.mox.StubOutWithMock(cros_mark_as_stable.GitBranch, 'Exists')
+
+    cros_mark_as_stable._CheckOnStabilizingBranch(self._branch).AndReturn(True)
+    cros_mark_as_stable.GitBranch.CreateBranch()
+    cros_mark_as_stable.GitBranch.Exists().AndReturn(True)
+    cros_mark_as_stable._SimpleRunCommand('git log --format=format:%s%n%n%b ' +
+                          self._tracking_branch + '..').AndReturn(git_log)
+    cros_mark_as_stable._SimpleRunCommand('git remote update')
+    cros_mark_as_stable._SimpleRunCommand('git merge --squash %s' %
+                                          self._branch)
+    cros_mark_as_stable._SimpleRunCommand('git commit -m "%s"' %
+                                          fake_description)
+    cros_mark_as_stable._SimpleRunCommand('git config push.default tracking')
+    cros_mark_as_stable._SimpleRunCommand('git push')
+    self.mox.ReplayAll()
+    cros_mark_as_stable.PushChange(self._branch, self._tracking_branch)
+    self.mox.VerifyAll()
+
 
 class GitBranchTest(mox.MoxTestBase):
 
@@ -23,10 +52,11 @@ class GitBranchTest(mox.MoxTestBase):
     # Always stub RunCommmand out as we use it in every method.
     self.mox.StubOutWithMock(cros_mark_as_stable, '_SimpleRunCommand')
     self._branch = 'test_branch'
+    self._tracking_branch = 'cros/test'
 
   def testCreateBranchNoPrevious(self):
     # Test init with no previous branch existing.
-    branch = cros_mark_as_stable._GitBranch(self._branch)
+    branch = cros_mark_as_stable.GitBranch(self._branch, self._tracking_branch)
     self.mox.StubOutWithMock(branch, 'Exists')
     self.mox.StubOutWithMock(branch, '_Checkout')
     branch.Exists().AndReturn(False)
@@ -37,7 +67,7 @@ class GitBranchTest(mox.MoxTestBase):
 
   def testCreateBranchWithPrevious(self):
     # Test init with previous branch existing.
-    branch = cros_mark_as_stable._GitBranch(self._branch)
+    branch = cros_mark_as_stable.GitBranch(self._branch, self._tracking_branch)
     self.mox.StubOutWithMock(branch, 'Exists')
     self.mox.StubOutWithMock(branch, 'Delete')
     self.mox.StubOutWithMock(branch, '_Checkout')
@@ -51,35 +81,36 @@ class GitBranchTest(mox.MoxTestBase):
   def testCheckoutCreate(self):
     # Test init with no previous branch existing.
     cros_mark_as_stable._SimpleRunCommand(
-        'git checkout -b %s cros/master' % self._branch)
+        'git checkout -b %s %s' % (self._branch, self._tracking_branch))
     self.mox.ReplayAll()
-    branch = cros_mark_as_stable._GitBranch(self._branch)
+    branch = cros_mark_as_stable.GitBranch(self._branch, self._tracking_branch)
     branch._Checkout(self._branch)
     self.mox.VerifyAll()
 
   def testCheckoutNoCreate(self):
     # Test init with previous branch existing.
-    cros_mark_as_stable._SimpleRunCommand('git checkout cros/master')
+    cros_mark_as_stable._SimpleRunCommand('git checkout %s' % (
+        self._tracking_branch))
     self.mox.ReplayAll()
-    branch = cros_mark_as_stable._GitBranch(self._branch)
-    branch._Checkout('cros/master', False)
+    branch = cros_mark_as_stable.GitBranch(self._branch, self._tracking_branch)
+    branch._Checkout(self._tracking_branch, False)
     self.mox.VerifyAll()
 
   def testDelete(self):
-    branch = cros_mark_as_stable._GitBranch(self._branch)
+    branch = cros_mark_as_stable.GitBranch(self._branch, self._tracking_branch)
     self.mox.StubOutWithMock(branch, '_Checkout')
-    branch._Checkout('cros/master', create=False)
+    branch._Checkout(self._tracking_branch, create=False)
     cros_mark_as_stable._SimpleRunCommand('git branch -D ' + self._branch)
     self.mox.ReplayAll()
     branch.Delete()
     self.mox.VerifyAll()
 
   def testExists(self):
-    branch = cros_mark_as_stable._GitBranch(self._branch)
+    branch = cros_mark_as_stable.GitBranch(self._branch, self._tracking_branch)
 
     # Test if branch exists that is created
     cros_mark_as_stable._SimpleRunCommand('git branch').AndReturn(
-        '%s %s' % (self._branch, 'cros/master'))
+        '%s %s' % (self._branch, self._tracking_branch))
     self.mox.ReplayAll()
     self.assertTrue(branch.Exists())
     self.mox.VerifyAll()
@@ -90,45 +121,34 @@ class EBuildTest(mox.MoxTestBase):
   def setUp(self):
     mox.MoxTestBase.setUp(self)
 
-  def testInit(self):
-    self.mox.StubOutWithMock(cros_mark_as_stable._EBuild, '_ParseEBuildPath')
-
-    ebuild_path = '/overlay/cat/test_package/test_package-0.0.1-r1.ebuild'
-    cros_mark_as_stable._EBuild._ParseEBuildPath(
-        ebuild_path).AndReturn(['/overlay/cat/test_package-0.0.1',
-                                '/overlay/cat/test_package',
-                                1])
-    self.mox.StubOutWithMock(cros_mark_as_stable.fileinput, 'input')
-    mock_file = ['EAPI=2', 'CROS_WORKON_COMMIT=old_id',
-                 'KEYWORDS=\"~x86 ~arm\"', 'src_unpack(){}']
-    cros_mark_as_stable.fileinput.input(ebuild_path).AndReturn(mock_file)
-
-    self.mox.ReplayAll()
-    ebuild = cros_mark_as_stable._EBuild(ebuild_path)
-    self.mox.VerifyAll()
-    self.assertEquals(ebuild.package, 'cat/test_package')
-    self.assertEquals(ebuild.ebuild_path, ebuild_path)
-    self.assertEquals(ebuild.ebuild_path_no_revision,
-                      '/overlay/cat/test_package-0.0.1')
-    self.assertEquals(ebuild.ebuild_path_no_version,
-                      '/overlay/cat/test_package')
-    self.assertEquals(ebuild.current_revision, 1)
-
   def testParseEBuildPath(self):
     # Test with ebuild with revision number.
-    no_rev, no_version, revision = cros_mark_as_stable._EBuild._ParseEBuildPath(
-        '/path/test_package-0.0.1-r1.ebuild')
-    self.assertEquals(no_rev, '/path/test_package-0.0.1')
-    self.assertEquals(no_version, '/path/test_package')
-    self.assertEquals(revision, 1)
+    fake_ebuild_path = '/path/to/test_package/test_package-0.0.1-r1.ebuild'
+    self.mox.StubOutWithMock(fileinput, 'input')
+    fileinput.input(fake_ebuild_path).AndReturn('')
+    self.mox.ReplayAll()
+    fake_ebuild = cros_mark_as_stable.EBuild(fake_ebuild_path)
+    self.mox.VerifyAll()
+    self.assertEquals(fake_ebuild.ebuild_path_no_revision,
+                      '/path/to/test_package/test_package-0.0.1')
+    self.assertEquals(fake_ebuild.ebuild_path_no_version,
+                      '/path/to/test_package/test_package')
+    self.assertEquals(fake_ebuild.current_revision, 1)
 
   def testParseEBuildPathNoRevisionNumber(self):
     # Test with ebuild without revision number.
-    no_rev, no_version, revision = cros_mark_as_stable._EBuild._ParseEBuildPath(
-        '/path/test_package-9999.ebuild')
-    self.assertEquals(no_rev, '/path/test_package-0.0.1')
-    self.assertEquals(no_version, '/path/test_package')
-    self.assertEquals(revision, 0)
+    fake_ebuild_path = '/path/to/test_package/test_package-9999.ebuild'
+    self.mox.StubOutWithMock(fileinput, 'input')
+    fileinput.input(fake_ebuild_path).AndReturn('')
+    self.mox.ReplayAll()
+    fake_ebuild = cros_mark_as_stable.EBuild(fake_ebuild_path)
+    self.mox.VerifyAll()
+
+    self.assertEquals(fake_ebuild.ebuild_path_no_revision,
+                      '/path/to/test_package/test_package-9999')
+    self.assertEquals(fake_ebuild.ebuild_path_no_version,
+                      '/path/to/test_package/test_package')
+    self.assertEquals(fake_ebuild.current_revision, 0)
 
 
 class EBuildStableMarkerTest(mox.MoxTestBase):
@@ -138,7 +158,7 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     self.mox.StubOutWithMock(cros_mark_as_stable, '_SimpleRunCommand')
     self.mox.StubOutWithMock(cros_mark_as_stable, 'RunCommand')
     self.mox.StubOutWithMock(os, 'unlink')
-    self.m_ebuild = self.mox.CreateMock(cros_mark_as_stable._EBuild)
+    self.m_ebuild = self.mox.CreateMock(cros_mark_as_stable.EBuild)
     self.m_ebuild.is_stable = True
     self.m_ebuild.package = 'test_package'
     self.m_ebuild.current_revision = 1
@@ -147,7 +167,7 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     self.m_ebuild.ebuild_path = '/path/test_package-0.0.1-r1.ebuild'
     self.revved_ebuild_path = '/path/test_package-0.0.1-r2.ebuild'
 
-  def testRevEBuild(self):
+  def testRevWorkOnEBuild(self):
     self.mox.StubOutWithMock(cros_mark_as_stable.fileinput, 'input')
     self.mox.StubOutWithMock(cros_mark_as_stable.os.path, 'exists')
     self.mox.StubOutWithMock(cros_mark_as_stable.shutil, 'copyfile')
@@ -177,7 +197,7 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
 
     self.mox.ReplayAll()
     marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
-    marker.RevEBuild('my_id', redirect_file=m_file)
+    marker.RevWorkOnEBuild('my_id', redirect_file=m_file)
     self.mox.VerifyAll()
 
   def testRevUnchangedEBuild(self):
@@ -209,7 +229,7 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
 
     self.mox.ReplayAll()
     marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
-    marker.RevEBuild('my_id', redirect_file=m_file)
+    marker.RevWorkOnEBuild('my_id', redirect_file=m_file)
     self.mox.VerifyAll()
 
   def testRevMissingEBuild(self):
@@ -226,7 +246,7 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
 
     ebuild_9999 = self.m_ebuild.ebuild_path_no_version + '-9999.ebuild'
     cros_mark_as_stable.os.path.exists(ebuild_9999).AndReturn(False)
-    cros_mark_as_stable.Die("Missing 9999 ebuild: %s" % ebuild_9999)
+    cros_mark_as_stable.Die("Missing unstable ebuild: %s" % ebuild_9999)
     cros_mark_as_stable.shutil.copyfile(ebuild_9999, self.revved_ebuild_path)
     cros_mark_as_stable.fileinput.input(self.revved_ebuild_path,
                                         inplace=1).AndReturn(mock_file)
@@ -244,7 +264,7 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
 
     self.mox.ReplayAll()
     marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
-    marker.RevEBuild('my_id', redirect_file=m_file)
+    marker.RevWorkOnEBuild('my_id', redirect_file=m_file)
     self.mox.VerifyAll()
 
 
@@ -256,14 +276,6 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
     marker.CommitChange(mock_message)
     self.mox.VerifyAll()
-
-  def testPushChange(self):
-    #cros_mark_as_stable._SimpleRunCommand('git push')
-    #self.mox.ReplayAll()
-    #marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
-    #marker.PushChange()
-    #self.mox.VerifyAll()
-    pass
 
 
 class _Package(object):
