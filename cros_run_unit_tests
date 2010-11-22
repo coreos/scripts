@@ -58,7 +58,14 @@ set -e
 [ -z "${FLAGS_board}" ] && die "--board required"
 
 # Create package list from package file and list of packages.
-[ -n "${FLAGS_package_file}" ] && PACKAGE_LIST="$(cat ${FLAGS_package_file})"
+if [ -n "${FLAGS_package_file}" ]; then
+  if [ -f "${FLAGS_package_file}" ]; then
+    PACKAGE_LIST="$(cat ${FLAGS_package_file})"
+  else
+    warn "Missing package file."
+  fi
+fi
+
 [ -n "${FLAGS_packages}" ] && PACKAGE_LIST="${PACKAGE_LIST} ${FLAGS_packages}"
 
 # If we didn't specify packages, find all packages.
@@ -74,7 +81,8 @@ for package in ${PACKAGE_LIST}; do
     warn "Skipping package ${package} since it is blacklisted."
     continue
   fi
-  EBUILD_PATH=$( equery-${FLAGS_board} which ${package} 2> /dev/null )
+  EBUILD_PATH=$( equery-${FLAGS_board} which ${package} 2> /dev/null ) || \
+    warn "${package} not found"
   if [ -n "${EBUILD_PATH}" ]; then
     if check_src_test "${EBUILD_PATH}"; then
       run_unit_test "${EBUILD_PATH}" || record_test_failure "${package}"
