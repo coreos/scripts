@@ -22,6 +22,8 @@ gflags.DEFINE_boolean('all', False,
                       'Mark all packages as stable.')
 gflags.DEFINE_string('board', '',
                      'Board for which the package belongs.', short_name='b')
+gflags.DEFINE_string('drop_file', None,
+                     'File to list packages that were revved.')
 gflags.DEFINE_boolean('dryrun', False,
                      'Passes dry-run to git push if pushing a change.')
 gflags.DEFINE_string('overlays', '',
@@ -569,6 +571,10 @@ def main(argv):
 
       if revved_packages:
         _CleanStalePackages(gflags.FLAGS.board, revved_packages)
+        if gflags.FLAGS.drop_file:
+          fh = open(gflags.FLAGS.drop_file, 'w')
+          fh.write(' '.join(revved_packages))
+          fh.close()
       else:
         work_branch.Delete()
 

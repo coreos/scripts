@@ -19,6 +19,8 @@ DEFINE_string board "${DEFAULT_BOARD}" \
   "Target board of which tests were built"
 DEFINE_string build_root "${DEFAULT_BUILD_ROOT}" \
   "Root of build output"
+DEFINE_string package_file "" \
+  "File with space-separated list of packages to run unit tests" f
 DEFINE_string packages "" \
   "Optional space-separated list of packages to run unit tests" p
 
@@ -55,11 +57,12 @@ set -e
 
 [ -z "${FLAGS_board}" ] && die "--board required"
 
-# If no packages are specified we run all unit tests for chromeos-base
-# packages.
-if [ -n "${FLAGS_packages}" ]; then
-  PACKAGE_LIST="${FLAGS_packages}"
-else
+# Create package list from package file and list of packages.
+[ -n "${FLAGS_package_file}" ] && PACKAGE_LIST="$(cat ${FLAGS_package_file})"
+[ -n "${FLAGS_packages}" ] && PACKAGE_LIST="${PACKAGE_LIST} ${FLAGS_packages}"
+
+# If we didn't specify packages, find all packages.
+if [ -z "${FLAGS_package_file}" -a -z "${FLAGS_packages}" ]; then
   PACKAGE_LIST=$( ./get_package_list chromeos --board="${FLAGS_board}" |
                   egrep '^chromeos-base' )
 fi

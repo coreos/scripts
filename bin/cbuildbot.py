@@ -22,6 +22,7 @@ from cros_build_lib import (Die, Info, ReinterpretPathForChroot, RunCommand,
                             Warning)
 
 _DEFAULT_RETRIES = 3
+_PACKAGE_FILE = '%(buildroot)s/src/scripts/cbuildbot_package.list'
 ARCHIVE_BASE = '/var/www/archive'
 ARCHIVE_COUNT = 10
 
@@ -202,6 +203,8 @@ def _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board,
               '--tracking_branch=%s' % tracking_branch,
               '--overlays=%s' % ':'.join(chroot_overlays),
               '--packages=%s' % ':'.join(packages),
+              '--drop_file=%s' % ReinterpretPathForChroot(_PACKAGE_FILE %
+                  {'buildroot': buildroot}),
               'commit'],
              cwd=cwd, enter_chroot=True)
 
@@ -213,7 +216,10 @@ def _UprevAllPackages(buildroot, tracking_branch, board, overlays):
   RunCommand(['./cros_mark_as_stable', '--all',
               '--board=%s' % board,
               '--overlays=%s' % ':'.join(chroot_overlays),
-              '--tracking_branch=%s' % tracking_branch, 'commit'],
+              '--tracking_branch=%s' % tracking_branch,
+              '--drop_file=%s' % ReinterpretPathForChroot(_PACKAGE_FILE %
+                  {'buildroot': buildroot}),
+              'commit'],
               cwd=cwd, enter_chroot=True)
 
 
@@ -333,7 +339,10 @@ def _BuildVMImageForTesting(buildroot):
 
 def _RunUnitTests(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./cros_run_unit_tests'], cwd=cwd, enter_chroot=True)
+  RunCommand(['./cros_run_unit_tests',
+              '--package_file=%s' % ReinterpretPathForChroot(_PACKAGE_FILE %
+                  {'buildroot': buildroot}),
+             ], cwd=cwd, enter_chroot=True)
 
 
 def _RunSmokeSuite(buildroot, results_dir):
