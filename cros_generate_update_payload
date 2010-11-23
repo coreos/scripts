@@ -26,7 +26,6 @@ STATE_LOOP_DEV=""
 # Pass an arg to not exit 1 at the end
 cleanup() {
   set +e
-  echo "Cleaning up"
   if [ -n "$SRC_MNT" ]; then
     sudo umount -d "$SRC_MNT"
     [ -d "$SRC_MNT" ] && rmdir "$SRC_MNT"
@@ -74,13 +73,16 @@ extract_partition_to_temp_file() {
   else
     warn "partition offset or length not at 2MiB boundary"
   fi
-  dd if="$filename" of="$temp_file" bs=$bs count="$length" skip="$offset"
+  dd if="$filename" of="$temp_file" bs=$bs count="$length" \
+      skip="$offset" 2>/dev/null
 }
 
 patch_kernel() {
   local IMAGE="$1"
   local KERN_FILE="$2"
 
+  echo "Patching kernel" $KERN_FILE
+  echo "   into" $IMAGE
   STATE_LOOP_DEV=$(sudo losetup -f)
   [ -n "$STATE_LOOP_DEV" ] || die "no free loop device"
   local offset=$(partoffset "${IMAGE}" 1)
@@ -88,7 +90,7 @@ patch_kernel() {
   sudo losetup -o "$offset" "$STATE_LOOP_DEV" "$IMAGE"
   STATE_MNT=$(mktemp -d /tmp/state.XXXXXX)
   sudo mount --read-only "$STATE_LOOP_DEV" "$STATE_MNT"
-  dd if="$STATE_MNT"/vmlinuz_hd.vblock of="$KERN_FILE" conv=notrunc
+  dd if="$STATE_MNT"/vmlinuz_hd.vblock of="$KERN_FILE" conv=notrunc 2>/dev/null
   sudo umount "$STATE_MNT"
   STATE_MNT=""
   sudo losetup -d "$STATE_LOOP_DEV"
@@ -163,11 +165,6 @@ DELTA=$FLAGS_TRUE
 
 if [ -z "$FLAGS_src_image" ]; then
   DELTA=$FLAGS_FALSE
-  if [ "$FLAGS_old_style" = "$FLAGS_TRUE" ]; then
-    echo "Generating an old-style full update"
-  else
-    echo "Generating a new-style full update"
-  fi
 fi
 
 if [ "$DELTA" -eq "$FLAGS_TRUE" -o "$FLAGS_old_style" -eq "$FLAGS_FALSE" ]; then
@@ -227,7 +224,7 @@ if [ "$DELTA" -eq "$FLAGS_TRUE" -o "$FLAGS_old_style" -eq "$FLAGS_FALSE" ]; then
     echo "Done generating new style full update."
   fi
 else
-  echo "Generating full update"
+  echo "Generating old-style full update"
 
   trap cleanup INT TERM EXIT
   DST_KERNEL=$(extract_partition_to_temp_file "$FLAGS_image" 2)
