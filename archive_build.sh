@@ -234,7 +234,6 @@ echo "$LAST_CHANGE" > "${FLAGS_to}/LATEST"
 # Make sure files are readable
 chmod 644 "$ZIPFILE" "${FLAGS_to}/LATEST"
 chmod 755 "$OUTDIR"
-cp -f  "${FLAGS_from}/au-generator.zip" "${OUTDIR}/"
 
 
 function gsutil_archive() {
