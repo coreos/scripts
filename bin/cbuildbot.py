@@ -406,48 +406,40 @@ def _UprevPush(buildroot, tracking_branch, board, overlays):
              cwd=cwd)
 
 
-def _ArchiveTestResults(buildroot, board, archive_dir, test_results_dir):
-  """Archives the test results into the www dir for later use.
+def _ArchiveTestResults(buildroot, board, test_results_dir,
+                        gsutil, archive_dir, acl):
+  """Archives the test results into Google Storage
 
-  Takes the results from the test_results_dir and dumps them into the archive
-  dir specified.  This also archives the last qemu image.
+  Takes the results from the test_results_dir and the last qemu image and
+  uploads them to Google Storage.
 
-  board:  Board to find the qemu image.
-  archive_dir:  Path from ARCHIVE_BASE to store image.
-  test_results_dir: Path from buildroot/chroot to find test results.  This must
-    a subdir of /tmp.
+  Arguments:
+    buildroot: Root directory where build occurs
+    board: Board to find the qemu image.
+    test_results_dir: Path from buildroot/chroot to find test results.
+      This must a subdir of /tmp.
+    gsutil: Location of gsutil
+    archive_dir: Google Storage path to store the archive
+    acl: ACL to set on archive in Google Storage
   """
+  num_gsutil_retries = 5
   test_results_dir = test_results_dir.lstrip('/')
-  if not os.path.exists(ARCHIVE_BASE):
-    os.makedirs(ARCHIVE_BASE)
-  else:
-    dir_entries = os.listdir(ARCHIVE_BASE)
-    if len(dir_entries) >= ARCHIVE_COUNT:
-      oldest_dirs = heapq.nsmallest((len(dir_entries) - ARCHIVE_COUNT) + 1,
-          [os.path.join(ARCHIVE_BASE, filename) for filename in dir_entries],
-          key=lambda fn: os.stat(fn).st_mtime)
-      Info('Removing archive dirs %s' % oldest_dirs)
-      for oldest_dir in oldest_dirs:
-        shutil.rmtree(os.path.join(ARCHIVE_BASE, oldest_dir))
-
-  archive_target = os.path.join(ARCHIVE_BASE, str(archive_dir))
-  if os.path.exists(archive_target):
-    shutil.rmtree(archive_target)
-
   results_path = os.path.join(buildroot, 'chroot', test_results_dir)
   RunCommand(['sudo', 'chmod', '-R', '+r', results_path])
   try:
-    shutil.copytree(results_path, archive_target)
-  except:
-    Warning('Some files could not be copied')
+    # gsutil has the ability to resume an upload when the command is retried
+    RunCommand([gsutil, 'cp', '-R', results_path, archive_dir],
+               num_retries=num_gsutil_retries)
+    RunCommand([gsutil, 'setacl', acl, archive_dir])
 
-  image_name = 'chromiumos_qemu_image.bin'
-  image_path = os.path.join(buildroot, 'src', 'build', 'images', board,
-                            'latest', image_name)
-  RunCommand(['gzip', '-f', '--fast', image_path])
-  shutil.copyfile(image_path + '.gz', os.path.join(archive_target,
-                                                   image_name + '.gz'))
-
+    image_name = 'chromiumos_qemu_image.bin'
+    image_path = os.path.join(buildroot, 'src', 'build', 'images', board,
+                              'latest', image_name)
+    RunCommand(['gzip', '-f', '--fast', image_path])
+    RunCommand([gsutil, 'cp', image_path + '.gz', archive_dir],
+               num_retries=num_gsutil_retries)
+  except Exception, e:
+    Warning('Could not archive test results (error=%s)' % str(e))
 
 
 def _GetConfig(config_name):
@@ -517,6 +509,11 @@ def main():
   parser.add_option('-u', '--url', dest='url',
                     default='http://git.chromium.org/git/manifest',
                     help='Run the buildbot on internal manifest')
+  parser.add_option('-g', '--gsutil', default='', help='Location of gsutil')
+  parser.add_option('-c', '--gsutil_archive', default='',
+                    help='Datastore archive location')
+  parser.add_option('-a', '--acl', default='private',
+                    help='ACL to set on GSD archives')
 
   (options, args) = parser.parse_args()
 
@@ -572,9 +569,14 @@ def main():
       try:
         _RunSmokeSuite(buildroot, test_results_dir)
       finally:
-        _ArchiveTestResults(buildroot, buildconfig['board'],
-                            archive_dir=options.buildnumber,
-                            test_results_dir=test_results_dir)
+        if not options.debug:
+          archive_full_path=os.path.join(options.gsutil_archive,
+                                         str(options.buildnumber))
+          _ArchiveTestResults(buildroot, buildconfig['board'],
+                              test_results_dir=test_results_dir,
+                              gsutil=options.gsutil,
+                              archive_dir=archive_full_path,
+                              acl=options.acl)
 
     if buildconfig['uprev']:
       # Don't push changes for developers.

@@ -13,6 +13,11 @@ _STDOUT_IS_TTY = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
 
 # TODO(sosa):  Move logging to logging module.
 
+class RunCommandException(Exception):
+  """Raised when there is an error in RunCommand."""
+  pass
+
+
 def GetCallerName():
   """Returns the name of the calling module with __main__."""
   top_frame = inspect.stack()[-1][0]
@@ -21,24 +26,30 @@ def GetCallerName():
 
 def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
                exit_code=False, redirect_stdout=False, redirect_stderr=False,
-               cwd=None, input=None, enter_chroot=False):
+               cwd=None, input=None, enter_chroot=False, num_retries=0):
   """Runs a shell command.
 
-  Keyword arguments:
-    cmd - cmd to run.  Should be input to subprocess.POpen.  If a string,
+  Arguments:
+    cmd: cmd to run.  Should be input to subprocess.POpen.  If a string,
       converted to an array using split().
-    print_cmd -- prints the command before running it.
-    error_ok -- does not raise an exception on error.
-    error_message -- prints out this message when an error occurrs.
-    exit_code -- returns the return code of the shell command.
-    redirect_stdout -- returns the stdout.
-    redirect_stderr -- holds stderr output until input is communicated.
-    cwd -- the working directory to run this cmd.
-    input -- input to pipe into this command through stdin.
-    enter_chroot -- this command should be run from within the chroot.  If set,
+    print_cmd: prints the command before running it.
+    error_ok: does not raise an exception on error.
+    error_message: prints out this message when an error occurrs.
+    exit_code: returns the return code of the shell command.
+    redirect_stdout: returns the stdout.
+    redirect_stderr: holds stderr output until input is communicated.
+    cwd: the working directory to run this cmd.
+    input: input to pipe into this command through stdin.
+    enter_chroot: this command should be run from within the chroot.  If set,
       cwd must point to the scripts directory.
+    num_retries: the number of retries to perform before dying
+
+  Returns:
+    If exit_code is True, returns the return code of the shell command.
+    Else returns the output of the shell command.
+
   Raises:
-    Exception:  Raises generic exception on error with optional error_message.
+    Exception:  Raises RunCommandException on error with optional error_message.
   """
   # Set default for variables.
   stdout = None
@@ -57,21 +68,27 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
     Info('PROGRAM(%s) -> RunCommand: %r in dir %s' %
          (GetCallerName(), cmd, cwd))
 
-  try:
-    proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
-                            stdout=stdout, stderr=stderr)
-    (output, error) = proc.communicate(input)
-    if exit_code:
-      return proc.returncode
+  for retry_count in range(num_retries + 1):
+    try:
+      proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
+                              stdout=stdout, stderr=stderr)
+      (output, error) = proc.communicate(input)
+      if exit_code and retry_count == num_retries:
+        return proc.returncode
 
-    if not error_ok and proc.returncode:
-      raise Exception('Command "%r" failed.\n' % (cmd) +
-                      (error_message or error or output or ''))
-  except Exception, e:
-    if not error_ok:
-      raise
-    else:
-      Warning(str(e))
+      if proc.returncode == 0:
+        break
+
+      raise RunCommandException('Command "%r" failed.\n' % (cmd) +
+                                (error_message or error or output or ''))
+    except Exception, e:
+      if not error_ok and retry_count == num_retries:
+        raise RunCommandException(e)
+      else:
+        Warning(str(e))
+        if print_cmd:
+          Info('PROGRAM(%s) -> RunCommand: retrying %r in dir %s' %
+               (GetCallerName(), cmd, cwd))
 
   return output
 

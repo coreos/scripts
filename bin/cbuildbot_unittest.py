@@ -112,52 +112,32 @@ class CBuildBotTest(mox.MoxTestBase):
   #  self.mox.VerifyAll()
 
   def testArchiveTestResults(self):
-    """Test if we can archive the latest results dir as well as clean up."""
-    self.mox.StubOutWithMock(os.path, 'exists')
-    self.mox.StubOutWithMock(os, 'listdir')
-    self.mox.StubOutWithMock(os, 'stat')
-    self.mox.StubOutWithMock(shutil, 'rmtree')
-    self.mox.StubOutWithMock(shutil, 'copytree')
-    self.mox.StubOutWithMock(shutil, 'copyfile')
-
-    # Create mock stats so that file2 is older than file1.
-    dir_listing = ['file1', 'file2']
-    stat1 = self.mox.CreateMock(posix.stat_result)
-    stat2 = self.mox.CreateMock(posix.stat_result)
-    stat1.st_mtime = 99999
-    stat2.st_mtime = 10000
-
+    """Test if we can archive the latest results dir to Google Storage."""
     # Set vars for call.
     buildroot = '/fake_dir'
-    test_results_dir = 'fake_results_dir'
-    archive_dir = 1234
     board = 'fake-board'
-
-    # Expected calls.
-    os.path.exists(cbuildbot.ARCHIVE_BASE).AndReturn(True)
-    os.listdir(os.path.join(cbuildbot.ARCHIVE_BASE)).AndReturn(dir_listing)
-    os.stat(os.path.join(cbuildbot.ARCHIVE_BASE, 'file1')).AndReturn(stat1)
-    os.stat(os.path.join(cbuildbot.ARCHIVE_BASE, 'file2')).AndReturn(stat2)
-    # Should remove the oldest path.
-    shutil.rmtree(os.path.join(cbuildbot.ARCHIVE_BASE, 'file2'))
+    test_results_dir = 'fake_results_dir'
+    gsutil_path='/fake/gsutil/path'
+    archive_dir = 1234
+    acl = 'fake_acl'
+    num_retries = 5
 
     # Convenience variables to make archive easier to understand.
     path_to_results = os.path.join(buildroot, 'chroot', test_results_dir)
-    path_to_archive_dir = os.path.join(cbuildbot.ARCHIVE_BASE, str(archive_dir))
     path_to_image = os.path.join(buildroot, 'src', 'build', 'images', board,
                                  'latest', 'chromiumos_qemu_image.bin')
-    # Archive logic
-    os.path.exists(path_to_archive_dir).AndReturn(False)
+
     cbuildbot.RunCommand(['sudo', 'chmod', '-R', '+r', path_to_results])
-    shutil.copytree(path_to_results, path_to_archive_dir)
+    cbuildbot.RunCommand([gsutil_path, 'cp', '-R', path_to_results,
+                          archive_dir], num_retries=num_retries)
+    cbuildbot.RunCommand([gsutil_path, 'setacl', acl, archive_dir])
     cbuildbot.RunCommand(['gzip', '-f', '--fast', path_to_image])
-    shutil.copyfile(path_to_image + '.gz', os.path.join(
-        path_to_archive_dir, 'chromiumos_qemu_image.bin.gz'))
+    cbuildbot.RunCommand([gsutil_path, 'cp', path_to_image + '.gz',
+                          archive_dir], num_retries=num_retries)
 
     self.mox.ReplayAll()
-    cbuildbot.ARCHIVE_COUNT = 2 # Set equal to list size so we force clean up.
-    cbuildbot._ArchiveTestResults(buildroot, board, archive_dir,
-                                  test_results_dir)
+    cbuildbot._ArchiveTestResults(buildroot, board, test_results_dir,
+                                  gsutil_path, archive_dir, acl)
     self.mox.VerifyAll()
 
   # TODO(sosa):  Remove once we un-comment above.
