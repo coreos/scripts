@@ -7,32 +7,22 @@
 echo "Applying patch to init scripts."
 
 touch "${ROOT_FS_DIR}/root/.factory_test"
+
 patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
 --- old/etc/init/ui.conf	2010-04-28 21:28:38.886069000 -0700
 +++ new/etc/init/ui.conf	2010-04-28 21:29:42.676163000 -0700
-@@ -5,7 +5,7 @@
- description   "Chrome OS user interface"
- author        "chromium-os-dev@googlegroups.com"
- 
+@@ -11 +11 @@
 -start on stopping startup
 +start on never
- stop on starting halt or starting reboot
- 
- respawn
 EOF
 
 patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
 diff -Naur old/etc/init/boot-complete.conf new/etc/init/boot-complete.conf
 --- old/etc/init/boot-complete.conf	2010-07-21 11:22:30.000000000 +0800
 +++ new/etc/init/boot-complete.conf	2010-07-21 22:13:36.000000000 +0800
-@@ -7,7 +7,7 @@
- # Processing required during boot after login prompt is displayed.
- # Primarily, this means calculating boot time statistics.
- 
+@@ -7 +7 @@
 -start on login-prompt-ready
 +start on started udev
- 
- task
 EOF
 
 cat >"${ROOT_FS_DIR}/etc/init/factory.conf" <<EOF
@@ -78,13 +68,7 @@ patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
 diff -Nau old/etc/init/chrontel.conf new/etc/init/
 --- old/etc/init/chrontel.conf	2010-08-05 16:32:55.000000000 -0700
 +++ new/etc/init/chrontel.conf	2010-08-05 16:32:45.000000000 -0700
-@@ -7,7 +7,7 @@
- 
- # start as early as possible to allow login screen on hdmi
- # Need udev to have connected the i2c before we can use it
+@@ -7 +7 @@
 -start on started udev
 +start on never
- stop on starting halt or starting reboot
- 
- # sadly, these can't reference each other.
 EOF

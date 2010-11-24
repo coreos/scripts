@@ -11,5 +11,5 @@ SCRIPT_BASE="${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts/"
 for SCRIPT in "${SCRIPT_BASE}"[0-9][0-9][0-9]*[!$~]
 do
   echo "Apply $(basename "${SCRIPT}")..."
-  "${SCRIPT}"
+  bash -e "${SCRIPT}"
 done
