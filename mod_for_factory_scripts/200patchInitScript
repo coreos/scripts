@@ -64,7 +64,8 @@ tail -n 48 -F /var/log/factory.log >/dev/tty3
 end script
 EOF
 
-patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
+if [ -r "${ROOT_FS_DIR}/etc/init/chrontel.conf" ]; then
+  patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
 diff -Nau old/etc/init/chrontel.conf new/etc/init/
 --- old/etc/init/chrontel.conf	2010-08-05 16:32:55.000000000 -0700
 +++ new/etc/init/chrontel.conf	2010-08-05 16:32:45.000000000 -0700
@@ -72,3 +73,20 @@ diff -Nau old/etc/init/chrontel.conf new/etc/init/
 -start on started udev
 +start on never
 EOF
+fi
+
+if [ -r "${ROOT_FS_DIR}/etc/init/nvrm.conf" ]; then
+  patch -d "${ROOT_FS_DIR}" -Np1 << EOF
+--- old/etc/init/nvrm.conf	2010-11-19 14:57:16.000000000 -0800
++++ new/etc/init/nvrm.conf	2010-11-19 16:52:48.000000000 -0800
+@@ -2,7 +2,7 @@
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
+-start on starting ui
++start on starting factory
+ 
+ respawn
+ 
+EOF
+fi
