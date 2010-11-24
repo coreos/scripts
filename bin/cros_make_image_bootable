@@ -250,6 +250,24 @@ make_image_bootable() {
     -s "${FLAGS_statefulfs_mountpoint}"
 }
 
+verify_image_rootfs() {
+  local image=$1
+  local rootfs_offset="$(partoffset ${image} 3)"
+  local rootfs_size="$(partsize ${image} 3)"
+
+  local rootfs_tmp_file=$(mktemp)
+  trap "rm ${rootfs_tmp_file}" EXIT
+  sudo dd if="${image}" of="${rootfs_tmp_file}" bs=512 skip="${rootfs_offset}"
+
+  # This flips the read-only compatibility flag, so that
+  # e2fsck does not complain about unknown file system capabilities.
+  enable_rw_mount "${rootfs_tmp_file}"
+  info "Running e2fsck to check root file system for errors"
+  sudo e2fsck -fn "${rootfs_tmp_file}" ||
+    die "Root file system has errors, please ensure boot.desc and/or \
+command line parameters are correct"
+}
+
 # Use default of current image location if the output dir doesn't exist.
 if [ ! -d ${FLAGS_output_dir} ]; then
   warn "Output dir not found, using ${IMAGE_DIR}."
@@ -265,7 +283,8 @@ mkdir -p ${FLAGS_rootfs_mountpoint}
 mkdir -p ${FLAGS_statefulfs_mountpoint}
 mkdir -p ${FLAGS_espfs_mountpoint}
 
-make_image_bootable ${IMAGE}
+make_image_bootable "${IMAGE}"
+verify_image_rootfs "${IMAGE}"
 
 if [ ${FLAGS_cleanup_dirs} -eq ${FLAGS_TRUE} ]; then
   rmdir ${FLAGS_rootfs_mountpoint}
