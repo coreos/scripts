@@ -1,10 +1,20 @@
-#!/usr/bin/python2.4
+#!/usr/bin/python
 
 # Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-"""This module uprevs Chrome for cbuildbot."""
+"""This module uprevs Chrome for cbuildbot.
+
+After calling, it prints outs CHROME_VERSION_ATOM=(version atom string).  A
+caller could then use this atom with emerge to build the newly uprevved version
+of Chrome e.g.
+
+./cros_mark_chrome_as_stable tot
+Returns chrome-base/chromeos-chrome-8.0.552.0_alpha_r1
+
+emerge-x86-generic =chrome-base/chromeos-chrome-8.0.552.0_alpha_r1
+"""
 
 import optparse
 import os
@@ -31,9 +41,6 @@ _NON_STICKY_REGEX = '%s[(_rc.*)|(_alpha.*)]+' % _CHROME_VERSION_REGEX
 # Dir where all the action happens.
 _CHROME_OVERLAY_DIR = ('%(srcroot)s/third_party/chromiumos-overlay'
                        '/chromeos-base/chromeos-chrome')
-
-# Different than cros_mark so devs don't have local collisions.
-_STABLE_BRANCH_NAME = 'chrome_stabilizing_branch'
 
 _GIT_COMMIT_MESSAGE = ('Marking %(chrome_rev)s for chrome ebuild with version '
                        '%(chrome_version)s as stable.')
@@ -235,6 +242,8 @@ def MarkChromeEBuildAsStable(stable_candidate, unstable_ebuild, chrome_rev,
     chrome_version:  The \d.\d.\d.\d version of Chrome.
     commit:  Used with TIP_OF_TRUNK.  The svn revision of chrome.
     overlay_dir:  Path to the chromeos-chrome package dir.
+  Returns:
+    Full portage version atom (including rc's, etc) that was revved.
   """
   base_path = os.path.join(overlay_dir, 'chromeos-chrome-%s' % chrome_version)
   # Case where we have the last stable candidate with same version just rev.
@@ -260,44 +269,33 @@ def MarkChromeEBuildAsStable(stable_candidate, unstable_ebuild, chrome_rev,
       _GIT_COMMIT_MESSAGE % {'chrome_rev': chrome_rev,
                              'chrome_version': chrome_version})
 
+  new_ebuild = ChromeEBuild(new_ebuild_path)
+  return '%s-%s' % (new_ebuild.package, new_ebuild.version)
 
-def main(argv):
-  usage = '%s OPTIONS commit|clean|push'
+
+def main():
+  usage = '%s OPTIONS [%s]' % (__file__, '|'.join(CHROME_REV))
   parser = optparse.OptionParser(usage)
-  parser.add_option('-c', '--chrome_rev', default=None,
-                    help='One of %s' % CHROME_REV)
-  parser.add_option('-s', '--srcroot', default='.',
+  parser.add_option('-s', '--srcroot', default=os.path.join(os.environ['HOME'],
+                                                            'trunk', 'src'),
                     help='Path to the src directory')
   parser.add_option('-t', '--tracking_branch', default='cros/master',
                     help='Branch we are tracking changes against')
-  (options, argv) = parser.parse_args(argv)
+  (options, args) = parser.parse_args()
 
-  if len(argv) != 2 or argv[1] not in (
-      cros_mark_as_stable.COMMAND_DICTIONARY.keys()):
-    parser.error('Arguments are invalid, see usage.')
+  if len(args) != 1 or args[0] not in CHROME_REV:
+    parser.error('Commit requires arg set to one of %s.' % CHROME_REV)
 
-  command = argv[1]
   overlay_dir = os.path.abspath(_CHROME_OVERLAY_DIR %
                                 {'srcroot': options.srcroot})
-
-  os.chdir(overlay_dir)
-  if command == 'clean':
-    cros_mark_as_stable.Clean(options.tracking_branch)
-    return
-  elif command == 'push':
-    cros_mark_as_stable.PushChange(_STABLE_BRANCH_NAME, options.tracking_branch)
-    return
-
-  if not options.chrome_rev or options.chrome_rev not in CHROME_REV:
-    parser.error('Commit requires type set to one of %s.' % CHROME_REV)
-
-  chrome_rev = options.chrome_rev
+  chrome_rev = args[0]
   version_to_uprev = None
   commit_to_use = None
 
   (unstable_ebuild, stable_ebuilds) = FindChromeCandidates(overlay_dir)
   sticky_version = _GetStickyVersion(stable_ebuilds)
   sticky_branch = sticky_version.rpartition('.')[0]
+
 
   if chrome_rev == TIP_OF_TRUNK:
     version_to_uprev = _GetTipOfTrunkVersion()
@@ -315,16 +313,20 @@ def main(argv):
     Info('Found nothing to do for chrome_rev %s with version %s.' % (
         chrome_rev, version_to_uprev))
   else:
+    os.chdir(overlay_dir)
     work_branch = cros_mark_as_stable.GitBranch(
-        _STABLE_BRANCH_NAME, options.tracking_branch)
+        cros_mark_as_stable.STABLE_BRANCH_NAME, options.tracking_branch)
     work_branch.CreateBranch()
     try:
-      MarkChromeEBuildAsStable(stable_candidate, unstable_ebuild, chrome_rev,
-                               version_to_uprev, commit_to_use, overlay_dir)
+      chrome_version_atom = MarkChromeEBuildAsStable(
+          stable_candidate, unstable_ebuild, chrome_rev, version_to_uprev,
+          commit_to_use, overlay_dir)
+      # Explicit print to communicate to caller.
+      print 'CHROME_VERSION_ATOM=%s' % chrome_version_atom
     except:
       work_branch.Delete()
       raise
 
 
 if __name__ == '__main__':
-  main(sys.argv)
+  main()

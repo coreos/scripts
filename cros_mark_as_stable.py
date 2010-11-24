@@ -32,8 +32,6 @@ gflags.DEFINE_string('overlays', '',
 gflags.DEFINE_string('packages', '',
                      'Colon-separated list of packages to mark as stable.',
                      short_name='p')
-gflags.DEFINE_string('push_options', '',
-                     'Options to use with git-cl push using push command.')
 gflags.DEFINE_string('srcroot', '%s/trunk/src' % os.environ['HOME'],
                      'Path to root src directory.',
                      short_name='r')
@@ -59,7 +57,7 @@ COMMAND_DICTIONARY = {
                       }
 
 # Name used for stabilizing branch.
-_STABLE_BRANCH_NAME = 'stabilizing_branch'
+STABLE_BRANCH_NAME = 'stabilizing_branch'
 
 
 def BestEBuild(ebuilds):
@@ -544,9 +542,9 @@ def main(argv):
     if command == 'clean':
       Clean(gflags.FLAGS.tracking_branch)
     elif command == 'push':
-      PushChange(_STABLE_BRANCH_NAME, gflags.FLAGS.tracking_branch)
+      PushChange(STABLE_BRANCH_NAME, gflags.FLAGS.tracking_branch)
     elif command == 'commit' and ebuilds:
-      work_branch = GitBranch(_STABLE_BRANCH_NAME, gflags.FLAGS.tracking_branch)
+      work_branch = GitBranch(STABLE_BRANCH_NAME, gflags.FLAGS.tracking_branch)
       work_branch.CreateBranch()
       if not work_branch.Exists():
         Die('Unable to create stabilizing branch in %s' % overlay)

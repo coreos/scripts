@@ -209,6 +209,20 @@ def _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board,
              cwd=cwd, enter_chroot=True)
 
 
+def _MarkChromeAsStable(buildroot, tracking_branch, chrome_rev):
+  """Returns the portage atom for the revved chrome ebuild - see man emerge."""
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  portage_atom_string = RunCommand(['bin/cros_mark_chrome_as_stable',
+                                    '--tracking_branch=%s' % tracking_branch,
+                                    chrome_rev], cwd=cwd, redirect_stdout=True,
+                                    enter_chroot=True).rstrip()
+  if not portage_atom_string:
+    Info('Found nothing to rev.')
+    return None
+  else:
+    return portage_atom_string.split('=')[1]
+
+
 def _UprevAllPackages(buildroot, tracking_branch, board, overlays):
   """Uprevs all packages that have been updated since last uprev."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
@@ -311,6 +325,13 @@ def _Build(buildroot):
   RunCommand(['./build_packages'], cwd=cwd, enter_chroot=True)
 
 
+def _BuildChrome(buildroot, board, chrome_atom_to_build):
+  """Wrapper for emerge call to build Chrome."""
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  RunCommand(['emerge-%s' % board, '=%s' % chrome_atom_to_build],
+             cwd=cwd, enter_chroot=True)
+
+
 def _EnableLocalAccount(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
   # Set local account for test images.
@@ -395,15 +416,20 @@ def _UprevPackages(buildroot, tracking_branch, revisionfile, board, overlays):
   _UprevAllPackages(buildroot, tracking_branch, board, overlays)
 
 
-def _UprevPush(buildroot, tracking_branch, board, overlays):
+def _UprevPush(buildroot, tracking_branch, board, overlays, dryrun):
   """Pushes uprev changes to the main line."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./cros_mark_as_stable', '--srcroot=..',
-              '--board=%s' % board,
-              '--overlays=%s' % ':'.join(overlays),
-              '--tracking_branch=%s' % tracking_branch,
-              '--push_options=--bypass-hooks -f', 'push'],
-             cwd=cwd)
+  cmd = ['./cros_mark_as_stable',
+         '--srcroot=%s' % os.path.join(buildroot, 'src'),
+         '--board=%s' % board,
+         '--overlays=%s' % ':'.join(overlays),
+         '--tracking_branch=%s' % tracking_branch
+        ]
+  if dryrun:
+    cmd.append('--dryrun')
+
+  cmd.append('push')
+  RunCommand(cmd, cwd=cwd)
 
 
 def _ArchiveTestResults(buildroot, board, test_results_dir,
@@ -496,6 +522,10 @@ def main():
                     help='root directory where build occurs', default=".")
   parser.add_option('-n', '--buildnumber',
                     help='build number', type='int', default=0)
+  parser.add_option('--chrome_rev', default=None, type='string',
+                    dest='chrome_rev',
+                    help=('Chrome_rev of type [tot|latest_release|'
+                          'sticky_release]'))
   parser.add_option('-f', '--revisionfile',
                     help='file where new revisions are stored')
   parser.add_option('--clobber', action='store_true', dest='clobber',
@@ -504,6 +534,12 @@ def main():
   parser.add_option('--debug', action='store_true', dest='debug',
                     default=False,
                     help='Override some options to run as a developer.')
+  parser.add_option('--nosync', action='store_false', dest='sync',
+                    default=True,
+                    help="Don't sync before building.")
+  parser.add_option('--notests', action='store_false', dest='tests',
+                    default=True,
+                    help='Override values from buildconfig and run no tests.')
   parser.add_option('-t', '--tracking-branch', dest='tracking_branch',
                     default='cros/master', help='Run the buildbot on a branch')
   parser.add_option('-u', '--url', dest='url',
@@ -520,6 +556,7 @@ def main():
   buildroot = os.path.abspath(options.buildroot)
   revisionfile = options.revisionfile
   tracking_branch = options.tracking_branch
+  chrome_atom_to_build = None
 
   if len(args) >= 1:
     buildconfig = _GetConfig(args[-1])
@@ -533,10 +570,11 @@ def main():
 
   try:
     _PreFlightRinse(buildroot, buildconfig['board'], tracking_branch, overlays)
-    if options.clobber or not os.path.isdir(buildroot):
-      _FullCheckout(buildroot, tracking_branch, url=options.url)
-    else:
-      _IncrementalCheckout(buildroot)
+    if options.sync:
+      if options.clobber or not os.path.isdir(buildroot):
+        _FullCheckout(buildroot, tracking_branch, url=options.url)
+      else:
+        _IncrementalCheckout(buildroot)
 
     # Check that all overlays can be found.
     for path in overlays:
@@ -552,18 +590,28 @@ def main():
     if not os.path.isdir(boardpath):
       _SetupBoard(buildroot, board=buildconfig['board'])
 
-    if buildconfig['uprev']:
+    # Perform uprev.  If chrome_uprev is set, rev Chrome ebuilds.
+    if options.chrome_rev:
+      chrome_atom_to_build = _MarkChromeAsStable(buildroot, tracking_branch,
+                                                 options.chrome_rev)
+    elif buildconfig['uprev']:
       _UprevPackages(buildroot, tracking_branch, revisionfile,
                      buildconfig['board'], overlays)
 
     _EnableLocalAccount(buildroot)
-    _Build(buildroot)
-    if buildconfig['unittests']:
+    # Doesn't rebuild without acquiring more source.
+    if options.sync:
+      _Build(buildroot)
+
+    if chrome_atom_to_build:
+      _BuildChrome(buildroot, buildconfig['board'], chrome_atom_to_build)
+
+    if buildconfig['unittests'] and options.tests:
       _RunUnitTests(buildroot)
 
     _BuildImage(buildroot)
 
-    if buildconfig['smoke_bvt']:
+    if buildconfig['smoke_bvt'] and options.tests:
       _BuildVMImageForTesting(buildroot)
       test_results_dir = '/tmp/run_remote_tests.%s' % options.buildnumber
       try:
@@ -580,19 +628,18 @@ def main():
 
     if buildconfig['uprev']:
       # Don't push changes for developers.
-      if not options.debug:
-        if buildconfig['master']:
-          # Master bot needs to check if the other slaves completed.
-          if cbuildbot_comm.HaveSlavesCompleted(config):
-            _UprevPush(buildroot, tracking_branch, buildconfig['board'],
-                       overlays)
-          else:
-            Die('CBUILDBOT - One of the slaves has failed!!!')
-
+      if buildconfig['master']:
+        # Master bot needs to check if the other slaves completed.
+        if cbuildbot_comm.HaveSlavesCompleted(config):
+          _UprevPush(buildroot, tracking_branch, buildconfig['board'],
+                     overlays, options.debug)
         else:
-          # Publish my status to the master if its expecting it.
-          if buildconfig['important']:
-            cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
+          Die('CBUILDBOT - One of the slaves has failed!!!')
+
+      else:
+        # Publish my status to the master if its expecting it.
+        if buildconfig['important'] and not options.debug:
+          cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
 
   except:
     # Send failure to master bot.
