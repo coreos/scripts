@@ -15,7 +15,7 @@ if [ -d "${TEST_DIR}" ]; then
 
   # Ensure there is DB directory in x86-agz and x86-mario.
   if [ ! -d "${KEEPDB}" ] &&
-     [ "${BOARD}" = "x86-agz" -o "{BOARD}" = "x86-mario" ]; then
+     [ "${BOARD}" = "x86-agz" -o "${BOARD}" = "x86-mario" ]; then
     echo "No component DB directory found at: ${KEEPDB}"
   fi
 
