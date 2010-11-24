@@ -59,13 +59,6 @@ def RepoSync(buildroot, rw_checkout=False, retries=_DEFAULT_RETRIES):
       # is needed so that the buildbot can kill us if git is not making
       # progress.
       RunCommand(['repo', '--trace', 'sync'], cwd=buildroot)
-      if rw_checkout:
-        # Always re-run in case of new git repos or repo sync
-        # failed in a previous run because of a forced Stop Build.
-        RunCommand(['repo', 'forall', '-c', 'git', 'config',
-                    'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof',
-                    'http://git.chromium.org/git'], cwd=buildroot)
-
       retries = 0
     except:
       retries -= 1
@@ -515,7 +508,7 @@ def main():
   parser.add_option('-t', '--tracking-branch', dest='tracking_branch',
                     default='cros/master', help='Run the buildbot on a branch')
   parser.add_option('-u', '--url', dest='url',
-                    default='http://git.chromium.org/git/manifest',
+                    default='ssh://git@gitrw.chromium.org:9222/manifest',
                     help='Run the buildbot on internal manifest')
 
   (options, args) = parser.parse_args()
