@@ -58,12 +58,18 @@ if ! pkgfile=$("${EQUERYCMD}" which "${workon_name}" 2> /dev/null); then
 fi
 
 if [ "${FLAGS_scrub}" = "${FLAGS_TRUE}" ]; then
-  eval $(${EBUILDCMD} $(${EQUERYCMD} which ${workon_name}) info)
-  srcdir=$(readlink -m ${CROS_WORKON_SRCDIR})
-  trunkdir=$(readlink -m ${CHROOT_TRUNK_DIR})
-  project_path=${srcdir#${trunkdir}/}
-  if ! (cd "${GCLIENT_ROOT}/${project_path}" && git clean -xf); then
-    die "Could not scrub source directory"
+  warn "--scrub will destroy ALL FILES unknown to git!"
+  read -p "Are you sure you want to do this? [y|N]" resp
+  if egrep -qi "^y(es)?$" <(echo -n "${resp}"); then
+    eval $(${EBUILDCMD} $(${EQUERYCMD} which ${workon_name}) info)
+    srcdir=$(readlink -m ${CROS_WORKON_SRCDIR})
+    trunkdir=$(readlink -m ${CHROOT_TRUNK_DIR})
+    project_path=${srcdir#${trunkdir}/}
+    if ! (cd "${GCLIENT_ROOT}/${project_path}" && git clean -xf); then
+      die "Could not scrub source directory"
+    fi
+  else
+    info "Not scrubbing; exiting gracefully"
   fi
   exit 0
 fi
