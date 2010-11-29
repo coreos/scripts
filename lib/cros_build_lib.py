@@ -93,6 +93,51 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
   return output
 
 
+def RunCommandCaptureOutput(cmd, print_cmd=True, cwd=None, input=None,
+                            enter_chroot=False,
+                            combine_stdout_stderr=True):
+  """Runs a shell command. Differs from RunCommand, because it allows
+     you to run a command and capture the exit code, output, and stderr
+     all at the same time.
+
+  Arguments:
+    cmd: cmd to run.  Should be input to subprocess.POpen.  If a string,
+      converted to an array using split().
+    print_cmd: prints the command before running it.
+    cwd: the working directory to run this cmd.
+    input: input to pipe into this command through stdin.
+    enter_chroot: this command should be run from within the chroot.  If set,
+      cwd must point to the scripts directory.
+    combine_stdout_stderr -- combine outputs together.
+
+  Returns:
+    Returns a tuple: (exit_code, stdout, stderr) (integer, string, string)
+    stderr is None if combine_stdout_stderr is True
+  """
+  # Set default for variables.
+  stdout = subprocess.PIPE
+  stderr = subprocess.PIPE
+  stdin = None
+
+  # Modify defaults based on parameters.
+  if input:  stdin = subprocess.PIPE
+  if combine_stdout_stderr: stderr = subprocess.STDOUT
+
+  if enter_chroot:  cmd = ['./enter_chroot.sh', '--'] + cmd
+
+  # Print out the command before running.
+  if print_cmd:
+    Info('PROGRAM(%s) -> RunCommand: %r in dir %s' %
+         (GetCallerName(), cmd, cwd))
+
+  proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
+                          stdout=stdout, stderr=stderr)
+  (output, error) = proc.communicate(input)
+
+  # Error is None if stdout, stderr are combined.
+  return proc.returncode, output, error
+
+
 class Color(object):
   """Conditionally wraps text in ANSI color escape sequences."""
   BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
@@ -191,4 +236,3 @@ def ReinterpretPathForChroot(path):
 
   new_path = os.path.join('/home', os.getenv('USER'), 'trunk', relative_path)
   return new_path
-
