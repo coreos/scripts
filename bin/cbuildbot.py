@@ -45,27 +45,21 @@ def MakeDir(path, parents=False):
       raise
 
 
-def RepoSync(buildroot, rw_checkout=False, retries=_DEFAULT_RETRIES):
+def RepoSync(buildroot, retries=_DEFAULT_RETRIES):
   """Uses repo to checkout the source code.
 
   Keyword arguments:
-  rw_checkout -- Reconfigure repo after sync'ing to read-write.
   retries -- Number of retries to try before failing on the sync.
-
   """
   while retries > 0:
     try:
       # The --trace option ensures that repo shows the output from git. This
       # is needed so that the buildbot can kill us if git is not making
       # progress.
+      RunCommand(['repo', 'forall', '-c', 'git', 'config',
+                  'url.ssh://git@gitrw.chromium.org:9222.insteadof',
+                  'http://git.chromium.org/git'], cwd=buildroot)
       RunCommand(['repo', '--trace', 'sync'], cwd=buildroot)
-      if rw_checkout:
-        # Always re-run in case of new git repos or repo sync
-        # failed in a previous run because of a forced Stop Build.
-        RunCommand(['repo', 'forall', '-c', 'git', 'config',
-                    'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof',
-                    'http://git.chromium.org/git'], cwd=buildroot)
-
       retries = 0
     except:
       retries -= 1
@@ -287,7 +281,7 @@ def _PreFlightRinse(buildroot, board, tracking_branch, overlays):
   RunCommand(['sudo', 'killall', 'kvm'], error_ok=True)
 
 
-def _FullCheckout(buildroot, tracking_branch, rw_checkout=True,
+def _FullCheckout(buildroot, tracking_branch,
                   retries=_DEFAULT_RETRIES,
                   url='http://git.chromium.org/git/manifest'):
   """Performs a full checkout and clobbers any previous checkouts."""
@@ -297,13 +291,12 @@ def _FullCheckout(buildroot, tracking_branch, rw_checkout=True,
   RunCommand(['repo', 'init', '-u',
              url, '-b',
              '%s' % branch[-1]], cwd=buildroot, input='\n\ny\n')
-  RepoSync(buildroot, rw_checkout, retries)
+  RepoSync(buildroot, retries)
 
 
-def _IncrementalCheckout(buildroot, rw_checkout=True,
-                         retries=_DEFAULT_RETRIES):
+def _IncrementalCheckout(buildroot, retries=_DEFAULT_RETRIES):
   """Performs a checkout without clobbering previous checkout."""
-  RepoSync(buildroot, rw_checkout, retries)
+  RepoSync(buildroot, retries)
 
 
 def _MakeChroot(buildroot):

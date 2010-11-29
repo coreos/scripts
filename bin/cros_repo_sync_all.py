@@ -26,10 +26,10 @@ def main():
   if options.buildroot:
     if options.clobber:
       cbuildbot._FullCheckout(options.buildroot, options.tracking_branch,
-                              rw_checkout=False, retries=_NUMBER_OF_RETRIES)
+                              retries=_NUMBER_OF_RETRIES)
     else:
-      cbuildbot._IncrementalCheckout(options.buildroot, rw_checkout=False,
-          retries=_NUMBER_OF_RETRIES)
+      cbuildbot._IncrementalCheckout(options.buildroot,
+                                     retries=_NUMBER_OF_RETRIES)
   else:
     print >> sys.stderr, 'ERROR:  Must set buildroot'
     sys.exit(1)
