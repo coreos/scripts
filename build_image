@@ -180,7 +180,7 @@ fi
 # We don't allow building from source with the image as a target,
 # and it's not possible to store prebuilts for the same package
 # with different use flags.
-USE="${EXTRA_USE}" emerge-${FLAGS_board} \
+USE="${EXTRA_USE} ${USE}" emerge-${FLAGS_board} \
     -uNDvg --binpkg-respect-use=y virtual/kernel
 
 # Use canonical path since some tools (e.g. mount) do not like symlinks.

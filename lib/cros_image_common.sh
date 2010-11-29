@@ -8,19 +8,20 @@
 # especially for being redistributed into platforms without complete Chromium OS
 # developing environment.
 
-# Check if given command is available in current system
-has_command() {
+# Checks if given command is available in current system
+image_has_command() {
   type "$1" >/dev/null 2>&1
 }
 
-err_die() {
+# Prints error message and exit as 1 (error)
+image_die() {
   echo "ERROR: $@" >&2
   exit 1
 }
 
-# Finds the best gzip compressor and invoke it.
-gzip_compress() {
-  if has_command pigz; then
+# Finds the best gzip compressor and invoke it
+image_gzip_compress() {
+  if image_has_command pigz; then
     # echo " ** Using parallel gzip **" >&2
     # Tested with -b 32, 64, 128(default), 256, 1024, 16384, and -b 32 (max
     # window size of Deflate) seems to be the best in output size.
@@ -30,43 +31,58 @@ gzip_compress() {
   fi
 }
 
+# Finds the best bzip2 compressor and invoke it
+image_bzip2_compress() {
+  if image_has_command pbzip2; then
+    pbzip2 "$@"
+  else
+    bzip2 "$@"
+  fi
+}
+
 # Finds if current system has tools for part_* commands
-has_part_tools() {
-  has_command cgpt || has_command parted
+image_has_part_tools() {
+  image_has_command cgpt || image_has_command parted
 }
 
 # Finds the best partition tool and print partition offset
-part_offset() {
+image_part_offset() {
   local file="$1"
   local partno="$2"
+  local unpack_file="$(dirname "$file")/unpack_partitions.sh"
 
-  if has_command cgpt; then
+  # TODO parted is available on most Linux so we may deprecate other code path
+  if image_has_command cgpt; then
     cgpt show -b -i "$partno" "$file"
-  elif has_command parted; then
-    parted -m "$file" unit s print |
-      grep "^$partno:" | cut -d ':' -f 2 | sed 's/s$//'
+  elif image_has_command parted; then
+    parted -m "$file" unit s print | awk -F ':' "/^$partno:/ { print int(\$2) }"
+  elif [ -f "$unpack_file" ]; then
+    awk "/ $partno  *Label:/ { print \$2 }" "$unpack_file"
   else
     exit 1
   fi
 }
 
 # Finds the best partition tool and print partition size
-part_size() {
+image_part_size() {
   local file="$1"
   local partno="$2"
+  local unpack_file="$(dirname "$file")/unpack_partitions.sh"
 
-  if has_command cgpt; then
+  # TODO parted is available on most Linux so we may deprecate other code path
+  if image_has_command cgpt; then
     cgpt show -s -i "$partno" "$file"
-  elif has_command parted; then
-    parted -m "$file" unit s print |
-      grep "^$partno:" | cut -d ':' -f 4 | sed 's/s$//'
+  elif image_has_command parted; then
+    parted -m "$file" unit s print | awk -F ':' "/^$partno:/ { print int(\$4) }"
+  elif [ -s "$unpack_file" ]; then
+    awk "/ $partno  *Label:/ { print \$3 }" "$unpack_file"
   else
     exit 1
   fi
 }
 
 # Dumps a file by given offset and size (in sectors)
-dump_partial_file() {
+image_dump_partial_file() {
   local file="$1"
   local offset="$2"
   local sectors="$3"
@@ -82,10 +98,10 @@ dump_partial_file() {
     bs=$((bs * buffer_ratio))
   fi
 
-  if has_command pv; then
+  if image_has_command pv; then
     dd if="$file" bs=$bs skip="$offset" count="$sectors" \
       oflag=sync status=noxfer 2>/dev/null |
-      pv -ptreb -B 4m -s $((sectors * $bs))
+      pv -ptreb -B $bs -s $((sectors * bs))
   else
     dd if="$file" bs=$bs skip="$offset" count="$sectors" \
       oflag=sync status=noxfer 2>/dev/null
@@ -93,14 +109,62 @@ dump_partial_file() {
 }
 
 # Dumps a specific partition from given image file
-dump_partition() {
+image_dump_partition() {
   local file="$1"
   local part_num="$2"
-  local offset="$(part_offset "$file" "$part_num")" ||
-    err_die "failed to dump partition #$part_num from: $file"
-  local size="$(part_size "$file" "$part_num")" ||
-    err_die "failed to dump partition #$part_num from: $file"
+  local offset="$(image_part_offset "$file" "$part_num")" ||
+    image_die "failed to find partition #$part_num from: $file"
+  local size="$(image_part_size "$file" "$part_num")" ||
+    image_die "failed to find partition #$part_num from: $file"
 
-  dump_partial_file "$file" "$offset" "$size"
+  image_dump_partial_file "$file" "$offset" "$size"
 }
 
+# Maps a specific partition from given image file to a loop device
+image_map_partition() {
+  local file="$1"
+  local part_num="$2"
+  local offset="$(image_part_offset "$file" "$part_num")" ||
+    image_die "failed to find partition #$part_num from: $file"
+  local size="$(image_part_size "$file" "$part_num")" ||
+    image_die "failed to find partition #$part_num from: $file"
+
+  losetup --offset $((offset * 512)) --sizelimit=$((size * 512)) \
+    -f --show "$file"
+}
+
+# Unmaps a loop device created by image_map_partition
+image_unmap_partition() {
+  local map_point="$1"
+
+  losetup -d "$map_point"
+}
+
+# Mounts a specific partition inside a given image file
+image_mount_partition() {
+  local file="$1"
+  local part_num="$2"
+  local mount_point="$3"
+  local mount_opt="$4"
+  local offset="$(image_part_offset "$file" "$part_num")" ||
+    image_die "failed to find partition #$part_num from: $file"
+  local size="$(image_part_size "$file" "$part_num")" ||
+    image_die "failed to find partition #$part_num from: $file"
+
+  if [ -z "$mount_opt" ]; then
+    # by default, mount as read-only.
+    mount_opt=",ro"
+  fi
+
+  mount \
+    -o "loop,offset=$((offset * 512)),sizelimit=$((size * 512)),$mount_opt" \
+    "$file" \
+    "$mount_point"
+}
+
+# Unmounts a partition mount point by mount_partition
+image_umount_partition() {
+  local mount_point="$1"
+
+  umount -d "$mount_point"
+}

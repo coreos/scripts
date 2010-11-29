@@ -274,15 +274,20 @@ class VirtualAUTest(unittest.TestCase, AUTest):
     """Runs vm smoke suite to verify image."""
     # image_to_live already verifies lsb-release matching.  This is just
     # for additional steps.
-    output = RunCommand(['%s/cros_run_vm_test' % self.crosutilsbin,
-                         '--image_path=%s' % self.vm_image_path,
-                         '--snapshot',
-                         '--persist',
-                         vm_graphics_flag,
-                         '--kvm_pid=%s' % _KVM_PID_FILE,
-                         '--test_case=%s' % _VERIFY_SUITE,
-                         ], error_ok=True, enter_chroot=False,
-                            redirect_stdout=True)
+
+    commandWithArgs = ['%s/cros_run_vm_test' % self.crosutilsbin,
+                       '--image_path=%s' % self.vm_image_path,
+                       '--snapshot',
+                       '--persist',
+                       '--kvm_pid=%s' % _KVM_PID_FILE,
+                       _VERIFY_SUITE,
+                       ]
+
+    if vm_graphics_flag:
+      commandWithArgs.append(vm_graphics_flag)
+
+    output = RunCommand(commandWithArgs, error_ok=True, enter_chroot=False,
+                        redirect_stdout=True)
     return self.CommonVerifyImage(self, output, percent_required_to_pass)
 
 

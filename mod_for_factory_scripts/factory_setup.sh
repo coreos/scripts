@@ -5,9 +5,11 @@
 # found in the LICENSE file.
 
 echo "Modifying image for factory test..."
+set -e
 
-for SCRIPT in \
-    ${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts/[0-9][0-9][0-9]*[!$~]
+SCRIPT_BASE="${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts/"
+for SCRIPT in "${SCRIPT_BASE}"[0-9][0-9][0-9]*[!$~]
 do
-  ${SCRIPT}
+  echo "Apply $(basename "${SCRIPT}")..."
+  bash -e "${SCRIPT}"
 done

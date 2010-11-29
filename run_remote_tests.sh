@@ -271,25 +271,24 @@ function main() {
       info "Running chrome autotest ${control_file}"
     fi
 
-    export AUTOSERV_TEST_ARGS="${FLAGS_args}"
-    export AUTOSERV_ARGS="-m ${FLAGS_remote} \
-        --ssh-port ${FLAGS_ssh_port} \
+    local autoserv_test_args="${FLAGS_args}"
+    if [ -n "${autoserv_test_args}" ]; then
+      autoserv_test_args="-a \"${autoserv_test_args}\""
+    fi
+    local autoserv_args="-m ${FLAGS_remote} --ssh-port ${FLAGS_ssh_port} \
         ${option} ${control_file} -r ${results_dir} ${verbose}"
     if [ ${FLAGS_build} -eq ${FLAGS_FALSE} ]; then
       cat > "${TMP}/run_test.sh" <<EOF
-export AUTOSERV_TEST_ARGS="${AUTOSERV_TEST_ARGS}"
-export AUTOSERV_ARGS="${AUTOSERV_ARGS}"
-cd /home/${USER}/trunk/src/scripts
-./autotest_run.sh --board "${FLAGS_board}"
+cd /build/${FLAGS_board}/usr/local/autotest
+sudo chmod a+w ./server/{tests,site_tests}
+echo ./server/autoserv ${autoserv_args} ${autoserv_test_args}
+./server/autoserv ${autoserv_args} ${autoserv_test_args}
 EOF
       chmod a+rx "${TMP}/run_test.sh"
       ${ENTER_CHROOT} ${TMP_INSIDE_CHROOT}/run_test.sh >&2
     else
       cp "${BUILD_DIR}/environment" "${TMP}/run_test.sh"
       GRAPHICS_BACKEND=${GRAPHICS_BACKEND:-OPENGL}
-      if [ -n "${AUTOSERV_TEST_ARGS}" ]; then
-        AUTOSERV_TEST_ARGS="-a \"${AUTOSERV_TEST_ARGS}\""
-      fi
       cat >> "${TMP}/run_test.sh" <<EOF
 export GCLIENT_ROOT=/home/${USER}/trunk
 export GRAPHICS_BACKEND=${GRAPHICS_BACKEND}
@@ -297,7 +296,8 @@ export SSH_AUTH_SOCK=${SSH_AUTH_SOCK} TMPDIR=/tmp SSH_AGENT_PID=${SSH_AGENT_PID}
 export SYSROOT=/build/${FLAGS_board}
 tc-export CC CXX PKG_CONFIG
 cd ${INSIDE_BUILD_DIR}
-./server/autoserv ${AUTOSERV_ARGS} ${AUTOSERV_TEST_ARGS}
+echo ./server/autoserv ${autoserv_args} ${autoserv_test_args}
+./server/autoserv ${autoserv_args} ${autoserv_test_args}
 EOF
       sudo cp "${TMP}/run_test.sh" "${BUILD_DIR}"
       sudo chmod a+rx "${BUILD_DIR}/run_test.sh"

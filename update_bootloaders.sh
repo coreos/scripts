@@ -180,6 +180,8 @@ if [[ "${FLAGS_arch}" = "x86" ]]; then
   if [[ ${FLAGS_install_syslinux} -eq ${FLAGS_TRUE} ]]; then
     sudo umount "${ESP_FS_DIR}"
     sudo syslinux -d /syslinux "${ESP_DEV}"
+    # mount again for cleanup to free resource gracefully
+    sudo mount -o ro "${ESP_DEV}" "${ESP_FS_DIR}"
   fi
 elif [[ "${FLAGS_arch}" = "arm" ]]; then
   # Copy u-boot script to ESP partition

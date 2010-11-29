@@ -22,6 +22,7 @@ from cros_build_lib import (Die, Info, ReinterpretPathForChroot, RunCommand,
                             Warning)
 
 _DEFAULT_RETRIES = 3
+_PACKAGE_FILE = '%(buildroot)s/src/scripts/cbuildbot_package.list'
 ARCHIVE_BASE = '/var/www/archive'
 ARCHIVE_COUNT = 10
 
@@ -44,27 +45,21 @@ def MakeDir(path, parents=False):
       raise
 
 
-def RepoSync(buildroot, rw_checkout=False, retries=_DEFAULT_RETRIES):
+def RepoSync(buildroot, retries=_DEFAULT_RETRIES):
   """Uses repo to checkout the source code.
 
   Keyword arguments:
-  rw_checkout -- Reconfigure repo after sync'ing to read-write.
   retries -- Number of retries to try before failing on the sync.
-
   """
   while retries > 0:
     try:
       # The --trace option ensures that repo shows the output from git. This
       # is needed so that the buildbot can kill us if git is not making
       # progress.
+      RunCommand(['repo', 'forall', '-c', 'git', 'config',
+                  'url.ssh://git@gitrw.chromium.org:9222.insteadof',
+                  'http://git.chromium.org/git'], cwd=buildroot)
       RunCommand(['repo', '--trace', 'sync'], cwd=buildroot)
-      if rw_checkout:
-        # Always re-run in case of new git repos or repo sync
-        # failed in a previous run because of a forced Stop Build.
-        RunCommand(['repo', 'forall', '-c', 'git', 'config',
-                    'url.ssh://git@gitrw.chromium.org:9222.pushinsteadof',
-                    'http://git.chromium.org/git'], cwd=buildroot)
-
       retries = 0
     except:
       retries -= 1
@@ -202,8 +197,24 @@ def _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board,
               '--tracking_branch=%s' % tracking_branch,
               '--overlays=%s' % ':'.join(chroot_overlays),
               '--packages=%s' % ':'.join(packages),
+              '--drop_file=%s' % ReinterpretPathForChroot(_PACKAGE_FILE %
+                  {'buildroot': buildroot}),
               'commit'],
              cwd=cwd, enter_chroot=True)
+
+
+def _MarkChromeAsStable(buildroot, tracking_branch, chrome_rev):
+  """Returns the portage atom for the revved chrome ebuild - see man emerge."""
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  portage_atom_string = RunCommand(['bin/cros_mark_chrome_as_stable',
+                                    '--tracking_branch=%s' % tracking_branch,
+                                    chrome_rev], cwd=cwd, redirect_stdout=True,
+                                    enter_chroot=True).rstrip()
+  if not portage_atom_string:
+    Info('Found nothing to rev.')
+    return None
+  else:
+    return portage_atom_string.split('=')[1]
 
 
 def _UprevAllPackages(buildroot, tracking_branch, board, overlays):
@@ -213,7 +224,10 @@ def _UprevAllPackages(buildroot, tracking_branch, board, overlays):
   RunCommand(['./cros_mark_as_stable', '--all',
               '--board=%s' % board,
               '--overlays=%s' % ':'.join(chroot_overlays),
-              '--tracking_branch=%s' % tracking_branch, 'commit'],
+              '--tracking_branch=%s' % tracking_branch,
+              '--drop_file=%s' % ReinterpretPathForChroot(_PACKAGE_FILE %
+                  {'buildroot': buildroot}),
+              'commit'],
               cwd=cwd, enter_chroot=True)
 
 
@@ -267,7 +281,7 @@ def _PreFlightRinse(buildroot, board, tracking_branch, overlays):
   RunCommand(['sudo', 'killall', 'kvm'], error_ok=True)
 
 
-def _FullCheckout(buildroot, tracking_branch, rw_checkout=True,
+def _FullCheckout(buildroot, tracking_branch,
                   retries=_DEFAULT_RETRIES,
                   url='http://git.chromium.org/git/manifest'):
   """Performs a full checkout and clobbers any previous checkouts."""
@@ -277,13 +291,12 @@ def _FullCheckout(buildroot, tracking_branch, rw_checkout=True,
   RunCommand(['repo', 'init', '-u',
              url, '-b',
              '%s' % branch[-1]], cwd=buildroot, input='\n\ny\n')
-  RepoSync(buildroot, rw_checkout, retries)
+  RepoSync(buildroot, retries)
 
 
-def _IncrementalCheckout(buildroot, rw_checkout=True,
-                         retries=_DEFAULT_RETRIES):
+def _IncrementalCheckout(buildroot, retries=_DEFAULT_RETRIES):
   """Performs a checkout without clobbering previous checkout."""
-  RepoSync(buildroot, rw_checkout, retries)
+  RepoSync(buildroot, retries)
 
 
 def _MakeChroot(buildroot):
@@ -303,6 +316,13 @@ def _Build(buildroot):
   """Wrapper around build_packages."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['./build_packages'], cwd=cwd, enter_chroot=True)
+
+
+def _BuildChrome(buildroot, board, chrome_atom_to_build):
+  """Wrapper for emerge call to build Chrome."""
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  RunCommand(['emerge-%s' % board, '=%s' % chrome_atom_to_build],
+             cwd=cwd, enter_chroot=True)
 
 
 def _EnableLocalAccount(buildroot):
@@ -333,7 +353,10 @@ def _BuildVMImageForTesting(buildroot):
 
 def _RunUnitTests(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./cros_run_unit_tests'], cwd=cwd, enter_chroot=True)
+  RunCommand(['./cros_run_unit_tests',
+              '--package_file=%s' % ReinterpretPathForChroot(_PACKAGE_FILE %
+                  {'buildroot': buildroot}),
+             ], cwd=cwd, enter_chroot=True)
 
 
 def _RunSmokeSuite(buildroot, results_dir):
@@ -386,59 +409,56 @@ def _UprevPackages(buildroot, tracking_branch, revisionfile, board, overlays):
   _UprevAllPackages(buildroot, tracking_branch, board, overlays)
 
 
-def _UprevPush(buildroot, tracking_branch, board, overlays):
+def _UprevPush(buildroot, tracking_branch, board, overlays, dryrun):
   """Pushes uprev changes to the main line."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./cros_mark_as_stable', '--srcroot=..',
-              '--board=%s' % board,
-              '--overlays=%s' % ':'.join(overlays),
-              '--tracking_branch=%s' % tracking_branch,
-              '--push_options=--bypass-hooks -f', 'push'],
-             cwd=cwd)
+  cmd = ['./cros_mark_as_stable',
+         '--srcroot=%s' % os.path.join(buildroot, 'src'),
+         '--board=%s' % board,
+         '--overlays=%s' % ':'.join(overlays),
+         '--tracking_branch=%s' % tracking_branch
+        ]
+  if dryrun:
+    cmd.append('--dryrun')
+
+  cmd.append('push')
+  RunCommand(cmd, cwd=cwd)
 
 
-def _ArchiveTestResults(buildroot, board, archive_dir, test_results_dir):
-  """Archives the test results into the www dir for later use.
+def _ArchiveTestResults(buildroot, board, test_results_dir,
+                        gsutil, archive_dir, acl):
+  """Archives the test results into Google Storage
 
-  Takes the results from the test_results_dir and dumps them into the archive
-  dir specified.  This also archives the last qemu image.
+  Takes the results from the test_results_dir and the last qemu image and
+  uploads them to Google Storage.
 
-  board:  Board to find the qemu image.
-  archive_dir:  Path from ARCHIVE_BASE to store image.
-  test_results_dir: Path from buildroot/chroot to find test results.  This must
-    a subdir of /tmp.
+  Arguments:
+    buildroot: Root directory where build occurs
+    board: Board to find the qemu image.
+    test_results_dir: Path from buildroot/chroot to find test results.
+      This must a subdir of /tmp.
+    gsutil: Location of gsutil
+    archive_dir: Google Storage path to store the archive
+    acl: ACL to set on archive in Google Storage
   """
+  num_gsutil_retries = 5
   test_results_dir = test_results_dir.lstrip('/')
-  if not os.path.exists(ARCHIVE_BASE):
-    os.makedirs(ARCHIVE_BASE)
-  else:
-    dir_entries = os.listdir(ARCHIVE_BASE)
-    if len(dir_entries) >= ARCHIVE_COUNT:
-      oldest_dirs = heapq.nsmallest((len(dir_entries) - ARCHIVE_COUNT) + 1,
-          [os.path.join(ARCHIVE_BASE, filename) for filename in dir_entries],
-          key=lambda fn: os.stat(fn).st_mtime)
-      Info('Removing archive dirs %s' % oldest_dirs)
-      for oldest_dir in oldest_dirs:
-        shutil.rmtree(os.path.join(ARCHIVE_BASE, oldest_dir))
-
-  archive_target = os.path.join(ARCHIVE_BASE, str(archive_dir))
-  if os.path.exists(archive_target):
-    shutil.rmtree(archive_target)
-
   results_path = os.path.join(buildroot, 'chroot', test_results_dir)
   RunCommand(['sudo', 'chmod', '-R', '+r', results_path])
   try:
-    shutil.copytree(results_path, archive_target)
-  except:
-    Warning('Some files could not be copied')
+    # gsutil has the ability to resume an upload when the command is retried
+    RunCommand([gsutil, 'cp', '-R', results_path, archive_dir],
+               num_retries=num_gsutil_retries)
+    RunCommand([gsutil, 'setacl', acl, archive_dir])
 
-  image_name = 'chromiumos_qemu_image.bin'
-  image_path = os.path.join(buildroot, 'src', 'build', 'images', board,
-                            'latest', image_name)
-  RunCommand(['gzip', '-f', '--fast', image_path])
-  shutil.copyfile(image_path + '.gz', os.path.join(archive_target,
-                                                   image_name + '.gz'))
-
+    image_name = 'chromiumos_qemu_image.bin'
+    image_path = os.path.join(buildroot, 'src', 'build', 'images', board,
+                              'latest', image_name)
+    RunCommand(['gzip', '-f', '--fast', image_path])
+    RunCommand([gsutil, 'cp', image_path + '.gz', archive_dir],
+               num_retries=num_gsutil_retries)
+  except Exception, e:
+    Warning('Could not archive test results (error=%s)' % str(e))
 
 
 def _GetConfig(config_name):
@@ -495,6 +515,10 @@ def main():
                     help='root directory where build occurs', default=".")
   parser.add_option('-n', '--buildnumber',
                     help='build number', type='int', default=0)
+  parser.add_option('--chrome_rev', default=None, type='string',
+                    dest='chrome_rev',
+                    help=('Chrome_rev of type [tot|latest_release|'
+                          'sticky_release]'))
   parser.add_option('-f', '--revisionfile',
                     help='file where new revisions are stored')
   parser.add_option('--clobber', action='store_true', dest='clobber',
@@ -503,17 +527,29 @@ def main():
   parser.add_option('--debug', action='store_true', dest='debug',
                     default=False,
                     help='Override some options to run as a developer.')
+  parser.add_option('--nosync', action='store_false', dest='sync',
+                    default=True,
+                    help="Don't sync before building.")
+  parser.add_option('--notests', action='store_false', dest='tests',
+                    default=True,
+                    help='Override values from buildconfig and run no tests.')
   parser.add_option('-t', '--tracking-branch', dest='tracking_branch',
                     default='cros/master', help='Run the buildbot on a branch')
   parser.add_option('-u', '--url', dest='url',
                     default='http://git.chromium.org/git/manifest',
                     help='Run the buildbot on internal manifest')
+  parser.add_option('-g', '--gsutil', default='', help='Location of gsutil')
+  parser.add_option('-c', '--gsutil_archive', default='',
+                    help='Datastore archive location')
+  parser.add_option('-a', '--acl', default='private',
+                    help='ACL to set on GSD archives')
 
   (options, args) = parser.parse_args()
 
   buildroot = os.path.abspath(options.buildroot)
   revisionfile = options.revisionfile
   tracking_branch = options.tracking_branch
+  chrome_atom_to_build = None
 
   if len(args) >= 1:
     buildconfig = _GetConfig(args[-1])
@@ -527,10 +563,11 @@ def main():
 
   try:
     _PreFlightRinse(buildroot, buildconfig['board'], tracking_branch, overlays)
-    if options.clobber or not os.path.isdir(buildroot):
-      _FullCheckout(buildroot, tracking_branch, url=options.url)
-    else:
-      _IncrementalCheckout(buildroot)
+    if options.sync:
+      if options.clobber or not os.path.isdir(buildroot):
+        _FullCheckout(buildroot, tracking_branch, url=options.url)
+      else:
+        _IncrementalCheckout(buildroot)
 
     # Check that all overlays can be found.
     for path in overlays:
@@ -546,42 +583,56 @@ def main():
     if not os.path.isdir(boardpath):
       _SetupBoard(buildroot, board=buildconfig['board'])
 
-    if buildconfig['uprev']:
+    # Perform uprev.  If chrome_uprev is set, rev Chrome ebuilds.
+    if options.chrome_rev:
+      chrome_atom_to_build = _MarkChromeAsStable(buildroot, tracking_branch,
+                                                 options.chrome_rev)
+    elif buildconfig['uprev']:
       _UprevPackages(buildroot, tracking_branch, revisionfile,
                      buildconfig['board'], overlays)
 
     _EnableLocalAccount(buildroot)
-    _Build(buildroot)
-    if buildconfig['unittests']:
+    # Doesn't rebuild without acquiring more source.
+    if options.sync:
+      _Build(buildroot)
+
+    if chrome_atom_to_build:
+      _BuildChrome(buildroot, buildconfig['board'], chrome_atom_to_build)
+
+    if buildconfig['unittests'] and options.tests:
       _RunUnitTests(buildroot)
 
     _BuildImage(buildroot)
 
-    if buildconfig['smoke_bvt']:
+    if buildconfig['smoke_bvt'] and options.tests:
       _BuildVMImageForTesting(buildroot)
       test_results_dir = '/tmp/run_remote_tests.%s' % options.buildnumber
       try:
         _RunSmokeSuite(buildroot, test_results_dir)
       finally:
-        _ArchiveTestResults(buildroot, buildconfig['board'],
-                            archive_dir=options.buildnumber,
-                            test_results_dir=test_results_dir)
+        if not options.debug:
+          archive_full_path=os.path.join(options.gsutil_archive,
+                                         str(options.buildnumber))
+          _ArchiveTestResults(buildroot, buildconfig['board'],
+                              test_results_dir=test_results_dir,
+                              gsutil=options.gsutil,
+                              archive_dir=archive_full_path,
+                              acl=options.acl)
 
     if buildconfig['uprev']:
       # Don't push changes for developers.
-      if not options.debug:
-        if buildconfig['master']:
-          # Master bot needs to check if the other slaves completed.
-          if cbuildbot_comm.HaveSlavesCompleted(config):
-            _UprevPush(buildroot, tracking_branch, buildconfig['board'],
-                       overlays)
-          else:
-            Die('CBUILDBOT - One of the slaves has failed!!!')
-
+      if buildconfig['master']:
+        # Master bot needs to check if the other slaves completed.
+        if cbuildbot_comm.HaveSlavesCompleted(config):
+          _UprevPush(buildroot, tracking_branch, buildconfig['board'],
+                     overlays, options.debug)
         else:
-          # Publish my status to the master if its expecting it.
-          if buildconfig['important']:
-            cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
+          Die('CBUILDBOT - One of the slaves has failed!!!')
+
+      else:
+        # Publish my status to the master if its expecting it.
+        if buildconfig['important'] and not options.debug:
+          cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
 
   except:
     # Send failure to master bot.

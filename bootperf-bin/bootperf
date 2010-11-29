@@ -21,9 +21,10 @@ DEFINE_boolean keep_logs "$FLAGS_FALSE" "keep autotest results" k
 RUN_TEST="$SCRIPT_DIR/run_remote_tests.sh"
 TEST=server/site_tests/platform_BootPerfServer/control
 TMP_RESULTS="/tmp/bootperf.$(date '+%Y%j%H%M').$$"
-RESULTS_KEYVAL=platform_BootPerfServer/platform_BootPerfServer/results/keyval
+RESULTS_DIR=platform_BootPerfServer/platform_BootPerfServer/results
+RESULTS_KEYVAL=$RESULTS_DIR/keyval
 RESULTS_SUMMARY_FILES=(
-  $RESULTS_KEYVAL
+  $RESULTS_DIR
   platform_BootPerfServer/keyval
   platform_BootPerfServer/platform_BootPerfServer/keyval
   platform_BootPerfServer/platform_BootPerfServer/platform_BootPerf/keyval
@@ -135,13 +136,19 @@ run_boot_test() {
 
     mkdir $iter_rundir
     echo "run $iter start at $(date)"
-    $RUN_TEST --results_dir_root="$TMP_RESULTS" \
+
+    # BEWARE:  The --use_emerged option means that you must manually
+    # emerge chromeos-base/autotest-tests if a) you are working on
+    # the package, and b) you also want use this script to test your
+    # changes to the package.  (The option is here because IMO the
+    # alternative is a bigger nuisance.)
+    $RUN_TEST --use_emerged --results_dir_root="$TMP_RESULTS" \
               --remote="$remote" $TEST >$logfile 2>&1
     if [ ! -e "$TMP_RESULTS/$RESULTS_KEYVAL" ]; then
       error "No results file; terminating test runs."
-      error "Check $logfile for output from the test run,"
+      error "Check $(pwd)/$logfile for output from the test run,"
       error "and see $TMP_RESULTS for full test logs and output."
-      break
+      return
     fi
     mkdir $summary_dir
     tar cf - -C $TMP_RESULTS "${RESULTS_SUMMARY_FILES[@]}" |

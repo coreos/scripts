@@ -6,36 +6,26 @@
 
 echo "Applying patch to init scripts."
 
-touch ${ROOT_FS_DIR}/root/.factory_test
-patch -d ${ROOT_FS_DIR} -Np1 <<EOF
+touch "${ROOT_FS_DIR}/root/.factory_test"
+
+patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
 --- old/etc/init/ui.conf	2010-04-28 21:28:38.886069000 -0700
 +++ new/etc/init/ui.conf	2010-04-28 21:29:42.676163000 -0700
-@@ -5,7 +5,7 @@
- description   "Chrome OS user interface"
- author        "chromium-os-dev@googlegroups.com"
- 
+@@ -11 +11 @@
 -start on stopping startup
 +start on never
- stop on starting halt or starting reboot
- 
- respawn
 EOF
 
-patch -d ${ROOT_FS_DIR} -Np1 <<EOF
-diff -Naur old/etc/init/dump-boot-stats.conf new/etc/init/dump-boot-stats.conf
+patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
+diff -Naur old/etc/init/boot-complete.conf new/etc/init/boot-complete.conf
 --- old/etc/init/boot-complete.conf	2010-07-21 11:22:30.000000000 +0800
 +++ new/etc/init/boot-complete.conf	2010-07-21 22:13:36.000000000 +0800
-@@ -7,7 +7,7 @@
- # Processing required during boot after login prompt is displayed.
- # Primarily, this means calculating boot time statistics.
- 
+@@ -7 +7 @@
 -start on login-prompt-ready
-+start on stopping startup
- 
- task
++start on started udev
 EOF
 
-cat > ${ROOT_FS_DIR}/etc/init/factory.conf <<EOF
+cat >"${ROOT_FS_DIR}/etc/init/factory.conf" <<EOF
 # Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
@@ -43,24 +33,24 @@ cat > ${ROOT_FS_DIR}/etc/init/factory.conf <<EOF
 description   "Chrome OS factory startup stub"
 author        "chromium-os-dev@googlegroups.com"
 
-start on started udev
+start on stopped udev-addon
 stop on starting halt or starting reboot
 
 script
 cd /usr/local/autotest
 eval \$(./site_tests/suite_Factory/startx.sh)
-date >> /var/log/factory.log
+date >>/var/log/factory.log
 if [ ! -e factory_started ]; then
   touch factory_started
   cp -f site_tests/suite_Factory/control .
-  ./bin/autotest control >> /var/log/factory.log 2>&1
+  ./bin/autotest control >>/var/log/factory.log 2>&1
 else
-  ./tools/autotest >> /var/log/factory.log 2>&1
+  ./tools/autotest >>/var/log/factory.log 2>&1
 fi
 end script
 EOF
 
-cat > ${ROOT_FS_DIR}/etc/init/factorylog.conf <<EOF
+cat >"${ROOT_FS_DIR}/etc/init/factorylog.conf" <<EOF
 # Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
@@ -70,21 +60,33 @@ stop on starting halt or starting reboot
 
 respawn
 script
-tail -n 48 -F /var/log/factory.log > /dev/tty3
+tail -n 48 -F /var/log/factory.log >/dev/tty3
 end script
 EOF
 
-patch -d ${ROOT_FS_DIR} -Np1 <<EOF
+if [ -r "${ROOT_FS_DIR}/etc/init/chrontel.conf" ]; then
+  patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
 diff -Nau old/etc/init/chrontel.conf new/etc/init/
 --- old/etc/init/chrontel.conf	2010-08-05 16:32:55.000000000 -0700
 +++ new/etc/init/chrontel.conf	2010-08-05 16:32:45.000000000 -0700
-@@ -7,7 +7,7 @@
- 
- # start as early as possible to allow login screen on hdmi
- # Need udev to have connected the i2c before we can use it
+@@ -7 +7 @@
 -start on started udev
 +start on never
- stop on starting halt or starting reboot
- 
- # sadly, these can't reference each other.
 EOF
+fi
+
+if [ -r "${ROOT_FS_DIR}/etc/init/nvrm.conf" ]; then
+  patch -d "${ROOT_FS_DIR}" -Np1 << EOF
+--- old/etc/init/nvrm.conf	2010-11-19 14:57:16.000000000 -0800
++++ new/etc/init/nvrm.conf	2010-11-19 16:52:48.000000000 -0800
+@@ -2,7 +2,7 @@
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
+-start on starting ui
++start on starting factory
+ 
+ respawn
+ 
+EOF
+fi

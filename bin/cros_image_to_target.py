@@ -30,10 +30,11 @@ from xml.dom import minidom
 
 # This is the default filename within the image directory to load updates from
 DEFAULT_IMAGE_NAME = 'chromiumos_image.bin'
+DEFAULT_IMAGE_NAME_TEST = 'chromiumos_test_image.bin'
 
 # The filenames we provide to clients to pull updates
 UPDATE_FILENAME = 'update.gz'
-STATEFUL_FILENAME = 'stateful.image.gz'
+STATEFUL_FILENAME = 'stateful.tgz'
 
 # How long do we wait for the server to start before launching client
 SERVER_STARTUP_WAIT = 1
@@ -46,8 +47,12 @@ class Command(object):
     self.env = env
 
   def RunPipe(self, pipeline, infile=None, outfile=None,
-              capture=False, oneline=False):
-    """Perform a command pipeline, with optional input/output filenames."""
+              capture=False, oneline=False, hide_stderr=False):
+    """
+    Perform a command pipeline, with optional input/output filenames.
+
+    hide_stderr     Don't allow output of stderr (default False)
+    """
 
     last_pipe = None
     while pipeline:
@@ -61,8 +66,10 @@ class Command(object):
         kwargs['stdout'] = subprocess.PIPE
       elif outfile:
         kwargs['stdout'] = open(outfile, 'wb')
+      if hide_stderr:
+        kwargs['stderr'] = open('/dev/null', 'wb')
 
-      self.env.Info('Running: %s' % ' '.join(cmd))
+      self.env.Debug('Running: %s' % ' '.join(cmd))
       last_pipe = subprocess.Popen(cmd, **kwargs)
 
     if capture:
@@ -139,13 +146,24 @@ class CrosEnv(object):
   REBOOT_START_WAIT = 5
   REBOOT_WAIT_TIME = 60
 
-  def __init__(self, verbose=False):
+  SILENT = 0
+  INFO = 1
+  DEBUG = 2
+
+  def __init__(self, verbose=SILENT):
     self.cros_root = os.path.dirname(os.path.abspath(sys.argv[0]))
     parent = os.path.dirname(self.cros_root)
     if os.path.exists(os.path.join(parent, 'chromeos-common.sh')):
       self.cros_root = parent
     self.cmd = Command(self)
     self.verbose = verbose
+
+    # do we have the pv progress tool? (sudo apt-get install pv)
+    self.have_pv = True
+    try:
+      self.cmd.Output('pv', '--help')
+    except OSError:
+      self.have_pv = False
 
   def Error(self, msg):
     print >> sys.stderr, 'ERROR: %s' % msg
@@ -156,8 +174,12 @@ class CrosEnv(object):
     sys.exit(1)
 
   def Info(self, msg):
-    if self.verbose:
+    if self.verbose >= CrosEnv.INFO:
       print 'INFO: %s' % msg
+
+  def Debug(self, msg):
+    if self.verbose >= CrosEnv.DEBUG:
+      print 'DEBUG: %s' % msg
 
   def CrosUtilsPath(self, filename):
     return os.path.join(self.cros_root, filename)
@@ -192,23 +214,16 @@ class CrosEnv(object):
 
     return True
 
-  def BuildStateful(self, src, dst):
+  def BuildStateful(self, src, dst_dir, dst_file):
     """Create a stateful partition update image."""
 
-    if self.GetCached(src, dst):
-      self.Info('Using cached stateful %s' % dst)
+    if self.GetCached(src, dst_file):
+      self.Info('Using cached stateful %s' % dst_file)
       return True
 
-    cgpt = self.ChrootPath('/usr/bin/cgpt')
-    offset = self.cmd.OutputOneLine(cgpt, 'show', '-b', '-i', '1', src)
-    size = self.cmd.OutputOneLine(cgpt, 'show', '-s', '-i', '1', src)
-    if None in (size, offset):
-      self.Error('Unable to use cgpt to get image geometry')
-      return False
-
-    return self.cmd.RunPipe([['dd', 'if=%s' % src, 'bs=512',
-                              'skip=%s' % offset, 'count=%s' % size],
-                             ['gzip', '-c']], outfile=dst)
+    return self.cmd.Run(self.CrosUtilsPath(
+        'cros_generate_stateful_update_payload'),
+        '--image=%s' % src, '--output=%s' % dst_dir)
 
   def GetSize(self, filename):
     return os.path.getsize(filename)
@@ -262,10 +277,12 @@ class CrosEnv(object):
     UpdateHandler.SetupUrl('/update', PingUpdateResponse())
     UpdateHandler.SetupUrl('/%s' % UPDATE_FILENAME,
                            FileUpdateResponse(update_file,
-                                              verbose=self.verbose))
+                                              verbose=self.verbose,
+                                              have_pv=self.have_pv))
     UpdateHandler.SetupUrl('/%s' % STATEFUL_FILENAME,
                            FileUpdateResponse(stateful_file,
-                                              verbose=self.verbose))
+                                              verbose=self.verbose,
+                                              have_pv=self.have_pv))
 
     self.http_server = BaseHTTPServer.HTTPServer(('', port), UpdateHandler)
 
@@ -304,6 +321,7 @@ class CrosEnv(object):
   def StartClient(self, port):
     """Ask the client machine to update from our server."""
 
+    self.Info("Starting client...")
     status = self.GetUpdateStatus()
     if status != 'UPDATE_STATUS_IDLE':
       self.Error('Client update status is not IDLE: %s' % status)
@@ -314,6 +332,8 @@ class CrosEnv(object):
     fd, update_log = tempfile.mkstemp(prefix='image-to-target-')
     self.Info('Starting update on client.  Client output stored to %s' %
               update_log)
+
+    # this will make the client read the files we have set up
     self.ssh_cmd.Run('/usr/bin/update_engine_client', '--update',
                      '--omaha_url', update_url, remote_tunnel=(port, port),
                      outfile=update_log)
@@ -322,6 +342,7 @@ class CrosEnv(object):
       self.Error('Client update failed')
       return False
 
+    self.Info('Update complete - running update script on client')
     self.ssh_cmd.Copy(self.CrosUtilsPath('../platform/dev/stateful_update'),
                       '/tmp')
     if not self.ssh_cmd.Run('/tmp/stateful_update', url_base,
@@ -334,7 +355,7 @@ class CrosEnv(object):
       self.Error('Client may not have successfully rebooted...')
       return False
 
-    print 'Client update completed successfully!'
+    self.Info('Client update completed successfully!')
     return True
 
 
@@ -342,7 +363,7 @@ class UpdateResponse(object):
   """Default response is the 404 error response."""
 
   def Reply(self, handler, send_content=True, post_data=None):
-    handler.send_Error(404, 'File not found')
+    handler.send_error(404, 'File not found')
     return None
 
 
@@ -350,11 +371,12 @@ class FileUpdateResponse(UpdateResponse):
   """Respond by sending the contents of a file."""
 
   def __init__(self, filename, content_type='application/octet-stream',
-               verbose=False, blocksize=16*1024):
+               verbose=False, blocksize=16*1024, have_pv=False):
     self.filename = filename
     self.content_type = content_type
     self.verbose = verbose
     self.blocksize = blocksize
+    self.have_pv = have_pv
 
   def Reply(self, handler, send_content=True, post_data=None):
     """Return file contents to the client.  Optionally display progress."""
@@ -373,14 +395,11 @@ class FileUpdateResponse(UpdateResponse):
                         handler.date_time_string(filestat.st_mtime))
     handler.end_headers()
 
-    if not send_content:
-      return
-
-    if filesize <= self.blocksize:
-      handler.wfile.write(f.read())
-    else:
+    if send_content:
       sent_size = 0
       sent_percentage = None
+
+      #TODO(sjg): this should use pv also
       while True:
         buf = f.read(self.blocksize)
         if not buf:
@@ -556,7 +575,6 @@ def main(argv):
   parser.add_option('--from', dest='src', default=None,
                     help='Source image to install')
   parser.add_option('--image-name', dest='image_name',
-                    default=DEFAULT_IMAGE_NAME,
                     help='Filename within image directory to load')
   parser.add_option('--port', dest='port', default=8081, type='int',
                     help='TCP port to serve from and tunnel through')
@@ -565,11 +583,23 @@ def main(argv):
   parser.add_option('--server-only', dest='server_only', default=False,
                     action='store_true', help='Do not start client')
   parser.add_option('--verbose', dest='verbose', default=False,
+                    action='store_true', help='Display progress')
+  parser.add_option('--debug', dest='debug', default=False,
                     action='store_true', help='Display running commands')
+  parser.add_option('--test', dest='test', default=False,
+                    action='store_true', help='Select test image')
 
   (options, args) = parser.parse_args(argv)
 
-  cros_env = CrosEnv(verbose=options.verbose)
+  # we can build the test image if it doesn't exist, so remember if we want to
+  build_test_image = False
+
+  verbosity = CrosEnv.SILENT
+  if options.verbose:
+      verbosity = CrosEnv.INFO
+  if options.debug:
+      verbosity = CrosEnv.DEBUG
+  cros_env = CrosEnv(verbose=verbosity)
 
   if not options.board:
     options.board = cros_env.GetDefaultBoard()
@@ -584,17 +614,47 @@ def main(argv):
   if not os.path.exists(options.src):
     parser.error('Path %s does not exist' % options.src)
 
+  if not options.image_name:
+    # auto-select the correct image
+    if options.test:
+      options.image_name = DEFAULT_IMAGE_NAME_TEST
+
+      # we will build the test image if not found
+      build_test_image = True
+    else:
+      options.image_name = DEFAULT_IMAGE_NAME
+
   if os.path.isdir(options.src):
     image_directory = options.src
     image_file = os.path.join(options.src, options.image_name)
 
     if not os.path.exists(image_file):
+      if build_test_image:
+        # we want a test image but it doesn't exist
+        # try to build it if we can
+        cros_env.Info('Creating test image')
+        test_output = cros_env.cmd.Output(
+                cros_env.CrosUtilsPath('enter_chroot.sh'),
+                '--', './mod_image_for_test.sh',
+                '--board=%s' % options.board, '-y')
+        if not os.path.exists(image_file):
+          print test_output
+          cros_env.Fatal('Failed to create test image - please run '
+             './mod_image_for_test.sh manually inside the chroot')
       parser.error('Image file %s does not exist' % image_file)
   else:
     image_file = options.src
     image_directory = os.path.dirname(options.src)
 
+  update_file = os.path.join(image_directory, UPDATE_FILENAME)
+  stateful_file = os.path.join(image_directory, STATEFUL_FILENAME)
+
+  cros_env.Debug("Image file %s" % image_file)
+  cros_env.Debug("Update file %s" % update_file)
+  cros_env.Debug("Stateful file %s" % stateful_file)
+
   if options.remote:
+    cros_env.Info('Contacting client %s' % options.remote)
     cros_env.SetRemote(options.remote)
     rel = cros_env.GetRemoteRelease()
     if not rel:
@@ -610,11 +670,8 @@ def main(argv):
     parser.error('Either --server-only must be specified or '
                  '--remote=<client> needs to be given')
 
-  update_file = os.path.join(image_directory, UPDATE_FILENAME)
-  stateful_file = os.path.join(image_directory, STATEFUL_FILENAME)
-
   if (not cros_env.GenerateUpdatePayload(image_file, update_file) or
-      not cros_env.BuildStateful(image_file, stateful_file)):
+      not cros_env.BuildStateful(image_file, image_directory, stateful_file)):
     cros_env.Fatal()
 
   cros_env.CreateServer(options.port, update_file, stateful_file)

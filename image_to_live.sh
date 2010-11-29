@@ -36,6 +36,8 @@ DEFINE_integer devserver_port 8080 \
 DEFINE_boolean for_vm ${FLAGS_FALSE} "Image is for a vm."
 DEFINE_string image "" \
   "Update with this image path that is in this source checkout." i
+DEFINE_string payload "" \
+  "Update with this update payload, ignoring specified images."
 DEFINE_string src_image "" \
   "Create a delta update by passing in the image on the remote machine."
 DEFINE_boolean update_stateful ${FLAGS_TRUE} \
@@ -130,6 +132,11 @@ function start_dev_server {
     IMAGE_PATH="${IMAGE_PATH}/chromiumos_image.bin"
     devserver_flags="${devserver_flags} \
         --image $(reinterpret_path_for_chroot ${IMAGE_PATH})"
+  fi
+
+  if [ -n "${FLAGS_payload}" ]; then
+    devserver_flags="${devserver_flags} \
+        --payload $(reinterpret_path_for_chroot ${FLAGS_payload})"
   fi
 
   [ ${FLAGS_for_vm} -eq ${FLAGS_TRUE} ] && \

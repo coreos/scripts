@@ -6,4 +6,4 @@
 
 echo "Modifying Release Description for Factory."
 FILE="${ROOT_FS_DIR}/etc/lsb-release"
-sed -i 's/Test/Factory/' $FILE
+sed -i 's/Test/Factory/' "${FILE}"

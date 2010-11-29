@@ -1,0 +1,93 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Simple wrapper script to build a cros_workon package incrementally.
+# You must already be cros_workon'ing the package in question.
+
+. "$(dirname $0)/../common.sh"
+
+# Script must be run inside the chroot.
+assert_inside_chroot
+
+get_default_board
+
+DEFINE_string board "${DEFAULT_BOARD}" \
+    "Board for which to build the package."
+DEFINE_boolean test "${FLAGS_FALSE}" \
+  "Compile and run tests as well."
+DEFINE_boolean reconf "${FLAGS_FALSE}" \
+  "Re-run configure and prepare steps."
+DEFINE_boolean install "${FLAGS_FALSE}" \
+  "Incrementally build and install your package."
+DEFINE_boolean scrub "${FLAGS_FALSE}" \
+  "Blow away all in-tree files not managed by git."
+
+set -e
+# Parse command line.
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+if [ $# -lt 1 ]; then
+  echo "Usage: ${0} [OPTIONS] <package (read: ebuild) basename>"
+  exit 1
+fi
+
+if [ -n "${FLAGS_board}" ]; then
+  BOARD_DIR=/build/"${FLAGS_board}"
+  EBUILDCMD=ebuild-"${FLAGS_board}"
+  EMERGECMD=emerge-"${FLAGS_board}"
+  EQUERYCMD=equery-"${FLAGS_board}"
+  BOARD_STR="${FLAGS_board}"
+  BOARD_KEYWORD="$(portageq-${FLAGS_board} envvar ARCH)"
+fi
+
+unstable_suffix="9999"
+workon_name="${1}-${unstable_suffix}"
+pkgfile=
+workpath=
+
+if ! pkgfile=$("${EQUERYCMD}" which "${workon_name}" 2> /dev/null); then
+  if ACCEPT_KEYWORDS="~${BOARD_KEYWORD}" "${EQUERYCMD}" which "${workon_name}" \
+      > /dev/null 2>&1; then
+    die "run './cros_workon --board ${BOARD_STR} start ${1}' first!" 1>&2
+  fi
+  die "error looking up package $1"
+fi
+
+if [ "${FLAGS_scrub}" = "${FLAGS_TRUE}" ]; then
+  eval $(${EBUILDCMD} $(${EQUERYCMD} which ${workon_name}) info)
+  srcdir=$(readlink -m ${CROS_WORKON_SRCDIR})
+  trunkdir=$(readlink -m ${CHROOT_TRUNK_DIR})
+  project_path=${srcdir#${trunkdir}/}
+  if ! (cd "${GCLIENT_ROOT}/${project_path}" && git clean -xf); then
+    die "Could not scrub source directory"
+  fi
+  exit 0
+fi
+
+workpath=$(\
+    echo "${pkgfile}" | \
+        awk -F '/' '{ print $(NF-2) "/" $(NF-1) }')-"${unstable_suffix}"
+
+emerge_features=
+to_do="compile"
+if [ "${FLAGS_test}" = "${FLAGS_TRUE}" ]; then
+  to_do="test"
+  emerge_features="test"
+fi
+if [ "${FLAGS_install}" = "${FLAGS_TRUE}" ]; then
+  FEATURES="${emerge_features}" "${EMERGECMD}" "${1}"
+  exit $?
+fi
+
+clean=
+if [ "${FLAGS_reconf}" = "${FLAGS_TRUE}" ]; then
+  clean="clean"
+else
+  rm -f "/build/${BOARD_STR}/tmp/portage/${workpath}/.compiled"
+fi
+SANDBOX_WRITE=~/trunk CROS_WORKON_INPLACE=1 \
+  "${EBUILDCMD}" "${pkgfile}" ${clean} "${to_do}"

@@ -6,16 +6,18 @@
 
 TEST_DIR="${ROOT_FS_DIR}/usr/local/autotest/site_tests/hardware_Components"
 
-pushd ${TEST_DIR} 1> /dev/null
+if [ -d "${TEST_DIR}" ]; then
+  pushd "${TEST_DIR}" >/dev/null
 
-# Remove the DB directories belonging to other boards.
-KEEPDB="data_${BOARD}"
-ls -d data_* 2> /dev/null | grep -v ${KEEPDB} | xargs rm -fr
+  # Remove the DB directories belonging to other boards.
+  KEEPDB="data_${BOARD}"
+  ls -d data_* 2>/dev/null | grep -v "${KEEPDB}" | xargs rm -fr
 
-# Ensure there is DB directory in x86-agz and x86-mario.
-if [ ! -d ${KEEPDB} -a \
-    \( "${BOARD}" = "x86-agz" -o "${BOARD}" = "x86-mario" \) ]; then
-  echo "No component DB directory found at: ${KEEPDB}"
+  # Ensure there is DB directory in x86-agz and x86-mario.
+  if [ ! -d "${KEEPDB}" ] &&
+     [ "${BOARD}" = "x86-agz" -o "${BOARD}" = "x86-mario" ]; then
+    echo "No component DB directory found at: ${KEEPDB}"
+  fi
+
+  popd >/dev/null
 fi
-
-popd 1> /dev/null

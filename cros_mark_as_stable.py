@@ -18,36 +18,36 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), 'lib'))
 from cros_build_lib import Info, RunCommand, Warning, Die
 
-
+gflags.DEFINE_boolean('all', False,
+                      'Mark all packages as stable.')
 gflags.DEFINE_string('board', '',
                      'Board for which the package belongs.', short_name='b')
+gflags.DEFINE_string('drop_file', None,
+                     'File to list packages that were revved.')
+gflags.DEFINE_boolean('dryrun', False,
+                     'Passes dry-run to git push if pushing a change.')
 gflags.DEFINE_string('overlays', '',
                      'Colon-separated list of overlays to modify.',
                      short_name='o')
 gflags.DEFINE_string('packages', '',
                      'Colon-separated list of packages to mark as stable.',
                      short_name='p')
-gflags.DEFINE_string('push_options', '',
-                     'Options to use with git-cl push using push command.')
 gflags.DEFINE_string('srcroot', '%s/trunk/src' % os.environ['HOME'],
                      'Path to root src directory.',
                      short_name='r')
 gflags.DEFINE_string('tracking_branch', 'cros/master',
                      'Used with commit to specify branch to track against.',
                      short_name='t')
-gflags.DEFINE_boolean('all', False,
-                      'Mark all packages as stable.')
 gflags.DEFINE_boolean('verbose', False,
                       'Prints out verbose information about what is going on.',
                       short_name='v')
 
 
 # Takes two strings, package_name and commit_id.
-_GIT_COMMIT_MESSAGE = \
-  'Marking 9999 ebuild for %s with commit %s as stable.'
+_GIT_COMMIT_MESSAGE = 'Marking 9999 ebuild for %s with commit %s as stable.'
 
 # Dictionary of valid commands with usage information.
-_COMMAND_DICTIONARY = {
+COMMAND_DICTIONARY = {
                         'clean':
                           'Cleans up previous calls to either commit or push',
                         'commit':
@@ -57,7 +57,17 @@ _COMMAND_DICTIONARY = {
                       }
 
 # Name used for stabilizing branch.
-_STABLE_BRANCH_NAME = 'stabilizing_branch'
+STABLE_BRANCH_NAME = 'stabilizing_branch'
+
+
+def BestEBuild(ebuilds):
+  """Returns the newest EBuild from a list of EBuild objects."""
+  from portage.versions import vercmp
+  winner = ebuilds[0]
+  for ebuild in ebuilds[1:]:
+    if vercmp(winner.version, ebuild.version) < 0:
+      winner = ebuild
+  return winner
 
 # ======================= Global Helper Functions ========================
 
@@ -83,16 +93,6 @@ def _CleanStalePackages(board, package_array):
     RunCommand(['sudo', 'eclean', '-d', 'packages'], redirect_stderr=True)
 
 
-def _BestEBuild(ebuilds):
-  """Returns the newest EBuild from a list of EBuild objects."""
-  from portage.versions import vercmp
-  winner = ebuilds[0]
-  for ebuild in ebuilds[1:]:
-    if vercmp(winner.version, ebuild.version) < 0:
-      winner = ebuild
-  return winner
-
-
 def _FindUprevCandidates(files):
   """Return a list of uprev candidates from specified list of files.
 
@@ -108,7 +108,7 @@ def _FindUprevCandidates(files):
   unstable_ebuilds = []
   for path in files:
     if path.endswith('.ebuild') and not os.path.islink(path):
-      ebuild = _EBuild(path)
+      ebuild = EBuild(path)
       if ebuild.is_workon:
         workon_dir = True
         if ebuild.is_stable:
@@ -121,7 +121,7 @@ def _FindUprevCandidates(files):
     if len(unstable_ebuilds) > 1:
       Die('Found multiple unstable ebuilds in %s' % os.path.dirname(path))
     if len(stable_ebuilds) > 1:
-      stable_ebuilds = [_BestEBuild(stable_ebuilds)]
+      stable_ebuilds = [BestEBuild(stable_ebuilds)]
 
       # Print a warning if multiple stable ebuilds are found in the same
       # directory. Storing multiple stable ebuilds is error-prone because
@@ -166,15 +166,15 @@ def _BuildEBuildDictionary(overlays, all, packages):
         overlays[overlay].append(ebuild)
 
 
-def _CheckOnStabilizingBranch():
+def _CheckOnStabilizingBranch(stable_branch):
   """Returns true if the git branch is on the stabilizing branch."""
   current_branch = _SimpleRunCommand('git branch | grep \*').split()[1]
-  return current_branch == _STABLE_BRANCH_NAME
+  return current_branch == stable_branch
 
 
 def _CheckSaneArguments(package_list, command):
   """Checks to make sure the flags are sane.  Dies if arguments are not sane."""
-  if not command in _COMMAND_DICTIONARY.keys():
+  if not command in COMMAND_DICTIONARY.keys():
     _PrintUsageAndDie('%s is not a valid command' % command)
   if not gflags.FLAGS.packages and command == 'commit' and not gflags.FLAGS.all:
     _PrintUsageAndDie('Please specify at least one package')
@@ -185,19 +185,13 @@ def _CheckSaneArguments(package_list, command):
   gflags.FLAGS.srcroot = os.path.abspath(gflags.FLAGS.srcroot)
 
 
-def _Clean():
-  """Cleans up uncommitted changes on either stabilizing branch or master."""
-  _SimpleRunCommand('git reset HEAD --hard')
-  _SimpleRunCommand('git checkout %s' % gflags.FLAGS.tracking_branch)
-
-
 def _PrintUsageAndDie(error_message=''):
   """Prints optional error_message the usage and returns an error exit code."""
   command_usage = 'Commands: \n'
   # Add keys and usage information from dictionary.
-  commands = sorted(_COMMAND_DICTIONARY.keys())
+  commands = sorted(COMMAND_DICTIONARY.keys())
   for command in commands:
-    command_usage += '  %s: %s\n' % (command, _COMMAND_DICTIONARY[command])
+    command_usage += '  %s: %s\n' % (command, COMMAND_DICTIONARY[command])
   commands_str = '|'.join(commands)
   Warning('Usage: %s FLAGS [%s]\n\n%s\nFlags:%s' % (sys.argv[0], commands_str,
                                                   command_usage, gflags.FLAGS))
@@ -205,40 +199,6 @@ def _PrintUsageAndDie(error_message=''):
     Die(error_message)
   else:
     sys.exit(1)
-
-def _PushChange():
-  """Pushes changes to the git repository.
-
-  Pushes locals commits from calls to CommitChange to the remote git
-  repository specified by os.pwd.
-
-  Raises:
-      OSError: Error occurred while pushing.
-  """
-
-  # TODO(sosa) - Add logic for buildbot to check whether other slaves have
-  # completed and push this change only if they have.
-
-  # Sanity check to make sure we're on a stabilizing branch before pushing.
-  if not _CheckOnStabilizingBranch():
-    Info('Not on branch %s so no work found to push.  Exiting' % \
-        _STABLE_BRANCH_NAME)
-    return
-
-  description = _SimpleRunCommand('git log --format=format:%s%n%n%b ' +
-                            gflags.FLAGS.tracking_branch + '..')
-  description = 'Marking set of ebuilds as stable\n\n%s' % description
-  merge_branch_name = 'merge_branch'
-  _SimpleRunCommand('git remote update')
-  merge_branch = _GitBranch(merge_branch_name)
-  merge_branch.CreateBranch()
-  if not merge_branch.Exists():
-    Die('Unable to create merge branch.')
-  _SimpleRunCommand('git merge --squash %s' % _STABLE_BRANCH_NAME)
-  _SimpleRunCommand('git commit -m "%s"' % description)
-  # Ugh. There has got to be an easier way to push to a tracking branch
-  _SimpleRunCommand('git config push.default tracking')
-  _SimpleRunCommand('git push')
 
 
 def _SimpleRunCommand(command):
@@ -248,19 +208,79 @@ def _SimpleRunCommand(command):
   stdout = proc_handle.communicate()[0]
   retcode = proc_handle.wait()
   if retcode != 0:
-    raise subprocess.CalledProcessError(retcode, command, output=stdout)
+    _Print(stdout)
+    raise subprocess.CalledProcessError(retcode, command)
   return stdout
 
 
 # ======================= End Global Helper Functions ========================
 
 
-class _GitBranch(object):
+def Clean(tracking_branch):
+  """Cleans up uncommitted changes.
+
+  Args:
+    tracking_branch:  The tracking branch we want to return to after the call.
+  """
+  _SimpleRunCommand('git reset HEAD --hard')
+  _SimpleRunCommand('git checkout %s' % tracking_branch)
+
+
+def PushChange(stable_branch, tracking_branch):
+  """Pushes commits in the stable_branch to the remote git repository.
+
+  Pushes locals commits from calls to CommitChange to the remote git
+  repository specified by current working directory.
+
+  Args:
+    stable_branch: The local branch with commits we want to push.
+    tracking_branch: The tracking branch of the local branch.
+  Raises:
+      OSError: Error occurred while pushing.
+  """
+  num_retries = 5
+
+  # Sanity check to make sure we're on a stabilizing branch before pushing.
+  if not _CheckOnStabilizingBranch(stable_branch):
+    Info('Not on branch %s so no work found to push.  Exiting' % stable_branch)
+    return
+
+  description = _SimpleRunCommand('git log --format=format:%s%n%n%b ' +
+                                  tracking_branch + '..')
+  description = 'Marking set of ebuilds as stable\n\n%s' % description
+  Info('Using description %s' % description)
+  merge_branch_name = 'merge_branch'
+  for push_try in range(num_retries + 1):
+    try:
+      _SimpleRunCommand('git remote update')
+      merge_branch = GitBranch(merge_branch_name, tracking_branch)
+      merge_branch.CreateBranch()
+      if not merge_branch.Exists():
+        Die('Unable to create merge branch.')
+      _SimpleRunCommand('git merge --squash %s' % stable_branch)
+      _SimpleRunCommand('git commit -m "%s"' % description)
+      _SimpleRunCommand('git config push.default tracking')
+      if gflags.FLAGS.dryrun:
+        _SimpleRunCommand('git push --dry-run')
+      else:
+        _SimpleRunCommand('git push')
+
+      break
+    except:
+      if push_try < num_retries:
+        Warning('Failed to push change, performing retry (%s/%s)' % (
+            push_try + 1, num_retries))
+      else:
+        raise
+
+
+class GitBranch(object):
   """Wrapper class for a git branch."""
 
-  def __init__(self, branch_name):
+  def __init__(self, branch_name, tracking_branch):
     """Sets up variables but does not create the branch."""
     self.branch_name = branch_name
+    self.tracking_branch = tracking_branch
 
   def CreateBranch(self):
     """Creates a new git branch or replaces an existing one."""
@@ -271,7 +291,7 @@ class _GitBranch(object):
   def _Checkout(self, target, create=True):
     """Function used internally to create and move between branches."""
     if create:
-      git_cmd = 'git checkout -b %s %s' % (target, gflags.FLAGS.tracking_branch)
+      git_cmd = 'git checkout -b %s %s' % (target, self.tracking_branch)
     else:
       git_cmd = 'git checkout %s' % target
     _SimpleRunCommand(git_cmd)
@@ -287,30 +307,30 @@ class _GitBranch(object):
 
     Returns True on success.
     """
-    self._Checkout(gflags.FLAGS.tracking_branch, create=False)
+    self._Checkout(self.tracking_branch, create=False)
     delete_cmd = 'git branch -D %s' % self.branch_name
     _SimpleRunCommand(delete_cmd)
 
 
-class _EBuild(object):
-  """Wrapper class for an ebuild."""
+class EBuild(object):
+  """Wrapper class for information about an ebuild."""
 
   def __init__(self, path):
-    """Initializes all data about an ebuild.
-
-    Uses equery to find the ebuild path and sets data about an ebuild for
-    easy reference.
-    """
+    """Sets up data about an ebuild from its path."""
     from portage.versions import pkgsplit
-    self.ebuild_path = path
-    (self.ebuild_path_no_revision,
-     self.ebuild_path_no_version,
-     self.current_revision) = self._ParseEBuildPath(self.ebuild_path)
-    _, self.category, pkgpath, filename = path.rsplit('/', 3)
-    filename_no_suffix = os.path.join(filename.replace('.ebuild', ''))
-    self.pkgname, version_no_rev, rev = pkgsplit(filename_no_suffix)
+    unused_path, self.category, self.pkgname, filename = path.rsplit('/', 3)
+    unused_pkgname, version_no_rev, rev = pkgsplit(
+        filename.replace('.ebuild', ''))
+
+    self.ebuild_path_no_version = os.path.join(
+        os.path.dirname(path), self.pkgname)
+    self.ebuild_path_no_revision = '%s-%s' % (self.ebuild_path_no_version,
+                                              version_no_rev)
+    self.current_revision = int(rev.replace('r', ''))
     self.version = '%s-%s' % (version_no_rev, rev)
     self.package = '%s/%s' % (self.category, self.pkgname)
+    self.ebuild_path = path
+
     self.is_workon = False
     self.is_stable = False
 
@@ -324,7 +344,6 @@ class _EBuild(object):
 
   def GetCommitId(self):
     """Get the commit id for this ebuild."""
-
     # Grab and evaluate CROS_WORKON variables from this ebuild.
     unstable_ebuild = '%s-9999.ebuild' % self.ebuild_path_no_version
     cmd = ('export CROS_WORKON_LOCALNAME="%s" CROS_WORKON_PROJECT="%s"; '
@@ -367,39 +386,53 @@ class _EBuild(object):
       Die('Missing commit id for %s' % self.ebuild_path)
     return output.rstrip()
 
-  @classmethod
-  def _ParseEBuildPath(cls, ebuild_path):
-    """Static method that parses the path of an ebuild
-
-    Returns a tuple containing the (ebuild path without the revision
-    string, without the version string, and the current revision number for
-    the ebuild).
-    """
-     # Get the ebuild name without the revision string.
-    (ebuild_no_rev, _, rev_string) = ebuild_path.rpartition('-')
-
-    # Verify the revision string starts with the revision character.
-    if rev_string.startswith('r'):
-      # Get the ebuild name without the revision and version strings.
-      ebuild_no_version = ebuild_no_rev.rpartition('-')[0]
-      rev_string = rev_string[1:].rpartition('.ebuild')[0]
-    else:
-      # Has no revision so we stripped the version number instead.
-      ebuild_no_version = ebuild_no_rev
-      ebuild_no_rev = ebuild_path.rpartition('9999.ebuild')[0] + '0.0.1'
-      rev_string = '0'
-    revision = int(rev_string)
-    return (ebuild_no_rev, ebuild_no_version, revision)
-
 
 class EBuildStableMarker(object):
   """Class that revs the ebuild and commits locally or pushes the change."""
 
   def __init__(self, ebuild):
+    assert ebuild
     self._ebuild = ebuild
 
-  def RevEBuild(self, commit_id='', redirect_file=None):
-    """Revs an ebuild given the git commit id.
+  @classmethod
+  def MarkAsStable(cls, unstable_ebuild_path, new_stable_ebuild_path,
+                   commit_keyword, commit_value, redirect_file=None):
+    """Static function that creates a revved stable ebuild.
+
+    This function assumes you have already figured out the name of the new
+    stable ebuild path and then creates that file from the given unstable
+    ebuild and marks it as stable.  If the commit_value is set, it also
+    set the commit_keyword=commit_value pair in the ebuild.
+
+    Args:
+      unstable_ebuild_path: The path to the unstable ebuild.
+      new_stable_ebuild_path:  The path you want to use for the new stable
+        ebuild.
+      commit_keyword: Optional keyword to set in the ebuild to mark it as
+        stable.
+      commit_value: Value to set the above keyword to.
+      redirect_file:  Optionally redirect output of new ebuild somewhere else.
+    """
+    shutil.copyfile(unstable_ebuild_path, new_stable_ebuild_path)
+    for line in fileinput.input(new_stable_ebuild_path, inplace=1):
+      # Has to be done here to get changes to sys.stdout from fileinput.input.
+      if not redirect_file:
+        redirect_file = sys.stdout
+      if line.startswith('KEYWORDS'):
+        # Actually mark this file as stable by removing ~'s.
+        redirect_file.write(line.replace('~', ''))
+      elif line.startswith('EAPI'):
+        # Always add new commit_id after EAPI definition.
+        redirect_file.write(line)
+        if commit_keyword and commit_value:
+          redirect_file.write('%s="%s"\n' % (commit_keyword, commit_value))
+      elif not line.startswith(commit_keyword):
+        # Skip old commit_keyword definition.
+        redirect_file.write(line)
+    fileinput.close()
+
+  def RevWorkOnEBuild(self, commit_id, redirect_file=None):
+    """Revs a workon ebuild given the git commit hash.
 
     By default this class overwrites a new ebuild given the normal
     ebuild rev'ing logic.  However, a user can specify a redirect_file
@@ -418,44 +451,34 @@ class EBuildStableMarker(object):
     Returns:
       True if the revved package is different than the old ebuild.
     """
-    # TODO(sosa):  Change to a check.
-    if not self._ebuild:
-      Die('Invalid ebuild given to EBuildStableMarker')
+    if self._ebuild.is_stable:
+      new_stable_ebuild_path = '%s-r%d.ebuild' % (
+          self._ebuild.ebuild_path_no_revision,
+          self._ebuild.current_revision + 1)
+    else:
+      # If given unstable ebuild, use 0.0.1 rather than 9999.
+      new_stable_ebuild_path = '%s-0.0.1-r%d.ebuild' % (
+          self._ebuild.ebuild_path_no_version,
+          self._ebuild.current_revision + 1)
 
-    new_ebuild_path = '%s-r%d.ebuild' % (self._ebuild.ebuild_path_no_revision,
-                                         self._ebuild.current_revision + 1)
+    _Print('Creating new stable ebuild %s' % new_stable_ebuild_path)
+    unstable_ebuild_path = ('%s-9999.ebuild' %
+                            self._ebuild.ebuild_path_no_version)
+    if not os.path.exists(unstable_ebuild_path):
+      Die('Missing unstable ebuild: %s' % unstable_ebuild_path)
 
-    _Print('Creating new stable ebuild %s' % new_ebuild_path)
-    workon_ebuild = '%s-9999.ebuild' % self._ebuild.ebuild_path_no_version
-    if not os.path.exists(workon_ebuild):
-      Die('Missing 9999 ebuild: %s' % workon_ebuild)
-    shutil.copyfile(workon_ebuild, new_ebuild_path)
-
-    for line in fileinput.input(new_ebuild_path, inplace=1):
-      # Has to be done here to get changes to sys.stdout from fileinput.input.
-      if not redirect_file:
-        redirect_file = sys.stdout
-      if line.startswith('KEYWORDS'):
-        # Actually mark this file as stable by removing ~'s.
-        redirect_file.write(line.replace('~', ''))
-      elif line.startswith('EAPI'):
-        # Always add new commit_id after EAPI definition.
-        redirect_file.write(line)
-        redirect_file.write('CROS_WORKON_COMMIT="%s"\n' % commit_id)
-      elif not line.startswith('CROS_WORKON_COMMIT'):
-        # Skip old CROS_WORKON_COMMIT definition.
-        redirect_file.write(line)
-    fileinput.close()
+    self.MarkAsStable(unstable_ebuild_path, new_stable_ebuild_path,
+                      'CROS_WORKON_COMMIT', commit_id, redirect_file)
 
     old_ebuild_path = self._ebuild.ebuild_path
-    diff_cmd = ['diff', '-Bu', old_ebuild_path, new_ebuild_path]
+    diff_cmd = ['diff', '-Bu', old_ebuild_path, new_stable_ebuild_path]
     if 0 == RunCommand(diff_cmd, exit_code=True, redirect_stdout=True,
                        redirect_stderr=True, print_cmd=gflags.FLAGS.verbose):
-      os.unlink(new_ebuild_path)
+      os.unlink(new_stable_ebuild_path)
       return False
     else:
       _Print('Adding new stable ebuild to git')
-      _SimpleRunCommand('git add %s' % new_ebuild_path)
+      _SimpleRunCommand('git add %s' % new_stable_ebuild_path)
 
       if self._ebuild.is_stable:
         _Print('Removing old ebuild from git')
@@ -463,11 +486,9 @@ class EBuildStableMarker(object):
 
       return True
 
-  def CommitChange(self, message):
-    """Commits current changes in git locally.
-
-    This method will take any changes from invocations to RevEBuild
-    and commits them locally in the git repository that contains os.pwd.
+  @classmethod
+  def CommitChange(cls, message):
+    """Commits current changes in git locally with given commit message.
 
     Args:
         message: the commit string to write when committing to git.
@@ -475,8 +496,7 @@ class EBuildStableMarker(object):
     Raises:
         OSError: Error occurred while committing.
     """
-    _Print('Committing changes for %s with commit message %s' % \
-           (self._ebuild.package, message))
+    Info('Committing changes with commit message: %s' % message)
     git_commit_cmd = 'git commit -am "%s"' % message
     _SimpleRunCommand(git_commit_cmd)
 
@@ -520,11 +540,11 @@ def main(argv):
     os.chdir(overlay)
 
     if command == 'clean':
-      _Clean()
+      Clean(gflags.FLAGS.tracking_branch)
     elif command == 'push':
-      _PushChange()
+      PushChange(STABLE_BRANCH_NAME, gflags.FLAGS.tracking_branch)
     elif command == 'commit' and ebuilds:
-      work_branch = _GitBranch(_STABLE_BRANCH_NAME)
+      work_branch = GitBranch(STABLE_BRANCH_NAME, gflags.FLAGS.tracking_branch)
       work_branch.CreateBranch()
       if not work_branch.Exists():
         Die('Unable to create stabilizing branch in %s' % overlay)
@@ -536,7 +556,7 @@ def main(argv):
           _Print('Working on %s' % ebuild.package)
           worker = EBuildStableMarker(ebuild)
           commit_id = ebuild.GetCommitId()
-          if worker.RevEBuild(commit_id):
+          if worker.RevWorkOnEBuild(commit_id):
             message = _GIT_COMMIT_MESSAGE % (ebuild.package, commit_id)
             worker.CommitChange(message)
             revved_packages.append(ebuild.package)
@@ -549,6 +569,10 @@ def main(argv):
 
       if revved_packages:
         _CleanStalePackages(gflags.FLAGS.board, revved_packages)
+        if gflags.FLAGS.drop_file:
+          fh = open(gflags.FLAGS.drop_file, 'w')
+          fh.write(' '.join(revved_packages))
+          fh.close()
       else:
         work_branch.Delete()
 
