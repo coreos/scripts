@@ -48,83 +48,94 @@ function cleanup() {
 function read_test_type() {
   local control_file=$1
   # Assume a line starts with TEST_TYPE =
-  local type=$(egrep -m1 \
-               '^[[:space:]]*TEST_TYPE[[:space:]]*=' "${control_file}")
-  if [[ -z "${type}" ]]; then
+  local test_type=$(egrep -m1 \
+                    '^[[:space:]]*TEST_TYPE[[:space:]]*=' "${control_file}")
+  if [[ -z "${test_type}" ]]; then
     die "Unable to find TEST_TYPE line in ${control_file}"
   fi
-  type=$(python -c "${type}; print TEST_TYPE.lower()")
-  if [[ "${type}" != "client" ]] && [[ "${type}" != "server" ]]; then
-    die "Unknown type of test (${type}) in ${control_file}"
+  test_type=$(python -c "${test_type}; print TEST_TYPE.lower()")
+  if [[ "${test_type}" != "client" ]] && [[ "${test_type}" != "server" ]]; then
+    die "Unknown type of test (${test_type}) in ${control_file}"
   fi
-  echo ${type}
+  echo ${test_type}
 }
 
 function create_tmp() {
   # Set global TMP for remote_access.sh's sake
   # and if --results_dir_root is specified,
   # set TMP and create dir appropriately
-  if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
-    if [[ -n "${FLAGS_results_dir_root}" ]]; then
-      TMP=${FLAGS_chroot}${FLAGS_results_dir_root}
-      mkdir -p -m 777 ${TMP}
-    else
-      TMP=$(mktemp -d ${FLAGS_chroot}/tmp/run_remote_tests.XXXX)
-    fi
-    TMP_INSIDE_CHROOT=$(echo ${TMP#${FLAGS_chroot}})
+  if [[ -n "${FLAGS_results_dir_root}" ]]; then
+    TMP=${FLAGS_results_dir_root}
+    mkdir -p -m 777 ${TMP}
   else
-    if [[ -n "${FLAGS_results_dir_root}" ]]; then
-      TMP=${FLAGS_results_dir_root}
-      mkdir -p -m 777 ${TMP}
-    else
-      TMP=$(mktemp -d /tmp/run_remote_tests.XXXX)
-    fi
-    TMP_INSIDE_CHROOT=${TMP}
+    TMP=$(mktemp -d /tmp/run_remote_tests.XXXX)
   fi
 }
 
-function prepare_build_dir() {
-  local autotest_dir="$1"
-  INSIDE_BUILD_DIR="${TMP_INSIDE_CHROOT}/build"
-  BUILD_DIR="${TMP}/build"
-  info "Copying autotest tree into ${BUILD_DIR}."
-  sudo mkdir -p "${BUILD_DIR}"
-  sudo rsync -rl --chmod=ugo=rwx "${autotest_dir}"/ "${BUILD_DIR}"
+function prepare_build_env() {
   info "Pilfering toolchain shell environment from Portage."
-  local outside_ebuild_dir="${TMP}/chromeos-base/autotest-build"
-  local inside_ebuild_dir="${TMP_INSIDE_CHROOT}/chromeos-base/autotest-build"
-  mkdir -p "${outside_ebuild_dir}"
+  local ebuild_dir="${TMP}/chromeos-base/autotest-build"
+  mkdir -p "${ebuild_dir}"
   local E_only="autotest-build-9999.ebuild"
-  cat > "${outside_ebuild_dir}/${E_only}" <<EOF
+  cat > "${ebuild_dir}/${E_only}" <<EOF
 inherit toolchain-funcs
 SLOT="0"
 EOF
   local E="chromeos-base/autotest-build/${E_only}"
-  ${ENTER_CHROOT} "ebuild-${FLAGS_board}" "${inside_ebuild_dir}/${E_only}" \
+  "ebuild-${FLAGS_board}" --skip-manifest "${ebuild_dir}/${E_only}" \
       clean unpack 2>&1 > /dev/null
-  local P_tmp="${FLAGS_chroot}/build/${FLAGS_board}/tmp/portage/"
+  local P_tmp="/build/${FLAGS_board}/tmp/portage/"
   local E_dir="${E%%/*}/${E_only%.*}"
-  sudo cp "${P_tmp}/${E_dir}/temp/environment" "${BUILD_DIR}"
+  export BUILD_ENV="${P_tmp}/${E_dir}/temp/environment"
 }
 
 function autodetect_build() {
   if [ ${FLAGS_use_emerged} -eq ${FLAGS_TRUE} ]; then
-    info \
-"As requested, using emerged autotests already installed in your sysroot."
+    AUTOTEST_DIR="/build/${FLAGS_board}/usr/local/autotest"
     FLAGS_build=${FLAGS_FALSE}
+    if [ ! -d "${AUTOTEST_DIR}" ]; then
+      die \
+"Could not find pre-installed autotest, you need to emerge-${FLAGS_board} \
+autotest autotest-tests (or use --build)."
+    fi
+    info \
+"As requested, using emerged autotests already installed at ${AUTOTEST_DIR}."
     return
   fi
-  if ${ENTER_CHROOT} ./cros_workon --board=${FLAGS_board} list | \
-    grep -q autotest; then
-    info \
-"Detected cros_workon autotests, building your sources instead of emerged \
-autotest.  To use installed autotest, pass --use_emerged."
+
+  if [ ${FLAGS_build} -eq ${FLAGS_FALSE} ] &&
+      $(dirname $0)/cros_workon --board=${FLAGS_board} list |
+      grep -q autotest; then
+    AUTOTEST_DIR="${SRC_ROOT}/third_party/autotest/files"
     FLAGS_build=${FLAGS_TRUE}
-  else
+    if [ ! -d "${AUTOTEST_DIR}" ]; then
+      die \
+"Detected cros_workon autotest but ${AUTOTEST_DIR} does not exist. Run \
+repo sync autotest."
+    fi
     info \
-"Using emerged autotests already installed in your sysroot.  To build \
-autotests directly from your source directory instead, pass --build."
-    FLAGS_build=${FLAGS_FALSE}
+"Detected cros_workon autotests. Building and running your autotests from \
+${AUTOTEST_DIR}. To use emerged autotest, pass --use_emerged."
+    return
+  fi
+
+  # flag use_emerged should be false once the code reaches here.
+  if [ ${FLAGS_build} -eq ${FLAGS_TRUE} ]; then
+    AUTOTEST_DIR="${SRC_ROOT}/third_party/autotest/files"
+    if [ ! -d "${AUTOTEST_DIR}" ]; then
+      die \
+"Build flag was turned on but ${AUTOTEST_DIR} is not found. Run cros_workon \
+start autotest and repo sync to continue."
+    fi
+    info "Build and run autotests from ${AUTOTEST_DIR}."
+  else
+    AUTOTEST_DIR="/build/${FLAGS_board}/usr/local/autotest"
+    if [ ! -d "${AUTOTEST_DIR}" ]; then
+      die \
+"Autotest was not emerged. Run emerge-${FLAGS_board} autotest \
+autotest-tests to continue."
+    fi
+    info "Using emerged autotests already installed at ${AUTOTEST_DIR}."
   fi
 }
 
@@ -160,24 +171,7 @@ function main() {
   remote_access_init
 
   learn_board
-  autotest_dir="${FLAGS_chroot}/build/${FLAGS_board}/usr/local/autotest"
-
-  ENTER_CHROOT=""
-  if [[ ${INSIDE_CHROOT} -eq 0 ]]; then
-    ENTER_CHROOT="./enter_chroot.sh --chroot ${FLAGS_chroot} --"
-  fi
-
-  if [ ${FLAGS_build} -eq ${FLAGS_FALSE} ]; then
-    autodetect_build
-  fi
-
-  if [ ${FLAGS_build} -eq ${FLAGS_TRUE} ]; then
-    autotest_dir="${SRC_ROOT}/third_party/autotest/files"
-  else
-    if [ ! -d "${autotest_dir}" ]; then
-      die "You need to emerge autotest-tests (or use --build)"
-    fi
-  fi
+  autodetect_build
 
   local control_files_to_run=""
   local chrome_autotests="${CHROME_ROOT}/src/chrome/test/chromeos/autotest/files"
@@ -187,7 +181,8 @@ function main() {
   if [ -n "${CHROME_ROOT}" ]; then
     search_path="${search_path} ${chrome_autotests}/client/site_tests"
   fi
-  pushd ${autotest_dir} > /dev/null
+
+  pushd ${AUTOTEST_DIR} > /dev/null
   for test_request in $FLAGS_ARGV; do
     test_request=$(remove_quotes "${test_request}")
     ! finds=$(find ${search_path} -maxdepth 2 -type f \( -name control.\* -or \
@@ -208,7 +203,6 @@ function main() {
       control_files_to_run="${control_files_to_run} '${finds}'"
     done
   done
-  popd > /dev/null
 
   echo ""
 
@@ -216,29 +210,29 @@ function main() {
     die "Found no control files"
   fi
 
-  [ ${FLAGS_build} -eq ${FLAGS_TRUE} ] && prepare_build_dir "${autotest_dir}"
+  [ ${FLAGS_build} -eq ${FLAGS_TRUE} ] && prepare_build_env
 
   info "Running the following control files:"
-  for CONTROL_FILE in ${control_files_to_run}; do
-    info " * ${CONTROL_FILE}"
+  for control_file in ${control_files_to_run}; do
+    info " * ${control_file}"
   done
 
   for control_file in ${control_files_to_run}; do
     # Assume a line starts with TEST_TYPE =
     control_file=$(remove_quotes "${control_file}")
-    local type=$(read_test_type "${autotest_dir}/${control_file}")
+    local test_type=$(read_test_type "${AUTOTEST_DIR}/${control_file}")
     # Check if the control file is an absolute path (i.e. chrome autotests case)
     if [[ ${control_file:0:1} == "/" ]]; then
-      type=$(read_test_type "${control_file}")
+      test_type=$(read_test_type "${control_file}")
     fi
     local option
-    if [[ "${type}" == "client" ]]; then
+    if [[ "${test_type}" == "client" ]]; then
       option="-c"
     else
       option="-s"
     fi
     echo ""
-    info "Running ${type} test ${control_file}"
+    info "Running ${test_type} test ${control_file}"
     local control_file_name=$(basename "${control_file}")
     local short_name=$(basename $(dirname "${control_file}"))
 
@@ -255,7 +249,7 @@ function main() {
     fi
 
     local results_dir_name="${short_name}"
-    local results_dir="${TMP_INSIDE_CHROOT}/${results_dir_name}"
+    local results_dir="${TMP}/${results_dir_name}"
     rm -rf "${results_dir}"
     local verbose=""
     if [[ ${FLAGS_verbose} -eq $FLAGS_TRUE ]]; then
@@ -271,39 +265,24 @@ function main() {
       info "Running chrome autotest ${control_file}"
     fi
 
-    local autoserv_test_args="${FLAGS_args}"
-    if [ -n "${autoserv_test_args}" ]; then
-      autoserv_test_args="-a \"${autoserv_test_args}\""
-    fi
     local autoserv_args="-m ${FLAGS_remote} --ssh-port ${FLAGS_ssh_port} \
         ${option} ${control_file} -r ${results_dir} ${verbose}"
-    if [ ${FLAGS_build} -eq ${FLAGS_FALSE} ]; then
-      cat > "${TMP}/run_test.sh" <<EOF
-cd /build/${FLAGS_board}/usr/local/autotest
-sudo chmod a+w ./server/{tests,site_tests}
-echo ./server/autoserv ${autoserv_args} ${autoserv_test_args}
-./server/autoserv ${autoserv_args} ${autoserv_test_args}
-EOF
-      chmod a+rx "${TMP}/run_test.sh"
-      ${ENTER_CHROOT} ${TMP_INSIDE_CHROOT}/run_test.sh >&2
+    if [ -n "${FLAGS_args}" ]; then
+      autoserv_args="${autoserv_args} -a \""${FLAGS_args}"\""
+    fi
+
+    sudo chmod a+w ./server/{tests,site_tests}
+    echo ./server/autoserv ${autoserv_args}
+
+    if [ ${FLAGS_build} -eq ${FLAGS_TRUE} ]; then
+      # run autoserv in subshell
+      (. ${BUILD_ENV} && tc-export CC CXX PKG_CONFIG &&
+       ./server/autoserv ${autoserv_args})
     else
-      cp "${BUILD_DIR}/environment" "${TMP}/run_test.sh"
-      GRAPHICS_BACKEND=${GRAPHICS_BACKEND:-OPENGL}
-      cat >> "${TMP}/run_test.sh" <<EOF
-export GCLIENT_ROOT=/home/${USER}/trunk
-export GRAPHICS_BACKEND=${GRAPHICS_BACKEND}
-export SSH_AUTH_SOCK=${SSH_AUTH_SOCK} TMPDIR=/tmp SSH_AGENT_PID=${SSH_AGENT_PID}
-export SYSROOT=/build/${FLAGS_board}
-tc-export CC CXX PKG_CONFIG
-cd ${INSIDE_BUILD_DIR}
-echo ./server/autoserv ${autoserv_args} ${autoserv_test_args}
-./server/autoserv ${autoserv_args} ${autoserv_test_args}
-EOF
-      sudo cp "${TMP}/run_test.sh" "${BUILD_DIR}"
-      sudo chmod a+rx "${BUILD_DIR}/run_test.sh"
-      ${ENTER_CHROOT} sudo bash -c "${INSIDE_BUILD_DIR}/run_test.sh" >&2
+      ./server/autoserv ${autoserv_args}
     fi
   done
+  popd > /dev/null
 
   echo ""
   info "Test results:"
@@ -312,4 +291,5 @@ EOF
   print_time_elapsed
 }
 
+restart_in_chroot_if_needed $*
 main "$@"
