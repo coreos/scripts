@@ -113,11 +113,8 @@ ALL_BOARDS=$(echo $ALL_BOARDS)
 #DEFAULT_BOARD=x86-generic # or...
 DEFAULT_BOARD=$(echo $ALL_BOARDS | awk '{print $NF}')
 
-# Enable --fast by default on non-official builds
+# Enable --fast by default.
 DEFAULT_FAST="${FLAGS_TRUE}"
-if [ "${CHROMEOS_OFFICIAL:-0}" = "1" ]; then
-  DEFAULT_FAST="${FLAGS_FALSE}"
-fi
 
 # Detect whether we're inside a chroot or not
 if [ -e /etc/debian_chroot ]
