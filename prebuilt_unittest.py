@@ -221,15 +221,21 @@ class TestPopulateDuplicateDB(unittest.TestCase):
     self.assertEqual(db['2'], 'http://www.example.com/foo.tgz')
     self.assertEqual(db['3'], 'http://www.example.com/private.tbz2')
 
+  def testMissingSHA1(self):
+    db = {}
+    pkgindex = SimplePackageIndex()
+    del pkgindex.packages[0]['SHA1']
+    pkgindex._PopulateDuplicateDB(db)
+    self.assertEqual(len(db), 2)
+    self.assertEqual(db['2'], 'http://www.example.com/foo.tgz')
+    self.assertEqual(db['3'], 'http://www.example.com/private.tbz2')
+
   def testFailedPopulate(self):
     db = {}
     pkgindex = SimplePackageIndex(header=False)
     self.assertRaises(KeyError, pkgindex._PopulateDuplicateDB, db)
     pkgindex = SimplePackageIndex()
     del pkgindex.packages[0]['CPV']
-    self.assertRaises(KeyError, pkgindex._PopulateDuplicateDB, db)
-    pkgindex = SimplePackageIndex()
-    del pkgindex.packages[0]['SHA1']
     self.assertRaises(KeyError, pkgindex._PopulateDuplicateDB, db)
 
 
@@ -257,6 +263,18 @@ class TestResolveDuplicateUploads(unittest.TestCase):
     dup_pkgindex = SimplePackageIndex()
     expected_pkgindex = SimplePackageIndex()
     for pkg in expected_pkgindex.packages:
+      pkg.setdefault('PATH', pkg['CPV'] + '.tbz2')
+    uploads = pkgindex.ResolveDuplicateUploads([dup_pkgindex])
+    self.assertEqual(pkgindex.packages, expected_pkgindex.packages)
+
+  def testMissingSHA1(self):
+    db = {}
+    pkgindex = SimplePackageIndex()
+    dup_pkgindex = SimplePackageIndex()
+    expected_pkgindex = SimplePackageIndex()
+    del pkgindex.packages[0]['SHA1']
+    del expected_pkgindex.packages[0]['SHA1']
+    for pkg in expected_pkgindex.packages[1:]:
       pkg.setdefault('PATH', pkg['CPV'] + '.tbz2')
     uploads = pkgindex.ResolveDuplicateUploads([dup_pkgindex])
     self.assertEqual(pkgindex.packages, expected_pkgindex.packages)
