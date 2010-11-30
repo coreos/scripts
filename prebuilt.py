@@ -11,7 +11,6 @@ import re
 import sys
 import tempfile
 import time
-import urlparse
 
 from chromite.lib import cros_build_lib
 from chromite.lib.binpkg import (GrabLocalPackageIndex, GrabRemotePackageIndex,
@@ -317,7 +316,7 @@ def GenerateUploadDict(base_local_path, base_remote_path, pkgs):
     suffix = pkg['CPV'] + '.tbz2'
     local_path = os.path.join(base_local_path, suffix)
     assert os.path.exists(local_path)
-    remote_path = urlparse.urljoin(base_remote_path, suffix)
+    remote_path = '%s/%s' % (base_remote_path.rstrip('/'), suffix)
     upload_files[local_path] = remote_path
 
   return upload_files
@@ -415,7 +414,7 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
     git_file = os.path.join(build_path, DetermineMakeConfFile(board))
     binhost_conf = os.path.join(build_path, _BINHOST_CONF_DIR, 'target',
         '%s.conf' % board)
-  remote_location = urlparse.urljoin(upload_location, url_suffix)
+  remote_location = '%s/%s' % (upload_location.rstrip('/'), url_suffix)
 
   # Process Packages file, removing duplicates and filtered packages.
   pkg_index = GrabLocalPackageIndex(package_path)
@@ -429,7 +428,7 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
   if upload_location.startswith('gs://'):
     # Build list of files to upload.
     upload_files = GenerateUploadDict(package_path, remote_location, uploads)
-    remote_file = urlparse.urljoin(remote_location, 'Packages')
+    remote_file = '%s/Packages' % remote_location.rstrip('/')
     upload_files[tmp_packages_file.name] = remote_file
 
     print 'Uploading %s' % package_string
