@@ -59,6 +59,7 @@ _PREBUILT_BASE_DIR = 'src/third_party/chromiumos-overlay/chromeos/config/'
 # Created in the event of new host targets becoming available
 _PREBUILT_MAKE_CONF = {'amd64': os.path.join(_PREBUILT_BASE_DIR,
                                              'make.conf.amd64-host')}
+_BINHOST_CONF_DIR = 'src/third_party/chromiumos-overlay/chromeos/binhost'
 
 
 class FiltersEmpty(Exception):
@@ -92,6 +93,7 @@ def UpdateLocalFile(filename, value, key='PORTAGE_BINHOST'):
   file_fh = open(filename)
   file_lines = []
   found = False
+  keyval_str = '%(key)s=%(value)s'
   for line in file_fh:
     # Strip newlines from end of line. We already add newlines below.
     line = line.rstrip("\n")
@@ -102,7 +104,6 @@ def UpdateLocalFile(filename, value, key='PORTAGE_BINHOST'):
       continue
 
     file_var, file_val = line.split('=')
-    keyval_str = '%(key)s=%(value)s'
     if file_var == key:
       found = True
       print 'Updating %s=%s to %s="%s"' % (file_var, file_val, key, value)
@@ -117,7 +118,7 @@ def UpdateLocalFile(filename, value, key='PORTAGE_BINHOST'):
   file_fh.close()
   # write out new file
   new_file_fh = open(filename, 'w')
-  new_file_fh.write('\n'.join(file_lines))
+  new_file_fh.write('\n'.join(file_lines) + '\n')
   new_file_fh.close()
 
 
@@ -143,7 +144,7 @@ def RevGitPushWithRetry(retries=5):
     raise GitPushFailed('Failed to push change after %s retries' % retries)
 
 
-def RevGitFile(filename, value, retries=5):
+def RevGitFile(filename, value, retries=5, key='PORTAGE_BINHOST'):
   """Update and push the git file.
 
     Args:
@@ -151,6 +152,8 @@ def RevGitFile(filename, value, retries=5):
       value: string representing the version of the prebuilt that has been
         uploaded.
       retries: The number of times to retry before giving up, default: 5
+      key: The variable key to update in the git file.
+        (Default: PORTAGE_BINHOST)
   """
   prebuilt_branch = 'prebuilt_branch'
   old_cwd = os.getcwd()
@@ -162,10 +165,10 @@ def RevGitFile(filename, value, retries=5):
     'git config url.ssh://git@gitrw.chromium.org:9222.pushinsteadof '
     'http://git.chromium.org/git')
   cros_build_lib.RunCommand(git_ssh_config_cmd, shell=True)
-  description = 'Update PORTAGE_BINHOST="%s" in %s' % (value, filename)
+  description = 'Update %s="%s" in %s' % (key, value, filename)
   print description
   try:
-    UpdateLocalFile(filename, value)
+    UpdateLocalFile(filename, value, key)
     cros_build_lib.RunCommand('git config push.default tracking', shell=True)
     cros_build_lib.RunCommand('git commit -am "%s"' % description, shell=True)
     RevGitPushWithRetry(retries)
@@ -405,8 +408,32 @@ def DetermineMakeConfFile(target):
   return os.path.join(make_path)
 
 
+def UpdateBinhostConfFile(path, key, value):
+  """Update binhost config file file with key=value.
+
+  Args:
+    path: Filename to update.
+    key: Key to update.
+    value: New value for key.
+  """
+  cwd = os.path.dirname(os.path.abspath(path))
+  filename = os.path.basename(path)
+  if not os.path.isdir(cwd):
+    os.makedirs(cwd)
+  if not os.path.isfile(path):
+    config_file = file(path, 'w')
+    config_file.write('FULL_BINHOST="$PORTAGE_BINHOST"\n')
+    config_file.close()
+  UpdateLocalFile(path, value, key)
+  cros_build_lib.RunCommand('git add %s' % filename, cwd=cwd, shell=True)
+  description = 'Update %s=%s in %s' % (key, value, filename)
+  cros_build_lib.RunCommand('git commit -m "%s"' % description, cwd=cwd,
+      shell=True)
+
+
 def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
-                   board=None, git_sync=False, git_sync_retries=5):
+                   board=None, git_sync=False, git_sync_retries=5,
+                   key='PORTAGE_BINHOST', sync_binhost_conf=False):
   """Upload Host prebuilt files to Google Storage space.
 
   Args:
@@ -415,10 +442,13 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
     board: The board to upload to Google Storage, if this is None upload
       host packages.
     git_sync: If set, update make.conf of target to reference the latest
-      prebuilt packages genereated here.
+      prebuilt packages generated here.
     git_sync_retries: How many times to retry pushing when updating git files.
       This helps avoid failures when multiple bots are modifying the same Repo.
       default: 5
+    key: The variable key to update in the git file. (Default: PORTAGE_BINHOST)
+    sync_binhost_conf: If set, update binhost config file in chromiumos-overlay
+      for the current board or host.
   """
 
   if not board:
@@ -428,12 +458,16 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
     url_suffix = _REL_HOST_PATH % {'version': version, 'target': _HOST_TARGET}
     package_string = _HOST_TARGET
     git_file = os.path.join(build_path, _PREBUILT_MAKE_CONF[_HOST_TARGET])
+    binhost_conf = os.path.join(build_path, _BINHOST_CONF_DIR, 'host',
+        '%s.conf' % _HOST_TARGET)
   else:
     board_path = os.path.join(build_path, _BOARD_PATH % {'board': board})
     package_path = os.path.join(board_path, 'packages')
     package_string = board
     url_suffix = _REL_BOARD_PATH % {'board': board, 'version': version}
     git_file = os.path.join(build_path, DetermineMakeConfFile(board))
+    binhost_conf = os.path.join(build_path, _BINHOST_CONF_DIR, 'target',
+        '%s.conf' % board)
   remote_location = os.path.join(upload_location, url_suffix)
 
   if upload_location.startswith('gs://'):
@@ -452,10 +486,13 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
       if not _RetryRun(cmd, shell=True):
         raise UploadFailed('Could not run %s' % cmd)
 
-  if git_sync:
-    url_value = '%s/%s/' % (binhost_base_url, url_suffix)
-    RevGitFile(git_file, url_value, retries=git_sync_retries)
+  url_value = '%s/%s/' % (binhost_base_url, url_suffix)
 
+  if git_sync:
+    RevGitFile(git_file, url_value, retries=git_sync_retries, key=key)
+
+  if sync_binhost_conf:
+    UpdateBinhostConfFile(binhost_conf, key, url_value)
 
 def usage(parser, msg):
   """Display usage message and parser help then exit with 1."""
@@ -488,6 +525,12 @@ def main():
   parser.add_option('-f', '--filters', dest='filters', action='store_true',
                     default=False,
                     help='Turn on filtering of private ebuild packages')
+  parser.add_option('-k', '--key', dest='key',
+                    default='PORTAGE_BINHOST',
+                    help='Key to update in make.conf / binhost.conf')
+  parser.add_option('', '--sync-binhost-conf', dest='sync_binhost_conf',
+                    default=False, action='store_true',
+                    help='Update binhost.conf')
 
   options, args = parser.parse_args()
   # Setup boto environment for gsutil to use
@@ -511,12 +554,15 @@ def main():
 
   if options.sync_host:
     UploadPrebuilt(options.build_path, options.upload, version,
-                   options.binhost_base_url, git_sync=options.git_sync)
+                   options.binhost_base_url, git_sync=options.git_sync,
+                   key=options.key,
+                   sync_binhost_conf=options.sync_binhost_conf)
 
   if options.board:
     UploadPrebuilt(options.build_path, options.upload, version,
                    options.binhost_base_url, board=options.board,
-                   git_sync=options.git_sync)
+                   git_sync=options.git_sync, key=options.key,
+                   sync_binhost_conf=options.sync_binhost_conf)
 
 
 if __name__ == '__main__':

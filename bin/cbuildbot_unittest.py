@@ -151,10 +151,13 @@ class CBuildBotTest(mox.MoxTestBase):
     m_file.read().AndReturn(self._test_string)
     m_file.close()
 
+    drop_file = cbuildbot._PACKAGE_FILE % {'buildroot': self._buildroot}
     cbuildbot.RunCommand(['./cros_mark_as_stable', '--all',
                      '--board=%s' % self._test_board,
                      '--overlays=%s' % ':'.join(self._chroot_overlays),
-                     '--tracking_branch=cros/master', 'commit'],
+                     '--tracking_branch=cros/master',
+                     '--drop_file=%s' % ReinterpretPathForChroot(drop_file),
+                     'commit'],
                      cwd='%s/src/scripts' % self._buildroot,
                      enter_chroot=True)
 
@@ -174,10 +177,13 @@ class CBuildBotTest(mox.MoxTestBase):
     m_file.read().AndReturn('None')
     m_file.close()
 
+    drop_file = cbuildbot._PACKAGE_FILE % {'buildroot': self._buildroot}
     cbuildbot.RunCommand(['./cros_mark_as_stable', '--all',
                          '--board=%s' % self._test_board,
                          '--overlays=%s' % ':'.join(self._chroot_overlays),
-                         '--tracking_branch=cros/master', 'commit'],
+                         '--tracking_branch=cros/master',
+                         '--drop_file=%s' % ReinterpretPathForChroot(drop_file),
+                         'commit'],
                          cwd='%s/src/scripts' % self._buildroot,
                          enter_chroot=True)
 
@@ -185,6 +191,35 @@ class CBuildBotTest(mox.MoxTestBase):
     cbuildbot._UprevPackages(self._buildroot, self.tracking_branch,
                              self._revision_file, self._test_board,
                              self._overlays)
+    self.mox.VerifyAll()
+
+  def testGetPortageEnvVar(self):
+    """Basic test case for _GetPortageEnvVar function."""
+    envvar = 'EXAMPLE'
+    cbuildbot.RunCommand(mox.And(mox.IsA(list), mox.In(envvar)),
+                         cwd='%s/src/scripts' % self._buildroot,
+                         redirect_stdout=True, enter_chroot=True,
+                         error_ok=True).AndReturn('RESULT\n')
+    self.mox.ReplayAll()
+    result = cbuildbot._GetPortageEnvVar(self._buildroot, self._test_board,
+                                         envvar)
+    self.mox.VerifyAll()
+    self.assertEqual(result, 'RESULT')
+
+  def testUploadPublicPrebuilts(self):
+    """Test _UploadPrebuilts with a public location."""
+    check = mox.And(mox.IsA(list), mox.In('gs://chromeos-prebuilt'))
+    cbuildbot.RunCommand(check, cwd='%s/src/scripts' % self._buildroot)
+    self.mox.ReplayAll()
+    cbuildbot._UploadPrebuilts(self._buildroot, self._test_board, 'public')
+    self.mox.VerifyAll()
+
+  def testUploadPrivatePrebuilts(self):
+    """Test _UploadPrebuilts with a private location."""
+    check = mox.And(mox.IsA(list), mox.In('chromeos-images:/var/www/prebuilt/'))
+    cbuildbot.RunCommand(check, cwd='%s/src/scripts' % self._buildroot)
+    self.mox.ReplayAll()
+    cbuildbot._UploadPrebuilts(self._buildroot, self._test_board, 'private')
     self.mox.VerifyAll()
 
 
