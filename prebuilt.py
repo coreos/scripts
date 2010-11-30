@@ -11,8 +11,11 @@ import re
 import sys
 import tempfile
 import time
+import urlparse
 
 from chromite.lib import cros_build_lib
+from chromite.lib.binpkg import (GrabLocalPackageIndex, GrabRemotePackageIndex,
+                                 PackageIndex)
 """
 This script is used to upload host prebuilts as well as board BINHOSTS.
 
@@ -228,70 +231,14 @@ def ShouldFilterPackage(file_path):
   return False
 
 
-def _ShouldFilterPackageFileSection(section):
-  """Return whether an section in the package file should be filtered out.
-
-  Args:
-    section: The section, as a list of strings.
-
-  Returns:
-    True if the section should be excluded.
-  """
-
-  for line in section:
-    if line.startswith("CPV: "):
-      package = line.replace("CPV: ", "").rstrip()
-      if ShouldFilterPackage(package):
-        return True
-  else:
-    return False
-
-
-def FilterPackagesFile(packages_filename):
-  """Read a portage Packages file and filter out private packages.
-
-  The new, filtered packages file is written to a temporary file.
-
-  Args:
-    packages_filename: The filename of the Packages file.
-
-  Returns:
-    filtered_packages: A filtered Packages file, as a NamedTemporaryFile.
-  """
-
-  packages_file = open(packages_filename)
-  filtered_packages = tempfile.NamedTemporaryFile()
-  section = []
-  for line in packages_file:
-    if line == "\n":
-      if not _ShouldFilterPackageFileSection(section):
-        # Looks like this section doesn't contain a private package. Write it
-        # out.
-        filtered_packages.write("".join(section))
-
-      # Start next section.
-      section = []
-
-    section.append(line)
-  else:
-    if not _ShouldFilterPackageFileSection(section):
-      filtered_packages.write("".join(section))
-  packages_file.close()
-
-  # Flush contents to disk.
-  filtered_packages.flush()
-  filtered_packages.seek(0)
-
-  return filtered_packages
-
-
-def _RetryRun(cmd, print_cmd=True, shell=False):
+def _RetryRun(cmd, print_cmd=True, shell=False, cwd=None):
   """Run the specified command, retrying if necessary.
 
   Args:
     cmd: The command to run.
     print_cmd: Whether to print out the cmd.
     shell: Whether to treat the command as a shell.
+    cwd: Working directory to run command in.
 
   Returns:
     True if the command succeeded. Otherwise, returns False.
@@ -301,7 +248,8 @@ def _RetryRun(cmd, print_cmd=True, shell=False):
   # cros_build_lib.
   for attempt in range(_RETRIES):
     try:
-      output = cros_build_lib.RunCommand(cmd, print_cmd=print_cmd, shell=shell)
+      output = cros_build_lib.RunCommand(cmd, print_cmd=print_cmd, shell=shell,
+                                         cwd=cwd)
       return True
     except cros_build_lib.RunCommandError:
       print 'Failed to run %s' % cmd
@@ -320,12 +268,6 @@ def _GsUpload(args):
     Return the arg tuple of two if the upload failed
   """
   (local_file, remote_file) = args
-  if ShouldFilterPackage(local_file):
-    return
-
-  if local_file.endswith("/Packages"):
-    filtered_packages_file = FilterPackagesFile(local_file)
-    local_file = filtered_packages_file.name
 
   cmd = '%s cp -a public-read %s %s' % (_GSUTIL_BIN, local_file, remote_file)
   if not _RetryRun(cmd, print_cmd=False, shell=True):
@@ -359,22 +301,24 @@ def RemoteUpload(files, pool=10):
       pass
 
 
-def GenerateUploadDict(local_path, gs_path):
-  """Build a dictionary of local remote file key pairs for gsutil to upload.
+def GenerateUploadDict(base_local_path, base_remote_path, pkgs):
+  """Build a dictionary of local remote file key pairs to upload.
 
   Args:
-    local_path: A path to the file on the local hard drive.
-    gs_path: Path to upload in Google Storage.
+    base_local_path: The base path to the files on the local hard drive.
+    remote_path: The base path to the remote paths.
+    pkgs: The packages to upload.
 
   Returns:
-    Returns a dictionary of file path/gs_dest_path pairs
+    Returns a dictionary of local_path/remote_path pairs
   """
-  files_to_sync = cros_build_lib.ListFiles(local_path)
   upload_files = {}
-  for file_path in files_to_sync:
-    filename = file_path.replace(local_path, '').lstrip('/')
-    gs_file_path = os.path.join(gs_path, filename)
-    upload_files[file_path] = gs_file_path
+  for pkg in pkgs:
+    suffix = pkg['CPV'] + '.tbz2'
+    local_path = os.path.join(base_local_path, suffix)
+    assert os.path.exists(local_path)
+    remote_path = urlparse.urljoin(base_remote_path, suffix)
+    upload_files[local_path] = remote_path
 
   return upload_files
 
@@ -433,13 +377,14 @@ def UpdateBinhostConfFile(path, key, value):
 
 def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
                    board=None, git_sync=False, git_sync_retries=5,
-                   key='PORTAGE_BINHOST', sync_binhost_conf=False):
+                   key='PORTAGE_BINHOST', pkg_indexes=[],
+                   sync_binhost_conf=False):
   """Upload Host prebuilt files to Google Storage space.
 
   Args:
     build_path: The path to the root of the chroot.
     upload_location: The upload location.
-    board: The board to upload to Google Storage, if this is None upload
+    board: The board to upload to Google Storage. If this is None, upload
       host packages.
     git_sync: If set, update make.conf of target to reference the latest
       prebuilt packages generated here.
@@ -447,6 +392,8 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
       This helps avoid failures when multiple bots are modifying the same Repo.
       default: 5
     key: The variable key to update in the git file. (Default: PORTAGE_BINHOST)
+    pkg_indexes: Old uploaded prebuilts to compare against. Instead of
+      uploading duplicate files, we just link to the old files.
     sync_binhost_conf: If set, update binhost config file in chromiumos-overlay
       for the current board or host.
   """
@@ -468,10 +415,22 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
     git_file = os.path.join(build_path, DetermineMakeConfFile(board))
     binhost_conf = os.path.join(build_path, _BINHOST_CONF_DIR, 'target',
         '%s.conf' % board)
-  remote_location = os.path.join(upload_location, url_suffix)
+  remote_location = urlparse.urljoin(upload_location, url_suffix)
+
+  # Process Packages file, removing duplicates and filtered packages.
+  pkg_index = GrabLocalPackageIndex(package_path)
+  pkg_index.SetUploadLocation(binhost_base_url, url_suffix)
+  pkg_index.RemoveFilteredPackages(lambda pkg: ShouldFilterPackage(pkg))
+  uploads = pkg_index.ResolveDuplicateUploads(pkg_indexes)
+
+  # Write Packages file.
+  tmp_packages_file = pkg_index.WriteToNamedTemporaryFile()
 
   if upload_location.startswith('gs://'):
-    upload_files = GenerateUploadDict(package_path, remote_location)
+    # Build list of files to upload.
+    upload_files = GenerateUploadDict(package_path, remote_location, uploads)
+    remote_file = urlparse.urljoin(remote_location, 'Packages')
+    upload_files[tmp_packages_file.name] = remote_file
 
     print 'Uploading %s' % package_string
     failed_uploads = RemoteUpload(upload_files)
@@ -479,11 +438,19 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
       error_msg = ['%s -> %s\n' % args for args in failed_uploads]
       raise UploadFailed('Error uploading:\n%s' % error_msg)
   else:
+    pkgs = ' '.join(p['CPV'] + '.tbz2' for p in uploads)
     ssh_server, remote_path = remote_location.split(':', 1)
-    cmds = ['ssh %s mkdir -p %s' % (ssh_server, remote_path),
-            'rsync -av %s/ %s/' % (package_path, remote_location)]
+    d = { 'pkg_index': tmp_packages_file.name,
+          'pkgs': pkgs,
+          'remote_path': remote_path,
+          'remote_location': remote_location,
+          'ssh_server': ssh_server }
+    cmds = ['ssh %(ssh_server)s mkdir -p %(remote_path)s' % d,
+            'rsync -av %(pkg_index)s %(remote_location)s/Packages' % d]
+    if pkgs:
+      cmds.append('rsync -Rav %(pkgs)s %(remote_location)s/' % d)
     for cmd in cmds:
-      if not _RetryRun(cmd, shell=True):
+      if not _RetryRun(cmd, shell=True, cwd=package_path):
         raise UploadFailed('Could not run %s' % cmd)
 
   url_value = '%s/%s/' % (binhost_base_url, url_suffix)
@@ -506,6 +473,9 @@ def main():
   parser.add_option('-H', '--binhost-base-url', dest='binhost_base_url',
                     default=_BINHOST_BASE_URL,
                     help='Base URL to use for binhost in make.conf updates')
+  parser.add_option('', '--previous-binhost-url', action='append',
+                    default=[], dest='previous_binhost_url',
+                    help='Previous binhost URL')
   parser.add_option('-b', '--board', dest='board', default=None,
                     help='Board type that was built on this machine')
   parser.add_option('-p', '--build-path', dest='build_path',
@@ -542,26 +512,29 @@ def main():
     usage(parser, 'Error: you need to provide an upload location using -u')
 
   if options.filters:
-    # TODO(davidjames): It might be nice to be able to filter private ebuilds
-    # from rsync uploads as well, some day. But for now it's not needed.
-    if not options.upload.startswith("gs://"):
-      usage(parser, 'Error: filtering only works with gs:// paths')
     LoadPrivateFilters(options.build_path)
 
   version = GetVersion()
   if options.prepend_version:
     version = '%s-%s' % (options.prepend_version, version)
 
+  pkg_indexes = []
+  for url in options.previous_binhost_url:
+    pkg_index = GrabRemotePackageIndex(url)
+    if pkg_index:
+      pkg_indexes.append(pkg_index)
+
   if options.sync_host:
     UploadPrebuilt(options.build_path, options.upload, version,
                    options.binhost_base_url, git_sync=options.git_sync,
-                   key=options.key,
+                   key=options.key, pkg_indexes=pkg_indexes,
                    sync_binhost_conf=options.sync_binhost_conf)
 
   if options.board:
     UploadPrebuilt(options.build_path, options.upload, version,
                    options.binhost_base_url, board=options.board,
                    git_sync=options.git_sync, key=options.key,
+                   pkg_indexes=pkg_indexes,
                    sync_binhost_conf=options.sync_binhost_conf)
 
 

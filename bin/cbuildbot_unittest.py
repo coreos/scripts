@@ -208,18 +208,26 @@ class CBuildBotTest(mox.MoxTestBase):
 
   def testUploadPublicPrebuilts(self):
     """Test _UploadPrebuilts with a public location."""
-    check = mox.And(mox.IsA(list), mox.In('gs://chromeos-prebuilt'))
+    binhost = 'http://www.example.com'
+    binhosts = [binhost, None]
+    check = mox.And(mox.IsA(list), mox.In(binhost), mox.Not(mox.In(None)),
+                    mox.In('gs://chromeos-prebuilt'))
     cbuildbot.RunCommand(check, cwd='%s/src/scripts' % self._buildroot)
     self.mox.ReplayAll()
-    cbuildbot._UploadPrebuilts(self._buildroot, self._test_board, 'public')
+    cbuildbot._UploadPrebuilts(self._buildroot, self._test_board, 'public',
+                               binhosts)
     self.mox.VerifyAll()
 
   def testUploadPrivatePrebuilts(self):
     """Test _UploadPrebuilts with a private location."""
-    check = mox.And(mox.IsA(list), mox.In('chromeos-images:/var/www/prebuilt/'))
+    binhost = 'http://www.example.com'
+    binhosts = [binhost, None]
+    check = mox.And(mox.IsA(list), mox.In(binhost), mox.Not(mox.In(None)),
+                    mox.In('chromeos-images:/var/www/prebuilt/'))
     cbuildbot.RunCommand(check, cwd='%s/src/scripts' % self._buildroot)
     self.mox.ReplayAll()
-    cbuildbot._UploadPrebuilts(self._buildroot, self._test_board, 'private')
+    cbuildbot._UploadPrebuilts(self._buildroot, self._test_board, 'private',
+                               binhosts)
     self.mox.VerifyAll()
 
 

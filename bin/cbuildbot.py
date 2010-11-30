@@ -317,17 +317,20 @@ def _GetPortageEnvVar(buildroot, board, envvar):
 
   buildroot: The root directory where the build occurs. Must be an absolute
              path.
-  board: Board type that was built on this machine. E.g. x86-generic.
-  envvar: The environment variable to get. E.g. "PORTAGE_BINHOST".
+  board: Board type that was built on this machine. E.g. x86-generic. If this
+         is None, get the env var from the host.
+  envvar: The environment variable to get. E.g. 'PORTAGE_BINHOST'.
 
   Returns:
     The value of the environment variable, as a string. If no such variable
     can be found, return the empty string.
   """
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  binhost = RunCommand(['portageq-%s' % board, 'envvar', envvar],
-                       cwd=cwd, redirect_stdout=True, enter_chroot=True,
-                       error_ok=True)
+  portageq = 'portageq'
+  if board:
+    portageq += '-%s' % board
+  binhost = RunCommand([portageq, 'envvar', envvar], cwd=cwd,
+                       redirect_stdout=True, enter_chroot=True, error_ok=True)
   return binhost.rstrip('\n')
 
 
@@ -533,7 +536,7 @@ def _ResolveOverlays(buildroot, overlays):
   return paths
 
 
-def _UploadPrebuilts(buildroot, board, overlay_config):
+def _UploadPrebuilts(buildroot, board, overlay_config, binhosts):
   """Upload prebuilts.
 
   Args:
@@ -543,6 +546,8 @@ def _UploadPrebuilts(buildroot, board, overlay_config):
                     'private': Just the private overlay.
                     'public': Just the public overlay.
                     'both': Both the public and private overlays.
+    binhosts: The URLs of the current binhosts. Binaries that are already
+              present will not be uploaded twice. Empty URLs will be ignored.
   """
 
   cwd = os.path.join(buildroot, 'src', 'scripts')
@@ -552,6 +557,9 @@ def _UploadPrebuilts(buildroot, board, overlay_config):
          '--board', board,
          '--prepend-version', 'preflight',
          '--key', _PREFLIGHT_BINHOST]
+  for binhost in binhosts:
+    if binhost:
+      cmd.extend(['--previous-binhost-url', binhost])
   if overlay_config == 'public':
     cmd.extend(['--upload', 'gs://chromeos-prebuilt'])
   else:
@@ -617,6 +625,7 @@ def main():
     # Calculate list of overlay directories.
     overlays = _ResolveOverlays(buildroot, buildconfig['overlays'])
     board = buildconfig['board']
+    old_binhost = None
 
     _PreFlightRinse(buildroot, buildconfig['board'], tracking_branch, overlays)
     chroot_path = os.path.join(buildroot, 'chroot')
@@ -627,9 +636,10 @@ def main():
       else:
         old_binhost = _GetPortageEnvVar(buildroot, board, _FULL_BINHOST)
         _IncrementalCheckout(buildroot)
-        new_binhost = _GetPortageEnvVar(buildroot, board, _FULL_BINHOST)
-        if old_binhost != new_binhost:
-          RunCommand(['sudo', 'rm', '-rf', boardpath])
+
+    new_binhost = _GetPortageEnvVar(buildroot, board, _FULL_BINHOST)
+    if old_binhost and old_binhost != new_binhost:
+      RunCommand(['sudo', 'rm', '-rf', boardpath])
 
     # Check that all overlays can be found.
     for path in overlays:
@@ -684,7 +694,8 @@ def main():
       if buildconfig['master']:
         # Master bot needs to check if the other slaves completed.
         if cbuildbot_comm.HaveSlavesCompleted(config):
-          _UploadPrebuilts(buildroot, board, buildconfig['overlays'])
+          _UploadPrebuilts(buildroot, board, buildconfig['overlays'],
+                           [new_binhost])
           _UprevPush(buildroot, tracking_branch, buildconfig['board'],
                      overlays, options.debug)
         else:
