@@ -441,11 +441,12 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
     ssh_server, remote_path = remote_location.split(':', 1)
     d = { 'pkg_index': tmp_packages_file.name,
           'pkgs': pkgs,
+          'remote_packages': '%s/Packages' % remote_location.rstrip('/'),
           'remote_path': remote_path,
           'remote_location': remote_location,
           'ssh_server': ssh_server }
     cmds = ['ssh %(ssh_server)s mkdir -p %(remote_path)s' % d,
-            'rsync -av %(pkg_index)s %(remote_location)s/Packages' % d]
+            'rsync -av --chmod=a+r %(pkg_index)s %(remote_packages)s' % d]
     if pkgs:
       cmds.append('rsync -Rav %(pkgs)s %(remote_location)s/' % d)
     for cmd in cmds:
