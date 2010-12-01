@@ -292,15 +292,20 @@ install_recovery_kernel() {
   # Replace vmlinuz.A with the recovery version
   local sysroot="${FLAGS_build_root}/${FLAGS_board}"
   local vmlinuz="$sysroot/boot/vmlinuz"
-  local esp_offset=$(partoffset "$RECOVERY_IMAGE" 12)
-  local esp_mnt=$(mktemp -d)
-  set +e
   local failed=0
-  sudo mount -o loop,offset=$((esp_offset * 512)) "$RECOVERY_IMAGE" "$esp_mnt"
-  sudo cp "$vmlinuz" "$esp_mnt/syslinux/vmlinuz.A" || failed=1
-  sudo umount -d "$esp_mnt"
-  rmdir "$esp_mnt"
-  set -e
+
+  if [ "$ARCH" = "x86" ]; then
+    # There is no syslinux on ARM, so this copy only makes sense for x86.
+    set +e
+    local esp_offset=$(partoffset "$RECOVERY_IMAGE" 12)
+    local esp_mnt=$(mktemp -d)
+    sudo mount -o loop,offset=$((esp_offset * 512)) "$RECOVERY_IMAGE" "$esp_mnt"
+    sudo cp "$vmlinuz" "$esp_mnt/syslinux/vmlinuz.A" || failed=1
+    sudo umount -d "$esp_mnt"
+    rmdir "$esp_mnt"
+    set -e
+  fi
+
   if [ $failed -eq 1 ]; then
     echo "Failed to copy recovery kernel to ESP"
     return 1
