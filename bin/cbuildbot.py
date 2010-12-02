@@ -397,8 +397,8 @@ def _RunSmokeSuite(buildroot, results_dir):
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['bin/cros_run_vm_test',
               '--no_graphics',
-              '--test_case=suite_Smoke',
               '--results_dir_root=%s' % results_dir,
+              'suite_Smoke',
               ], cwd=cwd, error_ok=False)
 
 
