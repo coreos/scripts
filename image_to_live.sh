@@ -291,31 +291,6 @@ function run_auto_update {
   fi
 }
 
-function remote_reboot {
-  info "Rebooting."
-  remote_sh "touch /tmp/awaiting_reboot; reboot"
-  local output_file
-  output_file="${TMP}/output"
-
-  while true; do
-    REMOTE_OUT=""
-    # This may fail while the machine is down so generate output and a
-    # boolean result to distinguish between down/timeout and real failure
-    ! remote_sh_allow_changed_host_key \
-        "echo 0; [ -e /tmp/awaiting_reboot ] && echo '1'; true"
-    echo "${REMOTE_OUT}" > "${output_file}"
-    if grep -q "0" "${output_file}"; then
-      if grep -q "1" "${output_file}"; then
-        info "Not yet rebooted"
-      else
-        info "Rebooted and responding"
-        break
-      fi
-    fi
-    sleep .5
-  done
-}
-
 function verify_image {
   info "Verifying image."
   "${SCRIPTS_DIR}/mount_gpt_image.sh" --from "$(dirname ${IMAGE_PATH})" \
