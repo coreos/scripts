@@ -532,7 +532,8 @@ def _ResolveOverlays(buildroot, overlays):
   elif overlays == 'both':
     paths = [public_overlay, private_overlay]
   else:
-    Die('Incorrect overlay configuration: %s' % overlays)
+    Info('No overlays found.')
+    paths = []
   return paths
 
 
@@ -623,11 +624,18 @@ def main():
 
   try:
     # Calculate list of overlay directories.
-    overlays = _ResolveOverlays(buildroot, buildconfig['overlays'])
+    rev_overlays = _ResolveOverlays(buildroot, buildconfig['rev_overlays'])
+    push_overlays = _ResolveOverlays(buildroot, buildconfig['push_overlays'])
+    # We cannot push to overlays that we don't rev.
+    assert set(push_overlays).issubset(set(rev_overlays))
+    # Either has to be a master or not have any push overlays.
+    assert buildconfig['master'] or not push_overlays
+
     board = buildconfig['board']
     old_binhost = None
 
-    _PreFlightRinse(buildroot, buildconfig['board'], tracking_branch, overlays)
+    _PreFlightRinse(buildroot, buildconfig['board'], tracking_branch,
+                    rev_overlays)
     chroot_path = os.path.join(buildroot, 'chroot')
     boardpath = os.path.join(chroot_path, 'build', board)
     if options.sync:
@@ -642,8 +650,7 @@ def main():
       RunCommand(['sudo', 'rm', '-rf', boardpath])
 
     # Check that all overlays can be found.
-    for path in overlays:
-      assert ':' not in path, 'Overlay must not contain colons: %s' % path
+    for path in rev_overlays:
       if not os.path.isdir(path):
         Die('Missing overlay: %s' % path)
 
@@ -659,7 +666,7 @@ def main():
                                                  options.chrome_rev)
     elif buildconfig['uprev']:
       _UprevPackages(buildroot, tracking_branch, revisionfile,
-                     buildconfig['board'], overlays)
+                     buildconfig['board'], rev_overlays)
 
     _EnableLocalAccount(buildroot)
     # Doesn't rebuild without acquiring more source.
@@ -681,7 +688,7 @@ def main():
         _RunSmokeSuite(buildroot, test_results_dir)
       finally:
         if not options.debug:
-          archive_full_path=os.path.join(options.gsutil_archive,
+          archive_full_path = os.path.join(options.gsutil_archive,
                                          str(options.buildnumber))
           _ArchiveTestResults(buildroot, buildconfig['board'],
                               test_results_dir=test_results_dir,
@@ -694,10 +701,10 @@ def main():
       if buildconfig['master']:
         # Master bot needs to check if the other slaves completed.
         if cbuildbot_comm.HaveSlavesCompleted(config):
-          _UploadPrebuilts(buildroot, board, buildconfig['overlays'],
+          _UploadPrebuilts(buildroot, board, buildconfig['rev_overlays'],
                            [new_binhost])
           _UprevPush(buildroot, tracking_branch, buildconfig['board'],
-                     overlays, options.debug)
+                     push_overlays, options.debug)
         else:
           Die('CBUILDBOT - One of the slaves has failed!!!')
 
