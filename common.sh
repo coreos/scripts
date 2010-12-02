@@ -106,7 +106,7 @@ DEFAULT_BUILD_ROOT=${CHROMEOS_BUILD_ROOT:-"$SRC_ROOT/build"}
 # Set up a global ALL_BOARDS value
 if [ -d $SRC_ROOT/overlays ]; then
   ALL_BOARDS=$(cd $SRC_ROOT/overlays;ls -1d overlay-* 2>&-|sed 's,overlay-,,g')
-fi 
+fi
 # Strip CR
 ALL_BOARDS=$(echo $ALL_BOARDS)
 # Set a default BOARD
@@ -231,11 +231,15 @@ function make_pkg_common {
 
 # Enter a chroot and restart the current script if needed
 function restart_in_chroot_if_needed {
+  # NB:  Pass in ARGV:  restart_in_chroot_if_needed "$@"
   if [ $INSIDE_CHROOT -ne 1 ]
   then
-    # Equivalent to enter_chroot.sh -- <current command>
+    local abspath=$(readlink -f "$0")
+    # strip everything up to (and including) /src/scripts/ from abspath
+    local path_from_scripts="${abspath##*/src/scripts/}"
     exec $SCRIPTS_DIR/enter_chroot.sh -- \
-      $CHROOT_TRUNK_DIR/src/scripts/$(basename $0) $*
+      "$CHROOT_TRUNK_DIR/src/scripts/$path_from_scripts" "$@"
+    exit
   fi
 }
 
