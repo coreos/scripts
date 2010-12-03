@@ -6,14 +6,17 @@
 
 import optparse
 import os
+import re
 import sys
 import unittest
+import urllib
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../lib'))
 from cros_build_lib import Die
 from cros_build_lib import Info
 from cros_build_lib import ReinterpretPathForChroot
 from cros_build_lib import RunCommand
+from cros_build_lib import RunCommandCaptureOutput
 from cros_build_lib import Warning
 
 # VM Constants.
@@ -29,6 +32,11 @@ global remote
 global target_image_path
 global vm_graphics_flag
 
+class UpdateException(Exception):
+  """Exception thrown when UpdateImage or UpdateUsingPayload fail"""
+  def __init__(self, code, stdout):
+    self.code = code
+    self.stdout = stdout
 
 class AUTest(object):
   """Abstract interface that defines an Auto Update test."""
@@ -40,6 +48,7 @@ class AUTest(object):
     # Set these up as they are used often.
     self.crosutils = os.path.join(os.path.dirname(__file__), '..')
     self.crosutilsbin = os.path.join(os.path.dirname(__file__))
+    self.download_folder = os.path.join(self.crosutilsbin, 'latest_download')
 
   def GetStatefulChangeFlag(self, stateful_change):
     """Returns the flag to pass to image_to_vm for the stateful change."""
@@ -74,11 +83,36 @@ class AUTest(object):
         Warning('Delta update failed, disabling delta updates and retrying.')
         self.use_delta_updates = False
         self.source_image = ''
-        self.UpdateImage(image)
+        self._UpdateImageReportError(image)
     else:
-      self.UpdateImage(image)
+      self._UpdateImageReportError(image)
 
-  def PrepareBase(self):
+  def _UpdateImageReportError(self, image_path, stateful_change='old'):
+    """Calls UpdateImage and reports any error to the console.
+    
+       Still throws the exception.
+    """
+    try:
+      self.UpdateImage(image_path, stateful_change)
+    except UpdateException as err:
+      # If the update fails, print it out
+      Warning(err.stdout)
+      raise
+
+  def _AttemptUpdateWithPayloadExpectedFailure(self, payload, expected_msg):
+    # This update is expected to fail...
+    try:
+      self.UpdateUsingPayload(payload)
+    except UpdateException as err:
+      # Will raise ValueError if expected is not found.
+      if re.search(re.escape(expected_msg), err.stdout, re.MULTILINE):
+        return
+
+      Warning("Didn't find '%s' in:" % expected_msg)
+      Warning(err.stdout)
+      self.fail('We managed to update when failure was expected')
+
+  def PrepareBase(self, image_path):
     """Prepares target with base_image_path."""
     pass
 
@@ -92,6 +126,15 @@ class AUTest(object):
           'old':  Don't modify stateful partition.  Just update normally.
           'clean':  Uses clobber-state to wipe the stateful partition with the
             exception of code needed for ssh.
+    """
+    pass
+
+  def UpdateUsingPayload(self, update_path, stateful_change='old'):
+    """Updates target with the pre-generated update stored in update_path
+
+    Args:
+      update_path:  Path to the image to update with. This directory should
+      contain both update.gz, and stateful.image.gz
     """
     pass
 
@@ -140,7 +183,7 @@ class AUTest(object):
     """
     # Just make sure some tests pass on original image.  Some old images
     # don't pass many tests.
-    self.PrepareBase()
+    self.PrepareBase(image_path=base_image_path)
     # TODO(sosa): move to 100% once we start testing using the autotest paired
     # with the dev channel.
     percent_passed = self.VerifyImage(10)
@@ -163,7 +206,7 @@ class AUTest(object):
     """
     # Just make sure some tests pass on original image.  Some old images
     # don't pass many tests.
-    self.PrepareBase()
+    self.PrepareBase(image_path=base_image_path)
     # TODO(sosa): move to 100% once we start testing using the autotest paired
     # with the dev channel.
     percent_passed = self.VerifyImage(10)
@@ -178,6 +221,40 @@ class AUTest(object):
     self.TryDeltaAndFallbackToFull(target_image_path, base_image_path, 'clean')
     self.VerifyImage(percent_passed)
 
+  def testPartialUpdate(self):
+    """Tests what happens if we attempt to update with a truncated payload."""
+    # Preload with the version we are trying to test.
+    self.PrepareBase(image_path=target_image_path)
+
+    # Image can be updated at:
+    # ~chrome-eng/chromeos/localmirror/autest-images
+    url = 'http://gsdview.appspot.com/chromeos-localmirror/' \
+          'autest-images/truncated_image.gz'
+    payload = os.path.join(self.download_folder, 'truncated_image.gz')
+
+    # Read from the URL and write to the local file
+    urllib.urlretrieve(url, payload)
+
+    expected_msg='download_hash_data == update_check_response_hash failed'
+    self._AttemptUpdateWithPayloadExpectedFailure(payload, expected_msg)
+
+  def testCorruptedUpdate(self):
+    """Tests what happens if we attempt to update with a corrupted payload."""
+    # Preload with the version we are trying to test.
+    self.PrepareBase(image_path=target_image_path)
+
+    # Image can be updated at:
+    # ~chrome-eng/chromeos/localmirror/autest-images
+    url = 'http://gsdview.appspot.com/chromeos-localmirror/' \
+          'autest-images/corrupted_image.gz'
+    payload = os.path.join(self.download_folder, 'corrupted.gz')
+
+    # Read from the URL and write to the local file
+    urllib.urlretrieve(url, payload)
+
+    # This update is expected to fail...
+    expected_msg='zlib inflate() error:-3'
+    self._AttemptUpdateWithPayloadExpectedFailure(payload, expected_msg)
 
 class RealAUTest(unittest.TestCase, AUTest):
   """Test harness for updating real images."""
@@ -185,23 +262,40 @@ class RealAUTest(unittest.TestCase, AUTest):
   def setUp(self):
     AUTest.setUp(self)
 
-  def PrepareBase(self):
+  def PrepareBase(self, image_path):
     """Auto-update to base image to prepare for test."""
-    self.UpdateImage(base_image_path)
+    self._UpdateImageReportError(image_path)
 
   def UpdateImage(self, image_path, stateful_change='old'):
     """Updates a remote image using image_to_live.sh."""
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
 
-    RunCommand([
+    (code, stdout, stderr) = RunCommandCaptureOutput([
         '%s/image_to_live.sh' % self.crosutils,
         '--image=%s' % image_path,
         '--remote=%s' % remote,
         stateful_change_flag,
         '--verify',
-        '--src_image=%s' % self.source_image,
-        ], enter_chroot=False)
+        '--src_image=%s' % self.source_image
+        ])
 
+    if code != 0:
+      raise UpdateException(code, stdout)
+
+  def UpdateUsingPayload(self, update_path, stateful_change='old'):
+    """Updates a remote image using image_to_live.sh."""
+    stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
+
+    (code, stdout, stderr) = RunCommandCaptureOutput([
+        '%s/image_to_live.sh' % self.crosutils,
+        '--payload=%s' % update_path,
+        '--remote=%s' % remote,
+        stateful_change_flag,
+        '--verify',
+        ])
+
+    if code != 0:
+      raise UpdateException(code, stdout)
 
   def VerifyImage(self, percent_required_to_pass):
     """Verifies an image using run_remote_tests.sh with verification suite."""
@@ -233,23 +327,28 @@ class VirtualAUTest(unittest.TestCase, AUTest):
     AUTest.setUp(self)
     self._KillExistingVM(_KVM_PID_FILE)
 
-  def PrepareBase(self):
+  def PrepareBase(self, image_path):
     """Creates an update-able VM based on base image."""
     self.vm_image_path = '%s/chromiumos_qemu_image.bin' % os.path.dirname(
-        base_image_path)
+        image_path)
+    
+    Info('Creating: %s' % self.vm_image_path)
 
     if not os.path.exists(self.vm_image_path):
       Info('Qemu image %s not found, creating one.' % self.vm_image_path)
       RunCommand(['%s/image_to_vm.sh' % self.crosutils,
                   '--full',
                   '--from=%s' % ReinterpretPathForChroot(
-                      os.path.dirname(base_image_path)),
+                      os.path.dirname(image_path)),
                   '--vdisk_size=%s' % _FULL_VDISK_SIZE,
                   '--statefulfs_size=%s' % _FULL_STATEFULFS_SIZE,
                   '--board=%s' % board,
                   '--test_image'], enter_chroot=True)
     else:
       Info('Using existing VM image %s' % self.vm_image_path)
+
+
+    Info('Testing for %s' % self.vm_image_path)
 
     self.assertTrue(os.path.exists(self.vm_image_path))
 
@@ -259,16 +358,41 @@ class VirtualAUTest(unittest.TestCase, AUTest):
     if self.source_image == base_image_path:
       self.source_image = self.vm_image_path
 
-    RunCommand(['%s/cros_run_vm_update' % self.crosutilsbin,
-                '--update_image_path=%s' % image_path,
-                '--vm_image_path=%s' % self.vm_image_path,
-                '--snapshot',
-                vm_graphics_flag,
-                '--persist',
-                '--kvm_pid=%s' % _KVM_PID_FILE,
-                stateful_change_flag,
-                '--src_image=%s' % self.source_image,
-               ], enter_chroot=False)
+    (code, stdout, stderr) = RunCommandCaptureOutput([
+        '%s/cros_run_vm_update' % self.crosutilsbin,
+        '--update_image_path=%s' % image_path,
+        '--vm_image_path=%s' % self.vm_image_path,
+        '--snapshot',
+        vm_graphics_flag,
+        '--persist',
+        '--kvm_pid=%s' % _KVM_PID_FILE,
+        stateful_change_flag,
+        '--src_image=%s' % self.source_image,
+        ])
+
+    if code != 0:
+      raise UpdateException(code, stdout)
+
+  def UpdateUsingPayload(self, update_path, stateful_change='old'):
+    """Updates a remote image using image_to_live.sh."""
+    stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
+    if self.source_image == base_image_path:
+      self.source_image = self.vm_image_path
+
+    (code, stdout, stderr) = RunCommandCaptureOutput([
+        '%s/cros_run_vm_update' % self.crosutilsbin,
+        '--payload=%s' % update_path,
+        '--vm_image_path=%s' % self.vm_image_path,
+        '--snapshot',
+        vm_graphics_flag,
+        '--persist',
+        '--kvm_pid=%s' % _KVM_PID_FILE,
+        stateful_change_flag,
+        '--src_image=%s' % self.source_image,
+        ])
+
+    if code != 0:
+      raise UpdateException(code, stdout)
 
   def VerifyImage(self, percent_required_to_pass):
     """Runs vm smoke suite to verify image."""

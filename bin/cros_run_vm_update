@@ -9,6 +9,7 @@
 . "$(dirname $0)/../common.sh"
 . "$(dirname $0)/../lib/cros_vm_lib.sh"
 
+DEFINE_string payload "" "Full name of the payload to update with."
 DEFINE_string src_image "" \
   "Create a delta update by passing in the image on the remote machine."
 DEFINE_string stateful_update_flag "" "Flags to pass to stateful update." s
@@ -21,13 +22,21 @@ set -e
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
-[ -n "${FLAGS_update_image_path}" ] || \
+[ -n "${FLAGS_update_image_path}" ] || [ -n "${FLAGS_payload}" ] || \
   die "You must specify a path to an image to use as an update."
 [ -n "${FLAGS_vm_image_path}" ] || \
   die "You must specify a path to a vm image."
 
 trap stop_kvm EXIT
 start_kvm "${FLAGS_vm_image_path}"
+
+if [ -n "${FLAGS_update_image_path}" ]; then
+  IMAGE_ARGS="--image=$(readlink -f ${FLAGS_update_image_path})"
+fi
+
+if [ -n "${FLAGS_payload}" ]; then
+  IMAGE_ARGS="--payload="${FLAGS_payload}""
+fi
 
 $(dirname $0)/../image_to_live.sh \
   --remote=127.0.0.1 \
@@ -36,5 +45,5 @@ $(dirname $0)/../image_to_live.sh \
   --src_image="${FLAGS_src_image}" \
   --verify \
   --for_vm \
-  --image=$(readlink -f ${FLAGS_update_image_path})
+  ${IMAGE_ARGS}
 
