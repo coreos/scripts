@@ -701,8 +701,9 @@ def main():
       if buildconfig['master']:
         # Master bot needs to check if the other slaves completed.
         if cbuildbot_comm.HaveSlavesCompleted(config):
-          _UploadPrebuilts(buildroot, board, buildconfig['rev_overlays'],
-                           [new_binhost])
+          if not options.debug:
+            _UploadPrebuilts(buildroot, board, buildconfig['rev_overlays'],
+                             [new_binhost])
           _UprevPush(buildroot, tracking_branch, buildconfig['board'],
                      push_overlays, options.debug)
         else:
