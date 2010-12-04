@@ -85,7 +85,8 @@ if [ "${FLAGS_test}" = "${FLAGS_TRUE}" ]; then
   emerge_features="test"
 fi
 if [ "${FLAGS_install}" = "${FLAGS_TRUE}" ]; then
-  FEATURES="${emerge_features}" "${EMERGECMD}" "${1}"
+  SANDBOX_WRITE=~/trunk CROS_WORKON_INPLACE=1 \
+    FEATURES="${emerge_features} ${FEATURES}" "${EMERGECMD}" "${1}"
   exit $?
 fi
 
