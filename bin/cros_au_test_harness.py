@@ -48,7 +48,9 @@ class AUTest(object):
     # Set these up as they are used often.
     self.crosutils = os.path.join(os.path.dirname(__file__), '..')
     self.crosutilsbin = os.path.join(os.path.dirname(__file__))
-    self.download_folder = os.path.join(self.crosutilsbin, 'latest_download')
+    self.download_folder = os.path.join(self.crosutils, 'latest_download')
+    if not os.path.exists(self.download_folder):
+      os.makedirs(self.download_folder)
 
   def GetStatefulChangeFlag(self, stateful_change):
     """Returns the flag to pass to image_to_vm for the stateful change."""
@@ -89,7 +91,7 @@ class AUTest(object):
 
   def _UpdateImageReportError(self, image_path, stateful_change='old'):
     """Calls UpdateImage and reports any error to the console.
-    
+
        Still throws the exception.
     """
     try:
@@ -331,7 +333,7 @@ class VirtualAUTest(unittest.TestCase, AUTest):
     """Creates an update-able VM based on base image."""
     self.vm_image_path = '%s/chromiumos_qemu_image.bin' % os.path.dirname(
         image_path)
-    
+
     Info('Creating: %s' % self.vm_image_path)
 
     if not os.path.exists(self.vm_image_path):
