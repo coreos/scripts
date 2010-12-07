@@ -55,8 +55,7 @@ _REL_HOST_PATH = 'host/%(target)s/%(version)s/packages'
 # relative to build path
 _PRIVATE_OVERLAY_DIR = 'src/private-overlays'
 _BINHOST_BASE_DIR = 'src/overlays'
-#_BINHOST_BASE_URL = 'http://commondatastorage.googleapis.com/chromeos-prebuilt'
-_BINHOST_BASE_URL = 'http://gsdview.appspot.com/chromeos-prebuilt'
+_BINHOST_BASE_URL = 'http://commondatastorage.googleapis.com/chromeos-prebuilt'
 _PREBUILT_BASE_DIR = 'src/third_party/chromiumos-overlay/chromeos/config/'
 # Created in the event of new host targets becoming available
 _PREBUILT_MAKE_CONF = {'amd64': os.path.join(_PREBUILT_BASE_DIR,
