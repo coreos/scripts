@@ -31,7 +31,7 @@ from cros_build_lib import RunCommand, Info, Warning
 BASE_CHROME_SVN_URL = 'http://src.chromium.org/svn'
 
 # Command for which chrome ebuild to uprev.
-TIP_OF_TRUNK, LATEST_RELEASE, STICKY = 'tot', 'latest_release', 'sticky_release'
+TIP_OF_TRUNK, LATEST_RELEASE, STICKY = 'tot', 'latest_release', 'stable_release'
 CHROME_REV = [TIP_OF_TRUNK, LATEST_RELEASE, STICKY]
 
 # Helper regex's for finding ebuilds.
