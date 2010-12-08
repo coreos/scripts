@@ -55,7 +55,7 @@ function start_kvm() {
       -vga std \
       -pidfile "${KVM_PID_FILE}" \
       -daemonize \
-      -net nic,model=e1000 \
+      -net nic,model=virtio \
       ${nographics} \
       ${snapshot} \
       -net user,hostfwd=tcp::${FLAGS_ssh_port}-:22 \
