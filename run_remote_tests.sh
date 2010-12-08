@@ -268,7 +268,7 @@ function main() {
     local autoserv_args="-m ${FLAGS_remote} --ssh-port ${FLAGS_ssh_port} \
         ${option} ${control_file} -r ${results_dir} ${verbose}"
     if [ -n "${FLAGS_args}" ]; then
-      autoserv_args="${autoserv_args} -a \""${FLAGS_args}"\""
+      autoserv_args="${autoserv_args} -a \"${FLAGS_args}\""
     fi
 
     sudo chmod a+w ./server/{tests,site_tests}
