@@ -3,13 +3,31 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import copy
 import mox
 import os
 import prebuilt
 import shutil
 import tempfile
 import unittest
+import urllib
 from chromite.lib import cros_build_lib
+from chromite.lib.binpkg import PackageIndex
+
+PUBLIC_PACKAGES = [{'CPV': 'gtk+/public1', 'SHA1': '1'},
+                   {'CPV': 'gtk+/public2', 'SHA1': '2',
+                    'PATH': 'gtk%2B/foo.tgz'}]
+PRIVATE_PACKAGES = [{'CPV': 'private', 'SHA1': '3'}]
+
+
+def SimplePackageIndex(header=True, packages=True):
+   pkgindex = PackageIndex()
+   if header:
+     pkgindex.header['URI'] = 'http://www.example.com'
+   if packages:
+     pkgindex.packages = copy.deepcopy(PUBLIC_PACKAGES + PRIVATE_PACKAGES)
+   return pkgindex
+
 
 class TestUpdateFile(unittest.TestCase):
 
@@ -137,14 +155,6 @@ class TestPrebuiltFilters(unittest.TestCase):
 
 
 class TestPrebuilt(unittest.TestCase):
-  fake_path = '/b/cbuild/build/chroot/build/x86-dogfood/'
-  bin_package_mock = ['packages/x11-misc/shared-mime-info-0.70.tbz2',
-                      'packages/x11-misc/util-macros-1.5.0.tbz2',
-                      'packages/x11-misc/xbitmaps-1.1.0.tbz2',
-                      'packages/x11-misc/read-edid-1.4.2.tbz2',
-                      'packages/x11-misc/xdg-utils-1.0.2-r3.tbz2']
-
-  files_to_sync = [os.path.join(fake_path, file) for file in bin_package_mock]
 
   def setUp(self):
     self.mox = mox.Mox()
@@ -153,23 +163,17 @@ class TestPrebuilt(unittest.TestCase):
     self.mox.UnsetStubs()
     self.mox.VerifyAll()
 
-  def _generate_dict_results(self, gs_bucket_path):
-    """
-    Generate a dictionary result similar to GenerateUploadDict
-    """
-    results = {}
-    for entry in self.files_to_sync:
-      results[entry] = os.path.join(
-        gs_bucket_path, entry.replace(self.fake_path, '').lstrip('/'))
-    return results
-
   def testGenerateUploadDict(self):
+    base_local_path = '/b/cbuild/build/chroot/build/x86-dogfood/'
     gs_bucket_path = 'gs://chromeos-prebuilt/host/version'
-    self.mox.StubOutWithMock(cros_build_lib, 'ListFiles')
-    cros_build_lib.ListFiles(self.fake_path).AndReturn(self.files_to_sync)
+    local_path = os.path.join(base_local_path, 'public1.tbz2')
+    self.mox.StubOutWithMock(prebuilt.os.path, 'exists')
+    prebuilt.os.path.exists(local_path).AndReturn(True)
     self.mox.ReplayAll()
-    result = prebuilt.GenerateUploadDict(self.fake_path, gs_bucket_path)
-    self.assertEqual(result, self._generate_dict_results(gs_bucket_path))
+    pkgs = [{ 'CPV': 'public1' }]
+    result = prebuilt.GenerateUploadDict(base_local_path, gs_bucket_path, pkgs)
+    expected = { local_path: gs_bucket_path + '/public1.tbz2' }
+    self.assertEqual(result, expected)
 
   def testFailonUploadFail(self):
     """Make sure we fail if one of the upload processes fail."""
@@ -195,6 +199,91 @@ class TestPrebuilt(unittest.TestCase):
 
 class TestPackagesFileFiltering(unittest.TestCase):
 
+  def testFilterPkgIndex(self):
+    pkgindex = SimplePackageIndex()
+    pkgindex.RemoveFilteredPackages(lambda pkg: pkg in PRIVATE_PACKAGES)
+    self.assertEqual(pkgindex.packages, PUBLIC_PACKAGES)
+    self.assertEqual(pkgindex.modified, True)
+
+
+class TestPopulateDuplicateDB(unittest.TestCase):
+
+  def testEmptyIndex(self):
+    pkgindex = SimplePackageIndex(packages=False)
+    db = {}
+    pkgindex._PopulateDuplicateDB(db)
+    self.assertEqual(db, {})
+
+  def testNormalIndex(self):
+    pkgindex = SimplePackageIndex()
+    db = {}
+    pkgindex._PopulateDuplicateDB(db)
+    self.assertEqual(len(db), 3)
+    self.assertEqual(db['1'], 'http://www.example.com/gtk%2B/public1.tbz2')
+    self.assertEqual(db['2'], 'http://www.example.com/gtk%2B/foo.tgz')
+    self.assertEqual(db['3'], 'http://www.example.com/private.tbz2')
+
+  def testMissingSHA1(self):
+    db = {}
+    pkgindex = SimplePackageIndex()
+    del pkgindex.packages[0]['SHA1']
+    pkgindex._PopulateDuplicateDB(db)
+    self.assertEqual(len(db), 2)
+    self.assertEqual(db['2'], 'http://www.example.com/gtk%2B/foo.tgz')
+    self.assertEqual(db['3'], 'http://www.example.com/private.tbz2')
+
+  def testFailedPopulate(self):
+    db = {}
+    pkgindex = SimplePackageIndex(header=False)
+    self.assertRaises(KeyError, pkgindex._PopulateDuplicateDB, db)
+    pkgindex = SimplePackageIndex()
+    del pkgindex.packages[0]['CPV']
+    self.assertRaises(KeyError, pkgindex._PopulateDuplicateDB, db)
+
+
+class TestResolveDuplicateUploads(unittest.TestCase):
+
+  def testEmptyList(self):
+    pkgindex = SimplePackageIndex()
+    pristine = SimplePackageIndex()
+    uploads = pkgindex.ResolveDuplicateUploads([])
+    self.assertEqual(uploads, pristine.packages)
+    self.assertEqual(pkgindex.packages, pristine.packages)
+    self.assertEqual(pkgindex.modified, False)
+
+  def testEmptyIndex(self):
+    pkgindex = SimplePackageIndex()
+    pristine = SimplePackageIndex()
+    empty = SimplePackageIndex(packages=False)
+    uploads = pkgindex.ResolveDuplicateUploads([empty])
+    self.assertEqual(uploads, pristine.packages)
+    self.assertEqual(pkgindex.packages, pristine.packages)
+    self.assertEqual(pkgindex.modified, False)
+
+  def testDuplicates(self):
+    pkgindex = SimplePackageIndex()
+    dup_pkgindex = SimplePackageIndex()
+    expected_pkgindex = SimplePackageIndex()
+    for pkg in expected_pkgindex.packages:
+      pkg.setdefault('PATH', urllib.quote(pkg['CPV'] + '.tbz2'))
+    uploads = pkgindex.ResolveDuplicateUploads([dup_pkgindex])
+    self.assertEqual(pkgindex.packages, expected_pkgindex.packages)
+
+  def testMissingSHA1(self):
+    db = {}
+    pkgindex = SimplePackageIndex()
+    dup_pkgindex = SimplePackageIndex()
+    expected_pkgindex = SimplePackageIndex()
+    del pkgindex.packages[0]['SHA1']
+    del expected_pkgindex.packages[0]['SHA1']
+    for pkg in expected_pkgindex.packages[1:]:
+      pkg.setdefault('PATH', pkg['CPV'] + '.tbz2')
+    uploads = pkgindex.ResolveDuplicateUploads([dup_pkgindex])
+    self.assertEqual(pkgindex.packages, expected_pkgindex.packages)
+
+
+class TestWritePackageIndex(unittest.TestCase):
+
   def setUp(self):
     self.mox = mox.Mox()
 
@@ -202,31 +291,13 @@ class TestPackagesFileFiltering(unittest.TestCase):
     self.mox.UnsetStubs()
     self.mox.VerifyAll()
 
-  def testFilterAllPackages(self):
-    self.mox.StubOutWithMock(prebuilt, 'ShouldFilterPackage')
-    prebuilt.ShouldFilterPackage("public1").AndReturn(False)
-    prebuilt.ShouldFilterPackage("private").AndReturn(True)
-    prebuilt.ShouldFilterPackage("public2").AndReturn(False)
-    full_packages_file = [
-      "foo: bar\n", "\n",
-      "CPV: public1\n", "foo: bar1\n", "\n",
-      "CPV: private\n", "foo: bar2\n", "\n",
-      "CPV: public2\n", "foo: bar3\n", "\n",
-    ]
-    private_packages_file = [
-      "foo: bar\n", "\n",
-      "CPV: public1\n", "foo: bar1\n", "\n",
-      "CPV: public2\n", "foo: bar3\n", "\n",
-    ]
+  def testSimple(self):
+    pkgindex = SimplePackageIndex()
+    self.mox.StubOutWithMock(pkgindex, 'Write')
+    pkgindex.Write(mox.IgnoreArg())
     self.mox.ReplayAll()
-    temp_packages_file = tempfile.NamedTemporaryFile()
-    temp_packages_file.write("".join(full_packages_file))
-    temp_packages_file.flush()
-    new_packages_file = prebuilt.FilterPackagesFile(temp_packages_file.name)
-    new_contents = open(new_packages_file.name).read()
-    self.assertEqual("".join(private_packages_file), new_contents)
-    self.assertEqual("".join(private_packages_file), new_packages_file.read())
-    new_packages_file.close()
+    f = pkgindex.WriteToNamedTemporaryFile()
+    self.assertEqual(f.read(), '')
 
 
 if __name__ == '__main__':

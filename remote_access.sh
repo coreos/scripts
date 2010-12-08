@@ -68,6 +68,31 @@ function learn_board() {
   info "Target reports board is ${FLAGS_board}"
 }
 
+function remote_reboot {
+  info "Rebooting."
+  remote_sh "touch /tmp/awaiting_reboot; reboot"
+  local output_file
+  output_file="${TMP}/output"
+
+  while true; do
+    REMOTE_OUT=""
+    # This may fail while the machine is down so generate output and a
+    # boolean result to distinguish between down/timeout and real failure
+    ! remote_sh_allow_changed_host_key \
+        "echo 0; [ -e /tmp/awaiting_reboot ] && echo '1'; true"
+    echo "${REMOTE_OUT}" > "${output_file}"
+    if grep -q "0" "${output_file}"; then
+      if grep -q "1" "${output_file}"; then
+        info "Not yet rebooted"
+      else
+        info "Rebooted and responding"
+        break
+      fi
+    fi
+    sleep .5
+  done
+}
+
 function cleanup_remote_access() {
   # Call this function from the exit trap of the main script.
   # Iff we started ssh-agent, be nice and clean it up.

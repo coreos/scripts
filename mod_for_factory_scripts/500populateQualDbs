@@ -13,10 +13,14 @@ if [ -d "${TEST_DIR}" ]; then
   KEEPDB="data_${BOARD}"
   ls -d data_* 2>/dev/null | grep -v "${KEEPDB}" | xargs rm -fr
 
-  # Ensure there is DB directory in x86-agz and x86-mario.
-  if [ ! -d "${KEEPDB}" ] &&
-     [ "${BOARD}" = "x86-agz" -o "${BOARD}" = "x86-mario" ]; then
-    echo "No component DB directory found at: ${KEEPDB}"
+  if [ "${BOARD}" = "x86-agz" -o "${BOARD}" = "x86-mario" ]; then
+    # Ensure there is a DB directory in x86-agz or x86-mario.
+    if [ ! -d "${KEEPDB}" ]; then
+      echo "No component DB directory found at: ${KEEPDB}"
+    fi
+    # Remove the default DB since it is unnecessary.
+    DEFAULTDB="approved_components.default"
+    rm -f "${DEFAULTDB}"
   fi
 
   popd >/dev/null

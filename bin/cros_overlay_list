@@ -15,6 +15,8 @@ get_default_board
 # Flags
 DEFINE_string board "$DEFAULT_BOARD" "The name of the board to set up."
 DEFINE_string board_overlay "" "Location of the board overlay."
+DEFINE_boolean primary_only ${FLAGS_FALSE} \
+  "Only return the path to the board's primary overlay. (Default: false)"
 DEFINE_string variant "" "Board variant."
 
 # Parse command line flags
@@ -41,6 +43,53 @@ if [[ $FLAGS_variant =~ [_\ ] ]] ; then
 fi
 
 #
+# Check that the provided variant overlay name is valid.
+#
+if [ -n "$FLAGS_variant" ] ; then
+  VARIANT_NAME="overlay-variant-${FLAGS_board}-${FLAGS_variant}"
+  VARIANT_OVERLAY="${SRC_ROOT}/overlays/${VARIANT_NAME}"
+  PRIVATE_VARIANT_NAME="overlay-variant-${FLAGS_board}-${FLAGS_variant}-private"
+  PRIVATE_VARIANT_OVERLAY="${SRC_ROOT}/private-overlays/${PRIVATE_VARIANT_NAME}"
+  if [ ! -d "${VARIANT_OVERLAY}" ] && \
+     [ ! -d "${PRIVATE_VARIANT_OVERLAY}" ] ; then
+    error "There is no variant overlay called '${FLAGS_variant}'"
+    exit 1
+  fi
+fi
+
+function is_primary_overlay() {
+  local directory=$1
+  [ -f "${directory}/make.conf" ] || return 1
+  [ -f "${directory}/toolchain.conf" ] || return 1
+  return 0
+}
+
+BOARD_OVERLAY="${SRC_ROOT}/overlays/overlay-${FLAGS_board}"
+PRIVATE_OVERLAY_NAME="overlay-${FLAGS_board}-private"
+PRIVATE_BOARD_OVERLAY="${SRC_ROOT}/private-overlays/${PRIVATE_OVERLAY_NAME}"
+
+#
+# Identify the primary board overlay or die.
+#
+if is_primary_overlay ${BOARD_OVERLAY}; then
+  PRIMARY_OVERLAY="${BOARD_OVERLAY}"
+elif is_primary_overlay "${PRIVATE_BOARD_OVERLAY}"; then
+  PRIMARY_OVERLAY="${PRIVATE_BOARD_OVERLAY}"
+fi
+if [ ! -n "${PRIMARY_OVERLAY}" ]; then
+  error "There is no primary board overlay for ${FLAGS_board}"
+  exit 1
+fi
+
+#
+# If only the primary overlay is needed, provide it and exit.
+#
+if [ "${FLAGS_primary_only}" -eq "${FLAGS_TRUE}" ]; then
+  echo "${PRIMARY_OVERLAY}"
+  exit 0
+fi
+
+#
 # Check for chromeos-overlay.
 #
 CHROMEOS_OVERLAY="${SRC_ROOT}/private-overlays/chromeos-overlay"
@@ -50,50 +99,38 @@ if [ -d "${CHROMEOS_OVERLAY}" ]; then
 fi
 
 #
-# Check if there are any board overlays.  There should be at least a top
-# level board specific overlay.
+# Check if there are any public board overlays.
 #
-PRIMARY_BOARD_OVERLAY="${SRC_ROOT}/overlays/overlay-${FLAGS_board}"
-
-if [ -d "${PRIMARY_BOARD_OVERLAY}" ]; then
-  echo "${PRIMARY_BOARD_OVERLAY}"
+if [ -d "${BOARD_OVERLAY}" ]; then
+  echo "${BOARD_OVERLAY}"
 
   #
-  # Add the public variant overlay
+  # Add the public variant overlay if it exists.
   #
   if [ -n "$FLAGS_variant" ] ; then
-    VARIANT_NAME="overlay-variant-${FLAGS_board}-${FLAGS_variant}"
-    VARIANT_OVERLAY="${SRC_ROOT}/overlays/${VARIANT_NAME}"
-
-    if [ ! -d "$VARIANT_OVERLAY" ] ; then
-      error "Can't find variant overlay directory $VARIANT_OVERLAY"
-      exit 1
+    if [ -d "$VARIANT_OVERLAY" ] ; then
+      echo "${VARIANT_OVERLAY}"
     fi
+  fi
+fi
 
-    echo "${VARIANT_OVERLAY}"
+#
+# Add any private overlays and private variant overlays for this board.
+#
+if [ -d "${SRC_ROOT}/private-overlays" ] ; then
+  OVERLAY_NAME="overlay-${FLAGS_board}-private"
+  PRIVATE_OVERLAY="${SRC_ROOT}/private-overlays/${OVERLAY_NAME}"
+
+  if [ -d "${PRIVATE_OVERLAY}" ] ; then
+    echo "${PRIVATE_OVERLAY}"
   fi
 
   #
-  # Add any private overlays and variant overlays for this board.
+  # Add the private variant overlay if it exists.
   #
-  if [ -d "${SRC_ROOT}/private-overlays" ] ; then
-    OVERLAY_NAME="overlay-${FLAGS_board}-private"
-    PRIVATE_OVERLAY="${SRC_ROOT}/private-overlays/${OVERLAY_NAME}"
-
-    if [ -d "${PRIVATE_OVERLAY}" ] ; then
-      echo "${PRIVATE_OVERLAY}"
-    fi
-
-    #
-    # Add the public and private variant overlays
-    #
-    if [ -n "$FLAGS_variant" ] ; then
-      VARIANT_NAME="overlay-variant-${FLAGS_board}-${FLAGS_variant}-private"
-      PRIVATE_VARIANT_OVERLAY="${SRC_ROOT}/private-overlays/${VARIANT_NAME}"
-
-      if [ -d "${PRIVATE_VARIANT_OVERLAY}" ] ; then
-        echo "${PRIVATE_VARIANT_OVERLAY}"
-      fi
+  if [ -n "$FLAGS_variant" ] ; then
+    if [ -d "${PRIVATE_VARIANT_OVERLAY}" ] ; then
+      echo "${PRIVATE_VARIANT_OVERLAY}"
     fi
   fi
 fi

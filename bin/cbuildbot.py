@@ -26,6 +26,13 @@ _PACKAGE_FILE = '%(buildroot)s/src/scripts/cbuildbot_package.list'
 ARCHIVE_BASE = '/var/www/archive'
 ARCHIVE_COUNT = 10
 
+# Currently, both the full buildbot and the preflight buildbot store their
+# data in a variable named PORTAGE_BINHOST, but they're in different files.
+# We're planning on joining the two files soon and renaming the full binhost
+# to FULL_BINHOST.
+_FULL_BINHOST = 'PORTAGE_BINHOST'
+_PREFLIGHT_BINHOST = 'PORTAGE_BINHOST'
+
 # ======================== Utility functions ================================
 
 def MakeDir(path, parents=False):
@@ -305,6 +312,28 @@ def _MakeChroot(buildroot):
   RunCommand(['./make_chroot', '--fast'], cwd=cwd)
 
 
+def _GetPortageEnvVar(buildroot, board, envvar):
+  """Get a portage environment variable for the specified board, if any.
+
+  buildroot: The root directory where the build occurs. Must be an absolute
+             path.
+  board: Board type that was built on this machine. E.g. x86-generic. If this
+         is None, get the env var from the host.
+  envvar: The environment variable to get. E.g. 'PORTAGE_BINHOST'.
+
+  Returns:
+    The value of the environment variable, as a string. If no such variable
+    can be found, return the empty string.
+  """
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  portageq = 'portageq'
+  if board:
+    portageq += '-%s' % board
+  binhost = RunCommand([portageq, 'envvar', envvar], cwd=cwd,
+                       redirect_stdout=True, enter_chroot=True, error_ok=True)
+  return binhost.rstrip('\n')
+
+
 def _SetupBoard(buildroot, board='x86-generic'):
   """Wrapper around setup_board."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
@@ -368,8 +397,8 @@ def _RunSmokeSuite(buildroot, results_dir):
   cwd = os.path.join(buildroot, 'src', 'scripts')
   RunCommand(['bin/cros_run_vm_test',
               '--no_graphics',
-              '--test_case=suite_Smoke',
               '--results_dir_root=%s' % results_dir,
+              'suite_Smoke',
               ], cwd=cwd, error_ok=False)
 
 
@@ -503,8 +532,43 @@ def _ResolveOverlays(buildroot, overlays):
   elif overlays == 'both':
     paths = [public_overlay, private_overlay]
   else:
-    Die('Incorrect overlay configuration: %s' % overlays)
+    Info('No overlays found.')
+    paths = []
   return paths
+
+
+def _UploadPrebuilts(buildroot, board, overlay_config, binhosts):
+  """Upload prebuilts.
+
+  Args:
+    buildroot: The root directory where the build occurs.
+    board: Board type that was built on this machine
+    overlay_config: A string describing which overlays you want.
+                    'private': Just the private overlay.
+                    'public': Just the public overlay.
+                    'both': Both the public and private overlays.
+    binhosts: The URLs of the current binhosts. Binaries that are already
+              present will not be uploaded twice. Empty URLs will be ignored.
+  """
+
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  cmd = [os.path.join(cwd, 'prebuilt.py'),
+         '--sync-binhost-conf',
+         '--build-path', buildroot,
+         '--board', board,
+         '--prepend-version', 'preflight',
+         '--key', _PREFLIGHT_BINHOST]
+  for binhost in binhosts:
+    if binhost:
+      cmd.extend(['--previous-binhost-url', binhost])
+  if overlay_config == 'public':
+    cmd.extend(['--upload', 'gs://chromeos-prebuilt'])
+  else:
+    assert overlay_config in ('private', 'both')
+    cmd.extend(['--upload', 'chromeos-images:/var/www/prebuilt/',
+                '--binhost-base-url', 'http://chromeos-prebuilt'])
+
+  RunCommand(cmd, cwd=cwd)
 
 
 def main():
@@ -558,28 +622,41 @@ def main():
     parser.print_usage()
     sys.exit(1)
 
-  # Calculate list of overlay directories.
-  overlays = _ResolveOverlays(buildroot, buildconfig['overlays'])
-
   try:
-    _PreFlightRinse(buildroot, buildconfig['board'], tracking_branch, overlays)
+    # Calculate list of overlay directories.
+    rev_overlays = _ResolveOverlays(buildroot, buildconfig['rev_overlays'])
+    push_overlays = _ResolveOverlays(buildroot, buildconfig['push_overlays'])
+    # We cannot push to overlays that we don't rev.
+    assert set(push_overlays).issubset(set(rev_overlays))
+    # Either has to be a master or not have any push overlays.
+    assert buildconfig['master'] or not push_overlays
+
+    board = buildconfig['board']
+    old_binhost = None
+
+    _PreFlightRinse(buildroot, buildconfig['board'], tracking_branch,
+                    rev_overlays)
+    chroot_path = os.path.join(buildroot, 'chroot')
+    boardpath = os.path.join(chroot_path, 'build', board)
     if options.sync:
       if options.clobber or not os.path.isdir(buildroot):
         _FullCheckout(buildroot, tracking_branch, url=options.url)
       else:
+        old_binhost = _GetPortageEnvVar(buildroot, board, _FULL_BINHOST)
         _IncrementalCheckout(buildroot)
 
+    new_binhost = _GetPortageEnvVar(buildroot, board, _FULL_BINHOST)
+    if old_binhost and old_binhost != new_binhost:
+      RunCommand(['sudo', 'rm', '-rf', boardpath])
+
     # Check that all overlays can be found.
-    for path in overlays:
-      assert ':' not in path, 'Overlay must not contain colons: %s' % path
+    for path in rev_overlays:
       if not os.path.isdir(path):
         Die('Missing overlay: %s' % path)
 
-    chroot_path = os.path.join(buildroot, 'chroot')
     if not os.path.isdir(chroot_path):
       _MakeChroot(buildroot)
 
-    boardpath = os.path.join(chroot_path, 'build', buildconfig['board'])
     if not os.path.isdir(boardpath):
       _SetupBoard(buildroot, board=buildconfig['board'])
 
@@ -589,7 +666,7 @@ def main():
                                                  options.chrome_rev)
     elif buildconfig['uprev']:
       _UprevPackages(buildroot, tracking_branch, revisionfile,
-                     buildconfig['board'], overlays)
+                     buildconfig['board'], rev_overlays)
 
     _EnableLocalAccount(buildroot)
     # Doesn't rebuild without acquiring more source.
@@ -611,7 +688,7 @@ def main():
         _RunSmokeSuite(buildroot, test_results_dir)
       finally:
         if not options.debug:
-          archive_full_path=os.path.join(options.gsutil_archive,
+          archive_full_path = os.path.join(options.gsutil_archive,
                                          str(options.buildnumber))
           _ArchiveTestResults(buildroot, buildconfig['board'],
                               test_results_dir=test_results_dir,
@@ -624,8 +701,11 @@ def main():
       if buildconfig['master']:
         # Master bot needs to check if the other slaves completed.
         if cbuildbot_comm.HaveSlavesCompleted(config):
+          if not options.debug:
+            _UploadPrebuilts(buildroot, board, buildconfig['rev_overlays'],
+                             [new_binhost])
           _UprevPush(buildroot, tracking_branch, buildconfig['board'],
-                     overlays, options.debug)
+                     push_overlays, options.debug)
         else:
           Die('CBUILDBOT - One of the slaves has failed!!!')
 

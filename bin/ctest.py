@@ -167,7 +167,11 @@ def GetLatestZipUrl(board, channel, latest_url_base, zip_server_base):
       Warning(('Could not use latest link provided, defaulting to parsing'
                ' latest from zip url base.'))
 
-  return GetNewestLinkFromZipBase(board, channel, zip_server_base)
+  try:
+    return GetNewestLinkFromZipBase(board, channel, zip_server_base)
+  except:
+    Warning('Failed to get url from standard zip base.  Trying rc.')
+    return GetNewestLinkFromZipBase(board + '-rc', channel, zip_server_base)
 
 
 def GrabZipAndExtractImage(zip_url, download_folder, image_name) :

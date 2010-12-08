@@ -19,9 +19,12 @@ hostname -- Needed for 'important' slaves.  The hostname of the bot.  Should
             match hostname in slaves.cfg in buildbot checkout.
 unittests -- Runs unittests for packages.
 smoke_bvt -- Runs the test smoke suite in a qemu-based VM using KVM.
-overlays -- Select what overlays to look at. This can be 'public', 'private'
-            or 'both'. There should only be one master bot pushing changes to
-            each overlay per branch.
+rev_overlays -- Select what overlays to look at for revving. This can be
+                'public', 'private' or 'both'.
+push_overlays -- Select what overlays to push at. This should be a subset of
+                 rev_overlays for the particular builder.  Must be None if
+                 not a master.  There should only be one master bot pushing
+                 changes to each overlay per branch.
 """
 
 
@@ -33,7 +36,8 @@ config['default'] = {
   'important' : False,
   'unittests' : False,
   'smoke_bvt' : False,
-  'overlays': 'public',
+  'rev_overlays': 'public',
+  'push_overlays': None,
 }
 config['x86-generic-pre-flight-queue'] = {
   'board' : 'x86-generic',
@@ -43,7 +47,8 @@ config['x86-generic-pre-flight-queue'] = {
   'hostname' : 'chromeosbuild2',
   'unittests' : True,
   'smoke_bvt' : True,
-  'overlays': 'public',
+  'rev_overlays': 'public',
+  'push_overlays': 'public',
 }
 config['x86-mario-pre-flight-queue'] = {
   'board' : 'x86-mario',
@@ -52,7 +57,8 @@ config['x86-mario-pre-flight-queue'] = {
   'important' : False,
   'unittests' : True,
   'smoke_bvt' : True,
-  'overlays': 'private',
+  'rev_overlays': 'both',
+  'push_overlays': 'private',
 }
 config['x86-mario-pre-flight-branch'] = {
   'board' : 'x86-mario',
@@ -61,7 +67,8 @@ config['x86-mario-pre-flight-branch'] = {
   'important' : False,
   'unittests' : True,
   'smoke_bvt' : True,
-  'overlays': 'both',
+  'rev_overlays': 'both',
+  'push_overlays': 'both',
 }
 config['x86_agz_bin'] = {
   'board' : 'x86-agz',
@@ -70,7 +77,8 @@ config['x86_agz_bin'] = {
   'important' : False,
   'unittests' : True,
   'smoke_bvt' : True,
-  'overlays': 'private',
+  'rev_overlays': 'both',
+  'push_overlays': None,
 }
 config['x86_dogfood_bin'] = {
   'board' : 'x86-dogfood',
@@ -79,7 +87,8 @@ config['x86_dogfood_bin'] = {
   'important' : False,
   'unittests' : True,
   'smoke_bvt' : True,
-  'overlays': 'private',
+  'rev_overlays': 'both',
+  'push_overlays': None,
 }
 config['x86_pineview_bin'] = {
   'board' : 'x86-pineview',
@@ -87,7 +96,8 @@ config['x86_pineview_bin'] = {
   'master' : False,
   'important' : False,
   'unittests': True,
-  'overlays': 'public',
+  'rev_overlays': 'public',
+  'push_overlays': None,
 }
 config['arm_tegra2_bin'] = {
   'board' : 'tegra2',
@@ -95,7 +105,8 @@ config['arm_tegra2_bin'] = {
   'master' : False,
   'important' : False,
   'unittests' : False,
-  'overlays': 'public',
+  'rev_overlays': 'public',
+  'push_overlays': None,
 }
 config['arm_generic_bin'] = {
   'board' : 'arm-generic',
@@ -103,5 +114,6 @@ config['arm_generic_bin'] = {
   'master' : False,
   'important' : False,
   'unittests' : False,
-  'overlays': 'public',
+  'rev_overlays': 'public',
+  'push_overlays': None,
 }

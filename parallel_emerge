@@ -297,11 +297,23 @@ class DepGraphGenerator(object):
       os.environ["PORTAGE_SYSROOT"] = "/build/" + self.board
       os.environ["SYSROOT"] = "/build/" + self.board
       scripts_dir = os.path.dirname(os.path.realpath(__file__))
-      toolchain_path = "%s/../overlays/overlay-%s/toolchain.conf"
       # Strip the variant out of the board name to look for the toolchain. This
       # is similar to what setup_board does.
       board_no_variant = self.board.split('_')[0]
-      f = open(toolchain_path % (scripts_dir, board_no_variant))
+      public_toolchain_path = ("%s/../overlays/overlay-%s/toolchain.conf" %
+        (scripts_dir, board_no_variant))
+      private_toolchain_path = (
+        "%s/../private-overlays/overlay-%s-private/toolchain.conf" %
+        (scripts_dir, board_no_variant))
+      if os.path.isfile(public_toolchain_path):
+        toolchain_path = public_toolchain_path
+      elif os.path.isfile(private_toolchain_path):
+        toolchain_path = private_toolchain_path
+      else:
+        print "Not able to locate toolchain.conf in board overlays"
+        sys.exit(1)
+
+      f = open(toolchain_path)
       os.environ["CHOST"] = f.readline().strip()
       f.close()
 
@@ -309,13 +321,6 @@ class DepGraphGenerator(object):
       # inside emerge-${BOARD}, so we set it up here for compatibility. It
       # will be going away soon as we migrate to CROS_WORKON_SRCROOT.
       os.environ.setdefault("CHROMEOS_ROOT", os.environ["HOME"] + "/trunk")
-
-      # Modify the environment to disable locking by default.
-      # TODO(davidjames): This option can cause problems if packages muck
-      # with each other during the post-install step. There are a few host
-      # packages that do this, so we only do this environment modification for
-      # board builds.
-      os.environ.setdefault("PORTAGE_LOCKS", "false")
 
     # Turn off interactive delays
     os.environ["EBEEP_IGNORE"] = "1"
@@ -357,11 +362,17 @@ class DepGraphGenerator(object):
     # TODO(davidjames): Look for a better solution.
     features = os.environ.get("FEATURES", "") + " -collision-protect"
 
-    # If we're cross-compiling, updating the environment every time we install
-    # a package isn't necessary, and leads to race conditions when
-    # PORTAGE_LOCKS is false. In this case, do environment updates at the end,
-    # instead.
-    if self.board and os.environ.get("PORTAGE_LOCKS") == "false":
+    # If we're installing packages to the board, and we're not using the
+    # official flag, we can enable the following optimizations:
+    #  1) Don't lock during install step. This allows multiple packages to be
+    #     installed at once. This is safe because our board packages do not
+    #     muck with each other during the post-install step.
+    #  2) Don't update the environment until the end of the build. This is
+    #     safe because board packages don't need to run during the build --
+    #     they're cross-compiled, so our CPU architecture doesn't support them
+    #     anyway.
+    if self.board and os.environ.get("CHROMEOS_OFFICIAL") != "1":
+      os.environ.setdefault("PORTAGE_LOCKS", "false")
       features = features + " no-env-update"
 
     os.environ["FEATURES"] = features

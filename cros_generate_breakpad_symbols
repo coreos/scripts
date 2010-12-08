@@ -77,11 +77,12 @@ function verify_not_64b_elf() {
 function dump_file() {
   local debug_file="$1"
   local text_file="$2"
+  local debug_directory="$(dirname "${debug_file}")"
   # 64b ELF files may be installed on the target in PERL directories
   verify_not_64b_elf "${debug_file}" || return 1
   verify_not_64b_elf "${text_file}" || return 1
   # Dump symbols as root in order to read all files.
-  if ! sudo "${DUMP_SYMS}" "${debug_file}" "${text_file}" > "${SYM_FILE}" \
+  if ! sudo "${DUMP_SYMS}" "${text_file}" "${debug_directory}" > "${SYM_FILE}" \
        2> "${ERR_FILE}"; then
     # A lot of files (like kernel files) contain no debug information, do
     # not consider such occurrences as errors.

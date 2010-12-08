@@ -70,14 +70,14 @@ class ParallelTestRunner(object):
       args = [ os.path.join(os.path.dirname(__file__), 'cros_run_vm_test'),
                '--snapshot',  # The image is shared so don't modify it.
                '--no_graphics',
-               '--ssh_port=%d' % ssh_port,
-               '--test_case=%s' % test ]
+               '--ssh_port=%d' % ssh_port ]
       if self._board: args.append('--board=%s' % self._board)
       if self._image_path: args.append('--image_path=%s' % self._image_path)
       if self._results_dir_root:
         args.append('--results_dir_root=%s/%s.%d' %
                     (self._results_dir_root, test, ssh_port))
       if self._use_emerged: args.append('--use_emerged')
+      args.append(test)
       Info('Running %r...' % args)
       output = None
       if self._order_output:

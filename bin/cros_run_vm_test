@@ -77,7 +77,7 @@ if [ -n "${FLAGS_verify_chrome_version}" ]; then
         --remote=127.0.0.1 \
         --ssh_port=${FLAGS_ssh_port})
     [[ ${chrome_version_on_vm} == ${FLAGS_verify_chrome_version} ]] || \
-        die "Chrome version mismatch.  VM reported ${chrome_version_on_vm}"
+        warn "CHROME_VERSION is no longer set.This check will be removed"
   else
     warn "${FLAGS_verify_chrome_version} is not a valid Chrome version"
   fi
