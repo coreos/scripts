@@ -502,6 +502,8 @@ if __name__ == '__main__':
   elif options.type == 'real': test_class = RealAUTest
   else: parser.error('Could not parse harness type %s.' % options.type)
 
+  remote = options.remote
+
   test_suite = test_loader.loadTestsFromTestCase(test_class)
   test_result = unittest.TextTestRunner(verbosity=2).run(test_suite)
 
