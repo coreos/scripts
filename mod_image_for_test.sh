@@ -33,12 +33,6 @@ DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" y
 DEFINE_string build_root "/build" \
     "The root location for board sysroots."
 DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
-DEFINE_boolean inplace $FLAGS_TRUE \
-    "Modify/overwrite the image ${CHROMEOS_IMAGE_NAME} in place.  \
-Otherwise the image will be copied to ${CHROMEOS_TEST_IMAGE_NAME} \
-if needed, and  modified there"
-DEFINE_boolean force_copy ${FLAGS_FALSE} \
-    "Always rebuild test image if --noinplace"
 
 
 # Parse command line
@@ -62,7 +56,7 @@ fi
 # We have a board name but no image set.  Use image at default location
 if [ -z $FLAGS_image ] ; then
   IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
-  FILENAME="${CHROMEOS_IMAGE_NAME}"
+  FILENAME="chromiumos_image.bin"
   FLAGS_image="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)/${FILENAME}"
 fi
 
@@ -160,25 +154,6 @@ install_autotest() {
 }
 
 # main process begins here.
-
-IMAGE_DIR="$(dirname "${FLAGS_image}")"
-
-# Copy the image to a test location if required
-if [ ${FLAGS_inplace} -eq ${FLAGS_FALSE} ]; then
-  TEST_PATHNAME="${IMAGE_DIR}/${CHROMEOS_TEST_IMAGE_NAME}"
-  if [ ! -f "${TEST_PATHNAME}" ] || \
-     [ ${FLAGS_force_copy} -eq ${FLAGS_TRUE} ] ; then
-    echo "Creating test image from original..."
-    ${COMMON_PV_CAT} "${FLAGS_image}" >"${TEST_PATHNAME}" \
-      || die "Cannot copy ${FLAGS_image} to test image"
-    FLAGS_image="${TEST_PATHNAME}"
-  else
-    echo "Using cached test image"
-  fi
-
-  # No need to confirm now, since we are not overwriting the main image
-  FLAGS_yes="$FLAGS_TRUE"
-fi
 
 # Make sure this is really what the user wants, before nuking the device
 if [ $FLAGS_yes -ne $FLAGS_TRUE ]; then

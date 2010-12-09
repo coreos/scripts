@@ -10,8 +10,6 @@
 # Load common constants.  This should be the first executable line.
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
-
-# Load functions and constants for chromeos-install
 . "$(dirname "$0")/chromeos-common.sh"
 . "$(dirname "$0")/lib/cros_vm_constants.sh"
 
@@ -42,7 +40,7 @@ DEFINE_string state_image "" \
 DEFINE_integer statefulfs_size 2048 \
   "Stateful partition size in MBs."
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
-  "Copies normal image to ${CHROMEOS_TEST_IMAGE_NAME}, modifies it for test."
+  "Copies normal image to chromiumos_test_image.bin, modifies it for test."
 DEFINE_string to "" \
   "Destination folder for VM output file(s)"
 DEFINE_string vbox_disk "${DEFAULT_VBOX_DISK}" \
@@ -86,13 +84,39 @@ if [ -z "${FLAGS_to}" ] ; then
   FLAGS_to="${FLAGS_from}"
 fi
 
+# Use this image as the source image to copy
+SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
+
+# If we're asked to modify the image for test, then let's make a copy and
+# modify that instead.
 if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
-  # Make a test image - this returns the test filename in CHROMEOS_RETURN_VAL
-  prepare_test_image "${FLAGS_from}" "${CHROMEOS_IMAGE_NAME}"
-  SRC_IMAGE="${CHROMEOS_RETURN_VAL}"
-else
-  # Use the standard image
-  SRC_IMAGE="${FLAGS_from}/${CHROMEOS_IMAGE_NAME}"
+  if [ ! -f "${FLAGS_from}/chromiumos_test_image.bin" ] || \
+     [ ${FLAGS_force_copy} -eq ${FLAGS_TRUE} ] ; then
+    # Copy it.
+    echo "Creating test image from original..."
+    cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_test_image.bin"
+
+    # Check for manufacturing image.
+    if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
+      EXTRA_ARGS="--factory"
+    fi
+
+    # Check for install shim.
+    if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
+      EXTRA_ARGS="--factory_install"
+    fi
+
+    # Modify it.  Pass --yes so that mod_image_for_test.sh won't ask us if we
+    # really want to modify the image; the user gave their assent already with
+    # --test-image and the original image is going to be preserved.
+    "${SCRIPTS_DIR}/mod_image_for_test.sh" --board=${FLAGS_board} --image \
+      "${FLAGS_from}/chromiumos_test_image.bin" ${EXTRA_ARGS} --yes
+    echo "Done with mod_image_for_test."
+  else
+    echo "Using cached test image."
+  fi
+  SRC_IMAGE="${FLAGS_from}/chromiumos_test_image.bin"
+  echo "Source test image is: ${SRC_IMAGE}"
 fi
 
 # Memory units are in MBs
