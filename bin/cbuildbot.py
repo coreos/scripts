@@ -341,10 +341,14 @@ def _SetupBoard(buildroot, board='x86-generic'):
              cwd=cwd, enter_chroot=True)
 
 
-def _Build(buildroot):
+def _Build(buildroot, emptytree):
   """Wrapper around build_packages."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./build_packages'], cwd=cwd, enter_chroot=True)
+  cmd = ['./build_packages']
+  if emptytree:
+    cmd.insert(0, 'EXTRA_BOARD_FLAGS=--emptytree')
+
+  RunCommand(cmd, cwd=cwd, enter_chroot=True)
 
 
 def _BuildChrome(buildroot, board, chrome_atom_to_build):
@@ -646,8 +650,7 @@ def main():
         _IncrementalCheckout(buildroot)
 
     new_binhost = _GetPortageEnvVar(buildroot, board, _FULL_BINHOST)
-    if old_binhost and old_binhost != new_binhost:
-      RunCommand(['sudo', 'rm', '-rf', boardpath])
+    emptytree = (old_binhost and old_binhost != new_binhost)
 
     # Check that all overlays can be found.
     for path in rev_overlays:
@@ -671,7 +674,7 @@ def main():
     _EnableLocalAccount(buildroot)
     # Doesn't rebuild without acquiring more source.
     if options.sync:
-      _Build(buildroot)
+      _Build(buildroot, emptytree)
 
     if chrome_atom_to_build:
       _BuildChrome(buildroot, buildconfig['board'], chrome_atom_to_build)
