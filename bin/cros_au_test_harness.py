@@ -42,6 +42,7 @@ class AUTest(object):
   """Abstract interface that defines an Auto Update test."""
   source_image = ''
   use_delta_updates = False
+  verbose = False
 
   def setUp(self):
     unittest.TestCase.setUp(self)
@@ -80,7 +81,7 @@ class AUTest(object):
     if self.use_delta_updates:
       try:
         self.source_image = src_image
-        self.UpdateImage(image)
+        self._UpdateImageReportError(image)
       except:
         Warning('Delta update failed, disabling delta updates and retrying.')
         self.use_delta_updates = False
@@ -110,9 +111,9 @@ class AUTest(object):
       if re.search(re.escape(expected_msg), err.stdout, re.MULTILINE):
         return
 
-      Warning("Didn't find '%s' in:" % expected_msg)
-      Warning(err.stdout)
-      self.fail('We managed to update when failure was expected')
+    Warning("Didn't find '%s' in:" % expected_msg)
+    Warning(err.stdout)
+    self.fail('We managed to update when failure was expected')
 
   def PrepareBase(self, image_path):
     """Prepares target with base_image_path."""
@@ -169,7 +170,8 @@ class AUTest(object):
       percent that passed.
     """
     Info('Output from VerifyImage():')
-    print output
+    print >> sys.stderr, output
+    sys.stderr.flush()
     percent_passed = self.ParseGenerateTestReportOutput(output)
     Info('Percent passed: %d vs. Percent required: %d' % (
         percent_passed, percent_required_to_pass))
@@ -237,7 +239,7 @@ class AUTest(object):
     # Read from the URL and write to the local file
     urllib.urlretrieve(url, payload)
 
-    expected_msg='download_hash_data == update_check_response_hash failed'
+    expected_msg = 'download_hash_data == update_check_response_hash failed'
     self._AttemptUpdateWithPayloadExpectedFailure(payload, expected_msg)
 
   def testCorruptedUpdate(self):
@@ -255,7 +257,7 @@ class AUTest(object):
     urllib.urlretrieve(url, payload)
 
     # This update is expected to fail...
-    expected_msg='zlib inflate() error:-3'
+    expected_msg = 'zlib inflate() error:-3'
     self._AttemptUpdateWithPayloadExpectedFailure(payload, expected_msg)
 
 class RealAUTest(unittest.TestCase, AUTest):
@@ -271,33 +273,43 @@ class RealAUTest(unittest.TestCase, AUTest):
   def UpdateImage(self, image_path, stateful_change='old'):
     """Updates a remote image using image_to_live.sh."""
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
+    cmd = ['%s/image_to_live.sh' % self.crosutils,
+           '--image=%s' % image_path,
+           '--remote=%s' % remote,
+           stateful_change_flag,
+           '--verify',
+           '--src_image=%s' % self.source_image
+          ]
 
-    (code, stdout, stderr) = RunCommandCaptureOutput([
-        '%s/image_to_live.sh' % self.crosutils,
-        '--image=%s' % image_path,
-        '--remote=%s' % remote,
-        stateful_change_flag,
-        '--verify',
-        '--src_image=%s' % self.source_image
-        ])
-
-    if code != 0:
-      raise UpdateException(code, stdout)
+    if self.verbose:
+      try:
+        RunCommand(cmd)
+      except Exception, e:
+        raise UpdateException(1, e.message)
+    else:
+      (code, stdout, stderr) = RunCommandCaptureOutput(cmd)
+      if code != 0:
+        raise UpdateException(code, stdout)
 
   def UpdateUsingPayload(self, update_path, stateful_change='old'):
     """Updates a remote image using image_to_live.sh."""
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
+    cmd = ['%s/image_to_live.sh' % self.crosutils,
+           '--payload=%s' % update_path,
+           '--remote=%s' % remote,
+           stateful_change_flag,
+           '--verify',
+          ]
 
-    (code, stdout, stderr) = RunCommandCaptureOutput([
-        '%s/image_to_live.sh' % self.crosutils,
-        '--payload=%s' % update_path,
-        '--remote=%s' % remote,
-        stateful_change_flag,
-        '--verify',
-        ])
-
-    if code != 0:
-      raise UpdateException(code, stdout)
+    if self.verbose:
+      try:
+        RunCommand(cmd)
+      except Exception, e:
+        raise UpdateException(1, e.message)
+    else:
+      (code, stdout, stderr) = RunCommandCaptureOutput(cmd)
+      if code != 0:
+        raise UpdateException(code, stdout)
 
   def VerifyImage(self, percent_required_to_pass):
     """Verifies an image using run_remote_tests.sh with verification suite."""
@@ -360,20 +372,25 @@ class VirtualAUTest(unittest.TestCase, AUTest):
     if self.source_image == base_image_path:
       self.source_image = self.vm_image_path
 
-    (code, stdout, stderr) = RunCommandCaptureOutput([
-        '%s/cros_run_vm_update' % self.crosutilsbin,
-        '--update_image_path=%s' % image_path,
-        '--vm_image_path=%s' % self.vm_image_path,
-        '--snapshot',
-        vm_graphics_flag,
-        '--persist',
-        '--kvm_pid=%s' % _KVM_PID_FILE,
-        stateful_change_flag,
-        '--src_image=%s' % self.source_image,
-        ])
-
-    if code != 0:
-      raise UpdateException(code, stdout)
+    cmd = ['%s/cros_run_vm_update' % self.crosutilsbin,
+           '--update_image_path=%s' % image_path,
+           '--vm_image_path=%s' % self.vm_image_path,
+           '--snapshot',
+           vm_graphics_flag,
+           '--persist',
+           '--kvm_pid=%s' % _KVM_PID_FILE,
+           stateful_change_flag,
+           '--src_image=%s' % self.source_image,
+           ]
+    if self.verbose:
+      try:
+        RunCommand(cmd)
+      except Exception, e:
+        raise UpdateException(1, e.message)
+    else:
+      (code, stdout, stderr) = RunCommandCaptureOutput(cmd)
+      if code != 0:
+        raise UpdateException(code, stdout)
 
   def UpdateUsingPayload(self, update_path, stateful_change='old'):
     """Updates a remote image using image_to_live.sh."""
@@ -381,20 +398,26 @@ class VirtualAUTest(unittest.TestCase, AUTest):
     if self.source_image == base_image_path:
       self.source_image = self.vm_image_path
 
-    (code, stdout, stderr) = RunCommandCaptureOutput([
-        '%s/cros_run_vm_update' % self.crosutilsbin,
-        '--payload=%s' % update_path,
-        '--vm_image_path=%s' % self.vm_image_path,
-        '--snapshot',
-        vm_graphics_flag,
-        '--persist',
-        '--kvm_pid=%s' % _KVM_PID_FILE,
-        stateful_change_flag,
-        '--src_image=%s' % self.source_image,
-        ])
+    cmd = ['%s/cros_run_vm_update' % self.crosutilsbin,
+           '--payload=%s' % update_path,
+           '--vm_image_path=%s' % self.vm_image_path,
+           '--snapshot',
+           vm_graphics_flag,
+           '--persist',
+           '--kvm_pid=%s' % _KVM_PID_FILE,
+           stateful_change_flag,
+           '--src_image=%s' % self.source_image,
+           ]
 
-    if code != 0:
-      raise UpdateException(code, stdout)
+    if self.verbose:
+      try:
+        RunCommand(cmd)
+      except Exception, e:
+        raise UpdateException(1, e.message)
+    else:
+      (code, stdout, stderr) = RunCommandCaptureOutput(cmd)
+      if code != 0:
+        raise UpdateException(code, stdout)
 
   def VerifyImage(self, percent_required_to_pass):
     """Runs vm smoke suite to verify image."""
@@ -421,26 +444,33 @@ if __name__ == '__main__':
   parser = optparse.OptionParser()
   parser.add_option('-b', '--base_image',
                     help='path to the base image.')
-  parser.add_option('-t', '--target_image',
-                    help='path to the target image.')
   parser.add_option('-r', '--board',
                     help='board for the images.')
-  parser.add_option('-p', '--type', default='vm',
-                    help='type of test to run: [vm, real]. Default: vm.')
-  parser.add_option('-m', '--remote',
-                    help='Remote address for real test.')
-  parser.add_option('--no_graphics', action='store_true',
-                    help='Disable graphics for the vm test.')
   parser.add_option('--no_delta', action='store_false', default=True,
                     dest='delta',
                     help='Disable using delta updates.')
+  parser.add_option('--no_graphics', action='store_true',
+                    help='Disable graphics for the vm test.')
+  parser.add_option('-m', '--remote',
+                    help='Remote address for real test.')
   parser.add_option('-q', '--quick_test', default=False, action='store_true',
                     help='Use a basic test to verify image.')
+  parser.add_option('-t', '--target_image',
+                    help='path to the target image.')
+  parser.add_option('--test_prefix', default='test',
+                    help='Only runs tests with specific prefix i.e. '
+                         'testFullUpdateWipeStateful.')
+  parser.add_option('-p', '--type', default='vm',
+                    help='type of test to run: [vm, real]. Default: vm.')
+  parser.add_option('--verbose', default=False, action='store_true',
+                    help='Print out rather than capture output as much as '
+                         'possible.')
   # Set the usage to include flags.
   parser.set_usage(parser.format_help())
   # Parse existing sys.argv so we can pass rest to unittest.main.
   (options, sys.argv) = parser.parse_args(sys.argv)
 
+  AUTest.verbose = options.verbose
   base_image_path = options.base_image
   target_image_path = options.target_image
   board = options.board
@@ -465,19 +495,15 @@ if __name__ == '__main__':
   AUTest.use_delta_updates = options.delta
 
   # Only run the test harness we care about.
-  if options.type == 'vm':
-    suite = unittest.TestLoader().loadTestsFromTestCase(VirtualAUTest)
-    test_result = unittest.TextTestRunner(verbosity=2).run(suite)
-  elif options.type == 'real':
-    if not options.remote:
-      parser.error('Real tests require a remote test machine.')
-    else:
-      remote = options.remote
+  test_loader = unittest.TestLoader()
+  test_loader.testMethodPrefix = options.test_prefix
 
-    suite = unittest.TestLoader().loadTestsFromTestCase(RealAUTest)
-    test_result = unittest.TextTestRunner(verbosity=2).run(suite)
-  else:
-    parser.error('Could not parse harness type %s.' % options.type)
+  if options.type == 'vm':  test_class = VirtualAUTest
+  elif options.type == 'real': test_class = RealAUTest
+  else: parser.error('Could not parse harness type %s.' % options.type)
+
+  test_suite = test_loader.loadTestsFromTestCase(test_class)
+  test_result = unittest.TextTestRunner(verbosity=2).run(test_suite)
 
   if not test_result.wasSuccessful():
     Die('Test harness was not successful')

@@ -356,7 +356,7 @@ function main() {
 
   if [ ${FLAGS_update_stateful} -eq ${FLAGS_TRUE} ] && \
       ! run_stateful_update; then
-    warn "Stateful update was not successful."
+    die "Stateful update was not successful."
   fi
 
   remote_reboot
