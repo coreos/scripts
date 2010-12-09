@@ -19,6 +19,25 @@ function get_pid() {
   sudo cat "${KVM_PID_FILE}"
 }
 
+# General purpose blocking kill on a pid.
+# This function sends a specified kill signal [0-9] to a pid and waits for it
+# die up to a given timeout.  It exponentially backs off it's timeout starting
+# at 1 second.
+# $1 the process id.
+# $2 signal to send (-#).
+# $3 max timeout in seconds.
+# Returns 0 on success.
+function blocking_kill() {
+  local timeout=1
+  sudo kill -$2 $1
+  while ps -p $1 > /dev/null && [ ${timeout} -le $3 ]; do
+    warn "Process still running, sleeping for ${timeout}"
+    sleep ${timeout}
+    timeout=$((timeout*2))
+  done
+  ! ps -p ${1} > /dev/null
+}
+
 # TODO(rtc): These flags assume that we'll be using KVM on Lucid and won't work
 # on Hardy.
 # $1: Path to the virtual image to start.
@@ -98,7 +117,7 @@ function stop_kvm() {
     local pid=$(get_pid)
     if [ -n "${pid}" ]; then
       echo "Killing ${pid}" >&2
-      sudo kill ${pid}
+      blocking_kill ${pid} 1 16 || blocking_kill 9 1
       sudo rm "${KVM_PID_FILE}"
     else
       echo "No kvm pid found to stop." >&2
