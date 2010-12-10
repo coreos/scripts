@@ -702,6 +702,14 @@ create_base_image() {
   trap - EXIT
 }
 
+generate_au_zip () {
+  local lgenerateauzip="${SCRIPTS_DIR}/generate_au_zip.py"
+  local largs="-o ${OUTPUT_DIR}"
+  ! -d "${OUTPUT_DIR}" && mkdir -p "${OUTPUT_DIR}" 
+  info "Running ${lgenerateauzip} ${largs} for generating AU updater zip file"
+  $lgenerateauzip $largs
+}
+
 # Create the output directory.
 mkdir -p "${OUTPUT_DIR}"
 mkdir -p "${ROOT_FS_DIR}"
@@ -782,6 +790,8 @@ rm -f "${ROOT_FS_IMG}" "${STATEFUL_FS_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \
   "${ESP_FS_IMG}" "${OEM_FS_IMG}" "${OUTPUT_DIR}/vmlinuz_hd.vblock"
 rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${OEM_FS_DIR}" "${ESP_FS_DIR}"
 
+# Generating AU generator zip file to run outside chroot
+generate_au_zip || echo "Failed generating AU zip file - ignoring Error..."
 # Create a 'latest' link
 rm -f ${FLAGS_output_root}/${FLAGS_board}/latest
 ln -s $(basename ${OUTPUT_DIR}) ${FLAGS_output_root}/${FLAGS_board}/latest
