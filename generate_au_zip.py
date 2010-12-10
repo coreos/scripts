@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.INFO, format=logging_format,
 def CreateTempDir():
   """Creates a tempdir and returns the name of the tempdir."""
   temp_dir = tempfile.mkdtemp(suffix='au', prefix='tmp')
-  logging.info('Using tempdir = %s', temp_dir)
+  logging.debug('Using tempdir = %s', temp_dir)
   return temp_dir
 
 
@@ -66,7 +66,7 @@ def DepsToCopy(ldd_files, black_list):
      library_list: List of files that are dependencies
   """
   for file_name in ldd_files:
-    logging.info('Running ldd on %s', file_name)
+    logging.debug('Running ldd on %s', file_name)
     cmd = ['/usr/bin/ldd', file_name]
     stdout_data = ''
     stderr_data = ''
@@ -137,18 +137,18 @@ def CopyRequiredFiles(dest_files_root):
   logging.debug('Given files that need to be copied = %s' % '' .join(all_files))
   all_files += DepsToCopy(ldd_files=ldd_files,black_list=black_list)
   for file_name in all_files:
-    logging.info('Copying file  %s to %s', file_name, dest_files_root)
+    logging.debug('Copying file  %s to %s', file_name, dest_files_root)
     shutil.copy2(file_name, dest_files_root)
 
   for source_dir, target_dir in recurse_dirs.iteritems():
-    logging.info('Processing directory %s', source_dir)
+    logging.debug('Processing directory %s', source_dir)
     full_path = os.path.expanduser(source_dir)
     if not os.path.isdir(full_path):
       logging.error("Directory given for %s expanded to %s doens't exist.",
                     source_dir, full_path)
       sys.exit(1)
   dest = os.path.join(dest_files_root, target_dir)
-  logging.info('Copying directory %s to %s.', full_path, target_dir)
+  logging.debug('Copying directory %s to %s.', full_path, target_dir)
   shutil.copytree(full_path, dest)
 
 def CleanUp(temp_dir):
@@ -158,7 +158,7 @@ def CleanUp(temp_dir):
   """
   if os.path.exists(temp_dir):
     shutil.rmtree(temp_dir, ignore_errors=True)
-    logging.info('Removed tempdir = %s', temp_dir)
+    logging.debug('Removed tempdir = %s', temp_dir)
 
 def GenerateZipFile(base_name, root_dir):
   """Returns true if able to generate zip file
@@ -168,7 +168,7 @@ def GenerateZipFile(base_name, root_dir):
     Returns:
       True if successfully generates the zip file otherwise False
   """
-  logging.info('Generating zip file %s with contents from %s', base_name,
+  logging.debug('Generating zip file %s with contents from %s', base_name,
                root_dir)
   current_dir = os.getcwd()
   os.chdir(root_dir)
@@ -223,7 +223,7 @@ def CopyZipToFinalDestination(output_dir, zip_file_name):
   if not os.path.isdir(output_dir):
     logging.debug('Creating %s', output_dir)
     os.makedirs(output_dir)
-  logging.info('Copying %s to %s', zip_file_name, output_dir)
+  logging.debug('Copying %s to %s', zip_file_name, output_dir)
   shutil.copy2(zip_file_name, output_dir)
   return True
 
@@ -255,6 +255,7 @@ def main():
   zip_file_name = os.path.join(temp_dir, options.zip_name)
   GenerateZipFile(zip_file_name, dest_files_root)
   CopyZipToFinalDestination(options.output_dir, zip_file_name)
+  logging.info('Generated %s/%s' % (options.output_dir, options.zip_name))
 
   if not options.keep_temp:
     CleanUp(temp_dir)
