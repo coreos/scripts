@@ -109,8 +109,8 @@ def _GetLatestRelease(branch=None):
   return current_version.rstrip('/')
 
 
-def _GetStickyVersion(stable_ebuilds):
-  """Discovers the sticky version from the current stable_ebuilds."""
+def _GetStickyEBuild(stable_ebuilds):
+  """Returns the sticky ebuild."""
   sticky_ebuilds = []
   non_sticky_re = re.compile(_NON_STICKY_REGEX)
   for ebuild in stable_ebuilds:
@@ -122,7 +122,7 @@ def _GetStickyVersion(stable_ebuilds):
   elif len(sticky_ebuilds) > 1:
     Warning('More than one sticky ebuild found')
 
-  return cros_mark_as_stable.BestEBuild(sticky_ebuilds).chrome_version
+  return cros_mark_as_stable.BestEBuild(sticky_ebuilds)
 
 
 class ChromeEBuild(cros_mark_as_stable.EBuild):
@@ -203,7 +203,7 @@ def FindChromeUprevCandidate(stable_ebuilds, chrome_rev, sticky_branch):
         candidates.append(ebuild)
 
   elif chrome_rev == STICKY:
-    chrome_branch_re = re.compile('%s\.\d+.*_rc.*' % sticky_branch)
+    chrome_branch_re = re.compile('%s\..*' % sticky_branch)
     for ebuild in stable_ebuilds:
       if chrome_branch_re.search(ebuild.version):
         candidates.append(ebuild)
@@ -222,7 +222,8 @@ def FindChromeUprevCandidate(stable_ebuilds, chrome_rev, sticky_branch):
 
 
 def MarkChromeEBuildAsStable(stable_candidate, unstable_ebuild, chrome_rev,
-                             chrome_version, commit, overlay_dir):
+                             chrome_version, commit, overlay_dir,
+                             sticky_ebuild):
   """Uprevs the chrome ebuild specified by chrome_rev.
 
   This is the main function that uprevs the chrome_rev from a stable candidate
@@ -242,6 +243,7 @@ def MarkChromeEBuildAsStable(stable_candidate, unstable_ebuild, chrome_rev,
     chrome_version:  The \d.\d.\d.\d version of Chrome.
     commit:  Used with TIP_OF_TRUNK.  The svn revision of chrome.
     overlay_dir:  Path to the chromeos-chrome package dir.
+    sticky_ebuild: EBuild class for the sticky ebuild.
   Returns:
     Full portage version atom (including rc's, etc) that was revved.
   """
@@ -260,9 +262,21 @@ def MarkChromeEBuildAsStable(stable_candidate, unstable_ebuild, chrome_rev,
     new_ebuild_path = base_path + ('%s-r1.ebuild' % portage_suffix)
 
   cros_mark_as_stable.EBuildStableMarker.MarkAsStable(
-      unstable_ebuild.ebuild_path, new_ebuild_path, 'CROS_SVN_COMMIT', commit)
+      unstable_ebuild.ebuild_path, new_ebuild_path, 'CROS_SVN_COMMIT', commit,
+      make_stable=False)
+  new_ebuild = ChromeEBuild(new_ebuild_path)
+  if stable_candidate and (
+      stable_candidate.chrome_version == new_ebuild.chrome_version):
+    if 0 == RunCommand(['diff', '-Bu', stable_candidate.ebuild_path,
+                        new_ebuild_path],
+                       redirect_stderr=True,
+                       redirect_stdout=True,
+                       exit_code=True):
+      os.unlink(new_ebuild_path)
+      return None
+
   RunCommand(['git', 'add', new_ebuild_path])
-  if stable_candidate:
+  if stable_candidate and stable_candidate != sticky_ebuild:
     RunCommand(['git', 'rm', stable_candidate.ebuild_path])
 
   cros_mark_as_stable.EBuildStableMarker.CommitChange(
@@ -293,9 +307,9 @@ def main():
   commit_to_use = None
 
   (unstable_ebuild, stable_ebuilds) = FindChromeCandidates(overlay_dir)
-  sticky_version = _GetStickyVersion(stable_ebuilds)
+  sticky_ebuild = _GetStickyEBuild(stable_ebuilds)
+  sticky_version = sticky_ebuild.chrome_version
   sticky_branch = sticky_version.rpartition('.')[0]
-
 
   if chrome_rev == TIP_OF_TRUNK:
     version_to_uprev = _GetTipOfTrunkVersion()
@@ -307,25 +321,23 @@ def main():
 
   stable_candidate = FindChromeUprevCandidate(stable_ebuilds, chrome_rev,
                                               sticky_branch)
-  # There are some cases we don't need to do anything.  Check for them.
-  if stable_candidate and (version_to_uprev == stable_candidate.chrome_version
-                           and not commit_to_use):
-    Info('Found nothing to do for chrome_rev %s with version %s.' % (
-        chrome_rev, version_to_uprev))
-  else:
-    os.chdir(overlay_dir)
-    work_branch = cros_mark_as_stable.GitBranch(
-        cros_mark_as_stable.STABLE_BRANCH_NAME, options.tracking_branch)
-    work_branch.CreateBranch()
-    try:
-      chrome_version_atom = MarkChromeEBuildAsStable(
-          stable_candidate, unstable_ebuild, chrome_rev, version_to_uprev,
-          commit_to_use, overlay_dir)
-      # Explicit print to communicate to caller.
+
+  os.chdir(overlay_dir)
+  work_branch = cros_mark_as_stable.GitBranch(
+      cros_mark_as_stable.STABLE_BRANCH_NAME, options.tracking_branch)
+  work_branch.CreateBranch()
+  try:
+    chrome_version_atom = MarkChromeEBuildAsStable(
+        stable_candidate, unstable_ebuild, chrome_rev, version_to_uprev,
+        commit_to_use, overlay_dir, sticky_ebuild)
+    # Explicit print to communicate to caller.
+    if chrome_version_atom:
       print 'CHROME_VERSION_ATOM=%s' % chrome_version_atom
-    except:
+    else:
       work_branch.Delete()
-      raise
+  except:
+    work_branch.Delete()
+    raise
 
 
 if __name__ == '__main__':

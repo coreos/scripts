@@ -200,12 +200,12 @@ class CrosMarkChromeAsStable(mox.MoxTestBase):
     self.mox.VerifyAll()
     self.assertEqual('8.0.224.2', release)
 
-  def testStickyVersion(self):
-    """Tests if we can find the sticky version from our mock directories."""
+  def testStickyEBuild(self):
+    """Tests if we can find the sticky ebuild from our mock directories."""
     stable_ebuilds = self._GetStableEBuilds()
-    sticky_version = cros_mark_chrome_as_stable._GetStickyVersion(
+    sticky_ebuild = cros_mark_chrome_as_stable._GetStickyEBuild(
         stable_ebuilds)
-    self.assertEqual(sticky_version, self.sticky_version)
+    self.assertEqual(sticky_ebuild.chrome_version, self.sticky_version)
 
   def testChromeEBuildInit(self):
     """Tests if the chrome_version is set correctly in a ChromeEBuild."""
@@ -231,6 +231,7 @@ class CrosMarkChromeAsStable(mox.MoxTestBase):
                              'CommitChange')
     stable_candidate = cros_mark_chrome_as_stable.ChromeEBuild(old_ebuild_path)
     unstable_ebuild = cros_mark_chrome_as_stable.ChromeEBuild(self.unstable)
+    sticky_ebuild = cros_mark_chrome_as_stable.ChromeEBuild(self.sticky)
     chrome_version = new_version
     commit = None
     overlay_dir = self.mock_chrome_dir
@@ -243,14 +244,14 @@ class CrosMarkChromeAsStable(mox.MoxTestBase):
     self.mox.ReplayAll()
     cros_mark_chrome_as_stable.MarkChromeEBuildAsStable(
         stable_candidate, unstable_ebuild, chrome_rev, chrome_version, commit,
-        overlay_dir)
+        overlay_dir, sticky_ebuild)
     self.mox.VerifyAll()
 
   def testStickyMarkAsStable(self):
     """Tests to see if we can mark chrome as stable for a new sticky release."""
     self._CommonMarkAsStableTest(cros_mark_chrome_as_stable.STICKY,
                                  self.sticky_new_rc_version, self.sticky_rc,
-                                 self.sticky_new_rc, 'sticky_release')
+                                 self.sticky_new_rc, 'stable_release')
 
   def testLatestMarkAsStable(self):
     """Tests to see if we can mark chrome for a latest release."""
