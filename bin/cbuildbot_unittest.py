@@ -11,12 +11,14 @@ import mox
 import os
 import posix
 import shutil
+import tempfile
 import unittest
 
 # Fixes circular dependency error.
 import cbuildbot_comm
 import cbuildbot
 from cros_build_lib import ReinterpretPathForChroot
+
 
 class CBuildBotTest(mox.MoxTestBase):
 
@@ -117,7 +119,7 @@ class CBuildBotTest(mox.MoxTestBase):
     buildroot = '/fake_dir'
     board = 'fake-board'
     test_results_dir = 'fake_results_dir'
-    gsutil_path='/fake/gsutil/path'
+    gsutil_path = '/fake/gsutil/path'
     archive_dir = 1234
     acl = 'fake_acl'
     num_retries = 5
@@ -229,6 +231,68 @@ class CBuildBotTest(mox.MoxTestBase):
     cbuildbot._UploadPrebuilts(self._buildroot, self._test_board, 'private',
                                binhosts)
     self.mox.VerifyAll()
+
+  def testGetChromeOSVersion(self):
+    """Tests that we can parse the correct chromeos version using method."""
+    fake_data = '\n'.join(['ChromeOS version information:',
+                         '  SOME_OTHER_DATA=blah',
+                         '  CHROMEOS_VERSION_STRING=9.0.232.1',
+                         '  CHROMEOS_VERSION_CODENAME=test-bot',
+                        ])
+    cbuildbot.RunCommand('./chromeos_version.sh',
+                         cwd='src/scripts',
+                         redirect_stderr=True,
+                         redirect_stdout=True).AndReturn(fake_data)
+    self.mox.ReplayAll()
+    return_tuple = cbuildbot._GetChromeOSVersion('')
+    self.assertEquals('.'.join(return_tuple), '9.0.232.1')
+    self.mox.VerifyAll()
+
+  def testGetManifestPath(self):
+    """Tests whether our logic to get the manifest path is correct."""
+    self.mox.StubOutWithMock(cbuildbot, '_GetChromeOSVersion')
+    return_tuple = cbuildbot._GetChromeOSVersion('').AndReturn(
+        ('9', '0', '232', '1'))
+    self.mox.ReplayAll()
+    relative_path = cbuildbot._GetManifestPath('')
+    self.assertEquals(relative_path, '9.0/9.0.232.1.xml')
+    self.mox.VerifyAll()
+
+  def _CommonManifestTest(self, url, overlay_no_buildroot):
+    """Common method for dump manifest tests."""
+    self.mox.StubOutWithMock(cbuildbot, '_GetManifestPath')
+    self.mox.StubOutWithMock(shutil, 'copy')
+    self.mox.StubOutWithMock(os, 'symlink')
+    temp_root = tempfile.mkdtemp('_unittest')
+
+    overlay = overlay_no_buildroot % {'buildroot': temp_root}
+    relative_path = 'fake/manifest/path.xml'
+    full_path = os.path.join(overlay, 'manifests', relative_path)
+
+    cbuildbot._GetManifestPath(temp_root).AndReturn(relative_path)
+    cbuildbot.RunCommand(['repo', 'manifest', '-r', '-o', full_path],
+                         cwd=temp_root)
+    os.symlink(relative_path, os.path.join(overlay, 'manifests', 'LATEST'))
+    cbuildbot.RunCommand(['git', 'add', 'manifests/' + relative_path],
+                         cwd=overlay)
+    cbuildbot.RunCommand(['git', 'add', 'manifests/LATEST'], cwd=overlay)
+    shutil.copy(full_path, '/dev/stderr')
+
+    self.mox.ReplayAll()
+    cbuildbot._DumpManifest(temp_root, url)
+    self.mox.VerifyAll()
+
+    shutil.rmtree(temp_root)
+
+  def testDumpManifestPublic(self):
+    """Tests whether we push the manifest to the public overlay correctly."""
+    self._CommonManifestTest('http://some_url/manifest',
+                             cbuildbot.PUBLIC_OVERLAY)
+
+  def testDumpManifestPrivate(self):
+    """Tests whether we push the manifest to the private overlay correctly."""
+    self._CommonManifestTest('http://some_url/manifest-internal',
+                             cbuildbot.PRIVATE_OVERLAY)
 
 
 if __name__ == '__main__':
