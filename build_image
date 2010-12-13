@@ -415,7 +415,8 @@ update_dev_packages() {
   fi
 
   # Install the bare necessary files so that the "emerge" command works
-  sudo cp ${root_dev_dir}/etc/make.globals ${ROOT_FS_DIR}/etc/
+  [ ${FLAGS_statefuldev} -eq ${FLAGS_TRUE} ] && \
+    sudo cp ${root_dev_dir}/etc/make.globals ${ROOT_FS_DIR}/etc/
   sudo sed -i s,/usr/bin/wget,wget, ${ROOT_FS_DIR}/etc/make.globals
   sudo mkdir -p ${ROOT_FS_DIR}/etc/make.profile
 
