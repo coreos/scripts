@@ -504,6 +504,14 @@ update_base_packages() {
     -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
 }
 
+zero_free_space() {
+  local fs_mount_point=$1
+  info "Zeroing freespace in ${fs_mount_point}"
+  sudo dd if=/dev/zero of="${fs_mount_point}/filler" oflag=sync bs=4096 || true
+  sudo rm -f "${fs_mount_point}/filler"
+  sudo sync
+}
+
 create_base_image() {
   local image_name=$1
 
@@ -684,6 +692,10 @@ create_base_image() {
   # Create an empty esp image to be updated in by update_bootloaders.sh.
   ${SCRIPTS_DIR}/create_esp.sh --to="${ESP_FS_IMG}"
 
+  # Zero rootfs free space to make it more compressible so auto-update
+  # payloads become smaller
+  zero_free_space "${ROOT_FS_DIR}"
+
   cleanup
 
   trap delete_prompt EXIT
@@ -706,7 +718,7 @@ create_base_image() {
 generate_au_zip () {
   local lgenerateauzip="${SCRIPTS_DIR}/generate_au_zip.py"
   local largs="-o ${OUTPUT_DIR}"
-  ! -d "${OUTPUT_DIR}" && mkdir -p "${OUTPUT_DIR}" 
+  ! -d "${OUTPUT_DIR}" && mkdir -p "${OUTPUT_DIR}"
   info "Running ${lgenerateauzip} ${largs} for generating AU updater zip file"
   $lgenerateauzip $largs
 }
