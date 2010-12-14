@@ -722,7 +722,8 @@ def main():
       if not os.path.isdir(path):
         Die('Missing overlay: %s' % path)
 
-    _DumpManifest(buildroot, options.url)
+    if not options.chrome_rev:
+      _DumpManifest(buildroot, options.url)
 
     if not os.path.isdir(chroot_path):
       _MakeChroot(buildroot)
