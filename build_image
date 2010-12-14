@@ -718,7 +718,7 @@ create_base_image() {
 generate_au_zip () {
   local lgenerateauzip="${SCRIPTS_DIR}/generate_au_zip.py"
   local largs="-o ${OUTPUT_DIR}"
-  ! -d "${OUTPUT_DIR}" && mkdir -p "${OUTPUT_DIR}"
+  test ! -d "${OUTPUT_DIR}" && mkdir -p "${OUTPUT_DIR}"
   info "Running ${lgenerateauzip} ${largs} for generating AU updater zip file"
   $lgenerateauzip $largs
 }
