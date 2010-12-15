@@ -66,7 +66,7 @@ function main() {
        --bootloader /lib64/bootstub/bootstub.efi \
        --vmlinuz /build/${FLAGS_board}/boot/vmlinuz"
 
-  ./enter_chroot.sh -- "${cmd}"
+  ./enter_chroot.sh -- ${cmd}
 
   learn_partition
 
