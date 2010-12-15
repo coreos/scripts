@@ -93,7 +93,7 @@ then
 fi
 
 # Get version information
-. "${SCRIPTS_DIR}/chromeos_version.sh"
+. ${SRC_ROOT}/third_party/chromiumos-overlay/chromeos/config/chromeos_version.sh
 
 # Get git hash
 # Use git:8 chars of sha1
