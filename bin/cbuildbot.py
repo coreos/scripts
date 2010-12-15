@@ -27,6 +27,7 @@ ARCHIVE_BASE = '/var/www/archive'
 ARCHIVE_COUNT = 10
 PUBLIC_OVERLAY = '%(buildroot)s/src/third_party/chromiumos-overlay'
 PRIVATE_OVERLAY = '%(buildroot)s/src/private-overlays/chromeos-overlay'
+CHROME_KEYWORDS_FILE = ('/build/%(board)s/etc/portage/package.keywords/chrome')
 
 # Currently, both the full buildbot and the preflight buildbot store their
 # data in a variable named PORTAGE_BINHOST, but they're in different files.
@@ -217,7 +218,7 @@ def _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board,
              cwd=cwd, enter_chroot=True)
 
 
-def _MarkChromeAsStable(buildroot, tracking_branch, chrome_rev):
+def _MarkChromeAsStable(buildroot, tracking_branch, chrome_rev, board):
   """Returns the portage atom for the revved chrome ebuild - see man emerge."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   portage_atom_string = RunCommand(['bin/cros_mark_chrome_as_stable',
@@ -228,7 +229,12 @@ def _MarkChromeAsStable(buildroot, tracking_branch, chrome_rev):
     Info('Found nothing to rev.')
     return None
   else:
-    return portage_atom_string.split('=')[1]
+    chrome_atom = portage_atom_string.split('=')[1]
+    # TODO(sosa): Workaround to build unstable chrome ebuild we uprevved.
+    RunCommand(['sudo', 'tee', CHROME_KEYWORDS_FILE % {'board': board}],
+               input='=%s\n' % chrome_atom, enter_chroot=True,
+               cwd=cwd)
+    return chrome_atom
 
 
 def _UprevAllPackages(buildroot, tracking_branch, board, overlays):
@@ -417,7 +423,7 @@ def _Build(buildroot, emptytree):
 def _BuildChrome(buildroot, board, chrome_atom_to_build):
   """Wrapper for emerge call to build Chrome."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['ACCEPT_KEYWORDS="* ~*"', 'emerge-%s' % board,
+  RunCommand(['emerge-%s' % board,
               '=%s' % chrome_atom_to_build],
              cwd=cwd, enter_chroot=True)
 
@@ -735,7 +741,7 @@ def main():
     # Perform uprev.  If chrome_uprev is set, rev Chrome ebuilds.
     if options.chrome_rev:
       chrome_atom_to_build = _MarkChromeAsStable(buildroot, tracking_branch,
-                                                 options.chrome_rev)
+                                                 options.chrome_rev, board)
       # If we found nothing to rev, we're done here.
       if not chrome_atom_to_build:
         return
