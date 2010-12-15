@@ -287,7 +287,8 @@ def _WipeOldOutput(buildroot):
 
 def _GetChromeOSVersion(buildroot):
   """Returns the tuple version of the Chrome OS version of the buildroot."""
-  cwd = os.path.join(buildroot, 'src', 'scripts')
+  cwd = os.path.join(buildroot, 'src', 'third_party', 'chromiumos-overlay',
+                     'chromeos', 'config')
   version_cmd = './chromeos_version.sh'
   output = RunCommand(version_cmd, cwd=cwd, redirect_stdout=True,
                       redirect_stderr=True)
