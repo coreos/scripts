@@ -413,9 +413,10 @@ def _SetupBoard(buildroot, board='x86-generic'):
 def _Build(buildroot, emptytree):
   """Wrapper around build_packages."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  cmd = ['./build_packages']
   if emptytree:
-    cmd.insert(0, 'EXTRA_BOARD_FLAGS=--emptytree')
+    cmd = ['sh', '-c', 'EXTRA_BOARD_FLAGS=--emptytree ./build_packages']
+  else:
+    cmd = ['./build_packages']
 
   RunCommand(cmd, cwd=cwd, enter_chroot=True)
 
