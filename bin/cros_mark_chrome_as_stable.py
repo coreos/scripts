@@ -101,7 +101,7 @@ def _GetLatestRelease(branch=None):
   if branch:
     chrome_version_re = re.compile('^%s\.\d+.*' % branch)
   else:
-    chrome_version_re = re.compile('^[0-9]\..*')
+    chrome_version_re = re.compile('^[0-9]+\..*')
   for chrome_version in sorted_ls.splitlines():
     if chrome_version_re.match(chrome_version):
       current_version = chrome_version
@@ -146,6 +146,9 @@ class ChromeEBuild(cros_mark_as_stable.EBuild):
     else:
       return (-1)
 
+  def __str__(self):
+    return self.ebuild_path
+
 
 def FindChromeCandidates(overlay_dir):
   """Return a tuple of chrome's unstable ebuild and stable ebuilds.
@@ -166,7 +169,7 @@ def FindChromeCandidates(overlay_dir):
       if not ebuild.chrome_version:
         Warning('Poorly formatted ebuild found at %s' % path)
       else:
-        if not ebuild.is_stable:
+        if '9999' in ebuild.version:
           unstable_ebuilds.append(ebuild)
         else:
           stable_ebuilds.append(ebuild)
@@ -272,6 +275,8 @@ def MarkChromeEBuildAsStable(stable_candidate, unstable_ebuild, chrome_rev,
                        redirect_stderr=True,
                        redirect_stdout=True,
                        exit_code=True):
+      Info('Previous ebuild with same version found and no 9999 changes found.'
+           '  Nothing to do.')
       os.unlink(new_ebuild_path)
       return None
 
