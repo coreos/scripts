@@ -220,7 +220,7 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
   echo -n 'setenv bootargs ${bootargs} ' > "${kernel_script}"
   tr '\n' ' ' <"${FLAGS_working_dir}/boot.config" >> "${kernel_script}"
   echo >> "${kernel_script}"
-  printf 'read ${devtype} 0:${kernelpart} ${loadaddr} %x %x\n' \
+  printf 'read ${devtype} ${devnum}:${kernelpart} ${loadaddr} %x %x\n' \
     ${script_size} ${kernel_size} >> "${kernel_script}"
   echo 'bootm ${loadaddr}' >> ${kernel_script}
   mkimage -A arm -O linux -T script -C none -a 0 -e 0 \

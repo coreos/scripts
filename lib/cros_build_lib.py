@@ -177,6 +177,7 @@ def Die(message):
   """
   print >> sys.stderr, (
       Color(_STDOUT_IS_TTY).Color(Color.RED, '\nERROR: ' + message))
+  sys.stderr.flush()
   sys.exit(1)
 
 
@@ -188,6 +189,7 @@ def Warning(message):
   """
   print >> sys.stderr, (
       Color(_STDOUT_IS_TTY).Color(Color.YELLOW, '\nWARNING: ' + message))
+  sys.stderr.flush()
 
 
 def Info(message):
@@ -198,6 +200,7 @@ def Info(message):
   """
   print >> sys.stderr, (
       Color(_STDOUT_IS_TTY).Color(Color.BLUE, '\nINFO: ' + message))
+  sys.stderr.flush()
 
 
 def FindRepoDir(path=None):

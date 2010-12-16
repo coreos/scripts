@@ -25,6 +25,9 @@ _DEFAULT_RETRIES = 3
 _PACKAGE_FILE = '%(buildroot)s/src/scripts/cbuildbot_package.list'
 ARCHIVE_BASE = '/var/www/archive'
 ARCHIVE_COUNT = 10
+PUBLIC_OVERLAY = '%(buildroot)s/src/third_party/chromiumos-overlay'
+PRIVATE_OVERLAY = '%(buildroot)s/src/private-overlays/chromeos-overlay'
+CHROME_KEYWORDS_FILE = ('/build/%(board)s/etc/portage/package.keywords/chrome')
 
 # Currently, both the full buildbot and the preflight buildbot store their
 # data in a variable named PORTAGE_BINHOST, but they're in different files.
@@ -34,6 +37,14 @@ _FULL_BINHOST = 'PORTAGE_BINHOST'
 _PREFLIGHT_BINHOST = 'PORTAGE_BINHOST'
 
 # ======================== Utility functions ================================
+
+def _PrintFile(path):
+  """Prints out the contents of a file to stderr."""
+  file_handle = open(path)
+  print >> sys.stderr, file_handle.read()
+  file_handle.close()
+  sys.stderr.flush()
+
 
 def MakeDir(path, parents=False):
   """Basic wrapper around os.mkdirs.
@@ -76,8 +87,7 @@ def RepoSync(buildroot, retries=_DEFAULT_RETRIES):
         Warning('CBUILDBOT -- Retries exhausted')
         raise
 
-  # Output manifest
-  RunCommand(['repo', 'manifest', '-r', '-o', '-'], cwd=buildroot)
+  RunCommand(['repo', 'manifest', '-r', '-o', '/dev/stderr'], cwd=buildroot)
 
 # =========================== Command Helpers =================================
 
@@ -210,7 +220,7 @@ def _UprevFromRevisionList(buildroot, tracking_branch, revision_list, board,
              cwd=cwd, enter_chroot=True)
 
 
-def _MarkChromeAsStable(buildroot, tracking_branch, chrome_rev):
+def _MarkChromeAsStable(buildroot, tracking_branch, chrome_rev, board):
   """Returns the portage atom for the revved chrome ebuild - see man emerge."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   portage_atom_string = RunCommand(['bin/cros_mark_chrome_as_stable',
@@ -221,7 +231,12 @@ def _MarkChromeAsStable(buildroot, tracking_branch, chrome_rev):
     Info('Found nothing to rev.')
     return None
   else:
-    return portage_atom_string.split('=')[1]
+    chrome_atom = portage_atom_string.split('=')[1]
+    # TODO(sosa): Workaround to build unstable chrome ebuild we uprevved.
+    RunCommand(['sudo', 'tee', CHROME_KEYWORDS_FILE % {'board': board}],
+               input='=%s\n' % chrome_atom, enter_chroot=True,
+               cwd=cwd)
+    return chrome_atom
 
 
 def _UprevAllPackages(buildroot, tracking_branch, board, overlays):
@@ -341,16 +356,22 @@ def _SetupBoard(buildroot, board='x86-generic'):
              cwd=cwd, enter_chroot=True)
 
 
-def _Build(buildroot):
+def _Build(buildroot, emptytree):
   """Wrapper around build_packages."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./build_packages'], cwd=cwd, enter_chroot=True)
+  if emptytree:
+    cmd = ['sh', '-c', 'EXTRA_BOARD_FLAGS=--emptytree ./build_packages']
+  else:
+    cmd = ['./build_packages']
+
+  RunCommand(cmd, cwd=cwd, enter_chroot=True)
 
 
 def _BuildChrome(buildroot, board, chrome_atom_to_build):
   """Wrapper for emerge call to build Chrome."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['emerge-%s' % board, '=%s' % chrome_atom_to_build],
+  RunCommand(['emerge-%s' % board,
+              '=%s' % chrome_atom_to_build],
              cwd=cwd, enter_chroot=True)
 
 
@@ -523,8 +544,8 @@ def _ResolveOverlays(buildroot, overlays):
               'public': Just the public overlay.
               'both': Both the public and private overlays.
   """
-  public_overlay = '%s/src/third_party/chromiumos-overlay' % buildroot
-  private_overlay = '%s/src/private-overlays/chromeos-overlay' % buildroot
+  public_overlay = PUBLIC_OVERLAY % {'buildroot': buildroot}
+  private_overlay = PRIVATE_OVERLAY % {'buildroot': buildroot}
   if overlays == 'private':
     paths = [private_overlay]
   elif overlays == 'public':
@@ -575,6 +596,8 @@ def main():
   # Parse options
   usage = "usage: %prog [options] cbuildbot_config"
   parser = optparse.OptionParser(usage=usage)
+  parser.add_option('-a', '--acl', default='private',
+                    help='ACL to set on GSD archives')
   parser.add_option('-r', '--buildroot',
                     help='root directory where build occurs', default=".")
   parser.add_option('-n', '--buildnumber',
@@ -583,30 +606,31 @@ def main():
                     dest='chrome_rev',
                     help=('Chrome_rev of type [tot|latest_release|'
                           'sticky_release]'))
-  parser.add_option('-f', '--revisionfile',
-                    help='file where new revisions are stored')
+  parser.add_option('-g', '--gsutil', default='', help='Location of gsutil')
+  parser.add_option('-c', '--gsutil_archive', default='',
+                    help='Datastore archive location')
   parser.add_option('--clobber', action='store_true', dest='clobber',
                     default=False,
                     help='Clobbers an old checkout before syncing')
   parser.add_option('--debug', action='store_true', dest='debug',
                     default=False,
                     help='Override some options to run as a developer.')
+  parser.add_option('--noprebuilts', action='store_false', dest='prebuilts',
+                    default=True,
+                    help="Don't upload prebuilts.")
   parser.add_option('--nosync', action='store_false', dest='sync',
                     default=True,
                     help="Don't sync before building.")
   parser.add_option('--notests', action='store_false', dest='tests',
                     default=True,
                     help='Override values from buildconfig and run no tests.')
+  parser.add_option('-f', '--revisionfile',
+                    help='file where new revisions are stored')
   parser.add_option('-t', '--tracking-branch', dest='tracking_branch',
                     default='cros/master', help='Run the buildbot on a branch')
   parser.add_option('-u', '--url', dest='url',
                     default='http://git.chromium.org/git/manifest',
                     help='Run the buildbot on internal manifest')
-  parser.add_option('-g', '--gsutil', default='', help='Location of gsutil')
-  parser.add_option('-c', '--gsutil_archive', default='',
-                    help='Datastore archive location')
-  parser.add_option('-a', '--acl', default='private',
-                    help='ACL to set on GSD archives')
 
   (options, args) = parser.parse_args()
 
@@ -646,8 +670,7 @@ def main():
         _IncrementalCheckout(buildroot)
 
     new_binhost = _GetPortageEnvVar(buildroot, board, _FULL_BINHOST)
-    if old_binhost and old_binhost != new_binhost:
-      RunCommand(['sudo', 'rm', '-rf', boardpath])
+    emptytree = (old_binhost and old_binhost != new_binhost)
 
     # Check that all overlays can be found.
     for path in rev_overlays:
@@ -663,7 +686,11 @@ def main():
     # Perform uprev.  If chrome_uprev is set, rev Chrome ebuilds.
     if options.chrome_rev:
       chrome_atom_to_build = _MarkChromeAsStable(buildroot, tracking_branch,
-                                                 options.chrome_rev)
+                                                 options.chrome_rev, board)
+      # If we found nothing to rev, we're done here.
+      if not chrome_atom_to_build:
+        return
+
     elif buildconfig['uprev']:
       _UprevPackages(buildroot, tracking_branch, revisionfile,
                      buildconfig['board'], rev_overlays)
@@ -671,7 +698,7 @@ def main():
     _EnableLocalAccount(buildroot)
     # Doesn't rebuild without acquiring more source.
     if options.sync:
-      _Build(buildroot)
+      _Build(buildroot, emptytree)
 
     if chrome_atom_to_build:
       _BuildChrome(buildroot, buildconfig['board'], chrome_atom_to_build)
@@ -701,7 +728,7 @@ def main():
       if buildconfig['master']:
         # Master bot needs to check if the other slaves completed.
         if cbuildbot_comm.HaveSlavesCompleted(config):
-          if not options.debug:
+          if not options.debug and options.prebuilts:
             _UploadPrebuilts(buildroot, board, buildconfig['rev_overlays'],
                              [new_binhost])
           _UprevPush(buildroot, tracking_branch, buildconfig['board'],

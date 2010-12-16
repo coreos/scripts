@@ -10,6 +10,8 @@
 . "$(dirname $0)/../lib/cros_vm_lib.sh"
 
 DEFINE_string payload "" "Full name of the payload to update with."
+DEFINE_string proxy_port "" \
+  "Have the client request from this proxy instead of devserver."
 DEFINE_string src_image "" \
   "Create a delta update by passing in the image on the remote machine."
 DEFINE_string stateful_update_flag "" "Flags to pass to stateful update." s
@@ -35,7 +37,11 @@ if [ -n "${FLAGS_update_image_path}" ]; then
 fi
 
 if [ -n "${FLAGS_payload}" ]; then
-  IMAGE_ARGS="--payload="${FLAGS_payload}""
+  IMAGE_ARGS="--payload=${FLAGS_payload}"
+fi
+
+if [ -n "${FLAGS_proxy_port}" ]; then
+  IMAGE_ARGS="--proxy_port=${FLAGS_proxy_port}"
 fi
 
 $(dirname $0)/../image_to_live.sh \

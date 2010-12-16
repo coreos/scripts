@@ -396,7 +396,8 @@ class EBuildStableMarker(object):
 
   @classmethod
   def MarkAsStable(cls, unstable_ebuild_path, new_stable_ebuild_path,
-                   commit_keyword, commit_value, redirect_file=None):
+                   commit_keyword, commit_value, redirect_file=None,
+                   make_stable=True):
     """Static function that creates a revved stable ebuild.
 
     This function assumes you have already figured out the name of the new
@@ -412,6 +413,7 @@ class EBuildStableMarker(object):
         stable.
       commit_value: Value to set the above keyword to.
       redirect_file:  Optionally redirect output of new ebuild somewhere else.
+      make_stable:  Actually make the ebuild stable.
     """
     shutil.copyfile(unstable_ebuild_path, new_stable_ebuild_path)
     for line in fileinput.input(new_stable_ebuild_path, inplace=1):
@@ -420,7 +422,10 @@ class EBuildStableMarker(object):
         redirect_file = sys.stdout
       if line.startswith('KEYWORDS'):
         # Actually mark this file as stable by removing ~'s.
-        redirect_file.write(line.replace('~', ''))
+        if make_stable:
+          redirect_file.write(line.replace('~', ''))
+        else:
+          redirect_file.write(line)
       elif line.startswith('EAPI'):
         # Always add new commit_id after EAPI definition.
         redirect_file.write(line)

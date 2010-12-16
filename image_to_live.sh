@@ -38,6 +38,8 @@ DEFINE_string image "" \
   "Update with this image path that is in this source checkout." i
 DEFINE_string payload "" \
   "Update with this update payload, ignoring specified images."
+DEFINE_string proxy_port "" \
+  "Have the client request from this proxy instead of devserver."
 DEFINE_string src_image "" \
   "Create a delta update by passing in the image on the remote machine."
 DEFINE_boolean update_stateful ${FLAGS_TRUE} \
@@ -139,6 +141,11 @@ function start_dev_server {
         --payload $(reinterpret_path_for_chroot ${FLAGS_payload})"
   fi
 
+  if [ -n "${FLAGS_proxy_port}" ]; then
+    devserver_flags="${devserver_flags} \
+        --proxy_port ${FLAGS_proxy_port}"
+  fi
+
   [ ${FLAGS_for_vm} -eq ${FLAGS_TRUE} ] && \
       devserver_flags="${devserver_flags} --for_vm"
 
@@ -146,7 +153,7 @@ function start_dev_server {
       --src_image=\"$(reinterpret_path_for_chroot ${FLAGS_src_image})\""
 
   info "Starting devserver with flags ${devserver_flags}"
-  ./enter_chroot.sh "sudo ./start_devserver ${devserver_flags} \
+  ./enter_chroot.sh -- sudo sh -c "./start_devserver ${devserver_flags} \
        --client_prefix=ChromeOSUpdateEngine \
        --board=${FLAGS_board} \
        --port=${FLAGS_devserver_port} > ${FLAGS_server_log} 2>&1" &
@@ -209,9 +216,15 @@ function get_update_args {
 
 function get_devserver_url {
   local devserver_url=""
+  local port=${FLAGS_devserver_port}
+
+  if [[ -n ${FLAGS_proxy_port} ]]; then
+    port=${FLAGS_proxy_port}
+  fi
+
   if [ ${FLAGS_ignore_hostname} -eq ${FLAGS_TRUE} ]; then
     if [ -z ${FLAGS_update_url} ]; then
-      devserver_url="http://$(get_hostname):${FLAGS_devserver_port}/update"
+      devserver_url="http://$(get_hostname):${port}/update"
     else
       devserver_url="${FLAGS_update_url}"
     fi
@@ -356,7 +369,7 @@ function main() {
 
   if [ ${FLAGS_update_stateful} -eq ${FLAGS_TRUE} ] && \
       ! run_stateful_update; then
-    warn "Stateful update was not successful."
+    die "Stateful update was not successful."
   fi
 
   remote_reboot

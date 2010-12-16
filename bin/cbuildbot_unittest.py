@@ -11,12 +11,14 @@ import mox
 import os
 import posix
 import shutil
+import tempfile
 import unittest
 
 # Fixes circular dependency error.
 import cbuildbot_comm
 import cbuildbot
 from cros_build_lib import ReinterpretPathForChroot
+
 
 class CBuildBotTest(mox.MoxTestBase):
 
@@ -117,7 +119,7 @@ class CBuildBotTest(mox.MoxTestBase):
     buildroot = '/fake_dir'
     board = 'fake-board'
     test_results_dir = 'fake_results_dir'
-    gsutil_path='/fake/gsutil/path'
+    gsutil_path = '/fake/gsutil/path'
     archive_dir = 1234
     acl = 'fake_acl'
     num_retries = 5

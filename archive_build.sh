@@ -93,7 +93,7 @@ then
 fi
 
 # Get version information
-. "${SCRIPTS_DIR}/chromeos_version.sh"
+. ${SRC_ROOT}/third_party/chromiumos-overlay/chromeos/config/chromeos_version.sh
 
 # Get git hash
 # Use git:8 chars of sha1
@@ -234,6 +234,7 @@ echo "$LAST_CHANGE" > "${FLAGS_to}/LATEST"
 # Make sure files are readable
 chmod 644 "$ZIPFILE" "${FLAGS_to}/LATEST"
 chmod 755 "$OUTDIR"
+cp -f  "${FLAGS_from}/au-generator.zip" "${OUTDIR}/"
 
 
 function gsutil_archive() {
@@ -275,7 +276,7 @@ then
   prebuilt_cmd="$prebuilt_cmd -u gs://chromeos-prebuilt --git-sync -V master"
   prebuilt_cmd="$prebuilt_cmd -p ${GCLIENT_ROOT} -b ${FLAGS_board}"
 
-  if [ "${FLAGS_BOARD}" == "x86-generic" ]
+  if [ "${FLAGS_board}" == "x86-generic" ]
   then
     prebuilt_cmd="$prebuilt_cmd --sync-host"
   fi
