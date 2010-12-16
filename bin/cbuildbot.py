@@ -616,6 +616,7 @@ def main():
                     default=False,
                     help='Override some options to run as a developer.')
   parser.add_option('--noprebuilts', action='store_false', dest='prebuilts',
+                    default=True,
                     help="Don't upload prebuilts.")
   parser.add_option('--nosync', action='store_false', dest='sync',
                     default=True,
