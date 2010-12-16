@@ -87,6 +87,8 @@ def RepoSync(buildroot, retries=_DEFAULT_RETRIES):
         Warning('CBUILDBOT -- Retries exhausted')
         raise
 
+  RunCommand(['repo', 'manifest', '-r', '-o', '/dev/stderr'], cwd=buildroot)
+
 # =========================== Command Helpers =================================
 
 def _GetAllGitRepos(buildroot, debug=False):
@@ -291,32 +293,6 @@ def _WipeOldOutput(buildroot):
   RunCommand(['rm', '-rf', 'src/build/images'], cwd=buildroot)
 
 
-def _GetChromeOSVersion(buildroot):
-  """Returns the tuple version of the Chrome OS version of the buildroot."""
-  cwd = os.path.join(buildroot, 'src', 'third_party', 'chromiumos-overlay',
-                     'chromeos', 'config')
-  version_cmd = './chromeos_version.sh'
-  output = RunCommand(version_cmd, cwd=cwd, redirect_stdout=True,
-                      redirect_stderr=True)
-  version_re = re.compile('\s+CHROMEOS_VERSION_STRING='
-                          '(\d+)\.(\d+)\.(\d+)\.(\w+)')
-  for line in output.splitlines():
-    match = version_re.match(line)
-    if match:
-      return match.group(1), match.group(2), match.group(3), match.group(4)
-
-  raise Exception('Chrome OS version not found.')
-
-
-def _GetManifestPath(buildroot):
-  """Returns the relative path that a manifest should be saved into."""
-  version_tuple = _GetChromeOSVersion(buildroot)
-  (major, minor, branch, patch) = version_tuple
-  relative_path = os.path.join('.'.join([major, minor]),
-                               '%s.xml' % '.'.join(version_tuple))
-  return relative_path
-
-
 # =========================== Main Commands ===================================
 
 
@@ -343,36 +319,6 @@ def _FullCheckout(buildroot, tracking_branch,
 def _IncrementalCheckout(buildroot, retries=_DEFAULT_RETRIES):
   """Performs a checkout without clobbering previous checkout."""
   RepoSync(buildroot, retries)
-
-
-def _DumpManifest(buildroot, url):
-  """Stores the manifest in the public | private overlay depending on url."""
-  public_overlay = PUBLIC_OVERLAY % {'buildroot': buildroot}
-  private_overlay = PRIVATE_OVERLAY % {'buildroot': buildroot}
-  if url.endswith('manifest-internal'):
-    overlay = PRIVATE_OVERLAY % {'buildroot': buildroot}
-  else:
-    overlay = PUBLIC_OVERLAY % {'buildroot': buildroot}
-
-  # Generate paths for manifests.
-  relative_path = _GetManifestPath(buildroot)
-  manifest_path = os.path.join(overlay, 'manifests', relative_path)
-  symlink_path = os.path.join(overlay, 'manifests', 'LATEST')
-  if not os.path.isdir(os.path.dirname(manifest_path)):
-    os.makedirs(os.path.dirname(manifest_path))
-
-  # Dump the manifest and create a symlink to it.
-  RunCommand(['repo', 'manifest', '-r', '-o', manifest_path], cwd=buildroot)
-  if os.path.exists(symlink_path):
-    os.unlink(symlink_path)
-
-  os.symlink(relative_path, symlink_path)
-
-  # Add it to git and print it to stderr.
-  RunCommand(['git', 'add', os.path.join('manifests', relative_path)],
-             cwd=overlay)
-  RunCommand(['git', 'add', os.path.join('manifests', 'LATEST')], cwd=overlay)
-  _PrintFile(manifest_path)
 
 
 def _MakeChroot(buildroot):
@@ -729,9 +675,6 @@ def main():
     for path in rev_overlays:
       if not os.path.isdir(path):
         Die('Missing overlay: %s' % path)
-
-    if not options.chrome_rev:
-      _DumpManifest(buildroot, options.url)
 
     if not os.path.isdir(chroot_path):
       _MakeChroot(buildroot)
