@@ -100,7 +100,7 @@ config['x86_pineview_bin'] = {
   'push_overlays': None,
 }
 config['arm_tegra2_bin'] = {
-  'board' : 'tegra2',
+  'board' : 'tegra2_dev-board',
   'uprev' : True,
   'master' : False,
   'important' : False,
