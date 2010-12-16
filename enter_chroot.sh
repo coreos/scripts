@@ -34,22 +34,52 @@ DEFINE_boolean unmount $FLAGS_FALSE "Only tear down mounts."
 DEFINE_boolean ssh_agent $FLAGS_TRUE "Import ssh agent."
 
 # More useful help
-FLAGS_HELP="USAGE: $0 [flags] [VAR=value] [-- \"command\"]
+FLAGS_HELP="USAGE: $0 [flags] [VAR=value] [-- command [arg1] [arg2] ...]
 
 One or more VAR=value pairs can be specified to export variables into
 the chroot environment.  For example:
 
    $0 FOO=bar BAZ=bel
 
-If [-- \"command\"] is present, runs the command inside the chroot,
-after changing directory to /$USER/trunk/src/scripts.  Note that the
-command should be enclosed in quotes to prevent interpretation by the
-shell before getting into the chroot.  For example:
+If [-- command] is present, runs the command inside the chroot,
+after changing directory to /$USER/trunk/src/scripts.  Note that neither
+the command nor args should include single quotes.  For example:
 
-    $0 -- \"./build_platform_packages.sh\"
+    $0 -- ./build_platform_packages.sh
 
 Otherwise, provides an interactive shell.
 "
+
+# Double up on the first '--' argument.  Why?  For enter_chroot, we want to
+# emulate the behavior of sudo for setting environment vars.  That is, we want:
+#   ./enter_chroot [flags] [VAR=val] [-- command]
+# ...but shflags ends up eating the '--' out of the command line and gives
+# us back "VAR=val" and "command" together in one chunk.  By doubling up, we
+# end up getting what we want back from shflags.
+#
+# Examples of how people might be using enter_chroot:
+#  1. ./enter_chroot [chroot_flags]   VAR1=val1 VAR2=val2 -- cmd arg1 arg2
+#     Set env vars and run cmd w/ args
+#  2. ./enter_chroot [chroot_flags]   VAR1=val1 VAR2=val2
+#     Set env vars and run shell
+#  3. ./enter_chroot [chroot_flags]   -- cmd arg1 arg2
+#     Run cmd w/ args
+#  4. ./enter_chroot [chroot_flags]   VAR1=val1 VAR2=val2 cmd arg1 arg2
+#     Like #1 _if_ args aren't flags (if they are, enter_chroot will claim them)
+#  5. ./enter_chroot [chroot_flags]   cmd arg1 arg2
+#     Like #3 _if_ args aren't flags (if they are, enter_chroot will claim them)
+_FLAGS_FIXED=''
+_SAW_DASHDASH=0
+while [ $# -gt 0 ]; do
+  _FLAGS_FIXED="${_FLAGS_FIXED:+${_FLAGS_FIXED} }'$1'"
+  if [ $_SAW_DASHDASH -eq 0 ] && [[ "$1" == "--" ]]; then
+    _FLAGS_FIXED="${_FLAGS_FIXED:+${_FLAGS_FIXED} }'--'"
+    _SAW_DASHDASH=1
+  fi
+  shift
+done
+eval set -- "${_FLAGS_FIXED}"
+
 
 # Parse command line flags
 FLAGS "$@" || exit 1
@@ -303,9 +333,9 @@ git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all user.email \
 # Run command or interactive shell.  Also include the non-chrooted path to
 # the source trunk for scripts that may need to print it (e.g.
 # build_image.sh).
-sudo chroot "$FLAGS_chroot" sudo -i -u $USER $CHROOT_PASSTHRU \
+sudo -- chroot "$FLAGS_chroot" sudo -i -u $USER $CHROOT_PASSTHRU \
   EXTERNAL_TRUNK_PATH="${FLAGS_trunk}" LANG=C SSH_AGENT_PID="${SSH_AGENT_PID}" \
-  SSH_AUTH_SOCK="${SSH_AUTH_SOCK}" -- "$@"
+  SSH_AUTH_SOCK="${SSH_AUTH_SOCK}" "$@"
 
 # Remove trap and explicitly unmount
 trap - EXIT
