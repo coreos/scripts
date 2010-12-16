@@ -153,7 +153,7 @@ function start_dev_server {
       --src_image=\"$(reinterpret_path_for_chroot ${FLAGS_src_image})\""
 
   info "Starting devserver with flags ${devserver_flags}"
-  ./enter_chroot.sh "sudo ./start_devserver ${devserver_flags} \
+  ./enter_chroot.sh -- sudo sh -c "./start_devserver ${devserver_flags} \
        --client_prefix=ChromeOSUpdateEngine \
        --board=${FLAGS_board} \
        --port=${FLAGS_devserver_port} > ${FLAGS_server_log} 2>&1" &
@@ -217,11 +217,11 @@ function get_update_args {
 function get_devserver_url {
   local devserver_url=""
   local port=${FLAGS_devserver_port}
-  
+
   if [[ -n ${FLAGS_proxy_port} ]]; then
     port=${FLAGS_proxy_port}
   fi
-  
+
   if [ ${FLAGS_ignore_hostname} -eq ${FLAGS_TRUE} ]; then
     if [ -z ${FLAGS_update_url} ]; then
       devserver_url="http://$(get_hostname):${port}/update"
