@@ -234,12 +234,9 @@ function restart_in_chroot_if_needed {
   # NB:  Pass in ARGV:  restart_in_chroot_if_needed "$@"
   if [ $INSIDE_CHROOT -ne 1 ]
   then
-    local abspath=$(readlink -f "$0")
-    # strip everything up to (and including) /src/scripts/ from abspath
-    local path_from_scripts="${abspath##*/src/scripts/}"
+    # Equivalent to enter_chroot.sh -- <current command>
     exec $SCRIPTS_DIR/enter_chroot.sh -- \
-      "$CHROOT_TRUNK_DIR/src/scripts/$path_from_scripts" "$@"
-    exit
+      $CHROOT_TRUNK_DIR/src/scripts/$(basename $0) "$@"
   fi
 }
 
