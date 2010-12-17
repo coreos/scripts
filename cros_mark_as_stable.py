@@ -252,7 +252,7 @@ def PushChange(stable_branch, tracking_branch):
   merge_branch_name = 'merge_branch'
   for push_try in range(num_retries + 1):
     try:
-      _SimpleRunCommand('git remote update')
+      _SimpleRunCommand('repo sync .')
       merge_branch = GitBranch(merge_branch_name, tracking_branch)
       merge_branch.CreateBranch()
       if not merge_branch.Exists():
