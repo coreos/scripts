@@ -367,14 +367,6 @@ def _Build(buildroot, emptytree):
   RunCommand(cmd, cwd=cwd, enter_chroot=True)
 
 
-def _BuildChrome(buildroot, board, chrome_atom_to_build):
-  """Wrapper for emerge call to build Chrome."""
-  cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['emerge-%s' % board,
-              '=%s' % chrome_atom_to_build],
-             cwd=cwd, enter_chroot=True)
-
-
 def _EnableLocalAccount(buildroot):
   cwd = os.path.join(buildroot, 'src', 'scripts')
   # Set local account for test images.
@@ -699,9 +691,6 @@ def main():
     # Doesn't rebuild without acquiring more source.
     if options.sync:
       _Build(buildroot, emptytree)
-
-    if chrome_atom_to_build:
-      _BuildChrome(buildroot, buildconfig['board'], chrome_atom_to_build)
 
     if buildconfig['unittests'] and options.tests:
       _RunUnitTests(buildroot)
