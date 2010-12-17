@@ -70,11 +70,17 @@ function start_kvm() {
       snapshot="-snapshot"
     fi
 
+    local net_option="-net nic,model=virtio"
+    if [ -f "$(dirname $1)/.use_e1000" ]; then
+      info "Detected older image, using e1000 instead of virtio."
+      net_option="-net nic,model=e1000"
+    fi
+
     sudo kvm -m 1024 \
       -vga std \
       -pidfile "${KVM_PID_FILE}" \
       -daemonize \
-      -net nic,model=virtio \
+      ${net_option} \
       ${nographics} \
       ${snapshot} \
       -net user,hostfwd=tcp::${FLAGS_ssh_port}-:22 \
