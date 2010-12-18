@@ -76,7 +76,8 @@ if "PORTAGE_USERNAME" not in os.environ:
 from _emerge.actions import adjust_configs
 from _emerge.actions import load_emerge_config
 from _emerge.create_depgraph_params import create_depgraph_params
-from _emerge.depgraph import backtrack_depgraph
+from _emerge.depgraph import depgraph as emerge_depgraph
+from _emerge.depgraph import _frozen_depgraph_config
 from _emerge.main import emerge_main
 from _emerge.main import parse_opts
 from _emerge.Package import Package
@@ -479,24 +480,9 @@ class DepGraphGenerator(object):
                                           cur_iuse, now_use, now_iuse)
     return not flags
 
-  def GenDependencyTree(self, remote_pkgs):
-    """Get dependency tree info from emerge.
-
-    TODO(): Update cros_extract_deps to also use this code.
-    Returns:
-      Dependency tree
-    """
-    start = time.time()
-
+  def CreateDepgraph(self, emerge, packages):
+    """Create an emerge depgraph object."""
     # Setup emerge options.
-    #
-    # We treat dependency info a bit differently than emerge itself. Unless
-    # you're using --usepkgonly, we disable --getbinpkg and --usepkg here so
-    # that emerge will look at the dependencies of the source ebuilds rather
-    # than the binary dependencies. This helps ensure that we have the option
-    # of merging a package from source, if we want to switch to it with
-    # --workon and the dependencies have changed.
-    emerge = self.emerge
     emerge_opts = emerge.opts.copy()
 
     # Enable --emptytree so that we get the full tree, which we need for
@@ -507,12 +493,86 @@ class DepGraphGenerator(object):
     emerge_opts["--tree"] = True
     emerge_opts["--emptytree"] = True
 
-    # Tell emerge not to worry about use flags yet. We handle those inside
-    # parallel_emerge itself. Further, when we use the --force-remote-binary
-    # flag, we don't emerge to reject a package just because it has different
-    # use flags.
-    emerge_opts.pop("--newuse", None)
-    emerge_opts.pop("--reinstall", None)
+    # Set up parameters.
+    params = create_depgraph_params(emerge_opts, emerge.action)
+    frozen_config = _frozen_depgraph_config(emerge.settings, emerge.trees,
+                                            emerge_opts, emerge.spinner)
+    backtrack_max = emerge_opts.get('--backtrack', 5)
+    runtime_pkg_mask = None
+    allow_backtracking = backtrack_max > 0
+
+    # Try up to backtrack_max times to create a working depgraph. Each time we
+    # run into a conflict, mask the offending package and try again.
+    # TODO(davidjames): When Portage supports --force-remote-binary directly,
+    #                   switch back to using the backtrack_depgraph function.
+    for i in range(backtrack_max + 1):
+      if i == backtrack_max:
+        # Looks like we hit the backtracking limit. Run the dependency
+        # calculation one more time (from scratch) to show the original error
+        # message.
+        runtime_pkg_mask = None
+        allow_backtracking = False
+
+      # Create a depgraph object.
+      depgraph = emerge_depgraph(emerge.settings, emerge.trees, emerge_opts,
+          params, emerge.spinner, frozen_config=frozen_config,
+          allow_backtracking=allow_backtracking,
+          runtime_pkg_mask=runtime_pkg_mask)
+
+      if i == 0:
+        for cpv in self.forced_remote_binary_packages:
+          # If --force-remote-binary was specified, we want to use this package
+          # regardless of its use flags. Unfortunately, Portage doesn't support
+          # ignoring use flags for just one package. To convince Portage to
+          # install the package, we trick Portage into thinking the package has
+          # the right use flags.
+          # TODO(davidjames): Update Portage to support --force-remote-binary
+          #                   directly, so that this hack isn't necessary.
+          pkg = depgraph._pkg(cpv, "binary", emerge.root_config)
+          pkgsettings = frozen_config.pkgsettings[pkg.root]
+          pkgsettings.setcpv(pkg)
+          pkg.use.enabled = pkgsettings["PORTAGE_USE"].split()
+
+      # Select the packages we want.
+      success, favorites = depgraph.select_files(packages)
+      if success:
+        break
+      elif depgraph.need_restart():
+        # Looks like we found some packages that can't be installed due to
+        # conflicts. Try again, masking out the conflicting packages.
+        runtime_pkg_mask = depgraph.get_runtime_pkg_mask()
+      elif allow_backtracking and i > 0:
+        # Looks like we tried all the possible combinations, and we still can't
+        # solve the graph. Stop backtracking, so that we can report an error
+        # message.
+        runtime_pkg_mask = None
+        allow_backtracking = False
+      else:
+        break
+
+    # Delete the --tree option, because we don't really want to display a
+    # tree. We just wanted to get emerge to leave uninstall instructions on
+    # the graph. Later, when we display the graph, we'll want standard-looking
+    # output, so removing the --tree option is important.
+    frozen_config.myopts.pop("--tree", None)
+
+    emerge.depgraph = depgraph
+
+    # Is it impossible to honor the user's request? Bail!
+    if not success:
+      depgraph.display_problems()
+      sys.exit(1)
+
+  def GenDependencyTree(self, remote_pkgs):
+    """Get dependency tree info from emerge.
+
+    TODO(): Update cros_extract_deps to also use this code.
+    Returns:
+      Dependency tree
+    """
+    start = time.time()
+
+    emerge = self.emerge
 
     # Create a list of packages to merge
     packages = set(emerge.cmdline_packages[:])
@@ -527,9 +587,17 @@ class DepGraphGenerator(object):
             full_pkgname in self.force_remote_binary):
           forced_pkgs.setdefault(full_pkgname, []).append(pkg)
 
+      # Add forced binary packages to the dependency list. This is necessary
+      # to ensure that the install plan contains the right package.
+      #
+      # Putting the forced binary package at the beginning of the list is an
+      # optimization that helps avoid unnecessary backtracking (e.g., if
+      # Portage first selects the wrong version, and then backtracks later, it
+      # takes a bit longer and uses up an unnecessary backtrack iteration.)
+      packages = list(packages)
       for pkgs in forced_pkgs.values():
         forced_package = portage.versions.best(pkgs)
-        packages.add("=%s" % forced_package)
+        packages.insert(0, "=%s" % forced_package)
         self.forced_remote_binary_packages.add(forced_package)
 
     # Tell emerge to be quiet. We print plenty of info ourselves so we don't
@@ -544,18 +612,8 @@ class DepGraphGenerator(object):
     if "--quiet" not in emerge.opts:
       print "Calculating deps..."
 
-    # Ask portage to build a dependency graph. with the options we specified
-    # above.
-    params = create_depgraph_params(emerge_opts, emerge.action)
-    success, depgraph, _ = backtrack_depgraph(
-        emerge.settings, emerge.trees, emerge_opts, params, emerge.action,
-        packages, emerge.spinner)
-    emerge.depgraph = depgraph
-
-    # Is it impossible to honor the user's request? Bail!
-    if not success:
-      depgraph.display_problems()
-      sys.exit(1)
+    self.CreateDepgraph(emerge, packages)
+    depgraph = emerge.depgraph
 
     # Build our own tree from the emerge digraph.
     deps_tree = {}
@@ -604,11 +662,6 @@ class DepGraphGenerator(object):
     vardb = frozen_config.trees[root]["vartree"].dbapi
     pkgsettings = frozen_config.pkgsettings[root]
 
-    # It's time to start worrying about use flags, if necessary.
-    for flag in ("--newuse", "--reinstall"):
-      if flag in emerge.opts:
-        emerge_opts[flag] = emerge.opts[flag]
-
     deps_info = {}
     for pkg in depgraph.altlist():
       if isinstance(pkg, Package):
@@ -635,12 +688,6 @@ class DepGraphGenerator(object):
         # Save off info about the package
         deps_info[str(pkg.cpv)] = {"idx": len(deps_info),
                                    "optional": optional}
-
-    # Delete the --tree option, because we don't really want to display a
-    # tree. We just wanted to get emerge to leave uninstall instructions on
-    # the graph. Later, when we display the graph, we'll want standard-looking
-    # output, so removing the --tree option is important.
-    frozen_config.myopts.pop("--tree", None)
 
     seconds = time.time() - start
     if "--quiet" not in emerge.opts:
