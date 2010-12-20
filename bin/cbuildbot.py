@@ -688,9 +688,7 @@ def main():
                      buildconfig['board'], rev_overlays)
 
     _EnableLocalAccount(buildroot)
-    # Doesn't rebuild without acquiring more source.
-    if options.sync:
-      _Build(buildroot, emptytree)
+    _Build(buildroot, emptytree)
 
     if buildconfig['unittests'] and options.tests:
       _RunUnitTests(buildroot)
