@@ -86,6 +86,7 @@ function start_kvm() {
       -net user,hostfwd=tcp::${FLAGS_ssh_port}-:22 \
       -hda "${1}"
 
+    info "KVM started with pid stored in ${KVM_PID_FILE}"
     LIVE_VM_IMAGE="${1}"
   fi
 }

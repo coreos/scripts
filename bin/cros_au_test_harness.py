@@ -446,12 +446,10 @@ class VirtualAUTest(unittest.TestCase, AUTest):
     if os.path.exists(pid_file):
       Warning('Existing %s found.  Deleting and killing process' %
               pid_file)
-      pid = RunCommand(['sudo', 'cat', pid_file], redirect_stdout=True,
-                       enter_chroot=False)
-      if pid:
-        RunCommand(['sudo', 'kill', pid.strip()], error_ok=True,
-                   enter_chroot=False)
-        RunCommand(['sudo', 'rm', pid_file], enter_chroot=False)
+      RunCommand(['./cros_stop_vm', '--kvm_pid=%s' % pid_file],
+                 cwd=self.crosutilsbin)
+
+    assert not os.path.exists(pid_file)
 
   def setUp(self):
     """Unit test overriden method.  Is called before every test."""
