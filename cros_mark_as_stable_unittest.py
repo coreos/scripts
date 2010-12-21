@@ -129,6 +129,7 @@ class EBuildTest(mox.MoxTestBase):
     self.mox.ReplayAll()
     fake_ebuild = cros_mark_as_stable.EBuild(fake_ebuild_path)
     self.mox.VerifyAll()
+    self.assertEquals(fake_ebuild.version_no_rev, '0.0.1')
     self.assertEquals(fake_ebuild.ebuild_path_no_revision,
                       '/path/to/test_package/test_package-0.0.1')
     self.assertEquals(fake_ebuild.ebuild_path_no_version,
@@ -144,6 +145,7 @@ class EBuildTest(mox.MoxTestBase):
     fake_ebuild = cros_mark_as_stable.EBuild(fake_ebuild_path)
     self.mox.VerifyAll()
 
+    self.assertEquals(fake_ebuild.version_no_rev, '9999')
     self.assertEquals(fake_ebuild.ebuild_path_no_revision,
                       '/path/to/test_package/test_package-9999')
     self.assertEquals(fake_ebuild.ebuild_path_no_version,
@@ -160,12 +162,14 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     self.mox.StubOutWithMock(os, 'unlink')
     self.m_ebuild = self.mox.CreateMock(cros_mark_as_stable.EBuild)
     self.m_ebuild.is_stable = True
-    self.m_ebuild.package = 'test_package'
+    self.m_ebuild.package = 'test_package/test_package'
+    self.m_ebuild.version_no_rev = '0.0.1'
     self.m_ebuild.current_revision = 1
     self.m_ebuild.ebuild_path_no_revision = '/path/test_package-0.0.1'
     self.m_ebuild.ebuild_path_no_version = '/path/test_package'
     self.m_ebuild.ebuild_path = '/path/test_package-0.0.1-r1.ebuild'
     self.revved_ebuild_path = '/path/test_package-0.0.1-r2.ebuild'
+    self.unstable_ebuild_path = '/path/test_package-9999.ebuild'
 
   def testRevWorkOnEBuild(self):
     self.mox.StubOutWithMock(cros_mark_as_stable.fileinput, 'input')
@@ -197,8 +201,9 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
 
     self.mox.ReplayAll()
     marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
-    marker.RevWorkOnEBuild('my_id', redirect_file=m_file)
+    result = marker.RevWorkOnEBuild('my_id', redirect_file=m_file)
     self.mox.VerifyAll()
+    self.assertEqual(result, 'test_package/test_package-0.0.1-r2')
 
   def testRevUnchangedEBuild(self):
     self.mox.StubOutWithMock(cros_mark_as_stable.fileinput, 'input')
@@ -229,8 +234,9 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
 
     self.mox.ReplayAll()
     marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
-    marker.RevWorkOnEBuild('my_id', redirect_file=m_file)
+    result = marker.RevWorkOnEBuild('my_id', redirect_file=m_file)
     self.mox.VerifyAll()
+    self.assertEqual(result, None)
 
   def testRevMissingEBuild(self):
     self.mox.StubOutWithMock(cros_mark_as_stable.fileinput, 'input')
@@ -238,6 +244,11 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     self.mox.StubOutWithMock(cros_mark_as_stable.shutil, 'copyfile')
     self.mox.StubOutWithMock(cros_mark_as_stable, 'Die')
     m_file = self.mox.CreateMock(file)
+
+    revved_ebuild_path = self.m_ebuild.ebuild_path
+    self.m_ebuild.ebuild_path = self.unstable_ebuild_path
+    self.m_ebuild.is_stable = False
+    self.m_ebuild.current_revision = 0
 
     # Prepare mock fileinput.  This tests to make sure both the commit id
     # and keywords are changed correctly.
@@ -247,25 +258,24 @@ class EBuildStableMarkerTest(mox.MoxTestBase):
     ebuild_9999 = self.m_ebuild.ebuild_path_no_version + '-9999.ebuild'
     cros_mark_as_stable.os.path.exists(ebuild_9999).AndReturn(False)
     cros_mark_as_stable.Die("Missing unstable ebuild: %s" % ebuild_9999)
-    cros_mark_as_stable.shutil.copyfile(ebuild_9999, self.revved_ebuild_path)
-    cros_mark_as_stable.fileinput.input(self.revved_ebuild_path,
+    cros_mark_as_stable.shutil.copyfile(ebuild_9999, revved_ebuild_path)
+    cros_mark_as_stable.fileinput.input(revved_ebuild_path,
                                         inplace=1).AndReturn(mock_file)
     m_file.write('EAPI=2')
     m_file.write('CROS_WORKON_COMMIT="my_id"\n')
     m_file.write('KEYWORDS="x86 arm"')
     m_file.write('src_unpack(){}')
-    diff_cmd = ['diff', '-Bu', self.m_ebuild.ebuild_path,
-                self.revved_ebuild_path]
+    diff_cmd = ['diff', '-Bu', self.unstable_ebuild_path, revved_ebuild_path]
     cros_mark_as_stable.RunCommand(diff_cmd, exit_code=True,
                                    print_cmd=False, redirect_stderr=True,
                                    redirect_stdout=True).AndReturn(1)
-    cros_mark_as_stable._SimpleRunCommand('git add ' + self.revved_ebuild_path)
-    cros_mark_as_stable._SimpleRunCommand('git rm ' + self.m_ebuild.ebuild_path)
+    cros_mark_as_stable._SimpleRunCommand('git add ' + revved_ebuild_path)
 
     self.mox.ReplayAll()
     marker = cros_mark_as_stable.EBuildStableMarker(self.m_ebuild)
-    marker.RevWorkOnEBuild('my_id', redirect_file=m_file)
+    result = marker.RevWorkOnEBuild('my_id', redirect_file=m_file)
     self.mox.VerifyAll()
+    self.assertEqual(result, 'test_package/test_package-0.0.1-r1')
 
 
   def testCommitChange(self):
