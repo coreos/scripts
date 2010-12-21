@@ -329,6 +329,11 @@ function verify_image {
   fi
 }
 
+function find_root_dev {
+  remote_sh "rootdev -s"
+  echo ${REMOTE_OUT}
+}
+
 function main() {
   assert_outside_chroot
 
@@ -355,6 +360,8 @@ function main() {
     warn "Machine is in a bad state.  Rebooting it now."
     remote_reboot
   fi
+
+  local initial_root_dev=$(find_root_dev)
 
   if [ -z "${FLAGS_update_url}" ]; then
     # Start local devserver if no update url specified.
@@ -386,6 +393,13 @@ function main() {
   remote_sh "grep ^CHROMEOS_RELEASE_DESCRIPTION= /etc/lsb-release"
   if [ ${FLAGS_verify} -eq ${FLAGS_TRUE} ]; then
     verify_image
+
+    if [ "${initial_root_dev}" == "$(find_root_dev)" ]; then
+      # At this point, the software version didn't change, but we didn't
+      # switch partitions either. Means it was an update to the same version
+      # that failed.
+      die "The root partition did NOT change. The update failed."
+    fi
   else
     local release_description=$(echo ${REMOTE_OUT} | cut -d '=' -f 2)
     info "Update was successful and rebooted to $release_description"
