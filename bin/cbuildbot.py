@@ -74,10 +74,10 @@ def RepoSync(buildroot, retries=_DEFAULT_RETRIES):
       # The --trace option ensures that repo shows the output from git. This
       # is needed so that the buildbot can kill us if git is not making
       # progress.
+      RunCommand(['repo', '--trace', 'sync'], cwd=buildroot)
       RunCommand(['repo', 'forall', '-c', 'git', 'config',
                   'url.ssh://git@gitrw.chromium.org:9222.insteadof',
                   'http://git.chromium.org/git'], cwd=buildroot)
-      RunCommand(['repo', '--trace', 'sync'], cwd=buildroot)
       retries = 0
     except:
       retries -= 1
