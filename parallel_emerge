@@ -82,11 +82,17 @@ from _emerge.main import emerge_main
 from _emerge.main import parse_opts
 from _emerge.Package import Package
 from _emerge.Scheduler import Scheduler
+from _emerge.SetArg import SetArg
 from _emerge.stdout_spinner import stdout_spinner
 import portage
 import portage.debug
 import portage.versions
 
+new_portage = not portage.VERSION.startswith("2.1.7.")
+if new_portage:
+  from portage._global_updates import _global_updates
+else:
+  from portage import _global_updates
 
 def Usage():
   """Print usage."""
@@ -390,7 +396,7 @@ class DepGraphGenerator(object):
     #
     # Portage normally handles this logic in emerge_main, but again, we can't
     # use that function here.
-    if portage._global_updates(trees, mtimedb["updates"]):
+    if _global_updates(trees, mtimedb["updates"]):
       mtimedb.commit()
       settings, trees, mtimedb = load_emerge_config(trees=trees)
 
@@ -437,6 +443,9 @@ class DepGraphGenerator(object):
     emerge.cmdline_packages = cmdline_packages
     root = settings["ROOT"]
     emerge.root_config = trees[root]["root_config"]
+
+    if new_portage and "--usepkg" in opts:
+      emerge.trees[root]["bintree"].populate("--getbinpkg" in opts)
 
   def CheckUseFlags(self, pkgsettings, cur_pkg, new_pkg):
     """Are the use flags in cur_pkg up to date?
@@ -498,26 +507,19 @@ class DepGraphGenerator(object):
     frozen_config = _frozen_depgraph_config(emerge.settings, emerge.trees,
                                             emerge_opts, emerge.spinner)
     backtrack_max = emerge_opts.get('--backtrack', 5)
-    runtime_pkg_mask = None
+    backtrack_parameters = {}
     allow_backtracking = backtrack_max > 0
 
     # Try up to backtrack_max times to create a working depgraph. Each time we
     # run into a conflict, mask the offending package and try again.
     # TODO(davidjames): When Portage supports --force-remote-binary directly,
     #                   switch back to using the backtrack_depgraph function.
-    for i in range(backtrack_max + 1):
-      if i == backtrack_max:
-        # Looks like we hit the backtracking limit. Run the dependency
-        # calculation one more time (from scratch) to show the original error
-        # message.
-        runtime_pkg_mask = None
-        allow_backtracking = False
-
+    for i in range(backtrack_max + 2):
       # Create a depgraph object.
       depgraph = emerge_depgraph(emerge.settings, emerge.trees, emerge_opts,
           params, emerge.spinner, frozen_config=frozen_config,
           allow_backtracking=allow_backtracking,
-          runtime_pkg_mask=runtime_pkg_mask)
+          **backtrack_parameters)
 
       if i == 0:
         for cpv in self.forced_remote_binary_packages:
@@ -537,15 +539,19 @@ class DepGraphGenerator(object):
       success, favorites = depgraph.select_files(packages)
       if success:
         break
-      elif depgraph.need_restart():
+      elif depgraph.need_restart() and i < backtrack_max:
         # Looks like we found some packages that can't be installed due to
         # conflicts. Try again, masking out the conflicting packages.
-        runtime_pkg_mask = depgraph.get_runtime_pkg_mask()
+        if new_portage:
+          backtrack_parameters = depgraph.get_backtrack_parameters()
+        else:
+          backtrack_parameters = {
+            'runtime_pkg_mask': depgraph.get_runtime_pkg_mask()
+          }
       elif allow_backtracking and i > 0:
-        # Looks like we tried all the possible combinations, and we still can't
-        # solve the graph. Stop backtracking, so that we can report an error
-        # message.
-        runtime_pkg_mask = None
+        # Looks like we can't solve the graph. Stop backtracking and report an
+        # error message.
+        backtrack_parameters.pop('runtime_pkg_mask', None)
         allow_backtracking = False
       else:
         break
@@ -641,6 +647,7 @@ class DepGraphGenerator(object):
       # We just refer to CPVs as packages here because it's easier.
       deps = {}
       for child, priorities in node_deps[0].items():
+        if isinstance(child, SetArg): continue
         deps[str(child.cpv)] = dict(action=str(child.operation),
                                     deptype=str(priorities[-1]),
                                     deps={})
@@ -1192,7 +1199,7 @@ class DepGraphGenerator(object):
       """Update packages that can use prebuilts to do so."""
       start = time.time()
 
-      # Build list of prebuilt packages
+      # Build list of prebuilt packages.
       prebuilt_pkgs = {}
       for pkg, info in deps_map.iteritems():
         if info and info["action"] == "merge":
@@ -1394,6 +1401,10 @@ def EmergeWorker(task_queue, job_queue, emerge, package_db):
   settings, trees, mtimedb = emerge.settings, emerge.trees, emerge.mtimedb
   opts, spinner = emerge.opts, emerge.spinner
   opts["--nodeps"] = True
+  if new_portage:
+    # When Portage launches new processes, it goes on a rampage and closes all
+    # open file descriptors. Ask Portage not to do that, as it breaks us.
+    portage.process.get_open_fds = lambda: []
   while True:
     # Wait for a new item to show up on the queue. This is a blocking wait,
     # so if there's nothing to do, we just sit here.
@@ -1420,8 +1431,13 @@ def EmergeWorker(task_queue, job_queue, emerge, package_db):
       try:
         sys.stdout = output
         sys.stderr = output
-        scheduler = Scheduler(settings, trees, mtimedb, opts, spinner,
-                              install_list, [], emerge.scheduler_graph)
+        if new_portage:
+          emerge.scheduler_graph.mergelist = install_list
+          scheduler = Scheduler(settings, trees, mtimedb, opts, spinner,
+              favorites=[], graph_config=emerge.scheduler_graph)
+        else:
+          scheduler = Scheduler(settings, trees, mtimedb, opts, spinner,
+              install_list, [], emerge.scheduler_graph)
         retcode = scheduler.merge()
       except Exception:
         traceback.print_exc(file=output)
