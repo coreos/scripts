@@ -1192,41 +1192,23 @@ class DepGraphGenerator(object):
       """Update packages that can use prebuilts to do so."""
       start = time.time()
 
-      # The bintree is the database of binary packages. By default, it's
-      # empty.
-      bintree = emerge.trees[root]["bintree"]
-      bindb = bintree.dbapi
-      root_config = emerge.root_config
-      pkgsettings = emerge.depgraph._frozen_config.pkgsettings[root]
-      prebuilt_pkgs = {}
-
-      # Populate the DB with packages
-      bintree.populate("--getbinpkg" in emerge.opts,
-                       "--getbinpkgonly" in emerge.opts)
-
       # Build list of prebuilt packages
+      prebuilt_pkgs = {}
       for pkg, info in deps_map.iteritems():
         if info and info["action"] == "merge":
           if (not info["force_remote_binary"] and info["mandatory_source"] or
               "--usepkgonly" not in emerge.opts and pkg not in remote_pkgs):
             continue
 
-          db_keys = list(bindb._aux_cache_keys)
-          try:
-            db_vals = bindb.aux_get(pkg, db_keys + ["MTIME"])
-          except KeyError:
-            # No binary package
-            continue
-
-          mtime = int(db_vals.pop() or 0)
-          metadata = zip(db_keys, db_vals)
-          db_pkg = Package(built=True, cpv=pkg, installed=False,
-                           metadata=metadata, onlydeps=False, mtime=mtime,
-                           operation="merge", root_config=root_config,
-                           type_name="binary")
+          db_pkg = emerge.depgraph._pkg(pkg, "binary", emerge.root_config)
+          if info["force_remote_binary"]:
+            # Undo our earlier hacks to the use flags so that the use flags
+            # display correctly.
+            db_pkg.use.enabled = db_pkg.metadata["USE"].split()
           prebuilt_pkgs[pkg] = db_pkg
 
       # Calculate what packages need to be rebuilt due to changes in use flags.
+      pkgsettings = emerge.depgraph._frozen_config.pkgsettings[root]
       for pkg, db_pkg in prebuilt_pkgs.iteritems():
         if not self.CheckUseFlags(pkgsettings, db_pkg, self.package_db[pkg]):
           MergeChildren(pkg, "mandatory_source")
