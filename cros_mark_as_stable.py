@@ -78,15 +78,15 @@ def _Print(message):
     Info(message)
 
 
-def _CleanStalePackages(board, package_array):
+def _CleanStalePackages(board, package_atoms):
     """Cleans up stale package info from a previous build."""
-    Info('Cleaning up stale packages %s.' % package_array)
+    Info('Cleaning up stale packages %s.' % package_atoms)
     unmerge_board_cmd = ['emerge-%s' % board, '--unmerge']
-    unmerge_board_cmd.extend(package_array)
+    unmerge_board_cmd.extend(package_atoms)
     RunCommand(unmerge_board_cmd)
 
     unmerge_host_cmd = ['sudo', 'emerge', '--unmerge']
-    unmerge_host_cmd.extend(package_array)
+    unmerge_host_cmd.extend(package_atoms)
     RunCommand(unmerge_host_cmd)
 
     RunCommand(['eclean-%s' % board, '-d', 'packages'], redirect_stderr=True)
@@ -252,7 +252,7 @@ def PushChange(stable_branch, tracking_branch):
   merge_branch_name = 'merge_branch'
   for push_try in range(num_retries + 1):
     try:
-      _SimpleRunCommand('git remote update')
+      _SimpleRunCommand('repo sync .')
       merge_branch = GitBranch(merge_branch_name, tracking_branch)
       merge_branch.CreateBranch()
       if not merge_branch.Exists():
@@ -319,15 +319,15 @@ class EBuild(object):
     """Sets up data about an ebuild from its path."""
     from portage.versions import pkgsplit
     unused_path, self.category, self.pkgname, filename = path.rsplit('/', 3)
-    unused_pkgname, version_no_rev, rev = pkgsplit(
+    unused_pkgname, self.version_no_rev, rev = pkgsplit(
         filename.replace('.ebuild', ''))
 
     self.ebuild_path_no_version = os.path.join(
         os.path.dirname(path), self.pkgname)
     self.ebuild_path_no_revision = '%s-%s' % (self.ebuild_path_no_version,
-                                              version_no_rev)
+                                              self.version_no_rev)
     self.current_revision = int(rev.replace('r', ''))
-    self.version = '%s-%s' % (version_no_rev, rev)
+    self.version = '%s-%s' % (self.version_no_rev, rev)
     self.package = '%s/%s' % (self.category, self.pkgname)
     self.ebuild_path = path
 
@@ -454,17 +454,19 @@ class EBuildStableMarker(object):
         OSError: Error occurred while creating a new ebuild.
         IOError: Error occurred while writing to the new revved ebuild file.
     Returns:
-      True if the revved package is different than the old ebuild.
+      If the revved package is different than the old ebuild, return the full
+      revved package name, including the version number. Otherwise, return None.
     """
     if self._ebuild.is_stable:
-      new_stable_ebuild_path = '%s-r%d.ebuild' % (
-          self._ebuild.ebuild_path_no_revision,
-          self._ebuild.current_revision + 1)
+      stable_version_no_rev = self._ebuild.version_no_rev
     else:
       # If given unstable ebuild, use 0.0.1 rather than 9999.
-      new_stable_ebuild_path = '%s-0.0.1-r%d.ebuild' % (
-          self._ebuild.ebuild_path_no_version,
-          self._ebuild.current_revision + 1)
+      stable_version_no_rev = '0.0.1'
+
+    new_version = '%s-r%d' % (stable_version_no_rev,
+                              self._ebuild.current_revision + 1)
+    new_stable_ebuild_path = '%s-%s.ebuild' % (
+        self._ebuild.ebuild_path_no_version, new_version)
 
     _Print('Creating new stable ebuild %s' % new_stable_ebuild_path)
     unstable_ebuild_path = ('%s-9999.ebuild' %
@@ -480,7 +482,7 @@ class EBuildStableMarker(object):
     if 0 == RunCommand(diff_cmd, exit_code=True, redirect_stdout=True,
                        redirect_stderr=True, print_cmd=gflags.FLAGS.verbose):
       os.unlink(new_stable_ebuild_path)
-      return False
+      return None
     else:
       _Print('Adding new stable ebuild to git')
       _SimpleRunCommand('git add %s' % new_stable_ebuild_path)
@@ -489,7 +491,7 @@ class EBuildStableMarker(object):
         _Print('Removing old ebuild from git')
         _SimpleRunCommand('git rm %s' % old_ebuild_path)
 
-      return True
+      return '%s-%s' % (self._ebuild.package, new_version)
 
   @classmethod
   def CommitChange(cls, message):
@@ -556,16 +558,18 @@ def main(argv):
 
       # Contains the array of packages we actually revved.
       revved_packages = []
+      new_package_atoms = []
       for ebuild in ebuilds:
         try:
           _Print('Working on %s' % ebuild.package)
           worker = EBuildStableMarker(ebuild)
           commit_id = ebuild.GetCommitId()
-          if worker.RevWorkOnEBuild(commit_id):
+          new_package = worker.RevWorkOnEBuild(commit_id)
+          if new_package:
             message = _GIT_COMMIT_MESSAGE % (ebuild.package, commit_id)
             worker.CommitChange(message)
             revved_packages.append(ebuild.package)
-
+            new_package_atoms.append('=%s' % new_package)
         except (OSError, IOError):
           Warning('Cannot rev %s\n' % ebuild.package,
                   'Note you will have to go into %s '
@@ -573,7 +577,7 @@ def main(argv):
           raise
 
       if revved_packages:
-        _CleanStalePackages(gflags.FLAGS.board, revved_packages)
+        _CleanStalePackages(gflags.FLAGS.board, new_package_atoms)
         if gflags.FLAGS.drop_file:
           fh = open(gflags.FLAGS.drop_file, 'w')
           fh.write(' '.join(revved_packages))

@@ -85,14 +85,14 @@ class AUTest(object):
     if self.use_delta_updates:
       try:
         self.source_image = src_image
-        self._UpdateImageReportError(image)
+        self._UpdateImageReportError(image, stateful_change)
       except:
         Warning('Delta update failed, disabling delta updates and retrying.')
         self.use_delta_updates = False
         self.source_image = ''
-        self._UpdateImageReportError(image)
+        self._UpdateImageReportError(image, stateful_change)
     else:
-      self._UpdateImageReportError(image)
+      self._UpdateImageReportError(image, stateful_change)
 
   def _UpdateImageReportError(self, image_path, stateful_change='old',
                               proxy_port=None):
@@ -125,8 +125,8 @@ class AUTest(object):
 
     self.PrepareBase(target_image_path)
 
-    # The devserver runs at port 8080 by default. We assume that here, and  
-    # start our proxy at 8081. We then tell our update tools to have the    
+    # The devserver runs at port 8080 by default. We assume that here, and
+    # start our proxy at 8081. We then tell our update tools to have the
     # client connect to 8081 instead of 8080.
     proxy_port = 8081
     proxy = cros_test_proxy.CrosTestProxy(port_in=proxy_port,
@@ -298,15 +298,15 @@ class AUTest(object):
 
     class InterruptionFilter(cros_test_proxy.Filter):
       """This filter causes the proxy to interrupt the download 3 times
-      
+
          It does this by closing the first three connections to transfer
-         2M total in the outbound connection after they transfer the 
+         2M total in the outbound connection after they transfer the
          2M.
       """
       def __init__(self):
         """Defines variable shared across all connections"""
         self.close_count = 0
-      
+
       def setup(self):
         """Called once at the start of each connection."""
         self.data_size = 0
@@ -321,9 +321,9 @@ class AUTest(object):
           if self.data_size > (2 * 1024 * 1024):
             self.close_count += 1
             return None
-        
+
         self.data_size += len(data)
-        return data 
+        return data
 
     self._AttemptUpdateWithFilter(InterruptionFilter())
 
@@ -332,7 +332,7 @@ class AUTest(object):
 
     class DelayedFilter(cros_test_proxy.Filter):
       """Causes intermittent delays in data transmission.
-      
+
          It does this by inserting 3 20 second delays when transmitting
          data after 2M has been sent.
       """
@@ -351,12 +351,22 @@ class AUTest(object):
           if self.data_size > (2 * 1024 * 1024):
             self.delay_count += 1
             time.sleep(20)
-        
-        self.data_size += len(data)
-        return data 
 
+        self.data_size += len(data)
+        return data
 
     self._AttemptUpdateWithFilter(DelayedFilter())
+
+  def SimpleTest(self):
+    """A simple update  that updates the target image to itself.
+
+    We explicitly don't use test prefix so that isn't run by default.  Can be
+    run using test_prefix option.
+    """
+    self.PrepareBase(target_image_path)
+    self.UpdateImage(target_image_path)
+    self.VerifyImage(100)
+
 
 class RealAUTest(unittest.TestCase, AUTest):
   """Test harness for updating real images."""
@@ -380,7 +390,7 @@ class RealAUTest(unittest.TestCase, AUTest):
           ]
 
     if proxy_port:
-      cmd.append('--proxy_port=%s' % proxy_port) 
+      cmd.append('--proxy_port=%s' % proxy_port)
 
     if self.verbose:
       try:
@@ -406,7 +416,7 @@ class RealAUTest(unittest.TestCase, AUTest):
           ]
 
     if proxy_port:
-      cmd.append('--proxy_port=%s' % proxy_port) 
+      cmd.append('--proxy_port=%s' % proxy_port)
 
     if self.verbose:
       try:
@@ -436,12 +446,10 @@ class VirtualAUTest(unittest.TestCase, AUTest):
     if os.path.exists(pid_file):
       Warning('Existing %s found.  Deleting and killing process' %
               pid_file)
-      pid = RunCommand(['sudo', 'cat', pid_file], redirect_stdout=True,
-                       enter_chroot=False)
-      if pid:
-        RunCommand(['sudo', 'kill', pid.strip()], error_ok=True,
-                   enter_chroot=False)
-        RunCommand(['sudo', 'rm', pid_file], enter_chroot=False)
+      RunCommand(['./cros_stop_vm', '--kvm_pid=%s' % pid_file],
+                 cwd=self.crosutilsbin)
+
+    assert not os.path.exists(pid_file)
 
   def setUp(self):
     """Unit test overriden method.  Is called before every test."""
@@ -491,7 +499,7 @@ class VirtualAUTest(unittest.TestCase, AUTest):
            ]
 
     if proxy_port:
-      cmd.append('--proxy_port=%s' % proxy_port) 
+      cmd.append('--proxy_port=%s' % proxy_port)
 
     if self.verbose:
       try:
@@ -524,7 +532,7 @@ class VirtualAUTest(unittest.TestCase, AUTest):
            ]
 
     if proxy_port:
-      cmd.append('--proxy_port=%s' % proxy_port) 
+      cmd.append('--proxy_port=%s' % proxy_port)
 
     if self.verbose:
       try:

@@ -41,7 +41,7 @@ if [ -n "${FLAGS_payload}" ]; then
 fi
 
 if [ -n "${FLAGS_proxy_port}" ]; then
-  IMAGE_ARGS="--proxy_port=${FLAGS_proxy_port}"
+  IMAGE_ARGS="${IMAGE_ARGS} --proxy_port=${FLAGS_proxy_port}"
 fi
 
 $(dirname $0)/../image_to_live.sh \

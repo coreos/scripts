@@ -74,10 +74,10 @@ def RepoSync(buildroot, retries=_DEFAULT_RETRIES):
       # The --trace option ensures that repo shows the output from git. This
       # is needed so that the buildbot can kill us if git is not making
       # progress.
+      RunCommand(['repo', '--trace', 'sync'], cwd=buildroot)
       RunCommand(['repo', 'forall', '-c', 'git', 'config',
                   'url.ssh://git@gitrw.chromium.org:9222.insteadof',
                   'http://git.chromium.org/git'], cwd=buildroot)
-      RunCommand(['repo', '--trace', 'sync'], cwd=buildroot)
       retries = 0
     except:
       retries -= 1
@@ -365,14 +365,6 @@ def _Build(buildroot, emptytree):
     cmd = ['./build_packages']
 
   RunCommand(cmd, cwd=cwd, enter_chroot=True)
-
-
-def _BuildChrome(buildroot, board, chrome_atom_to_build):
-  """Wrapper for emerge call to build Chrome."""
-  cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['emerge-%s' % board,
-              '=%s' % chrome_atom_to_build],
-             cwd=cwd, enter_chroot=True)
 
 
 def _EnableLocalAccount(buildroot):
@@ -696,12 +688,7 @@ def main():
                      buildconfig['board'], rev_overlays)
 
     _EnableLocalAccount(buildroot)
-    # Doesn't rebuild without acquiring more source.
-    if options.sync:
-      _Build(buildroot, emptytree)
-
-    if chrome_atom_to_build:
-      _BuildChrome(buildroot, buildconfig['board'], chrome_atom_to_build)
+    _Build(buildroot, emptytree)
 
     if buildconfig['unittests'] and options.tests:
       _RunUnitTests(buildroot)

@@ -264,9 +264,12 @@ def MarkChromeEBuildAsStable(stable_candidate, unstable_ebuild, chrome_rev,
 
     new_ebuild_path = base_path + ('%s-r1.ebuild' % portage_suffix)
 
+  # Mark latest release and sticky branches as stable.
+  mark_stable = chrome_rev != TIP_OF_TRUNK
+
   cros_mark_as_stable.EBuildStableMarker.MarkAsStable(
       unstable_ebuild.ebuild_path, new_ebuild_path, 'CROS_SVN_COMMIT', commit,
-      make_stable=False)
+      make_stable=mark_stable)
   new_ebuild = ChromeEBuild(new_ebuild_path)
   if stable_candidate and (
       stable_candidate.chrome_version == new_ebuild.chrome_version):
@@ -321,11 +324,20 @@ def main():
     commit_to_use = _GetTipOfTrunkSvnRevision()
   elif chrome_rev == LATEST_RELEASE:
     version_to_uprev = _GetLatestRelease()
+    # Don't rev on stable branch for latest_release.
+    if re.match('%s\.\d+' % sticky_branch, version_to_uprev):
+      Info('Latest release is sticky branch.  Nothing to do.')
+      return
   else:
     version_to_uprev = _GetLatestRelease(sticky_branch)
 
   stable_candidate = FindChromeUprevCandidate(stable_ebuilds, chrome_rev,
                                               sticky_branch)
+
+  if stable_candidate:
+    Info('Stable candidate found %s' % stable_candidate)
+  else:
+    Info('No stable candidate found.')
 
   os.chdir(overlay_dir)
   work_branch = cros_mark_as_stable.GitBranch(

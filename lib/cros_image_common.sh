@@ -168,3 +168,23 @@ image_umount_partition() {
 
   umount -d "$mount_point"
 }
+
+# Copy a partition from one image to another.
+image_partition_copy() {
+  local src="$1"
+  local srcpart="$2"
+  local dst="$3"
+  local dstpart="$4"
+
+  local srcoffset=$(image_part_offset "${src}" "${srcpart}")
+  local dstoffset=$(image_part_offset "${dst}" "${dstpart}")
+  local length=$(image_part_size "${src}" "${srcpart}")
+  local dstlength=$(image_part_size "${dst}" "${dstpart}")
+
+  if [ "${length}" -gt  "${dstlength}" ]; then
+    exit 1
+  fi
+
+  image_dump_partition "${src}" "${srcpart}" |
+      dd of="${dst}" bs=512 seek="${dstoffset}" conv=notrunc
+}

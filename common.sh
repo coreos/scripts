@@ -129,21 +129,59 @@ CHROOT_TRUNK_DIR="/home/$USER/trunk"
 
 # Install make for portage ebuilds.  Used by build_image and gmergefs.
 # TODO: Is /usr/local/autotest-chrome still used by anyone?
-DEFAULT_INSTALL_MASK="/usr/include /usr/man /usr/share/man /usr/share/doc \
-  /usr/share/gtk-doc /usr/share/gtk-2.0 /usr/lib/gtk-2.0/include \
-  /usr/share/info /usr/share/aclocal /usr/lib/gcc /usr/lib/pkgconfig \
-  /usr/share/pkgconfig /usr/share/gettext /usr/share/readline /etc/runlevels \
-  /usr/share/openrc /lib/rc *.a *.la /etc/init.d /usr/lib/debug
-  /usr/local/autotest /usr/local/autotest-chrome"
+DEFAULT_INSTALL_MASK="
+  *.a
+  *.la
+  /etc/init.d
+  /etc/runlevels
+  /lib/rc
+  /usr/bin/Xnest
+  /usr/bin/Xvfb
+  /usr/include
+  /usr/lib/debug
+  /usr/lib/gcc
+  /usr/lib/gtk-2.0/include
+  /usr/lib/pkgconfig
+  /usr/local/autotest
+  /usr/local/autotest-chrome
+  /usr/man
+  /usr/share/aclocal
+  /usr/share/doc
+  /usr/share/gettext
+  /usr/share/gtk-2.0
+  /usr/share/gtk-doc
+  /usr/share/info
+  /usr/share/man
+  /usr/share/openrc
+  /usr/share/pkgconfig
+  /usr/share/readline
+  "
 
-FACTORY_INSTALL_MASK="/opt/google/chrome /opt/google/o3d /opt/netscape \
-  /opt/google/talkplugin /opt/Qualcomm /opt/Synaptics \
-  /usr/lib/dri /usr/lib/python2.6/test \
-  /usr/share/chewing /usr/share/fonts \
-  /usr/share/ibus-pinyin /usr/share/libhangul /usr/share/locale \
-  /usr/share/m17n /usr/share/mime /usr/share/sounds /usr/share/tts \
-  /usr/share/X11 /usr/share/zoneinfo /usr/lib/debug
-  /usr/local/autotest /usr/local/autotest-chrome /usr/local/autotest-pkgs"
+FACTORY_INSTALL_MASK="
+  /opt/Qualcomm
+  /opt/Synaptics
+  /opt/google/chrome
+  /opt/google/o3d
+  /opt/google/talkplugin
+  /opt/netscape
+  /usr/lib/debug
+  /usr/lib/dri
+  /usr/lib/python2.6/test
+  /usr/local/autotest
+  /usr/local/autotest-chrome
+  /usr/local/autotest-pkgs
+  /usr/share/X11
+  /usr/share/chewing
+  /usr/share/fonts
+  /usr/share/ibus-pinyin
+  /usr/share/libhangul
+  /usr/share/locale
+  /usr/share/m17n
+  /usr/share/mime
+  /usr/share/sounds
+  /usr/share/tts
+  /usr/share/zoneinfo
+  "
 
 # Check to ensure not running old scripts
 V_REVERSE='[7m'
@@ -234,12 +272,9 @@ function restart_in_chroot_if_needed {
   # NB:  Pass in ARGV:  restart_in_chroot_if_needed "$@"
   if [ $INSIDE_CHROOT -ne 1 ]
   then
-    local abspath=$(readlink -f "$0")
-    # strip everything up to (and including) /src/scripts/ from abspath
-    local path_from_scripts="${abspath##*/src/scripts/}"
+    # Equivalent to enter_chroot.sh -- <current command>
     exec $SCRIPTS_DIR/enter_chroot.sh -- \
-      "$CHROOT_TRUNK_DIR/src/scripts/$path_from_scripts" "$@"
-    exit
+      $CHROOT_TRUNK_DIR/src/scripts/$(basename $0) "$@"
   fi
 }
 

@@ -22,6 +22,7 @@ from cros_build_lib import RunCommand
 from cros_build_lib import Warning
 
 _IMAGE_TO_EXTRACT = 'chromiumos_test_image.bin'
+_NEW_STYLE_VERSION = '0.9.131.0'
 
 class HTMLDirectoryParser(HTMLParser.HTMLParser):
   """HTMLParser for parsing the default apache file index."""
@@ -216,6 +217,13 @@ def GrabZipAndExtractImage(zip_url, download_folder, image_name) :
     fh.write(zip_url)
     fh.close()
 
+  version = zip_url.split('/')[-2]
+  if not _GreaterVersion(version, _NEW_STYLE_VERSION) == version:
+    # If the version isn't ready for new style, touch file to use old style.
+    old_style_touch_path = os.path.join(download_folder, '.use_e1000')
+    fh = open(old_style_touch_path, 'w+')
+    fh.close()
+
 
 def RunAUTestHarness(board, channel, latest_url_base, zip_server_base,
                      no_graphics, type, remote):
@@ -299,9 +307,5 @@ def main():
 
 
 if __name__ == '__main__':
-  try:
-    main()
-  except Exception:
-    print "Got exception."
-    traceback.print_exc(file=sys.stdout)
+  main()
 

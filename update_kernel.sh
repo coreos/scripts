@@ -14,6 +14,8 @@
 
 DEFINE_string board "" "Override board reported by target"
 DEFINE_string partition "" "Override kernel partition reported by target"
+DEFINE_boolean modules false "Update modules on target"
+DEFINE_boolean firmware false "Update firmware on target"
 
 function cleanup {
   cleanup_remote_access
@@ -73,6 +75,28 @@ function main() {
   remote_cp_to new_kern.bin /tmp
 
   remote_sh dd if=/tmp/new_kern.bin of="${FLAGS_partition}"
+
+  if [[ ${FLAGS_modules} -eq ${FLAGS_TRUE} ]]; then
+    echo "copying modules"
+    cmd="tar -C /build/${FLAGS_board}/lib/modules -cjf new_modules.tar ."
+    ./enter_chroot.sh -- ${cmd}
+
+    remote_cp_to new_modules.tar /tmp/
+
+    remote_sh mount -o remount,rw /
+    remote_sh tar -C /lib/modules -xjf /tmp/new_modules.tar
+  fi
+
+  if [[ ${FLAGS_firmware} -eq ${FLAGS_TRUE} ]]; then
+    echo "copying firmware"
+    cmd="tar -C /build/${FLAGS_board}/lib/firmware -cjf new_firmware.tar ."
+    ./enter_chroot.sh -- ${cmd}
+
+    remote_cp_to new_firmware.tar /tmp/
+
+    remote_sh mount -o remount,rw /
+    remote_sh tar -C /lib/firmware -xjf /tmp/new_firmware.tar
+  fi
 
   remote_reboot
 

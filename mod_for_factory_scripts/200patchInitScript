@@ -20,8 +20,8 @@ patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
 diff -Naur old/etc/init/boot-complete.conf new/etc/init/boot-complete.conf
 --- old/etc/init/boot-complete.conf	2010-07-21 11:22:30.000000000 +0800
 +++ new/etc/init/boot-complete.conf	2010-07-21 22:13:36.000000000 +0800
-@@ -7 +7 @@
--start on login-prompt-ready
+@@ -15 +15 @@
+-start on login-prompt-visible
 +start on started udev
 EOF
 
@@ -31,7 +31,7 @@ cat >"${ROOT_FS_DIR}/etc/init/factory.conf" <<EOF
 # found in the LICENSE file.
 
 description   "Chrome OS factory startup stub"
-author        "chromium-os-dev@googlegroups.com"
+author        "chromium-os-dev@chromium.org"
 
 start on stopped udev-addon
 stop on starting halt or starting reboot
@@ -54,6 +54,9 @@ cat >"${ROOT_FS_DIR}/etc/init/factorylog.conf" <<EOF
 # Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
+
+description   "Print Chrome OS factory log to tty3"
+author        "chromium-os-dev@chromium.org"
 
 start on started factory
 stop on starting halt or starting reboot
