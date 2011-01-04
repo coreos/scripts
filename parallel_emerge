@@ -748,15 +748,13 @@ class DepGraphGenerator(object):
         try:
           return urllib2.urlopen(url)
         except urllib2.HTTPError as e:
+          print "Cannot GET %s: %s" % (url, str(e))
           if i + 1 >= tries or e.code < 500:
             raise
-          else:
-            print "Cannot GET %s: %s" % (url, str(e))
         except urllib2.URLError as e:
+          print "Cannot GET %s: %s" % (url, str(e))
           if i + 1 >= tries:
             raise
-          else:
-            print "Cannot GET %s: %s" % (url, str(e))
         print "Sleeping for 10 seconds before retrying..."
         time.sleep(10)
 
@@ -1835,7 +1833,11 @@ def main():
   remote_pkgs = {}
   if "--getbinpkg" in emerge.opts:
     binhost = emerge.settings["PORTAGE_BINHOST"]
-    remote_pkgs = deps.RemotePackageDatabase(binhost)
+    try:
+      remote_pkgs = deps.RemotePackageDatabase(binhost)
+    except (urllib2.HTTPError, urllib2.URLError):
+      print "Cannot resolve binhost. Building from source..."
+      del emerge.opts["--getbinpkg"]
 
   deps_tree, deps_info = deps.GenDependencyTree(remote_pkgs)
 
