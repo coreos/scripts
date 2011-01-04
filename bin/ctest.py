@@ -307,9 +307,5 @@ def main():
 
 
 if __name__ == '__main__':
-  try:
-    main()
-  except Exception:
-    print "Got exception."
-    traceback.print_exc(file=sys.stdout)
+  main()
 
