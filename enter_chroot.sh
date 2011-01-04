@@ -142,6 +142,7 @@ function setup_env {
       then
         mkdir -p "${TARGET_DIR}"
         cp -r "${HOME}/.ssh/known_hosts" "${TARGET_DIR}"
+        cp -r "${HOME}/.ssh/config" "${TARGET_DIR}"
         ASOCK="$(dirname "${SSH_AUTH_SOCK}")"
         mkdir -p "${FLAGS_chroot}/${ASOCK}"
         sudo mount --bind "${ASOCK}" "${FLAGS_chroot}/${ASOCK}" || \
