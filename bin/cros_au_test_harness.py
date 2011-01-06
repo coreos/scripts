@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -23,29 +23,16 @@ from cros_build_lib import Warning
 
 import cros_test_proxy
 
-# VM Constants.
-_FULL_VDISK_SIZE = 6072
-_FULL_STATEFULFS_SIZE = 3074
-_KVM_PID_FILE = '/tmp/harness_pid'
-_VERIFY_SUITE = 'suite_Smoke'
-
-# Globals to communicate options to unit tests.
-global base_image_path
-global board
-global remote
-global target_image_path
-global vm_graphics_flag
 
 class UpdateException(Exception):
-  """Exception thrown when UpdateImage or UpdateUsingPayload fail"""
+  """Exception thrown when _UpdateImage or _UpdateUsingPayload fail"""
   def __init__(self, code, stdout):
     self.code = code
     self.stdout = stdout
 
+
 class AUTest(object):
   """Abstract interface that defines an Auto Update test."""
-  source_image = ''
-  use_delta_updates = False
   verbose = False
 
   def setUp(self):
@@ -57,6 +44,8 @@ class AUTest(object):
     if not os.path.exists(self.download_folder):
       os.makedirs(self.download_folder)
 
+  # -------- Helper functions ---------
+
   def GetStatefulChangeFlag(self, stateful_change):
     """Returns the flag to pass to image_to_vm for the stateful change."""
     stateful_change_flag = ''
@@ -65,7 +54,7 @@ class AUTest(object):
 
     return stateful_change_flag
 
-  def ParseGenerateTestReportOutput(self, output):
+  def _ParseGenerateTestReportOutput(self, output):
     """Returns the percentage of tests that passed based on output."""
     percent_passed = 0
     lines = output.split('\n')
@@ -79,38 +68,60 @@ class AUTest(object):
 
     return int(percent_passed)
 
-  # TODO(sosa) - Remove try and convert function to DeltaUpdateImage().
-  def TryDeltaAndFallbackToFull(self, src_image, image, stateful_change='old'):
-    """Tries the delta update first if set and falls back to full update."""
-    if self.use_delta_updates:
-      try:
-        self.source_image = src_image
-        self._UpdateImageReportError(image, stateful_change)
-      except:
-        Warning('Delta update failed, disabling delta updates and retrying.')
-        self.use_delta_updates = False
-        self.source_image = ''
-        self._UpdateImageReportError(image, stateful_change)
-    else:
-      self._UpdateImageReportError(image, stateful_change)
+  def AssertEnoughTestsPassed(self, unittest, output, percent_required_to_pass):
+    """Helper function that asserts a sufficient number of tests passed.
 
-  def _UpdateImageReportError(self, image_path, stateful_change='old',
-                              proxy_port=None):
-    """Calls UpdateImage and reports any error to the console.
+    Args:
+      unittest: Handle to the unittest.
+      output: stdout from a test run.
+      percent_required_to_pass: percentage required to pass.  This should be
+        fall between 0-100.
+    Returns:
+      percent that passed.
+    """
+    Info('Output from VerifyImage():')
+    print >> sys.stderr, output
+    sys.stderr.flush()
+    percent_passed = self._ParseGenerateTestReportOutput(output)
+    Info('Percent passed: %d vs. Percent required: %d' % (
+        percent_passed, percent_required_to_pass))
+    unittest.assertTrue(percent_passed >= percent_required_to_pass)
+    return percent_passed
 
-       Still throws the exception.
+  def PerformUpdate(self, image_path, src_image_path='', stateful_change='old',
+                    proxy_port=None):
+    """Performs an update using  _UpdateImage and reports any error.
+
+    Subclasses should not override this method but override _UpdateImage
+    instead.
+
+    Args:
+      image_path:  Path to the image to update with.  This image must be a test
+        image.
+      src_image_path:  Optional.  If set, perform a delta update using the
+        image specified by the path as the source image.
+      stateful_change: How to modify the stateful partition.  Values are:
+          'old':  Don't modify stateful partition.  Just update normally.
+          'clean':  Uses clobber-state to wipe the stateful partition with the
+            exception of code needed for ssh.
+      proxy_port:  Port to have the client connect to. For use with
+        CrosTestProxy.
+    Raises an UpdateException if _UpdateImage returns an error.
     """
     try:
-      self.UpdateImage(image_path, stateful_change, proxy_port)
+      if not self.use_delta_updates:
+        src_image_path = ''
+
+      self._UpdateImage(image_path, src_image_path, stateful_change, proxy_port)
     except UpdateException as err:
       # If the update fails, print it out
       Warning(err.stdout)
       raise
 
-  def _AttemptUpdateWithPayloadExpectedFailure(self, payload, expected_msg):
+  def AttemptUpdateWithPayloadExpectedFailure(self, payload, expected_msg):
     """Attempt a payload update, expect it to fail with expected log"""
     try:
-      self.UpdateUsingPayload(payload)
+      self._UpdateUsingPayload(payload)
     except UpdateException as err:
       # Will raise ValueError if expected is not found.
       if re.search(re.escape(expected_msg), err.stdout, re.MULTILINE):
@@ -120,10 +131,10 @@ class AUTest(object):
     Warning(err.stdout)
     self.fail('We managed to update when failure was expected')
 
-  def _AttemptUpdateWithFilter(self, filter):
+  def AttemptUpdateWithFilter(self, filter):
     """Update through a proxy, with a specified filter, and expect success."""
 
-    self.PrepareBase(target_image_path)
+    self.PrepareBase(self.target_image_path)
 
     # The devserver runs at port 8080 by default. We assume that here, and
     # start our proxy at 8081. We then tell our update tools to have the
@@ -137,34 +148,58 @@ class AUTest(object):
 
     # This update is expected to fail...
     try:
-      self._UpdateImageReportError(target_image_path, proxy_port=proxy_port)
+      self.PerformUpdate(self.target_image_path, proxy_port=proxy_port)
     finally:
       proxy.shutdown()
+
+  # -------- Functions that subclasses should override ---------
+
+  @classmethod
+  def ProcessOptions(cls, parser, options):
+    """Processes options.
+
+    Static method that should be called from main.  Subclasses should also
+    call their parent method if they override it.
+    """
+    cls.verbose = options.verbose
+    cls.base_image_path = options.base_image
+    cls.target_image_path = options.target_image
+    cls.use_delta_updates = options.delta
+    if options.quick_test:
+      cls.verify_suite = 'build_RootFilesystemSize'
+    else:
+      cls.verify_suite = 'suite_Smoke'
+
+    # Sanity checks.
+    if not cls.base_image_path:
+      parser.error('Need path to base image for vm.')
+    elif not os.path.exists(cls.base_image_path):
+      Die('%s does not exist' % cls.base_image_path)
+
+    if not cls.target_image_path:
+      parser.error('Need path to target image to update with.')
+    elif not os.path.exists(cls.target_image_path):
+      Die('%s does not exist' % cls.target_image_path)
 
   def PrepareBase(self, image_path):
     """Prepares target with base_image_path."""
     pass
 
-  def UpdateImage(self, image_path, stateful_change='old', proxy_port=None):
-    """Updates target with the image given by the image_path.
+  def _UpdateImage(self, image_path, src_image_path='', stateful_change='old',
+                   proxy_port=None):
+    """Implementation of an actual update.
 
-    Args:
-      image_path:  Path to the image to update with.  This image must be a test
-        image.
-      stateful_change: How to modify the stateful partition.  Values are:
-          'old':  Don't modify stateful partition.  Just update normally.
-          'clean':  Uses clobber-state to wipe the stateful partition with the
-            exception of code needed for ssh.
-      proxy_port:  Port to have the client connect to. For use with
-        CrosTestProxy.
+    See PerformUpdate for description of args.  Subclasses must override this
+    method with the correct update procedure for the class.
     """
     pass
 
-  def UpdateUsingPayload(self,
-                         update_path,
-                         stateful_change='old',
+  def _UpdateUsingPayload(self, update_path, stateful_change='old',
                          proxy_port=None):
-    """Updates target with the pre-generated update stored in update_path
+    """Updates target with the pre-generated update stored in update_path.
+
+    Subclasses must override this method with the correct update procedure for
+    the class.
 
     Args:
       update_path:  Path to the image to update with. This directory should
@@ -177,7 +212,8 @@ class AUTest(object):
   def VerifyImage(self, percent_required_to_pass):
     """Verifies the image with tests.
 
-    Verifies that the test images passes the percent required.
+    Verifies that the test images passes the percent required.  Subclasses must
+    override this method with the correct update procedure for the class.
 
     Args:
       percent_required_to_pass:  percentage required to pass.  This should be
@@ -188,29 +224,7 @@ class AUTest(object):
     """
     pass
 
-  def CommonVerifyImage(self, unittest, output, percent_required_to_pass):
-    """Helper function for VerifyImage that returns percent of tests passed.
-
-    Takes output from a test suite, verifies the number of tests passed is
-    sufficient and outputs info.
-
-    Args:
-      unittest: Handle to the unittest.
-      output: stdout from a test run.
-      percent_required_to_pass: percentage required to pass.  This should be
-        fall between 0-100.
-    Returns:
-      percent that passed.
-    """
-    Info('Output from VerifyImage():')
-    print >> sys.stderr, output
-    sys.stderr.flush()
-    percent_passed = self.ParseGenerateTestReportOutput(output)
-    Info('Percent passed: %d vs. Percent required: %d' % (
-        percent_passed, percent_required_to_pass))
-    unittest.assertTrue(percent_passed >=
-                        percent_required_to_pass)
-    return percent_passed
+  # -------- Tests ---------
 
   def testFullUpdateKeepStateful(self):
     """Tests if we can update normally.
@@ -220,19 +234,19 @@ class AUTest(object):
     """
     # Just make sure some tests pass on original image.  Some old images
     # don't pass many tests.
-    self.PrepareBase(base_image_path)
+    self.PrepareBase(self.base_image_path)
     # TODO(sosa): move to 100% once we start testing using the autotest paired
     # with the dev channel.
     percent_passed = self.VerifyImage(10)
 
     # Update to - all tests should pass on new image.
     Info('Updating from base image on vm to target image.')
-    self.TryDeltaAndFallbackToFull(base_image_path, target_image_path)
+    self.PerformUpdate(self.base_image_path, self.target_image_path)
     self.VerifyImage(100)
 
     # Update from - same percentage should pass that originally passed.
     Info('Updating from updated image on vm back to base image.')
-    self.TryDeltaAndFallbackToFull(target_image_path, base_image_path)
+    self.PerformUpdate(self.target_image_path, self.base_image_path)
     self.VerifyImage(percent_passed)
 
   def testFullUpdateWipeStateful(self):
@@ -243,25 +257,25 @@ class AUTest(object):
     """
     # Just make sure some tests pass on original image.  Some old images
     # don't pass many tests.
-    self.PrepareBase(base_image_path)
+    self.PrepareBase(self.base_image_path)
     # TODO(sosa): move to 100% once we start testing using the autotest paired
     # with the dev channel.
     percent_passed = self.VerifyImage(10)
 
     # Update to - all tests should pass on new image.
     Info('Updating from base image on vm to target image and wiping stateful.')
-    self.TryDeltaAndFallbackToFull(base_image_path, target_image_path, 'clean')
+    self.PerformUpdate(self.base_image_path, self.target_image_path, 'clean')
     self.VerifyImage(100)
 
     # Update from - same percentage should pass that originally passed.
     Info('Updating from updated image back to base image and wiping stateful.')
-    self.TryDeltaAndFallbackToFull(target_image_path, base_image_path, 'clean')
+    self.PerformUpdate(self.target_image_path, self.base_image_path, 'clean')
     self.VerifyImage(percent_passed)
 
   def testPartialUpdate(self):
     """Tests what happens if we attempt to update with a truncated payload."""
     # Preload with the version we are trying to test.
-    self.PrepareBase(target_image_path)
+    self.PrepareBase(self.target_image_path)
 
     # Image can be updated at:
     # ~chrome-eng/chromeos/localmirror/autest-images
@@ -273,12 +287,12 @@ class AUTest(object):
     urllib.urlretrieve(url, payload)
 
     expected_msg = 'download_hash_data == update_check_response_hash failed'
-    self._AttemptUpdateWithPayloadExpectedFailure(payload, expected_msg)
+    self.AttemptUpdateWithPayloadExpectedFailure(payload, expected_msg)
 
   def testCorruptedUpdate(self):
     """Tests what happens if we attempt to update with a corrupted payload."""
     # Preload with the version we are trying to test.
-    self.PrepareBase(target_image_path)
+    self.PrepareBase(self.target_image_path)
 
     # Image can be updated at:
     # ~chrome-eng/chromeos/localmirror/autest-images
@@ -291,7 +305,7 @@ class AUTest(object):
 
     # This update is expected to fail...
     expected_msg = 'zlib inflate() error:-3'
-    self._AttemptUpdateWithPayloadExpectedFailure(payload, expected_msg)
+    self.AttemptUpdateWithPayloadExpectedFailure(payload, expected_msg)
 
   def testInterruptedUpdate(self):
     """Tests what happens if we interrupt payload delivery 3 times."""
@@ -325,7 +339,7 @@ class AUTest(object):
         self.data_size += len(data)
         return data
 
-    self._AttemptUpdateWithFilter(InterruptionFilter())
+    self.AttemptUpdateWithFilter(InterruptionFilter())
 
   def testDelayedUpdate(self):
     """Tests what happens if some data is delayed during update delivery"""
@@ -355,7 +369,7 @@ class AUTest(object):
         self.data_size += len(data)
         return data
 
-    self._AttemptUpdateWithFilter(DelayedFilter())
+    self.AttemptUpdateWithFilter(DelayedFilter())
 
   def SimpleTest(self):
     """A simple update  that updates the target image to itself.
@@ -363,8 +377,8 @@ class AUTest(object):
     We explicitly don't use test prefix so that isn't run by default.  Can be
     run using test_prefix option.
     """
-    self.PrepareBase(target_image_path)
-    self.UpdateImage(target_image_path)
+    self.PrepareBase(self.target_image_path)
+    self._UpdateImage(self.target_image_path)
     self.VerifyImage(100)
 
 
@@ -374,19 +388,29 @@ class RealAUTest(unittest.TestCase, AUTest):
   def setUp(self):
     AUTest.setUp(self)
 
+  @classmethod
+  def ProcessOptions(cls, parser, options):
+    """Processes non-vm-specific options."""
+    AUTest.ProcessOptions(parser, options)
+    cls.remote = options.remote
+
+    if not cls.remote:
+      parser.error('We require a remote address for real tests.')
+
   def PrepareBase(self, image_path):
     """Auto-update to base image to prepare for test."""
-    self._UpdateImageReportError(image_path)
+    self.PerformUpdate(image_path)
 
-  def UpdateImage(self, image_path, stateful_change='old', proxy_port=None):
+  def _UpdateImage(self, image_path, src_image_path='', stateful_change='old',
+                   proxy_port=None):
     """Updates a remote image using image_to_live.sh."""
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
     cmd = ['%s/image_to_live.sh' % self.crosutils,
            '--image=%s' % image_path,
-           '--remote=%s' % remote,
+           '--remote=%s' % self.remote,
            stateful_change_flag,
            '--verify',
-           '--src_image=%s' % self.source_image
+           '--src_image=%s' % src_image_path
           ]
 
     if proxy_port:
@@ -402,15 +426,13 @@ class RealAUTest(unittest.TestCase, AUTest):
       if code != 0:
         raise UpdateException(code, stdout)
 
-  def UpdateUsingPayload(self,
-                         update_path,
-                         stateful_change='old',
+  def _UpdateUsingPayload(self, update_path, stateful_change='old',
                          proxy_port=None):
     """Updates a remote image using image_to_live.sh."""
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
     cmd = ['%s/image_to_live.sh' % self.crosutils,
            '--payload=%s' % update_path,
-           '--remote=%s' % remote,
+           '--remote=%s' % self.remote,
            stateful_change_flag,
            '--verify',
           ]
@@ -432,15 +454,20 @@ class RealAUTest(unittest.TestCase, AUTest):
     """Verifies an image using run_remote_tests.sh with verification suite."""
     output = RunCommand([
         '%s/run_remote_tests.sh' % self.crosutils,
-        '--remote=%s' % remote,
-        _VERIFY_SUITE,
+        '--remote=%s' % self.remote,
+        self.verify_suite,
        ], error_ok=True, enter_chroot=False, redirect_stdout=True)
-    return self.CommonVerifyImage(self, output, percent_required_to_pass)
+    return self.AssertEnoughTestsPassed(self, output, percent_required_to_pass)
 
 
 class VirtualAUTest(unittest.TestCase, AUTest):
   """Test harness for updating virtual machines."""
   vm_image_path = None
+
+  # VM Constants.
+  _FULL_VDISK_SIZE = 6072
+  _FULL_STATEFULFS_SIZE = 3074
+  _KVM_PID_FILE = '/tmp/harness_pid'
 
   def _KillExistingVM(self, pid_file):
     if os.path.exists(pid_file):
@@ -454,7 +481,20 @@ class VirtualAUTest(unittest.TestCase, AUTest):
   def setUp(self):
     """Unit test overriden method.  Is called before every test."""
     AUTest.setUp(self)
-    self._KillExistingVM(_KVM_PID_FILE)
+    self._KillExistingVM(self._KVM_PID_FILE)
+
+  @classmethod
+  def ProcessOptions(cls, parser, options):
+    """Processes vm-specific options."""
+    AUTest.ProcessOptions(parser, options)
+    cls.board = options.board
+
+    # Communicate flags to tests.
+    cls.graphics_flag = ''
+    if options.no_graphics: cls.graphics_flag = '--no_graphics'
+
+    if not cls.board:
+      parser.error('Need board to convert base image to vm.')
 
   def PrepareBase(self, image_path):
     """Creates an update-able VM based on base image."""
@@ -469,33 +509,32 @@ class VirtualAUTest(unittest.TestCase, AUTest):
                   '--full',
                   '--from=%s' % ReinterpretPathForChroot(
                       os.path.dirname(image_path)),
-                  '--vdisk_size=%s' % _FULL_VDISK_SIZE,
-                  '--statefulfs_size=%s' % _FULL_STATEFULFS_SIZE,
-                  '--board=%s' % board,
+                  '--vdisk_size=%s' % self._FULL_VDISK_SIZE,
+                  '--statefulfs_size=%s' % self._FULL_STATEFULFS_SIZE,
+                  '--board=%s' % self.board,
                   '--test_image'], enter_chroot=True)
     else:
       Info('Using existing VM image %s' % self.vm_image_path)
 
-
     Info('Testing for %s' % self.vm_image_path)
-
     self.assertTrue(os.path.exists(self.vm_image_path))
 
-  def UpdateImage(self, image_path, stateful_change='old', proxy_port=None):
+  def _UpdateImage(self, image_path, src_image_path='', stateful_change='old',
+                   proxy_port=None):
     """Updates VM image with image_path."""
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
-    if self.source_image == base_image_path:
-      self.source_image = self.vm_image_path
+    if src_image_path == self.base_image_path:
+      src_image_path = self.vm_image_path
 
     cmd = ['%s/cros_run_vm_update' % self.crosutilsbin,
            '--update_image_path=%s' % image_path,
            '--vm_image_path=%s' % self.vm_image_path,
            '--snapshot',
-           vm_graphics_flag,
+           self.graphics_flag,
            '--persist',
-           '--kvm_pid=%s' % _KVM_PID_FILE,
+           '--kvm_pid=%s' % self._KVM_PID_FILE,
            stateful_change_flag,
-           '--src_image=%s' % self.source_image,
+           '--src_image=%s' % src_image_path,
            ]
 
     if proxy_port:
@@ -511,24 +550,18 @@ class VirtualAUTest(unittest.TestCase, AUTest):
       if code != 0:
         raise UpdateException(code, stdout)
 
-  def UpdateUsingPayload(self,
-                         update_path,
-                         stateful_change='old',
+  def _UpdateUsingPayload(self, update_path, stateful_change='old',
                          proxy_port=None):
     """Updates a remote image using image_to_live.sh."""
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
-    if self.source_image == base_image_path:
-      self.source_image = self.vm_image_path
-
     cmd = ['%s/cros_run_vm_update' % self.crosutilsbin,
            '--payload=%s' % update_path,
            '--vm_image_path=%s' % self.vm_image_path,
            '--snapshot',
-           vm_graphics_flag,
+           self.graphics_flag,
            '--persist',
-           '--kvm_pid=%s' % _KVM_PID_FILE,
+           '--kvm_pid=%s' % self._KVM_PID_FILE,
            stateful_change_flag,
-           '--src_image=%s' % self.source_image,
            ]
 
     if proxy_port:
@@ -553,19 +586,19 @@ class VirtualAUTest(unittest.TestCase, AUTest):
                        '--image_path=%s' % self.vm_image_path,
                        '--snapshot',
                        '--persist',
-                       '--kvm_pid=%s' % _KVM_PID_FILE,
-                       _VERIFY_SUITE,
+                       '--kvm_pid=%s' % self._KVM_PID_FILE,
+                       self.verify_suite,
                        ]
 
-    if vm_graphics_flag:
-      commandWithArgs.append(vm_graphics_flag)
+    if self.graphics_flag:
+      commandWithArgs.append(self.graphics_flag)
 
     output = RunCommand(commandWithArgs, error_ok=True, enter_chroot=False,
                         redirect_stdout=True)
-    return self.CommonVerifyImage(self, output, percent_required_to_pass)
+    return self.AssertEnoughTestsPassed(self, output, percent_required_to_pass)
 
 
-if __name__ == '__main__':
+def main():
   parser = optparse.OptionParser()
   parser.add_option('-b', '--base_image',
                     help='path to the base image.')
@@ -590,47 +623,25 @@ if __name__ == '__main__':
   parser.add_option('--verbose', default=False, action='store_true',
                     help='Print out rather than capture output as much as '
                          'possible.')
-  # Set the usage to include flags.
-  parser.set_usage(parser.format_help())
-  # Parse existing sys.argv so we can pass rest to unittest.main.
-  (options, sys.argv) = parser.parse_args(sys.argv)
+  (options, leftover_args) = parser.parse_args()
 
-  AUTest.verbose = options.verbose
-  base_image_path = options.base_image
-  target_image_path = options.target_image
-  board = options.board
-
-  if not base_image_path:
-    parser.error('Need path to base image for vm.')
-  elif not os.path.exists(base_image_path):
-    Die('%s does not exist' % base_image_path)
-
-  if not target_image_path:
-    parser.error('Need path to target image to update with.')
-  elif not os.path.exists(target_image_path):
-    Die('%s does not exist' % target_image_path)
-
-  if not board:
-    parser.error('Need board to convert base image to vm.')
-
-  # Communicate flags to tests.
-  vm_graphics_flag = ''
-  if options.no_graphics: vm_graphics_flag = '--no_graphics'
-  if options.quick_test: _VERIFY_SUITE = 'build_RootFilesystemSize'
-  AUTest.use_delta_updates = options.delta
-
-  # Only run the test harness we care about.
-  test_loader = unittest.TestLoader()
-  test_loader.testMethodPrefix = options.test_prefix
+  if leftover_args:
+    parser.error('Found extra options we do not support: %s' % leftover_args)
 
   if options.type == 'vm':  test_class = VirtualAUTest
   elif options.type == 'real': test_class = RealAUTest
   else: parser.error('Could not parse harness type %s.' % options.type)
 
-  remote = options.remote
+  test_class.ProcessOptions(parser, options)
 
+  test_loader = unittest.TestLoader()
+  test_loader.testMethodPrefix = options.test_prefix
   test_suite = test_loader.loadTestsFromTestCase(test_class)
   test_result = unittest.TextTestRunner(verbosity=2).run(test_suite)
 
   if not test_result.wasSuccessful():
     Die('Test harness was not successful')
+
+
+if __name__ == '__main__':
+  main()
