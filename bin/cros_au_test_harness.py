@@ -358,12 +358,12 @@ class AUTest(object):
     self._AttemptUpdateWithFilter(DelayedFilter())
 
   def SimpleTest(self):
-    """A simple update  that updates the target image to itself.
+    """A simple update that updates once from a base image to a target.
 
     We explicitly don't use test prefix so that isn't run by default.  Can be
     run using test_prefix option.
     """
-    self.PrepareBase(target_image_path)
+    self.PrepareBase(base_image_path)
     self.UpdateImage(target_image_path)
     self.VerifyImage(100)
 

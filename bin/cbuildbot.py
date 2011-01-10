@@ -415,6 +415,22 @@ def _RunSmokeSuite(buildroot, results_dir):
               ], cwd=cwd, error_ok=False)
 
 
+def _RunAUTest(buildroot, board):
+  """Runs a basic update test from the au test harness."""
+  cwd = os.path.join(buildroot, 'src', 'scripts')
+  image_path = os.path.join(buildroot, 'src', 'build', 'images', board,
+                            'latest', 'chromiumos_test_image.bin')
+  RunCommand(['bin/cros_au_test_harness',
+              '--no_graphics',
+              '--no_delta',
+              '--board=%s' % board,
+              '--test_prefix=SimpleTest',
+              '--verbose',
+              '--base_image=%s' % image_path,
+              '--target_image=%s' % image_path,
+              ], cwd=cwd, error_ok=False)
+
+
 def _UprevPackages(buildroot, tracking_branch, revisionfile, board, overlays):
   """Uprevs a package based on given revisionfile.
 
@@ -695,15 +711,16 @@ def main():
 
     _BuildImage(buildroot)
 
-    if buildconfig['smoke_bvt'] and options.tests:
+    if buildconfig['tests'] and options.tests:
       _BuildVMImageForTesting(buildroot)
       test_results_dir = '/tmp/run_remote_tests.%s' % options.buildnumber
       try:
         _RunSmokeSuite(buildroot, test_results_dir)
+        _RunAUTest(buildroot, buildconfig['board'])
       finally:
         if not options.debug:
           archive_full_path = os.path.join(options.gsutil_archive,
-                                         str(options.buildnumber))
+                                           str(options.buildnumber))
           _ArchiveTestResults(buildroot, buildconfig['board'],
                               test_results_dir=test_results_dir,
                               gsutil=options.gsutil,
