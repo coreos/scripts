@@ -232,10 +232,12 @@ def _MarkChromeAsStable(buildroot, tracking_branch, chrome_rev, board):
     return None
   else:
     chrome_atom = portage_atom_string.split('=')[1]
+    keywords_file = CHROME_KEYWORDS_FILE % {'board': board}
     # TODO(sosa): Workaround to build unstable chrome ebuild we uprevved.
-    RunCommand(['sudo', 'tee', CHROME_KEYWORDS_FILE % {'board': board}],
-               input='=%s\n' % chrome_atom, enter_chroot=True,
-               cwd=cwd)
+    RunCommand(['sudo', 'mkdir', '-p', os.path.dirname(keywords_file)],
+               enter_chroot=True, cwd=cwd)
+    RunCommand(['sudo', 'tee', keywords_file], input='=%s\n' % chrome_atom,
+               enter_chroot=True, cwd=cwd)
     return chrome_atom
 
 
