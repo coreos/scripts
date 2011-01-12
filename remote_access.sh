@@ -34,8 +34,37 @@ function remote_sh() {
   return ${PIPESTATUS[0]}
 }
 
+# Checks to see if pid $1 is running.
+function is_pid_running() {
+  ps -p ${1} 2>&1 > /dev/null
+}
+
+# Wait function given an additional timeout argument.
+# $1 - pid to wait on.
+# $2 - timeout to wait for.
+function wait_with_timeout() {
+  local pid=$1
+  local timeout=$2
+  local -r TIMEOUT_INC=1
+  local current_timeout=0
+  while is_pid_running ${pid} && [ ${current_timeout} -lt ${timeout} ]; do
+    sleep ${TIMEOUT_INC}
+    current_timeout=$((current_timeout + TIMEOUT_INC))
+  done
+  is_pid_running ${pid}
+}
+
+# Robust ping that will monitor ssh and not hang even if ssh hangs.
+function ping_ssh() {
+  remote_sh "true" &
+  local pid=$!
+  wait_with_timeout ${pid} 5
+  ! kill -9 ${pid} 2> /dev/null
+}
+
 function remote_sh_allow_changed_host_key() {
   rm -f $TMP_KNOWN_HOSTS
+  ping_ssh
   remote_sh "$@"
 }
 
