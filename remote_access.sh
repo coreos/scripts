@@ -15,24 +15,22 @@ DEFINE_integer ssh_port 22 \
 
 # Copies $1 to $2 on remote host
 function remote_cp_to() {
-  REMOTE_OUT=$(scp -P ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY $1 \
-    root@$FLAGS_remote:$2)
+  REMOTE_OUT=$(scp -P ${FLAGS_ssh_port} -o StrictHostKeyChecking=no -o \
+    UserKnownHostsFile=$TMP_KNOWN_HOSTS $1 root@$FLAGS_remote:$2)
   return ${PIPESTATUS[0]}
 }
 
 # Copies a list of remote files specified in file $1 to local location
 # $2.  Directory paths in $1 are collapsed into $2.
 function remote_rsync_from() {
-  rsync -e "ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
-             -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY" \
-    --no-R --files-from=$1 root@${FLAGS_remote}:/ $2
+  rsync -e "ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no -o \
+            UserKnownHostsFile=$TMP_KNOWN_HOSTS" --no-R \
+    --files-from=$1 root@${FLAGS_remote}:/ $2
 }
 
 function remote_sh() {
-  REMOTE_OUT=$(ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY \
-    root@$FLAGS_remote "$@")
+  REMOTE_OUT=$(ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no -o \
+    UserKnownHostsFile=$TMP_KNOWN_HOSTS root@$FLAGS_remote "$@")
   return ${PIPESTATUS[0]}
 }
 
@@ -42,8 +40,15 @@ function remote_sh_allow_changed_host_key() {
 }
 
 function set_up_remote_access() {
+  if [ -z "$SSH_AGENT_PID" ]; then
+    eval $(ssh-agent)
+    OWN_SSH_AGENT=1
+  else
+    OWN_SSH_AGENT=0
+  fi
   cp $FLAGS_private_key $TMP_PRIVATE_KEY
   chmod 0400 $TMP_PRIVATE_KEY
+  ssh-add $TMP_PRIVATE_KEY
 
   # Verify the client is reachable before continuing
   echo "Initiating first contact with remote host"
