@@ -241,7 +241,6 @@ function get_update_log {
   echo "${REMOTE_OUT}" > "${FLAGS_update_log}"
 }
 
-
 # Returns ${1} reported by the update client e.g. PROGRESS, CURRENT_OP.
 function get_update_var {
   remote_sh "${UPDATER_BIN} --status 2> /dev/null |
@@ -254,21 +253,30 @@ function get_update_var {
 # This is expected to run in its own thread.
 function status_thread {
   local timeout=5
-  # Let update engine receive call to ping the dev server.
+
   info "Devserver handling ping.  Check ${FLAGS_server_log} for more info."
   sleep ${timeout}
 
-  # The devserver generates images when the update engine checks for updates.
-  while [ $(get_update_var CURRENT_OP) = ${UPDATER_UPDATE_CHECK} ]; do
-    echo -n "." && sleep ${timeout}
-  done
+  local current_state=""
+  local next_state="$(get_update_var CURRENT_OP)"
 
-  info "Update generated.  Update engine downloading update."
-  while [ $(get_update_var CURRENT_OP) = ${UPDATER_DOWNLOADING} ]; do
-    echo "Download progress $(get_update_var PROGRESS)" && sleep ${timeout}
-  done
+  # For current status, only print out status changes.
+  # For download, show progress.
+  # Finally if no status change print out .'s to keep dev informed.
+  while [ "${current_state}" != "${UPDATER_NEED_REBOOT}" ] && \
+      [ "${current_state}" != "${UPDATER_IDLE}" ]; do
+    if [ "${current_state}" != "${next_state}" ]; then
+      info "State of updater has changed to: ${next_state}"
+    elif [ "${next_state}" = "${UPDATER_DOWNLOADING}" ]; then
+      echo "Download progress $(get_update_var PROGRESS)"
+    else
+      echo -n "."
+    fi
 
-  info "Download complete."
+    sleep ${timeout}
+    current_state="${next_state}"
+    next_state="$(get_update_var CURRENT_OP)"
+  done
 }
 
 

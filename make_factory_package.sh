@@ -86,7 +86,7 @@ RELEASE_IMAGE="$(basename "${FLAGS_release}")"
 FACTORY_IMAGE="$(basename "${FLAGS_factory}")"
 
 prepare_img() {
-  local outdev="$FLAGS_diskimg"
+  local outdev="$(readlink -f "$FLAGS_diskimg")"
   local sectors="$FLAGS_sectors"
   local force_full="true"
 
@@ -110,9 +110,10 @@ prepare_img() {
   fi
 
   # Create GPT partition table.
+  locate_gpt
   install_gpt "${outdev}" 0 0 "${pmbrcode}" 0 "${force_full}"
   # Activate the correct partition.
-  cgpt add -i 2 -S 1 -P 1 "${outdev}"
+  sudo "${GPT}" add -i 2 -S 1 -P 1 "${outdev}"
 }
 
 prepare_omaha() {
@@ -191,7 +192,7 @@ else
 fi
 
 generate_img() {
-  local outdev="$FLAGS_diskimg"
+  local outdev="$(readlink -f "$FLAGS_diskimg")"
   local sectors="$FLAGS_sectors"
 
   prepare_img

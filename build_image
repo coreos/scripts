@@ -71,9 +71,9 @@ DEFINE_string usb_disk /dev/sdb3 \
 
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
-DEFINE_integer verity_error_behavior 1 \
+DEFINE_integer verity_error_behavior 3 \
   "Kernel verified boot error behavior (0: I/O errors, 1: panic, 2: nothing, \
-3: cros) Default: 1"
+3: cros) Default: 3"
 DEFINE_integer verity_depth 1 \
   "Kernel verified boot hash tree depth. Default: 1"
 DEFINE_integer verity_max_ios -1 \

@@ -18,7 +18,7 @@ important -- Master bot uses important bots to determine overall status.
 hostname -- Needed for 'important' slaves.  The hostname of the bot.  Should
             match hostname in slaves.cfg in buildbot checkout.
 unittests -- Runs unittests for packages.
-smoke_bvt -- Runs the test smoke suite in a qemu-based VM using KVM.
+tests -- Runs the smoke suite and au test harness in a qemu-based VM using KVM.
 rev_overlays -- Select what overlays to look at for revving. This can be
                 'public', 'private' or 'both'.
 push_overlays -- Select what overlays to push at. This should be a subset of
@@ -35,7 +35,7 @@ config['default'] = {
   'master' : False,
   'important' : False,
   'unittests' : False,
-  'smoke_bvt' : False,
+  'tests' : False,
   'rev_overlays': 'public',
   'push_overlays': None,
 }
@@ -46,7 +46,7 @@ config['x86-generic-pre-flight-queue'] = {
   'important' : False,
   'hostname' : 'chromeosbuild2',
   'unittests' : True,
-  'smoke_bvt' : True,
+  'tests' : True,
   'rev_overlays': 'public',
   'push_overlays': 'public',
 }
@@ -56,7 +56,7 @@ config['x86-mario-pre-flight-queue'] = {
   'master' : True,
   'important' : False,
   'unittests' : True,
-  'smoke_bvt' : True,
+  'tests' : True,
   'rev_overlays': 'both',
   'push_overlays': 'private',
 }
@@ -66,7 +66,7 @@ config['x86-mario-pre-flight-branch'] = {
   'master' : True,
   'important' : False,
   'unittests' : True,
-  'smoke_bvt' : True,
+  'tests' : True,
   'rev_overlays': 'both',
   'push_overlays': 'both',
 }
@@ -76,7 +76,7 @@ config['x86_agz_bin'] = {
   'master' : False,
   'important' : False,
   'unittests' : True,
-  'smoke_bvt' : True,
+  'tests' : True,
   'rev_overlays': 'both',
   'push_overlays': None,
 }
@@ -86,7 +86,7 @@ config['x86_dogfood_bin'] = {
   'master' : False,
   'important' : False,
   'unittests' : True,
-  'smoke_bvt' : True,
+  'tests' : True,
   'rev_overlays': 'both',
   'push_overlays': None,
 }

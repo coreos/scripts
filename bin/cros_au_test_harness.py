@@ -4,6 +4,14 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+"""This module runs a suite of Auto Update tests.
+
+  The tests can be run on either a virtual machine or actual device depending
+  on parameters given.  Specific tests can be run by invoking --test_prefix.
+  Verbose is useful for many of the tests if you want to see individual commands
+  being run during the update process.
+"""
+
 import optparse
 import os
 import re
@@ -148,7 +156,8 @@ class AUTest(object):
 
     # This update is expected to fail...
     try:
-      self.PerformUpdate(self.target_image_path, proxy_port=proxy_port)
+      self.PerformUpdate(self.target_image_path, self.base_image_path,
+                         proxy_port=proxy_port)
     finally:
       proxy.shutdown()
 
@@ -226,7 +235,7 @@ class AUTest(object):
 
   # -------- Tests ---------
 
-  def testFullUpdateKeepStateful(self):
+  def testUpdateKeepStateful(self):
     """Tests if we can update normally.
 
     This test checks that we can update by updating the stateful partition
@@ -241,15 +250,15 @@ class AUTest(object):
 
     # Update to - all tests should pass on new image.
     Info('Updating from base image on vm to target image.')
-    self.PerformUpdate(self.base_image_path, self.target_image_path)
+    self.PerformUpdate(self.target_image_path, self.base_image_path)
     self.VerifyImage(100)
 
     # Update from - same percentage should pass that originally passed.
     Info('Updating from updated image on vm back to base image.')
-    self.PerformUpdate(self.target_image_path, self.base_image_path)
+    self.PerformUpdate(self.base_image_path, self.target_image_path)
     self.VerifyImage(percent_passed)
 
-  def testFullUpdateWipeStateful(self):
+  def testUpdateWipeStateful(self):
     """Tests if we can update after cleaning the stateful partition.
 
     This test checks that we can update successfully after wiping the
@@ -264,12 +273,12 @@ class AUTest(object):
 
     # Update to - all tests should pass on new image.
     Info('Updating from base image on vm to target image and wiping stateful.')
-    self.PerformUpdate(self.base_image_path, self.target_image_path, 'clean')
+    self.PerformUpdate(self.target_image_path, self.base_image_path, 'clean')
     self.VerifyImage(100)
 
     # Update from - same percentage should pass that originally passed.
     Info('Updating from updated image back to base image and wiping stateful.')
-    self.PerformUpdate(self.target_image_path, self.base_image_path, 'clean')
+    self.PerformUpdate(self.base_image_path, self.target_image_path, 'clean')
     self.VerifyImage(percent_passed)
 
   def testPartialUpdate(self):
@@ -372,13 +381,13 @@ class AUTest(object):
     self.AttemptUpdateWithFilter(DelayedFilter())
 
   def SimpleTest(self):
-    """A simple update  that updates the target image to itself.
+    """A simple update that updates once from a base image to a target.
 
     We explicitly don't use test prefix so that isn't run by default.  Can be
     run using test_prefix option.
     """
-    self.PrepareBase(self.target_image_path)
-    self._UpdateImage(self.target_image_path)
+    self.PrepareBase(self.base_image_path)
+    self.PerformUpdate(self.target_image_path, self.base_image_path)
     self.VerifyImage(100)
 
 
@@ -552,7 +561,7 @@ class VirtualAUTest(unittest.TestCase, AUTest):
 
   def _UpdateUsingPayload(self, update_path, stateful_change='old',
                          proxy_port=None):
-    """Updates a remote image using image_to_live.sh."""
+    """Updates a vm image using cros_run_vm_update."""
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
     cmd = ['%s/cros_run_vm_update' % self.crosutilsbin,
            '--payload=%s' % update_path,

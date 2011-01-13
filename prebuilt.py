@@ -42,7 +42,7 @@ Example of uploading prebuilt amd64 host files using rsync:
 # as per http://crosbug.com/5855 always filter the below packages
 _FILTER_PACKAGES = set()
 _RETRIES = 3
-_GSUTIL_BIN = '/b/third_party/gsutil/gsutil'
+_GSUTIL_BIN = '/b/build/third_party/gsutil/gsutil'
 _HOST_PACKAGES_PATH = 'chroot/var/lib/portage/pkgs'
 _HOST_TARGET = 'amd64'
 _BOARD_PATH = 'chroot/build/%(board)s'

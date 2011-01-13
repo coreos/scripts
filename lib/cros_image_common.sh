@@ -185,6 +185,16 @@ image_partition_copy() {
     exit 1
   fi
 
+  # Try to use larger buffer if offset/size can be re-aligned.
+  # 2M / 512 = 4096
+  local buffer_ratio=4096
+  local bs=512
+  if [ $((dstoffset % buffer_ratio)) -eq 0 -a \
+       $((length % buffer_ratio)) -eq 0 ]; then
+    dstoffset=$((dstoffset / buffer_ratio))
+    bs=$((bs * buffer_ratio))
+  fi
+
   image_dump_partition "${src}" "${srcpart}" |
-      dd of="${dst}" bs=512 seek="${dstoffset}" conv=notrunc
+      dd of="${dst}" bs="${bs}" seek="${dstoffset}" conv=notrunc oflag=dsync
 }
