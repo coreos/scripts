@@ -36,37 +36,8 @@ function remote_sh() {
   return ${PIPESTATUS[0]}
 }
 
-# Checks to see if pid $1 is running.
-function is_pid_running() {
-  ps -p ${1} 2>&1 > /dev/null
-}
-
-# Wait function given an additional timeout argument.
-# $1 - pid to wait on.
-# $2 - timeout to wait for.
-function wait_with_timeout() {
-  local pid=$1
-  local timeout=$2
-  local -r TIMEOUT_INC=1
-  local current_timeout=0
-  while is_pid_running ${pid} && [ ${current_timeout} -lt ${timeout} ]; do
-    sleep ${TIMEOUT_INC}
-    current_timeout=$((current_timeout + TIMEOUT_INC))
-  done
-  is_pid_running ${pid}
-}
-
-# Robust ping that will monitor ssh and not hang even if ssh hangs.
-function ping_ssh() {
-  remote_sh "true" &
-  local pid=$!
-  wait_with_timeout ${pid} 5
-  ! kill -9 ${pid} 2> /dev/null
-}
-
 function remote_sh_allow_changed_host_key() {
   rm -f $TMP_KNOWN_HOSTS
-  ping_ssh
   remote_sh "$@"
 }
 
@@ -92,12 +63,29 @@ function learn_board() {
   info "Target reports board is ${FLAGS_board}"
 }
 
-function remote_reboot {
-  info "Rebooting."
-  remote_sh "touch /tmp/awaiting_reboot; reboot"
-  local output_file
-  output_file="${TMP}/output"
+# Checks to see if pid $1 is running.
+function is_pid_running() {
+  ps -p ${1} 2>&1 > /dev/null
+}
 
+# Wait function given an additional timeout argument.
+# $1 - pid to wait on.
+# $2 - timeout to wait for.
+function wait_with_timeout() {
+  local pid=$1
+  local timeout=$2
+  local -r TIMEOUT_INC=1
+  local current_timeout=0
+  while is_pid_running ${pid} && [ ${current_timeout} -lt ${timeout} ]; do
+    sleep ${TIMEOUT_INC}
+    current_timeout=$((current_timeout + TIMEOUT_INC))
+  done
+  ! is_pid_running ${pid}
+}
+
+# Checks to see if a machine has rebooted using the presence of a tmp file.
+function check_if_rebooted() {
+  local output_file="${TMP}/output"
   while true; do
     REMOTE_OUT=""
     # This may fail while the machine is down so generate output and a
@@ -108,12 +96,23 @@ function remote_reboot {
     if grep -q "0" "${output_file}"; then
       if grep -q "1" "${output_file}"; then
         info "Not yet rebooted"
+        sleep .5
       else
         info "Rebooted and responding"
         break
       fi
     fi
-    sleep .5
+  done
+}
+
+function remote_reboot() {
+  info "Rebooting."
+  remote_sh "touch /tmp/awaiting_reboot; reboot"
+  while true; do
+    check_if_rebooted &
+    local pid=$!
+    wait_with_timeout ${pid} 30 && break
+    ! kill -9 ${pid} 2> /dev/null
   done
 }
 
