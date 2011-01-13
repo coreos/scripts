@@ -86,7 +86,7 @@ RELEASE_IMAGE="$(basename "${FLAGS_release}")"
 FACTORY_IMAGE="$(basename "${FLAGS_factory}")"
 
 prepare_img() {
-  local outdev="$FLAGS_diskimg"
+  local outdev="$(readlink -f "$FLAGS_diskimg")"
   local sectors="$FLAGS_sectors"
   local force_full="true"
 
@@ -191,7 +191,7 @@ else
 fi
 
 generate_img() {
-  local outdev="$FLAGS_diskimg"
+  local outdev="$(readlink -f "$FLAGS_diskimg")"
   local sectors="$FLAGS_sectors"
 
   prepare_img
