@@ -60,7 +60,9 @@ def  _GetTipOfTrunkSvnRevision():
   for line in svn_info.splitlines():
     match = revision_re.search(line)
     if match:
-      return match.group(1)
+      svn_revision = match.group(1)
+      Info('Using SVN Revision %s' % svn_revision)
+      return svn_revision
 
   raise Exception('Could not find revision information from %s' % svn_url)
 
