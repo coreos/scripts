@@ -110,9 +110,10 @@ prepare_img() {
   fi
 
   # Create GPT partition table.
+  locate_gpt
   install_gpt "${outdev}" 0 0 "${pmbrcode}" 0 "${force_full}"
   # Activate the correct partition.
-  cgpt add -i 2 -S 1 -P 1 "${outdev}"
+  sudo "${GPT}" add -i 2 -S 1 -P 1 "${outdev}"
 }
 
 prepare_omaha() {
