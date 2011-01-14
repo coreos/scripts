@@ -29,6 +29,30 @@ DEFINE_boolean use_emerged ${FLAGS_FALSE} \
 
 RAN_ANY_TESTS=${FLAGS_FALSE}
 
+function stop_ssh_agent() {
+  # Call this function from the exit trap of the main script.
+  # Iff we started ssh-agent, be nice and clean it up.
+  # Note, only works if called from the main script - no subshells.
+  if [[ 1 -eq ${OWN_SSH_AGENT} ]]
+  then
+    kill ${SSH_AGENT_PID} 2>/dev/null
+    unset OWN_SSH_AGENT SSH_AGENT_PID SSH_AUTH_SOCK
+  fi
+}
+
+function start_ssh_agent() {
+  local tmp_private_key=$TMP/autotest_key
+  if [ -z "$SSH_AGENT_PID" ]; then
+    eval $(ssh-agent)
+    OWN_SSH_AGENT=1
+  else
+    OWN_SSH_AGENT=0
+  fi
+  cp $FLAGS_private_key $tmp_private_key
+  chmod 0400 $tmp_private_key
+  ssh-add $tmp_private_key
+}
+
 function cleanup() {
   # Always remove the build path in case it was used.
   [[ -n "${BUILD_DIR}" ]] && sudo rm -rf "${BUILD_DIR}"
@@ -38,6 +62,7 @@ function cleanup() {
   else
     echo ">>> Details stored under ${TMP}"
   fi
+  stop_ssh_agent
   cleanup_remote_access
 }
 
@@ -169,6 +194,8 @@ function main() {
   trap cleanup EXIT
 
   remote_access_init
+  # autotest requires that an ssh-agent already be running
+  start_ssh_agent
 
   learn_board
   autodetect_build
