@@ -12,10 +12,21 @@
 . "$(dirname $0)/common.sh"
 . "$(dirname $0)/remote_access.sh"
 
+# Script must be run inside the chroot.
+restart_in_chroot_if_needed $*
+
 DEFINE_string board "" "Override board reported by target"
 DEFINE_string partition "" "Override kernel partition reported by target"
 DEFINE_boolean modules false "Update modules on target"
 DEFINE_boolean firmware false "Update firmware on target"
+
+# Parse command line.
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Only now can we die on error.  shflags functions leak non-zero error codes,
+# so will die prematurely if 'set -e' is specified before now.
+set -e
 
 function cleanup {
   cleanup_remote_access
@@ -39,15 +50,6 @@ function learn_partition() {
 }
 
 function main() {
-  assert_outside_chroot
-
-  cd $(dirname "$0")
-
-  FLAGS "$@" || exit 1
-  eval set -- "${FLAGS_ARGV}"
-
-  set -e
-
   trap cleanup EXIT
 
   TMP=$(mktemp -d /tmp/image_to_live.XXXX)
@@ -60,15 +62,13 @@ function main() {
 
   old_kernel="${REMOTE_OUT}"
 
-  cmd="vbutil_kernel --pack new_kern.bin \
-       --keyblock /usr/share/vboot/devkeys/kernel.keyblock \
-       --signprivate /usr/share/vboot/devkeys/kernel_data_key.vbprivk \
-       --version 1 \
-       --config ../build/images/${FLAGS_board}/latest/config.txt \
-       --bootloader /lib64/bootstub/bootstub.efi \
-       --vmlinuz /build/${FLAGS_board}/boot/vmlinuz"
-
-  ./enter_chroot.sh -- ${cmd}
+  vbutil_kernel --pack new_kern.bin \
+    --keyblock /usr/share/vboot/devkeys/kernel.keyblock \
+    --signprivate /usr/share/vboot/devkeys/kernel_data_key.vbprivk \
+    --version 1 \
+    --config ../build/images/"${FLAGS_board}"/latest/config.txt \
+    --bootloader /lib64/bootstub/bootstub.efi \
+    --vmlinuz /build/"${FLAGS_board}"/boot/vmlinuz
 
   learn_partition
 
@@ -78,8 +78,7 @@ function main() {
 
   if [[ ${FLAGS_modules} -eq ${FLAGS_TRUE} ]]; then
     echo "copying modules"
-    cmd="tar -C /build/${FLAGS_board}/lib/modules -cjf new_modules.tar ."
-    ./enter_chroot.sh -- ${cmd}
+    tar -C /build/"${FLAGS_board}"/lib/modules -cjf new_modules.tar .
 
     remote_cp_to new_modules.tar /tmp/
 
@@ -89,8 +88,7 @@ function main() {
 
   if [[ ${FLAGS_firmware} -eq ${FLAGS_TRUE} ]]; then
     echo "copying firmware"
-    cmd="tar -C /build/${FLAGS_board}/lib/firmware -cjf new_firmware.tar ."
-    ./enter_chroot.sh -- ${cmd}
+    tar -C /build/"${FLAGS_board}"/lib/firmware -cjf new_firmware.tar .
 
     remote_cp_to new_firmware.tar /tmp/
 
@@ -101,9 +99,7 @@ function main() {
   remote_reboot
 
   remote_sh uname -r -v
-
   info "old kernel: ${old_kernel}"
-
   info "new kernel: ${REMOTE_OUT}"
 }
 
