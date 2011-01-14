@@ -78,6 +78,7 @@ class UnknownBoardFormat(Exception):
 
 class GitPushFailed(Exception):
   """Raised when a git push failed after retry."""
+  pass
 
 
 def UpdateLocalFile(filename, value, key='PORTAGE_BINHOST'):
@@ -321,16 +322,22 @@ def GenerateUploadDict(base_local_path, base_remote_path, pkgs):
   return upload_files
 
 
-def DetermineMakeConfFile(target):
-  """Determine the make.conf file that needs to be updated for prebuilts.
+def DeterminePrebuiltConfFile(target):
+  """Determine the prebuilt.conf file that needs to be updated for prebuilts.
 
     Args:
       target: String representation of the board. This includes host and board
         targets
 
     Returns
-      A string path to a make.conf file to be updated.
+      A string path to a prebuilt.conf file to be updated.
   """
+  overlay_base_dir = _BINHOST_BASE_DIR
+  # If this is a private checkout default to updating
+  # private overlays over public.
+  if os.path.exists(_PRIVATE_OVERLAY_DIR):
+    overlay_base_dir = _PRIVATE_OVERLAY_DIR
+
   if _HOST_TARGET == target:
     # We are host.
     # Without more examples of hosts this is a kludge for now.
@@ -340,10 +347,10 @@ def DetermineMakeConfFile(target):
   elif re.match('.*?_.*', target):
     # We are a board variant
     overlay_str = 'overlay-variant-%s' % target.replace('_', '-')
-    make_path = os.path.join(_BINHOST_BASE_DIR, overlay_str, 'make.conf')
+    make_path = os.path.join(overlay_base_dir, overlay_str, 'prebuilt.conf')
   elif re.match('.*?-\w+', target):
     overlay_str = 'overlay-%s' % target
-    make_path = os.path.join(_BINHOST_BASE_DIR, overlay_str, 'make.conf')
+    make_path = os.path.join(overlay_base_dir, overlay_str, 'prebuilt.conf')
   else:
     raise UnknownBoardFormat('Unknown format: %s' % target)
 
@@ -410,7 +417,7 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
     package_path = os.path.join(board_path, 'packages')
     package_string = board
     url_suffix = _REL_BOARD_PATH % {'board': board, 'version': version}
-    git_file = os.path.join(build_path, DetermineMakeConfFile(board))
+    git_file = os.path.join(build_path, DeterminePrebuiltConfFile(board))
     binhost_conf = os.path.join(build_path, _BINHOST_CONF_DIR, 'target',
         '%s.conf' % board)
   remote_location = '%s/%s' % (upload_location.rstrip('/'), url_suffix)
