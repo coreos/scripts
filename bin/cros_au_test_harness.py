@@ -139,15 +139,14 @@ class AUTest(object):
     Warning(err.stdout)
     self.fail('We managed to update when failure was expected')
 
-  def AttemptUpdateWithFilter(self, filter):
+  def AttemptUpdateWithFilter(self, filter, proxy_port=8081):
     """Update through a proxy, with a specified filter, and expect success."""
 
     self.PrepareBase(self.target_image_path)
 
     # The devserver runs at port 8080 by default. We assume that here, and
-    # start our proxy at 8081. We then tell our update tools to have the
-    # client connect to 8081 instead of 8080.
-    proxy_port = 8081
+    # start our proxy at a different. We then tell our update tools to
+    # have the client connect to our proxy_port instead of 8080.
     proxy = cros_test_proxy.CrosTestProxy(port_in=proxy_port,
                                           address_out='127.0.0.1',
                                           port_out=8080,
@@ -350,7 +349,7 @@ class AUTest(object):
         self.data_size += len(data)
         return data
 
-    self.AttemptUpdateWithFilter(InterruptionFilter())
+    self.AttemptUpdateWithFilter(InterruptionFilter(), proxy_port=8082)
 
   def testDelayedUpdate(self):
     """Tests what happens if some data is delayed during update delivery"""
@@ -380,7 +379,7 @@ class AUTest(object):
         self.data_size += len(data)
         return data
 
-    self.AttemptUpdateWithFilter(DelayedFilter())
+    self.AttemptUpdateWithFilter(DelayedFilter(), proxy_port=8083)
 
   def SimpleTest(self):
     """A simple update that updates once from a base image to a target.

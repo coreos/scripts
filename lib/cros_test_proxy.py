@@ -2,6 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import os
 import select
 import socket
 import SocketServer
@@ -100,9 +101,13 @@ class CrosTestProxy(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     self.port_out = port_out
     self.filter = filter
     
-    SocketServer.TCPServer.__init__(self,
-                                    ('', port_in),
-                                    self._Handler)
+    try:
+        SocketServer.TCPServer.__init__(self,
+                                        ('', port_in),
+                                        self._Handler)
+    except socket.error:
+      os.system('sudo netstat -l --tcp -n -p')
+      raise
 
   def serve_forever_in_thread(self):
     """Helper method to start the server in a new background thread."""
