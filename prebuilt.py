@@ -92,7 +92,10 @@ def UpdateLocalFile(filename, value, key='PORTAGE_BINHOST'):
     value: Value to write with the key.
     key: The variable key to update. (Default: PORTAGE_BINHOST)
   """
-  file_fh = open(filename)
+  if os.path.exists(filename):
+    file_fh = open(filename)
+  else:
+    file_fh = open(filename, 'w+')
   file_lines = []
   found = False
   keyval_str = '%(key)s=%(value)s'

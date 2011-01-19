@@ -45,9 +45,12 @@ class TestUpdateFile(unittest.TestCase):
   def tearDown(self):
     os.remove(self.version_file)
 
-  def _read_version_file(self):
+  def _read_version_file(self, version_file=None):
     """Read the contents of self.version_file and return as a list."""
-    version_fh = open(self.version_file)
+    if not version_file:
+      version_file = self.version_file
+
+    version_fh = open(version_file)
     try:
       return [line.strip() for line in version_fh.readlines()]
     finally:
@@ -85,6 +88,18 @@ class TestUpdateFile(unittest.TestCase):
     self._verify_key_pair(key, val)
     prebuilt.UpdateLocalFile(self.version_file, new_val)
     self._verify_key_pair(key, new_val)
+
+  def testUpdateNonExistentFile(self):
+    key = 'PORTAGE_BINHOST'
+    value = '1234567'
+    non_existent_file = tempfile.mktemp()
+    try:
+      prebuilt.UpdateLocalFile(non_existent_file, value)
+      file_contents = self._read_version_file(non_existent_file)
+      self.assertEqual(file_contents, ['%s=%s' % (key, value)])
+    finally:
+      if os.path.exists(non_existent_file):
+        os.remove(non_existent_file)
 
 
 class TestPrebuiltFilters(unittest.TestCase):
