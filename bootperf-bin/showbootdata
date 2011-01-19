@@ -107,10 +107,9 @@ def main(argv):
       keylist.extend(kl.split(','))
   else:
     keylist = None
+  if not args:
+    args = ["."]
   printfunc(args, use_timestats, keylist)
 
 if __name__ == "__main__":
-  if len(sys.argv) > 1:
-    main(sys.argv[1:])
-  else:
-    main(["."])
+  main(sys.argv[1:])
