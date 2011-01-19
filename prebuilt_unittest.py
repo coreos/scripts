@@ -180,21 +180,42 @@ class TestPrebuilt(unittest.TestCase):
     files = {'test': '/uasd'}
     self.assertEqual(prebuilt.RemoteUpload(files), set([('test', '/uasd')]))
 
-  def testDetermineMakeConf(self):
+  def testDeterminePrebuiltConf(self):
     """Test the different known variants of boards for proper path discovery."""
     targets = {'amd64': os.path.join(prebuilt._PREBUILT_MAKE_CONF['amd64']),
                'x86-generic': os.path.join(prebuilt._BINHOST_BASE_DIR,
-                                           'overlay-x86-generic', 'make.conf'),
+                                        'overlay-x86-generic', 'prebuilt.conf'),
                'arm-tegra2_vogue': os.path.join(
                     prebuilt._BINHOST_BASE_DIR,
-                    'overlay-variant-arm-tegra2-vogue', 'make.conf'),}
+                    'overlay-variant-arm-tegra2-vogue', 'prebuilt.conf'),}
     for target in targets:
-      self.assertEqual(prebuilt.DetermineMakeConfFile(target), targets[target])
+      self.assertEqual(prebuilt.DeterminePrebuiltConfFile(target),
+                       targets[target])
 
-  def testDetermineMakeConfGarbage(self):
+  def testPrivatePrebuiltConf(self):
+    """Test that we get a different path for private prebuilts"""
+    targets = {'amd64': os.path.join(prebuilt._PREBUILT_MAKE_CONF['amd64']),
+               'x86-generic': os.path.join(
+                   prebuilt._PRIVATE_OVERLAY_DIR, 'overlay-x86-generic',
+                   'prebuilt.conf'),
+               'arm-tegra2_vogue': os.path.join(
+                    prebuilt._PRIVATE_OVERLAY_DIR,
+                    'overlay-variant-arm-tegra2-vogue', 'prebuilt.conf'),}
+
+    self.mox.StubOutWithMock(prebuilt.os.path, 'exists')
+    # Add mocks for every target we check
+    for mock_count in range(len(targets)):
+      prebuilt.os.path.exists(prebuilt._PRIVATE_OVERLAY_DIR).AndReturn(True)
+    self.mox.ReplayAll()
+
+    for target in targets:
+      self.assertEqual(prebuilt.DeterminePrebuiltConfFile(target),
+                       targets[target])
+
+  def testDeterminePrebuiltConfGarbage(self):
     """Ensure an exception is raised on bad input."""
-    self.assertRaises(prebuilt.UnknownBoardFormat, prebuilt.DetermineMakeConfFile,
-                      'asdfasdf')
+    self.assertRaises(prebuilt.UnknownBoardFormat,
+                      prebuilt.DeterminePrebuiltConfFile, 'asdfasdf')
 
 
 class TestPackagesFileFiltering(unittest.TestCase):
