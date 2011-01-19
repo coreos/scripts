@@ -54,7 +54,6 @@ _REL_HOST_PATH = 'host/%(target)s/%(version)s/packages'
 # Private overlays to look at for builds to filter
 # relative to build path
 _PRIVATE_OVERLAY_DIR = 'src/private-overlays'
-_BINHOST_BASE_DIR = 'src/overlays'
 _BINHOST_BASE_URL = 'http://commondatastorage.googleapis.com/chromeos-prebuilt'
 _PREBUILT_BASE_DIR = 'src/third_party/chromiumos-overlay/chromeos/config/'
 # Created in the event of new host targets becoming available
@@ -324,40 +323,54 @@ def GenerateUploadDict(base_local_path, base_remote_path, pkgs):
 
   return upload_files
 
+def GetBoardPathFromCrosOverlayList(build_path, target):
+  """Use the cros_overlay_list to determine the path to the board overlay
+   Args:
+     build_path: The path to the root of the build directory
+     target: The target that we are looking for, could consist of board and
+       board_variant, we handle that properly
+   Returns:
+     The last line from cros_overlay_list as a string
+  """
+  script_dir = os.path.join(build_path, 'src/scripts/bin')
+  cmd = ['./cros_overlay_list']
+  if re.match('.*?_.*', target):
+    (board, variant) = target.split('_')
+    cmd += ['--board', board, '--variant', variant]
+  elif re.match('.*?-\w+', target):
+    cmd += ['--board', target]
+  else:
+    raise UnknownBoardFormat('Unknown format: %s' % target)
 
-def DeterminePrebuiltConfFile(target):
+  cmd_output = cros_build_lib.RunCommand(cmd, redirect_stdout=True,
+                                         cwd=script_dir)
+  # We only care about the last entry
+  return cmd_output.output.splitlines().pop()
+
+
+def DeterminePrebuiltConfFile(build_path, target):
   """Determine the prebuilt.conf file that needs to be updated for prebuilts.
 
     Args:
+      build_path: The path to the root of the build directory
       target: String representation of the board. This includes host and board
         targets
 
     Returns
       A string path to a prebuilt.conf file to be updated.
   """
-  overlay_base_dir = _BINHOST_BASE_DIR
-  # If this is a private checkout default to updating
-  # private overlays over public.
-  if os.path.exists(_PRIVATE_OVERLAY_DIR):
-    overlay_base_dir = _PRIVATE_OVERLAY_DIR
-
   if _HOST_TARGET == target:
     # We are host.
     # Without more examples of hosts this is a kludge for now.
     # TODO(Scottz): as new host targets come online expand this to
     # work more like boards.
     make_path =  _PREBUILT_MAKE_CONF[target]
-  elif re.match('.*?_.*', target):
-    # We are a board variant
-    overlay_str = 'overlay-variant-%s' % target.replace('_', '-')
-    make_path = os.path.join(overlay_base_dir, overlay_str, 'prebuilt.conf')
-  elif re.match('.*?-\w+', target):
-    overlay_str = 'overlay-%s' % target
-    make_path = os.path.join(overlay_base_dir, overlay_str, 'prebuilt.conf')
   else:
-    raise UnknownBoardFormat('Unknown format: %s' % target)
+    # We are a board
+    board = GetBoardPathFromCrosOverlayList(build_path, target)
+    make_path = os.path.join(board, 'prebuilt.conf')
 
-  return os.path.join(make_path)
+  return make_path
 
 
 def UpdateBinhostConfFile(path, key, value):
@@ -420,7 +433,7 @@ def UploadPrebuilt(build_path, upload_location, version, binhost_base_url,
     package_path = os.path.join(board_path, 'packages')
     package_string = board
     url_suffix = _REL_BOARD_PATH % {'board': board, 'version': version}
-    git_file = os.path.join(build_path, DeterminePrebuiltConfFile(board))
+    git_file = DeterminePrebuiltConfFile(build_path, board)
     binhost_conf = os.path.join(build_path, _BINHOST_CONF_DIR, 'target',
         '%s.conf' % board)
   remote_location = '%s/%s' % (upload_location.rstrip('/'), url_suffix)

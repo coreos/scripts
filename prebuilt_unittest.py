@@ -195,42 +195,73 @@ class TestPrebuilt(unittest.TestCase):
     files = {'test': '/uasd'}
     self.assertEqual(prebuilt.RemoteUpload(files), set([('test', '/uasd')]))
 
+  def testDeterminePrebuiltConfHost(self):
+    """Test that the host prebuilt path comes back properly."""
+    expected_path = os.path.join(prebuilt._PREBUILT_MAKE_CONF['amd64'])
+    self.assertEqual(prebuilt.DeterminePrebuiltConfFile('fake_path', 'amd64'),
+                     expected_path)
+
   def testDeterminePrebuiltConf(self):
     """Test the different known variants of boards for proper path discovery."""
-    targets = {'amd64': os.path.join(prebuilt._PREBUILT_MAKE_CONF['amd64']),
-               'x86-generic': os.path.join(prebuilt._BINHOST_BASE_DIR,
-                                        'overlay-x86-generic', 'prebuilt.conf'),
-               'arm-tegra2_vogue': os.path.join(
-                    prebuilt._BINHOST_BASE_DIR,
-                    'overlay-variant-arm-tegra2-vogue', 'prebuilt.conf'),}
-    for target in targets:
-      self.assertEqual(prebuilt.DeterminePrebuiltConfFile(target),
-                       targets[target])
+    fake_path = '/b/cbuild'
+    script_path = os.path.join(fake_path, 'src/scripts/bin')
+    public_overlay_path = os.path.join(fake_path, 'src/overlays')
+    private_overlay_path = os.path.join(fake_path,
+                                        prebuilt._PRIVATE_OVERLAY_DIR)
+    path_dict = {'private_overlay_path': private_overlay_path,
+                 'public_overlay_path': public_overlay_path}
+    # format for targets
+    # board target key in dictionar
+    # Tuple containing cmd run, expected results as cmd obj, and expected output
 
-  def testPrivatePrebuiltConf(self):
-    """Test that we get a different path for private prebuilts"""
-    targets = {'amd64': os.path.join(prebuilt._PREBUILT_MAKE_CONF['amd64']),
-               'x86-generic': os.path.join(
-                   prebuilt._PRIVATE_OVERLAY_DIR, 'overlay-x86-generic',
-                   'prebuilt.conf'),
-               'arm-tegra2_vogue': os.path.join(
-                    prebuilt._PRIVATE_OVERLAY_DIR,
-                    'overlay-variant-arm-tegra2-vogue', 'prebuilt.conf'),}
+    # Mock output from cros_overlay_list
+    x86_out = ('%(private_overlay_path)s/chromeos-overlay\n'
+               '%(public_overlay_path)s/overlay-x86-generic\n' % path_dict)
 
-    self.mox.StubOutWithMock(prebuilt.os.path, 'exists')
-    # Add mocks for every target we check
-    for mock_count in range(len(targets)):
-      prebuilt.os.path.exists(prebuilt._PRIVATE_OVERLAY_DIR).AndReturn(True)
+    x86_cmd = './cros_overlay_list --board x86-generic'
+    x86_expected_path = os.path.join(public_overlay_path, 'overlay-x86-generic',
+                                     'prebuilt.conf')
+    # Mock output from cros_overlay_list
+    tegra2_out = ('%(private_overlay_path)s/chromeos-overlay\n'
+                  '%(public_overlay_path)s/overlay-tegra2\n'
+                  '%(public_overlay_path)s/overlay-variant-tegra2-seaboard\n'
+                  '%(private_overlay_path)s/overlay-tegra2-private\n'
+                  '%(private_overlay_path)s/'
+                  'overlay-variant-tegra2-seaboard-private\n' % path_dict)
+    tegra2_cmd = './cros_overlay_list --board tegra2 --variant seaboard'
+    tegra2_expected_path = os.path.join(
+        private_overlay_path, 'overlay-variant-tegra2-seaboard-private',
+        'prebuilt.conf')
+
+
+    targets = {'x86-generic': {'cmd': x86_cmd,
+                               'output': x86_out,
+                               'result': x86_expected_path},
+              'tegra2_seaboard': {'cmd': tegra2_cmd,
+                                  'output': tegra2_out,
+                                  'result': tegra2_expected_path}
+              }
+
+    self.mox.StubOutWithMock(prebuilt.cros_build_lib, 'RunCommand')
+    for target, expected_results in targets.iteritems():
+      # create command object for output
+      cmd_result_obj = cros_build_lib.CommandResult()
+      cmd_result_obj.output = expected_results['output']
+      prebuilt.cros_build_lib.RunCommand(
+        expected_results['cmd'].split(), redirect_stdout=True,
+        cwd=script_path).AndReturn(cmd_result_obj)
+      
     self.mox.ReplayAll()
-
-    for target in targets:
-      self.assertEqual(prebuilt.DeterminePrebuiltConfFile(target),
-                       targets[target])
+    for target, expected_results in targets.iteritems():
+      self.assertEqual(
+        prebuilt.DeterminePrebuiltConfFile(fake_path, target),
+        expected_results['result'])
 
   def testDeterminePrebuiltConfGarbage(self):
     """Ensure an exception is raised on bad input."""
     self.assertRaises(prebuilt.UnknownBoardFormat,
-                      prebuilt.DeterminePrebuiltConfFile, 'asdfasdf')
+                      prebuilt.DeterminePrebuiltConfFile,
+                      'fake_path', 'asdfasdf')
 
 
 class TestPackagesFileFiltering(unittest.TestCase):
