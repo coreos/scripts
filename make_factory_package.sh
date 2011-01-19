@@ -191,6 +191,21 @@ else
   IMAGE_IS_UNPACKED=1
 fi
 
+mount_esp() {
+  local image="$1"
+  local esp_mountpoint="$2"
+  offset=$(partoffset "${image}" 12)
+  sudo mount -o loop,offset=$(( offset * 512 )) \
+      "${image}" "${esp_mountpoint}"
+  ESP_MOUNT="${esp_mountpoint}"
+}
+
+umount_esp() {
+  if [ -n "${ESP_MOUNT}" ]; then
+    sudo umount "${ESP_MOUNT}"
+  fi
+}
+
 generate_img() {
   local outdev="$(readlink -f "$FLAGS_diskimg")"
   local sectors="$FLAGS_sectors"
@@ -202,10 +217,8 @@ generate_img() {
 
   echo "Release Kernel"
   image_partition_copy "${RELEASE_IMAGE}" 2 "${outdev}" 4
-
   echo "Release Rootfs"
   image_partition_copy "${RELEASE_IMAGE}" 3 "${outdev}" 5
-
   echo "OEM parition"
   image_partition_copy "${RELEASE_IMAGE}" 8 "${outdev}" 8
 
@@ -222,6 +235,30 @@ generate_img() {
   image_partition_copy "${FACTORY_IMAGE}" 1 "${outdev}" 1
   echo "EFI Partition"
   image_partition_copy "${FACTORY_IMAGE}" 12 "${outdev}" 12
+
+  # TODO(nsanders, wad): consolidate this code into some common code
+  # when cleaning up kernel commandlines. There is code that touches
+  # this in postint/chromeos-setimage and build_image. However none
+  # of the preexisting code actually does what we want here.
+  local tmpesp="$(mktemp -d)"
+  mount_esp "${outdev}" "${tmpesp}"
+
+  trap "umount_esp" EXIT
+
+  # Edit boot device default for legacy.
+  # Support both vboot and regular boot.
+  sudo sed -i "s/chromeos-usb.A/chromeos-hd.A/" \
+      "${tmpesp}"/syslinux/default.cfg
+  sudo sed -i "s/chromeos-vusb.A/chromeos-vhd.A/" \
+      "${tmpesp}"/syslinux/default.cfg
+
+  # Edit root fs default for legacy
+  # Somewhat safe as ARM does not support syslinux, I believe.
+  sudo sed -i "s'HDROOTA'/dev/sda3'g" "${tmpesp}"/syslinux/root.A.cfg
+
+  trap - EXIT
+
+  umount_esp
 
   echo "Generated Image at $outdev."
   echo "Done"
