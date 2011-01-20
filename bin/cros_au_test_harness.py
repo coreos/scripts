@@ -712,13 +712,14 @@ def _PregenerateUpdates(parser, options):
   """
   def _GenerateVMUpdate(target, src):
     """Generates an update using the devserver."""
-    RunCommand(['./start_devserver',
+    RunCommand(['sudo',
+                './start_devserver',
                 '--pregenerate_update',
                 '--exit',
                 '--image=%s' % target,
                 '--src_image=%s' % src,
                 '--for_vm'
-               ])
+               ], enter_chroot=True)
 
   # Get the list of deltas by mocking out update method in test class.
   GenerateVirtualAUDeltasTest.ProcessOptions(parser, options)
