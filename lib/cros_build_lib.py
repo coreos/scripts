@@ -81,9 +81,9 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
 
       raise RunCommandException('Command "%r" failed.\n' % (cmd) +
                                 (error_message or error or output or ''))
-    except Exception, e:
+    except RunCommandException as e:
       if not error_ok and retry_count == num_retries:
-        raise RunCommandException(e)
+        raise e
       else:
         Warning(str(e))
         if print_cmd:
