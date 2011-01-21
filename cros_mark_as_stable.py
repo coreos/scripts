@@ -361,12 +361,6 @@ class EBuild(object):
       dir = 'third_party'
     srcdir = os.path.join(srcroot, dir, subdir)
 
-    # TODO(anush): This hack is only necessary because the kernel ebuild has
-    # 'if' statements, so we can't grab the CROS_WORKON_LOCALNAME properly.
-    # We should clean up the kernel ebuild and remove this hack.
-    if not os.path.isdir(srcdir) and subdir == 'kernel/':
-      srcdir = os.path.join(srcroot, 'third_party/kernel/files')
-
     if not os.path.isdir(srcdir):
       Die('Cannot find commit id for %s' % self.ebuild_path)
 
