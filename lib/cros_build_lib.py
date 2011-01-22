@@ -95,7 +95,8 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
 
 def RunCommandCaptureOutput(cmd, print_cmd=True, cwd=None, input=None,
                             enter_chroot=False,
-                            combine_stdout_stderr=True):
+                            combine_stdout_stderr=True,
+                            verbose=False):
   """Runs a shell command. Differs from RunCommand, because it allows
      you to run a command and capture the exit code, output, and stderr
      all at the same time.
@@ -109,6 +110,7 @@ def RunCommandCaptureOutput(cmd, print_cmd=True, cwd=None, input=None,
     enter_chroot: this command should be run from within the chroot.  If set,
       cwd must point to the scripts directory.
     combine_stdout_stderr -- combine outputs together.
+    verbose -- also echo cmd.stdout and cmd.stderr to stdout and stderr
 
   Returns:
     Returns a tuple: (exit_code, stdout, stderr) (integer, string, string)
@@ -132,7 +134,11 @@ def RunCommandCaptureOutput(cmd, print_cmd=True, cwd=None, input=None,
 
   proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
                           stdout=stdout, stderr=stderr)
-  (output, error) = proc.communicate(input)
+  output, error = proc.communicate(input)
+
+  if verbose:
+    if output: sys.stdout.write(output)
+    if error: sys.stderr.write(error)
 
   # Error is None if stdout, stderr are combined.
   return proc.returncode, output, error
