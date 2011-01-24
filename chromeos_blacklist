@@ -1,5 +1,8 @@
 app-text/iso-codes
-dev-lang/python
 dev-java/icedtea
 dev-java/icedtea6-bin
+dev-lang/python
+dev-libs/libIDL
+gnome-base/gconf
+gnome-base/orbit
 x11-libs/libxklavier
