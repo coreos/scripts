@@ -562,3 +562,23 @@ chroot_hacks_from_outside() {
     sudo bash -c "echo root ALL=\(ALL\) ALL >> \"${chroot_dir}/etc/sudoers\""
   fi
 }
+
+# The board and variant command line options can be used in a number of ways
+# to specify the board and variant.  The board can encode both pieces of
+# information separated by underscores.  Or the variant can be passed using
+# the separate variant option.  This function extracts the canonical board and
+# variant information and provides it in the BOARD, VARIANT and BOARD_VARIANT
+# variables.
+get_board_and_variant() {
+  local flags_board="${1}"
+  local flags_variant="${2}"
+
+  BOARD=$(echo "$flags_board" | cut -d '_' -f 1)
+  VARIANT=${flags_variant:-$(echo "$flags_board" | cut -s -d '_' -f 2)}
+
+  if [ -n "$VARIANT" ]; then
+    BOARD_VARIANT="${BOARD}_${VARIANT}"
+  else
+    BOARD_VARIANT="${BOARD}"
+  fi
+}
