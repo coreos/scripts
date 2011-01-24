@@ -135,7 +135,7 @@ canonicalize_names () {
 
 # Display ebuilds currently part of the live branch and open for development.
 show_live_ebuilds () {
-  sed -n 's/^[~=]\(.*\)-9999$/\1/p' "${WORKON_FILE}"
+  sed -n 's/^=\(.*\)-9999$/\1/p' "${WORKON_FILE}"
 }
 
 # Display ebuilds currently part of the live branch and open for development
@@ -144,7 +144,7 @@ show_all_live_ebuilds () {
   for workon_file in ${WORKON_DIR}/*; do
     if [ -s "${workon_file}" ]; then
       echo -e "${V_BOLD_GREEN}$(basename ${workon_file}):${V_VIDOFF}"
-      sed -n 's/^[~=]\(.*\)-9999$/    \1/p' "${workon_file}"
+      sed -n 's/^=\(.*\)-9999$/    \1/p' "${workon_file}"
       echo ""
     fi
   done
@@ -176,7 +176,7 @@ ebuild_to_live () {
   local atoms_success=""
 
   for atom in ${atoms}; do
-    if ! grep -qx "[~=]${atom}-9999" "${WORKON_FILE}" ; then
+    if ! grep -qx "=${atom}-9999" "${WORKON_FILE}" ; then
       if sudo bash -c "echo \"=${atom}-9999\" >> \"${WORKON_FILE}\""; then
         atoms_success="${atoms_success} ${atom}"
       fi
@@ -194,8 +194,8 @@ ebuild_to_stable () {
   local atoms_success=""
 
   for atom in ${atoms}; do
-    if grep -qx "[~=]${atom}-9999" "${WORKON_FILE}" ; then
-      if sudo sed -e "/^[~=]${atom/\//\\/}-9999\$/d" -i "${WORKON_FILE}"; then
+    if grep -qx "=${atom}-9999" "${WORKON_FILE}" ; then
+      if sudo sed -e "/^=${atom/\//\\/}-9999\$/d" -i "${WORKON_FILE}"; then
         atoms_success="${atoms_success} ${atom}"
       fi
     else
