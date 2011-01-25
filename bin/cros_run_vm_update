@@ -16,7 +16,6 @@ DEFINE_string src_image "" \
   "Create a delta update by passing in the image on the remote machine."
 DEFINE_string stateful_update_flag "" "Flags to pass to stateful update." s
 DEFINE_string update_image_path "" "Path of the image to update to." u
-DEFINE_string update_url "" "Full url of an update image."
 DEFINE_string vm_image_path "" "Path of the VM image to update from." v
 
 set -e
@@ -25,6 +24,8 @@ set -e
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
+[ -n "${FLAGS_update_image_path}" ] || [ -n "${FLAGS_payload}" ] || \
+  die "You must specify a path to an image to use as an update."
 [ -n "${FLAGS_vm_image_path}" ] || \
   die "You must specify a path to a vm image."
 
@@ -44,12 +45,11 @@ if [ -n "${FLAGS_proxy_port}" ]; then
 fi
 
 $(dirname $0)/../image_to_live.sh \
-  --for_vm \
   --remote=127.0.0.1 \
   --ssh_port=${FLAGS_ssh_port} \
   --stateful_update_flag=${FLAGS_stateful_update_flag} \
   --src_image="${FLAGS_src_image}" \
-  --update_url="${FLAGS_update_url}" \
   --verify \
+  --for_vm \
   ${IMAGE_ARGS}
 
