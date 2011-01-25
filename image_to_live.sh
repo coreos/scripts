@@ -25,6 +25,7 @@ DEFINE_boolean update_known_hosts ${FLAGS_FALSE} \
   "Update your known_hosts with the new remote instance's key."
 DEFINE_string update_log "update_engine.log" \
   "Path to log for the update_engine."
+DEFINE_string update_url "" "Full url of an update image."
 DEFINE_boolean verify ${FLAGS_TRUE} "Verify image on device after update."
 
 # Flags for devserver.
@@ -44,7 +45,6 @@ DEFINE_string src_image "" \
   "Create a delta update by passing in the image on the remote machine."
 DEFINE_boolean update_stateful ${FLAGS_TRUE} \
   "Perform update of stateful partition e.g. /var /usr/local."
-DEFINE_string update_url "" "Full url of an update image."
 
 # Flags for stateful update.
 DEFINE_string stateful_update_flag "" \
