@@ -110,6 +110,10 @@ fi
 
 cat <<EOF > "${FLAGS_working_dir}/boot.config"
 root=${FLAGS_root}
+quiet
+loglevel=1
+rootwait
+ro
 dm_verity.error_behavior=${FLAGS_verity_error_behavior}
 dm_verity.max_bios=${FLAGS_verity_max_ios}
 dm_verity.dev_wait=${dev_wait}
@@ -131,17 +135,13 @@ if [[ "${FLAGS_arch}" = "x86" ]]; then
   mkdir -p ${FLAGS_working_dir}
   cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
     > "${FLAGS_working_dir}/config.txt"
-quiet
 console=tty2
 init=/sbin/init
 add_efi_memmap
 boot=local
-rootwait
-ro
 noresume
 noswap
 i915.modeset=1
-loglevel=1
 cros_secure
 kern_guid=%U
 tpm_tis.force=1
