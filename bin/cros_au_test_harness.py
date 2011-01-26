@@ -732,7 +732,8 @@ class DevServerWrapper(threading.Thread):
     # Kill previous running instance of devserver if it exists.
     RunCommand(['sudo', 'pkill', '-f', 'devserver.py', ], error_ok=True,
                print_cmd=False)
-    self.proc = subprocess.Popen(['./start_devserver',
+    self.proc = subprocess.Popen(['sudo',
+                                  './start_devserver',
                                   '--archive_dir=./static',
                                   '--client_prefix=ChromeOSUpdateEngine',
                                   '--production',
