@@ -17,24 +17,11 @@ NUM_JOBS=`grep -c "^processor" /proc/cpuinfo`
 # Store location of the calling script.
 TOP_SCRIPT_DIR="${TOP_SCRIPT_DIR:-$(dirname $0)}"
 
-# Detect whether we're inside a chroot or not
-if [ -e /etc/debian_chroot ]
-then
-  INSIDE_CHROOT=1
-else
-  INSIDE_CHROOT=0
-fi
-
 # Find root of source tree
 if [ "x$GCLIENT_ROOT" != "x" ]
 then
   # GCLIENT_ROOT already set, so we're done
   true
-elif [ $INSIDE_CHROOT -eq 1 ]
-then
-  # If we are inside the chroot and we haven't been told otherwise, we assume
-  # that the GCLIENT_ROOT is ~/trunk.
-  GCLIENT_ROOT="${HOME}/trunk"
 elif [ "x$COMMON_SH" != "x" ]
 then
   # COMMON_SH set, so assume that's us
@@ -128,6 +115,14 @@ DEFAULT_BOARD=$(echo $ALL_BOARDS | awk '{print $NF}')
 
 # Enable --fast by default.
 DEFAULT_FAST="${FLAGS_TRUE}"
+
+# Detect whether we're inside a chroot or not
+if [ -e /etc/debian_chroot ]
+then
+  INSIDE_CHROOT=1
+else
+  INSIDE_CHROOT=0
+fi
 
 # Directory locations inside the dev chroot
 CHROOT_TRUNK_DIR="/home/$USER/trunk"
