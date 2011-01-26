@@ -66,6 +66,17 @@ function learn_board() {
   info "Target reports board is ${FLAGS_board}"
 }
 
+function learn_arch() {
+  [ -n "${FLAGS_arch}" ] && return
+  remote_sh uname -m
+  FLAGS_arch=$(echo "${REMOTE_OUT}" | sed s/armv7l/arm/g)
+  if [ -z "${FLAGS_arch}" ]; then
+    error "Arch required"
+    exit 1
+  fi
+  info "Target reports arch is ${FLAGS_arch}"
+}
+
 function remote_reboot {
   info "Rebooting."
   remote_sh "touch /tmp/awaiting_reboot; reboot"
