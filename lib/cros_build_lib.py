@@ -6,7 +6,6 @@
 
 import inspect
 import os
-import re
 import subprocess
 import sys
 
@@ -246,21 +245,3 @@ def ReinterpretPathForChroot(path):
 
   new_path = os.path.join('/home', os.getenv('USER'), 'trunk', relative_path)
   return new_path
-
-
-def GetIPAddress(device='eth0'):
-  """Returns the IP Address for a given device using ifconfig.
-
-  socket.gethostname() is insufficient for machines where the host files are
-  not set up "correctly."  Since some of our builders may have this issue,
-  this method gives you a generic way to get the address so you are reachable
-  either via a VM or remote machine on the same network.
-  """
-  ifconfig_output = RunCommand(['ifconfig', device], redirect_stdout=True,
-                               print_cmd=False)
-  match = re.search('.*inet addr:(\d+\.\d+\.\d+\.\d+).*', ifconfig_output)
-  if match:
-    return match.group(1)
-  else:
-    Warning('Failed to find ip address in %s' % ifconfig_output)
-    return None
