@@ -25,6 +25,9 @@ push_overlays -- Select what overlays to push at. This should be a subset of
                  rev_overlays for the particular builder.  Must be None if
                  not a master.  There should only be one master bot pushing
                  changes to each overlay per branch.
+test_mod -- Create a test mod image. (default True)
+factory_install_mod -- Create a factory install image. (default True)
+factory_test_mod -- Create a factory test image. (default True)
 """
 
 
@@ -107,6 +110,8 @@ config['arm_tegra2_bin'] = {
   'unittests' : False,
   'rev_overlays': 'public',
   'push_overlays': None,
+  'factory_install_mod' : False,
+  'factory_test_mod' : False,
 }
 config['arm_generic_bin'] = {
   'board' : 'arm-generic',
@@ -116,4 +121,6 @@ config['arm_generic_bin'] = {
   'unittests' : False,
   'rev_overlays': 'public',
   'push_overlays': None,
+  'factory_install_mod' : False,
+  'factory_test_mod' : False,
 }

@@ -485,6 +485,42 @@ def _UprevPush(buildroot, tracking_branch, board, overlays, dryrun):
   RunCommand(cmd, cwd=cwd)
 
 
+def _LegacyArchiveBuild(bot_id, buildconfig, buildnumber, debug=False):
+  """Adds a step to the factory to archive a build."""
+
+  # Fixed properties
+  keep_max = 3
+  gsutil_archive = 'gs://chromeos-archive/' + bot_id
+
+  cmd = ['./archive_build.sh',
+         '--build_number', str(buildnumber),
+         '--to', '/var/www/archive/' + bot_id,
+         '--keep_max', str(keep_max),
+         '--prebuilt_upload',
+         '--board', buildconfig['board'],
+
+         '--acl', '/home/chrome-bot/slave_archive_acl',
+         '--gsutil_archive', gsutil_archive,
+         '--gsd_gen_index',
+           '/b/scripts/gsd_generate_index/gsd_generate_index.py',
+         '--gsutil', '/b/scripts/slave/gsutil',
+         '--test_mod'
+  ]
+
+  if buildconfig.get('test_mod', True):
+    cmd.append('--test_mod')
+
+  if buildconfig.get('factory_install_mod', True):
+    cmd.append('--factory_install_mod')
+
+  if buildconfig.get('factory_test_mod', True):
+    cmd.append('--factory_test_mod')
+
+  if debug:
+    Warning('***** ***** LegacyArchiveBuild CMD: ' + ' '.join(cmd))
+  else:
+    RunCommand(cmd)
+
 def _ArchiveTestResults(buildroot, board, test_results_dir,
                         gsutil, archive_dir, acl):
   """Archives the test results into Google Storage
@@ -608,6 +644,8 @@ def main():
   parser = optparse.OptionParser(usage=usage)
   parser.add_option('-a', '--acl', default='private',
                     help='ACL to set on GSD archives')
+  parser.add_option('--archive_build', action='store_true', default=False,
+                    help='Run the archive_build script.')
   parser.add_option('-r', '--buildroot',
                     help='root directory where build occurs', default=".")
   parser.add_option('-n', '--buildnumber',
@@ -625,6 +663,9 @@ def main():
   parser.add_option('--debug', action='store_true', dest='debug',
                     default=False,
                     help='Override some options to run as a developer.')
+  parser.add_option('--nobuild', action='store_false', dest='build',
+                    default=True,
+                    help="Don't actually build (for cbuildbot dev")
   parser.add_option('--noprebuilts', action='store_false', dest='prebuilts',
                     default=True,
                     help="Don't upload prebuilts.")
@@ -650,7 +691,8 @@ def main():
   chrome_atom_to_build = None
 
   if len(args) >= 1:
-    buildconfig = _GetConfig(args[-1])
+    bot_id = args[-1]
+    buildconfig = _GetConfig(bot_id)
   else:
     Warning('Missing configuration description')
     parser.print_usage()
@@ -706,12 +748,14 @@ def main():
                      buildconfig['board'], rev_overlays)
 
     _EnableLocalAccount(buildroot)
-    _Build(buildroot, emptytree)
 
-    if buildconfig['unittests'] and options.tests:
-      _RunUnitTests(buildroot)
+    if options.build:
+      _Build(buildroot, emptytree)
 
-    _BuildImage(buildroot)
+      if buildconfig['unittests'] and options.tests:
+        _RunUnitTests(buildroot)
+
+      _BuildImage(buildroot)
 
     if buildconfig['tests'] and options.tests:
       _BuildVMImageForTesting(buildroot)
@@ -747,6 +791,11 @@ def main():
         if buildconfig['important'] and not options.debug:
           cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
 
+    if options.archive_build:
+      _LegacyArchiveBuild(bot_id,
+                          buildconfig,
+                          options.buildnumber,
+                          options.debug)
   except:
     # Send failure to master bot.
     if not buildconfig['master'] and buildconfig['important']:
