@@ -38,8 +38,6 @@ function blocking_kill() {
   ! ps -p ${1} > /dev/null
 }
 
-# TODO(rtc): These flags assume that we'll be using KVM on Lucid and won't work
-# on Hardy.
 # $1: Path to the virtual image to start.
 function start_kvm() {
   # Override default pid file.
