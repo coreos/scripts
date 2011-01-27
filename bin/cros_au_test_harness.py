@@ -912,8 +912,9 @@ def _RunTestsInParallel(parser, options, test_class):
     args.append(test_case)
 
   results = _RunParallelJobs(options.jobs, threads, args, print_status=False)
-  if not (test_result.wasSuccessful() for test_result in results):
-    Die('Test harness was not successful')
+  for test_result in results:
+    if not test_result.wasSuccessful():
+      Die('Test harness was not successful')
 
 
 def main():
