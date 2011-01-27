@@ -17,31 +17,59 @@ NUM_JOBS=`grep -c "^processor" /proc/cpuinfo`
 # Store location of the calling script.
 TOP_SCRIPT_DIR="${TOP_SCRIPT_DIR:-$(dirname $0)}"
 
-# Find root of source tree
-if [ "x$GCLIENT_ROOT" != "x" ]
+# Detect whether we're inside a chroot or not
+if [ -e /etc/debian_chroot ]
 then
-  # GCLIENT_ROOT already set, so we're done
-  true
-elif [ "x$COMMON_SH" != "x" ]
-then
-  # COMMON_SH set, so assume that's us
-  GCLIENT_ROOT="$(dirname "$COMMON_SH")/../.."
-elif [ "x$BASH_SOURCE" != "x" ]
-then
-  # Using bash, so we can find ourselves
-  GCLIENT_ROOT="$(dirname "$BASH_SOURCE")/../.."
+  INSIDE_CHROOT=1
 else
-  # Using dash or sh, we don't know where we are.  $0 refers to the calling
-  # script, not ourselves, so that doesn't help us.
-  echo "Unable to determine location for common.sh.  If you are sourcing"
-  echo "common.sh from a script run via dash or sh, you must do it in the"
-  echo "following way:"
-  echo '  COMMON_SH="$(dirname "$0")/../../scripts/common.sh"'
-  echo '  . "$COMMON_SH"'
-  echo "where the first line is the relative path from your script to"
-  echo "common.sh."
-  exit 1
+  INSIDE_CHROOT=0
 fi
+
+# Construct a list of possible locations for the source tree.  This list is
+# based on various environment variables and globals that may have been set
+# by the calling script.
+function get_gclient_root_list() {
+  if [ $INSIDE_CHROOT -eq 1 ]; then
+    echo "/home/${USER}/trunk"
+
+    if [ -n "${SUDO_USER}" ]; then echo "/home/${SUDO_USER}/trunk"; fi
+  fi
+
+  if [ -n "${COMMON_SH}" ]; then echo "$(dirname "$COMMON_SH")/../.."; fi
+  if [ -n "${BASH_SOURCE}" ]; then echo "$(dirname "$BASH_SOURCE")/../.."; fi
+}
+
+# Based on the list of possible source locations we set GCLIENT_ROOT if it is
+# not already defined by looking for a src directory in each seach path
+# location.  If we do not find a valid looking root we error out.
+function get_gclient_root() {
+  if [ -n "${GCLIENT_ROOT}" ]; then
+    return
+  fi
+
+  for path in $(get_gclient_root_list); do
+    if [ -d "${path}/src" ]; then
+      GCLIENT_ROOT=${path}
+      break
+    fi
+  done
+
+  if [ -z "${GCLIENT_ROOT}" ]; then
+    # Using dash or sh, we don't know where we are.  $0 refers to the calling
+    # script, not ourselves, so that doesn't help us.
+    echo "Unable to determine location for common.sh.  If you are sourcing"
+    echo "common.sh from a script run via dash or sh, you must do it in the"
+    echo "following way:"
+    echo '  COMMON_SH="$(dirname "$0")/../../scripts/common.sh"'
+    echo '  . "$COMMON_SH"'
+    echo "where the first line is the relative path from your script to"
+    echo "common.sh."
+    exit 1
+  fi
+}
+
+# Find root of source tree
+get_gclient_root
 
 # Canonicalize the directories for the root dir and the calling script.
 # readlink is part of coreutils and should be present even in a bare chroot.
@@ -115,14 +143,6 @@ DEFAULT_BOARD=$(echo $ALL_BOARDS | awk '{print $NF}')
 
 # Enable --fast by default.
 DEFAULT_FAST="${FLAGS_TRUE}"
-
-# Detect whether we're inside a chroot or not
-if [ -e /etc/debian_chroot ]
-then
-  INSIDE_CHROOT=1
-else
-  INSIDE_CHROOT=0
-fi
 
 # Directory locations inside the dev chroot
 CHROOT_TRUNK_DIR="/home/$USER/trunk"
