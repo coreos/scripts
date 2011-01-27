@@ -323,10 +323,16 @@ def _IncrementalCheckout(buildroot, retries=_DEFAULT_RETRIES):
   RepoSync(buildroot, retries)
 
 
-def _MakeChroot(buildroot):
+def _MakeChroot(buildroot, replace=False):
   """Wrapper around make_chroot."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  RunCommand(['./make_chroot', '--fast'], cwd=cwd)
+  
+  cmd = ['./make_chroot', '--fast']
+  
+  if replace:
+    cmd.append('--replace')
+  
+  RunCommand(cmd, cwd=cwd)
 
 
 def _GetPortageEnvVar(buildroot, board, envvar):
@@ -358,13 +364,19 @@ def _SetupBoard(buildroot, board='x86-generic'):
              cwd=cwd, enter_chroot=True)
 
 
-def _Build(buildroot, emptytree):
+def _Build(buildroot, emptytree, build_autotest=True, usepkg=True):
   """Wrapper around build_packages."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
   if emptytree:
     cmd = ['sh', '-c', 'EXTRA_BOARD_FLAGS=--emptytree ./build_packages']
   else:
     cmd = ['./build_packages']
+
+  if not build_autotest:
+    cmd.append('--nowithautotest')
+  
+  if not usepkg:
+    cmd.append('--nousepkg')
 
   RunCommand(cmd, cwd=cwd, enter_chroot=True)
 
@@ -559,7 +571,6 @@ def _ArchiveTestResults(buildroot, board, test_results_dir,
 
 def _GetConfig(config_name):
   """Gets the configuration for the build"""
-  default = config['default']
   buildconfig = {}
   if not config.has_key(config_name):
     Warning('Non-existent configuration specified.')
@@ -570,13 +581,7 @@ def _GetConfig(config_name):
       Warning('  %s' % name)
     sys.exit(1)
 
-  buildconfig = config[config_name]
-
-  for key in default.iterkeys():
-    if not buildconfig.has_key(key):
-      buildconfig[key] = default[key]
-
-  return buildconfig
+  return config[config_name]
 
 
 def _ResolveOverlays(buildroot, overlays):
@@ -644,8 +649,6 @@ def main():
   parser = optparse.OptionParser(usage=usage)
   parser.add_option('-a', '--acl', default='private',
                     help='ACL to set on GSD archives')
-  parser.add_option('--archive_build', action='store_true', default=False,
-                    help='Run the archive_build script.')
   parser.add_option('-r', '--buildroot',
                     help='root directory where build occurs', default=".")
   parser.add_option('-n', '--buildnumber',
@@ -730,7 +733,7 @@ def main():
         Die('Missing overlay: %s' % path)
 
     if not os.path.isdir(chroot_path):
-      _MakeChroot(buildroot)
+      _MakeChroot(buildroot, buildconfig['chroot_replace'])
 
     if not os.path.isdir(boardpath):
       _SetupBoard(buildroot, board=buildconfig['board'])
@@ -750,14 +753,17 @@ def main():
     _EnableLocalAccount(buildroot)
 
     if options.build:
-      _Build(buildroot, emptytree)
+      _Build(buildroot,
+             emptytree,
+             build_autotest=(buildconfig['vm_tests'] and options.tests),
+             usepkg=buildconfig['usepkg'])
 
       if buildconfig['unittests'] and options.tests:
         _RunUnitTests(buildroot)
 
       _BuildImage(buildroot)
 
-    if buildconfig['tests'] and options.tests:
+    if buildconfig['vm_tests'] and options.tests:
       _BuildVMImageForTesting(buildroot)
       test_results_dir = '/tmp/run_remote_tests.%s' % options.buildnumber
       try:
@@ -791,7 +797,7 @@ def main():
         if buildconfig['important'] and not options.debug:
           cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
 
-    if options.archive_build:
+    if buildconfig['archive_build']:
       _LegacyArchiveBuild(bot_id,
                           buildconfig,
                           options.buildnumber,
