@@ -53,6 +53,8 @@ config['x86-generic-pre-flight-queue'] = {
   'rev_overlays': 'public',
   'push_overlays': 'public',
 }
+config['x86-generic-chrome-pre-flight-queue'] = \
+    config['x86-generic-pre-flight-queue']
 config['x86-mario-pre-flight-queue'] = {
   'board' : 'x86-mario',
   'uprev' : True,
