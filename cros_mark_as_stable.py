@@ -166,15 +166,10 @@ def _BuildEBuildDictionary(overlays, all, packages):
         overlays[overlay].append(ebuild)
 
 
-def _DoWeHaveLocalCommits(stable_branch, tracking_branch):
-  """Returns true if there are local commits."""
+def _CheckOnStabilizingBranch(stable_branch):
+  """Returns true if the git branch is on the stabilizing branch."""
   current_branch = _SimpleRunCommand('git branch | grep \*').split()[1]
-  if current_branch == stable_branch:
-    current_commit_id = _SimpleRunCommand('git rev-parse HEAD')
-    tracking_commit_id = _SimpleRunCommand('git rev-parse %s' % tracking_branch)
-    return current_commit_id != tracking_commit_id
-  else:
-    return False
+  return current_branch == stable_branch
 
 
 def _CheckSaneArguments(package_list, command):
@@ -228,10 +223,7 @@ def Clean(tracking_branch):
     tracking_branch:  The tracking branch we want to return to after the call.
   """
   _SimpleRunCommand('git reset HEAD --hard')
-  branch = GitBranch(STABLE_BRANCH_NAME, tracking_branch)
-  if branch.Exists():
-    GitBranch.Checkout(branch)
-    branch.Delete()
+  _SimpleRunCommand('git checkout %s' % tracking_branch)
 
 
 def PushChange(stable_branch, tracking_branch):
@@ -249,8 +241,8 @@ def PushChange(stable_branch, tracking_branch):
   num_retries = 5
 
   # Sanity check to make sure we're on a stabilizing branch before pushing.
-  if not _DoWeHaveLocalCommits(stable_branch, tracking_branch):
-    Info('Not work found to push.  Exiting')
+  if not _CheckOnStabilizingBranch(stable_branch):
+    Info('Not on branch %s so no work found to push.  Exiting' % stable_branch)
     return
 
   description = _SimpleRunCommand('git log --format=format:%s%n%n%b ' +
@@ -282,7 +274,6 @@ def PushChange(stable_branch, tracking_branch):
         raise
 
 
-
 class GitBranch(object):
   """Wrapper class for a git branch."""
 
@@ -292,16 +283,17 @@ class GitBranch(object):
     self.tracking_branch = tracking_branch
 
   def CreateBranch(self):
-    GitBranch.Checkout(self)
+    """Creates a new git branch or replaces an existing one."""
+    if self.Exists():
+      self.Delete()
+    self._Checkout(self.branch_name)
 
-  @classmethod
-  def Checkout(cls, target):
-    """Function used to check out to another GitBranch."""
-    if target.branch_name == target.tracking_branch or target.Exists():
-      git_cmd = 'git checkout %s' % target.branch_name
+  def _Checkout(self, target, create=True):
+    """Function used internally to create and move between branches."""
+    if create:
+      git_cmd = 'git checkout -b %s %s' % (target, self.tracking_branch)
     else:
-      git_cmd = 'git checkout -b %s %s' % (target.branch_name,
-                                           target.tracking_branch)
+      git_cmd = 'git checkout %s' % target
     _SimpleRunCommand(git_cmd)
 
   def Exists(self):
@@ -315,8 +307,7 @@ class GitBranch(object):
 
     Returns True on success.
     """
-    tracking_branch = GitBranch(self.tracking_branch, self.tracking_branch)
-    GitBranch.Checkout(tracking_branch)
+    self._Checkout(self.tracking_branch, create=False)
     delete_cmd = 'git branch -D %s' % self.branch_name
     _SimpleRunCommand(delete_cmd)
 
@@ -579,11 +570,14 @@ def main(argv):
                   'and reset the git repo yourself.' % overlay)
           raise
 
-      _CleanStalePackages(gflags.FLAGS.board, new_package_atoms)
-      if gflags.FLAGS.drop_file:
-        fh = open(gflags.FLAGS.drop_file, 'w')
-        fh.write(' '.join(revved_packages))
-        fh.close()
+      if revved_packages:
+        _CleanStalePackages(gflags.FLAGS.board, new_package_atoms)
+        if gflags.FLAGS.drop_file:
+          fh = open(gflags.FLAGS.drop_file, 'w')
+          fh.write(' '.join(revved_packages))
+          fh.close()
+      else:
+        work_branch.Delete()
 
 
 if __name__ == '__main__':
