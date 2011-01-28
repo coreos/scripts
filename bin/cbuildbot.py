@@ -326,12 +326,12 @@ def _IncrementalCheckout(buildroot, retries=_DEFAULT_RETRIES):
 def _MakeChroot(buildroot, replace=False):
   """Wrapper around make_chroot."""
   cwd = os.path.join(buildroot, 'src', 'scripts')
-  
+
   cmd = ['./make_chroot', '--fast']
-  
+
   if replace:
     cmd.append('--replace')
-  
+
   RunCommand(cmd, cwd=cwd)
 
 
@@ -374,7 +374,7 @@ def _Build(buildroot, emptytree, build_autotest=True, usepkg=True):
 
   if not build_autotest:
     cmd.append('--nowithautotest')
-  
+
   if not usepkg:
     cmd.append('--nousepkg')
 
@@ -738,17 +738,17 @@ def main():
     if not os.path.isdir(boardpath):
       _SetupBoard(buildroot, board=buildconfig['board'])
 
-    # Perform uprev.  If chrome_uprev is set, rev Chrome ebuilds.
+    # Perform chrome uprev.
     if options.chrome_rev:
       chrome_atom_to_build = _MarkChromeAsStable(buildroot, tracking_branch,
                                                  options.chrome_rev, board)
-      # If we found nothing to rev, we're done here.
-      if not chrome_atom_to_build:
-        return
-
-    elif buildconfig['uprev']:
+    # Perform other uprevs.
+    if buildconfig['uprev']:
       _UprevPackages(buildroot, tracking_branch, revisionfile,
                      buildconfig['board'], rev_overlays)
+    elif not chrome_atom_to_build:
+      # We found nothing to rev, we're done here.
+      return
 
     _EnableLocalAccount(buildroot)
 
