@@ -97,14 +97,18 @@ config['x86-generic-pre-flight-queue'].update({
   'rev_overlays': 'public',
   'push_overlays': 'public',
 })
+
 config['x86-generic-chrome-pre-flight-queue'] = default.copy()
 config['x86-generic-chrome-pre-flight-queue'].update({
   'board' : 'x86-generic',
-  'uprev' : False,
   'master' : True,
+
+  'uprev' : True,
   'rev_overlays': 'public',
   'push_overlays': 'public',
 })
+
+
 config['x86-mario-pre-flight-queue'] = default.copy()
 config['x86-mario-pre-flight-queue'].update({
   'board' : 'x86-mario',
@@ -114,6 +118,7 @@ config['x86-mario-pre-flight-queue'].update({
   'rev_overlays': 'both',
   'push_overlays': 'private',
 })
+
 config['x86-mario-pre-flight-branch'] = default.copy()
 config['x86-mario-pre-flight-branch'].update({
   'board' : 'x86-mario',
@@ -183,6 +188,13 @@ config['arm-tegra2-full'].update(arm)
 config['arm-tegra2-full'].update(full)
 config['arm-tegra2-full'].update({
   'board' : 'tegra2_dev-board',
+})
+
+config['arm-tegra2-seaboard-full'] = default.copy()
+config['arm-tegra2-seaboard-full'].update(arm)
+config['arm-tegra2-seaboard-full'].update(full)
+config['arm-tegra2-seaboard-full'].update({
+  'board' : 'tegra2_seaboard',
 })
 
 config['x86-generic-full'] = default.copy()
