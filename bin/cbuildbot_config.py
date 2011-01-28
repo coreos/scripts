@@ -25,7 +25,7 @@ push_overlays -- Select what overlays to push at. This should be a subset of
                  rev_overlays for the particular builder.  Must be None if
                  not a master.  There should only be one master bot pushing
                  changes to each overlay per branch.
-                 
+
 unittests -- Runs unittests for packages.
 vm_tests -- Runs the smoke suite and au test harness in a qemu-based VM
             using KVM.
@@ -58,7 +58,7 @@ default = {
 
   'usepkg' : True,
   'chroot_replace' : False,
-  
+
   'archive_build' : False,
   'test_mod' : True,
   'factory_install_mod' : True,
@@ -69,7 +69,7 @@ arm = {
   # VM/tests are broken on arm.
   'unittests' : False,
   'vm_tests' : False,
-  
+
   # These images don't work for arm.
   'factory_install_mod' : False,
   'factory_test_mod' : False,
@@ -80,7 +80,7 @@ full = {
   # so use settings to build from scratch, and archive the results.
   'usepkg' : False,
   'chroot_replace' : True,
-  
+
   'archive_build' : True
 }
 
@@ -92,15 +92,19 @@ config['x86-generic-pre-flight-queue'].update({
   'board' : 'x86-generic',
   'master' : True,
   'hostname' : 'chromeosbuild2',
-  
+
   'uprev' : True,
   'rev_overlays': 'public',
   'push_overlays': 'public',
 })
-
-config['x86-generic-chrome-pre-flight-queue'] = \
-    config['x86-generic-pre-flight-queue']
-
+config['x86-generic-chrome-pre-flight-queue'] = default.copy()
+config['x86-generic-chrome-pre-flight-queue'].update({
+  'board' : 'x86-generic',
+  'uprev' : False,
+  'master' : True,
+  'rev_overlays': 'public',
+  'push_overlays': 'public',
+})
 config['x86-mario-pre-flight-queue'] = default.copy()
 config['x86-mario-pre-flight-queue'].update({
   'board' : 'x86-mario',
@@ -110,7 +114,6 @@ config['x86-mario-pre-flight-queue'].update({
   'rev_overlays': 'both',
   'push_overlays': 'private',
 })
-
 config['x86-mario-pre-flight-branch'] = default.copy()
 config['x86-mario-pre-flight-branch'].update({
   'board' : 'x86-mario',
@@ -197,6 +200,6 @@ config['x86-pineview-full'].update({
 # TODO(dgarrett) delete when buildbot updated to use new names
 config['x86_agz_bin'] = config['x86-agz-bin']
 config['x86_dogfood_bin'] = config['x86-dogfood-bin']
-config['x86_pineview_bin'] = config['x86-pineview-bin'] 
-config['arm_tegra2_bin'] = config['arm-tegra2-bin'] 
-config['arm_generic_bin'] = config['arm-generic-bin'] 
+config['x86_pineview_bin'] = config['x86-pineview-bin']
+config['arm_tegra2_bin'] = config['arm-tegra2-bin']
+config['arm_generic_bin'] = config['arm-generic-bin']

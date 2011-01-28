@@ -24,11 +24,12 @@ class NonClassTests(mox.MoxTestBase):
   def testPushChange(self):
     git_log = 'Marking test_one as stable\nMarking test_two as stable\n'
     fake_description = 'Marking set of ebuilds as stable\n\n%s' % git_log
-    self.mox.StubOutWithMock(cros_mark_as_stable, '_CheckOnStabilizingBranch')
+    self.mox.StubOutWithMock(cros_mark_as_stable, '_DoWeHaveLocalCommits')
     self.mox.StubOutWithMock(cros_mark_as_stable.GitBranch, 'CreateBranch')
     self.mox.StubOutWithMock(cros_mark_as_stable.GitBranch, 'Exists')
 
-    cros_mark_as_stable._CheckOnStabilizingBranch(self._branch).AndReturn(True)
+    cros_mark_as_stable._DoWeHaveLocalCommits(
+        self._branch, self._tracking_branch).AndReturn(True)
     cros_mark_as_stable.GitBranch.CreateBranch()
     cros_mark_as_stable.GitBranch.Exists().AndReturn(True)
     cros_mark_as_stable._SimpleRunCommand('git log --format=format:%s%n%n%b ' +
@@ -51,66 +52,46 @@ class GitBranchTest(mox.MoxTestBase):
     mox.MoxTestBase.setUp(self)
     # Always stub RunCommmand out as we use it in every method.
     self.mox.StubOutWithMock(cros_mark_as_stable, '_SimpleRunCommand')
-    self._branch = 'test_branch'
+    self._branch = self.mox.CreateMock(cros_mark_as_stable.GitBranch)
+    self._branch_name = 'test_branch'
+    self._branch.branch_name = self._branch_name
     self._tracking_branch = 'cros/test'
-
-  def testCreateBranchNoPrevious(self):
-    # Test init with no previous branch existing.
-    branch = cros_mark_as_stable.GitBranch(self._branch, self._tracking_branch)
-    self.mox.StubOutWithMock(branch, 'Exists')
-    self.mox.StubOutWithMock(branch, '_Checkout')
-    branch.Exists().AndReturn(False)
-    branch._Checkout(self._branch)
-    self.mox.ReplayAll()
-    branch.CreateBranch()
-    self.mox.VerifyAll()
-
-  def testCreateBranchWithPrevious(self):
-    # Test init with previous branch existing.
-    branch = cros_mark_as_stable.GitBranch(self._branch, self._tracking_branch)
-    self.mox.StubOutWithMock(branch, 'Exists')
-    self.mox.StubOutWithMock(branch, 'Delete')
-    self.mox.StubOutWithMock(branch, '_Checkout')
-    branch.Exists().AndReturn(True)
-    branch.Delete()
-    branch._Checkout(self._branch)
-    self.mox.ReplayAll()
-    branch.CreateBranch()
-    self.mox.VerifyAll()
+    self._branch.tracking_branch = self._tracking_branch
 
   def testCheckoutCreate(self):
     # Test init with no previous branch existing.
+    self._branch.Exists().AndReturn(False)
     cros_mark_as_stable._SimpleRunCommand(
-        'git checkout -b %s %s' % (self._branch, self._tracking_branch))
+        'git checkout -b %s %s' % (self._branch_name, self._tracking_branch))
     self.mox.ReplayAll()
-    branch = cros_mark_as_stable.GitBranch(self._branch, self._tracking_branch)
-    branch._Checkout(self._branch)
+    cros_mark_as_stable.GitBranch.Checkout(self._branch)
     self.mox.VerifyAll()
 
   def testCheckoutNoCreate(self):
     # Test init with previous branch existing.
+    self._branch.Exists().AndReturn(True)
     cros_mark_as_stable._SimpleRunCommand('git checkout %s' % (
-        self._tracking_branch))
+        self._branch_name))
     self.mox.ReplayAll()
-    branch = cros_mark_as_stable.GitBranch(self._branch, self._tracking_branch)
-    branch._Checkout(self._tracking_branch, False)
+    cros_mark_as_stable.GitBranch.Checkout(self._branch)
     self.mox.VerifyAll()
 
   def testDelete(self):
-    branch = cros_mark_as_stable.GitBranch(self._branch, self._tracking_branch)
-    self.mox.StubOutWithMock(branch, '_Checkout')
-    branch._Checkout(self._tracking_branch, create=False)
-    cros_mark_as_stable._SimpleRunCommand('git branch -D ' + self._branch)
+    self.mox.StubOutWithMock(cros_mark_as_stable.GitBranch, 'Checkout')
+    branch = cros_mark_as_stable.GitBranch(self._branch_name,
+                                           self._tracking_branch)
+    cros_mark_as_stable.GitBranch.Checkout(mox.IgnoreArg())
+    cros_mark_as_stable._SimpleRunCommand('git branch -D ' + self._branch_name)
     self.mox.ReplayAll()
     branch.Delete()
     self.mox.VerifyAll()
 
   def testExists(self):
-    branch = cros_mark_as_stable.GitBranch(self._branch, self._tracking_branch)
-
+    branch = cros_mark_as_stable.GitBranch(self._branch_name,
+                                           self._tracking_branch)
     # Test if branch exists that is created
     cros_mark_as_stable._SimpleRunCommand('git branch').AndReturn(
-        '%s %s' % (self._branch, self._tracking_branch))
+        '%s' % self._branch_name)
     self.mox.ReplayAll()
     self.assertTrue(branch.Exists())
     self.mox.VerifyAll()

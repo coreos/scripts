@@ -345,18 +345,12 @@ def main():
   work_branch = cros_mark_as_stable.GitBranch(
       cros_mark_as_stable.STABLE_BRANCH_NAME, options.tracking_branch)
   work_branch.CreateBranch()
-  try:
-    chrome_version_atom = MarkChromeEBuildAsStable(
-        stable_candidate, unstable_ebuild, chrome_rev, version_to_uprev,
-        commit_to_use, overlay_dir, sticky_ebuild)
-    # Explicit print to communicate to caller.
-    if chrome_version_atom:
-      print 'CHROME_VERSION_ATOM=%s' % chrome_version_atom
-    else:
-      work_branch.Delete()
-  except:
-    work_branch.Delete()
-    raise
+  chrome_version_atom = MarkChromeEBuildAsStable(
+      stable_candidate, unstable_ebuild, chrome_rev, version_to_uprev,
+      commit_to_use, overlay_dir, sticky_ebuild)
+  # Explicit print to communicate to caller.
+  if chrome_version_atom:
+    print 'CHROME_VERSION_ATOM=%s' % chrome_version_atom
 
 
 if __name__ == '__main__':
