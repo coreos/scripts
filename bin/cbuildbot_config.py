@@ -65,14 +65,35 @@ default = {
   'factory_test_mod' : True,
 }
 
+arm = {
+  # VM/tests are broken on arm.
+  'unittests' : False,
+  'vm_tests' : False,
+  
+  # These images don't work for arm.
+  'factory_install_mod' : False,
+  'factory_test_mod' : False,
+}
+
+full = {
+  # Full builds are test build to show that we can build from scratch,
+  # so use settings to build from scratch, and archive the results.
+  'usepkg' : False,
+  'chroot_replace' : True,
+  
+  'archive_build' : True
+}
+
+
 config = {}
 
 config['x86-generic-pre-flight-queue'] = default.copy()
 config['x86-generic-pre-flight-queue'].update({
   'board' : 'x86-generic',
-  'uprev' : True,
   'master' : True,
   'hostname' : 'chromeosbuild2',
+  
+  'uprev' : True,
   'rev_overlays': 'public',
   'push_overlays': 'public',
 })
@@ -83,8 +104,9 @@ config['x86-generic-chrome-pre-flight-queue'] = \
 config['x86-mario-pre-flight-queue'] = default.copy()
 config['x86-mario-pre-flight-queue'].update({
   'board' : 'x86-mario',
-  'uprev' : True,
   'master' : True,
+
+  'uprev' : True,
   'rev_overlays': 'both',
   'push_overlays': 'private',
 })
@@ -92,8 +114,9 @@ config['x86-mario-pre-flight-queue'].update({
 config['x86-mario-pre-flight-branch'] = default.copy()
 config['x86-mario-pre-flight-branch'].update({
   'board' : 'x86-mario',
-  'uprev' : True,
   'master' : True,
+
+  'uprev' : True,
   'rev_overlays': 'both',
   'push_overlays': 'both',
 })
@@ -101,6 +124,7 @@ config['x86-mario-pre-flight-branch'].update({
 config['x86-agz-bin'] = default.copy()
 config['x86-agz-bin'].update({
   'board' : 'x86-agz',
+
   'uprev' : True,
   'rev_overlays': 'both',
   'push_overlays': None,
@@ -109,6 +133,7 @@ config['x86-agz-bin'].update({
 config['x86-dogfood-bin'] = default.copy()
 config['x86-dogfood-bin'].update({
   'board' : 'x86-dogfood',
+
   'uprev' : True,
   'rev_overlays': 'both',
   'push_overlays': None,
@@ -117,30 +142,56 @@ config['x86-dogfood-bin'].update({
 config['x86-pineview-bin'] = default.copy()
 config['x86-pineview-bin'].update({
   'board' : 'x86-pineview',
+
   'uprev' : True,
   'rev_overlays': 'public',
   'push_overlays': None,
 })
 
 config['arm-tegra2-bin'] = default.copy()
+config['arm-tegra2-bin'].update(arm)
 config['arm-tegra2-bin'].update({
   'board' : 'tegra2_dev-board',
+
   'uprev' : True,
-  'unittests' : False,
-  'vm_tests' : False,
   'rev_overlays': 'public',
-  'factory_install_mod' : False,
-  'factory_test_mod' : False,
+  'push_overlays': None,
 })
 
 config['arm-generic-bin'] = default.copy()
+config['arm-generic-bin'].update(arm)
 config['arm-generic-bin'].update({
   'board' : 'arm-generic',
+
   'uprev' : True,
-  'unittests' : False,
-  'vm_tests' : False,
-  'factory_install_mod' : False,
-  'factory_test_mod' : False,
+  'rev_overlays': 'public',
+  'push_overlays': None,
+})
+
+config['arm-generic-full'] = default.copy()
+config['arm-generic-full'].update(arm)
+config['arm-generic-full'].update(full)
+config['arm-generic-full'].update({
+  'board' : 'arm-generic',
+})
+
+config['arm-tegra2-full'] = default.copy()
+config['arm-tegra2-full'].update(arm)
+config['arm-tegra2-full'].update(full)
+config['arm-tegra2-full'].update({
+  'board' : 'tegra2_dev-board',
+})
+
+config['x86-generic-full'] = default.copy()
+config['x86-generic-full'].update(full)
+config['x86-generic-full'].update({
+  'board' : 'x86-generic',
+})
+
+config['x86-pineview-full'] = default.copy()
+config['x86-pineview-full'].update(full)
+config['x86-pineview-full'].update({
+  'board' : 'x86-pineview',
 })
 
 # TODO(dgarrett) delete when buildbot updated to use new names
