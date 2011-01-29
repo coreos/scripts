@@ -497,12 +497,14 @@ def _UprevPush(buildroot, tracking_branch, board, overlays, dryrun):
   RunCommand(cmd, cwd=cwd)
 
 
-def _LegacyArchiveBuild(bot_id, buildconfig, buildnumber, debug=False):
+def _LegacyArchiveBuild(buildroot, bot_id, buildconfig, buildnumber,
+                        debug=False):
   """Adds a step to the factory to archive a build."""
 
   # Fixed properties
   keep_max = 3
   gsutil_archive = 'gs://chromeos-archive/' + bot_id
+  cwd = os.path.join(buildroot, 'src', 'scripts')
 
   cmd = ['./archive_build.sh',
          '--build_number', str(buildnumber),
@@ -531,7 +533,7 @@ def _LegacyArchiveBuild(bot_id, buildconfig, buildnumber, debug=False):
   if debug:
     Warning('***** ***** LegacyArchiveBuild CMD: ' + ' '.join(cmd))
   else:
-    RunCommand(cmd)
+    RunCommand(cmd, cwd=cwd)
 
 def _ArchiveTestResults(buildroot, board, test_results_dir,
                         gsutil, archive_dir, acl):
@@ -798,7 +800,8 @@ def main():
           cbuildbot_comm.PublishStatus(cbuildbot_comm.STATUS_BUILD_COMPLETE)
 
     if buildconfig['archive_build']:
-      _LegacyArchiveBuild(bot_id,
+      _LegacyArchiveBuild(buildroot,
+                          bot_id,
                           buildconfig,
                           options.buildnumber,
                           options.debug)
