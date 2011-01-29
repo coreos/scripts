@@ -732,7 +732,7 @@ def main():
       if not os.path.isdir(path):
         Die('Missing overlay: %s' % path)
 
-    if not os.path.isdir(chroot_path):
+    if not os.path.isdir(chroot_path) or buildconfig['chroot_replace']:
       _MakeChroot(buildroot, buildconfig['chroot_replace'])
 
     if not os.path.isdir(boardpath):
