@@ -227,6 +227,12 @@ def Clean(tracking_branch):
   Args:
     tracking_branch:  The tracking branch we want to return to after the call.
   """
+  # Safety case in case we got into a bad state with a previous build.
+  try:
+    _SimpleRunCommand('git rebase --abort')
+  except:
+    pass
+
   _SimpleRunCommand('git reset HEAD --hard')
   branch = GitBranch(STABLE_BRANCH_NAME, tracking_branch)
   if branch.Exists():
@@ -260,10 +266,10 @@ def PushChange(stable_branch, tracking_branch):
   merge_branch_name = 'merge_branch'
   for push_try in range(num_retries + 1):
     try:
-      _SimpleRunCommand('repo sync .')
       merge_branch = GitBranch(merge_branch_name, tracking_branch)
       if merge_branch.Exists():
         merge_branch.Delete()
+      _SimpleRunCommand('repo sync .')
       merge_branch.CreateBranch()
       if not merge_branch.Exists():
         Die('Unable to create merge branch.')
@@ -299,10 +305,10 @@ class GitBranch(object):
   def Checkout(cls, target):
     """Function used to check out to another GitBranch."""
     if target.branch_name == target.tracking_branch or target.Exists():
-      git_cmd = 'git checkout %s' % target.branch_name
+      git_cmd = 'git checkout %s -f' % target.branch_name
     else:
-      git_cmd = 'git checkout -b %s %s' % (target.branch_name,
-                                           target.tracking_branch)
+      git_cmd = 'git checkout -b %s %s -f' % (target.branch_name,
+                                              target.tracking_branch)
     _SimpleRunCommand(git_cmd)
 
   def Exists(self):
