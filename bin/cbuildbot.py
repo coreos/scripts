@@ -746,7 +746,7 @@ def main():
     if buildconfig['uprev']:
       _UprevPackages(buildroot, tracking_branch, revisionfile,
                      buildconfig['board'], rev_overlays)
-    elif not chrome_atom_to_build:
+    elif options.chrome_rev and not chrome_atom_to_build:
       # We found nothing to rev, we're done here.
       return
 
