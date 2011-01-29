@@ -103,7 +103,7 @@ config['x86-generic-chrome-pre-flight-queue'].update({
   'board' : 'x86-generic',
   'master' : True,
 
-  'uprev' : True,
+  'uprev' : False,
   'rev_overlays': 'public',
   'push_overlays': 'public',
 })
