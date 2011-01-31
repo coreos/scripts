@@ -225,6 +225,15 @@ def GrabZipAndExtractImage(zip_url, download_folder, image_name) :
     fh.close()
 
 
+def WipeDevServerCache():
+  """Wipes the cache of the dev server."""
+  RunCommand(['sudo',
+              './start_devserver',
+              '--clear_cache',
+              '--exit',
+             ], enter_chroot=True)
+
+
 def RunAUTestHarness(board, channel, latest_url_base, zip_server_base,
                      no_graphics, type, remote):
   """Runs the auto update test harness.
@@ -274,6 +283,8 @@ def main():
                     help='board for the image to compare against.')
   parser.add_option('-c', '--channel',
                     help='channel for the image to compare against.')
+  parser.add_option('--cache', default=False, action='store_true',
+                    help='Cache payloads')
   parser.add_option('-l', '--latestbase',
                     help='Base url for latest links.')
   parser.add_option('-z', '--zipbase',
@@ -300,6 +311,10 @@ def main():
 
   if not options.zipbase:
     parser.error('Need zip url base to get images.')
+
+  if not options.cache:
+    Info('Wiping dev server cache.')
+    WipeDevServerCache()
 
   RunAUTestHarness(options.board, options.channel, options.latestbase,
                    options.zipbase, options.no_graphics, options.type,
