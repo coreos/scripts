@@ -27,6 +27,8 @@ DEFINE_string chrome_root "" \
 DEFINE_string chrome_root_mount "/home/$USER/chrome_root" \
   "The mount point of the chrome broswer source in the chroot."
 
+DEFINE_boolean git_config $FLAGS_TRUE \
+  "Config git to work with your user/pass in the chroot."
 DEFINE_boolean official_build $FLAGS_FALSE \
   "Set CHROMEOS_OFFICIAL=1 for release builds."
 DEFINE_boolean mount $FLAGS_FALSE "Only set up mounts."
@@ -326,10 +328,13 @@ if [ -d "$HOME/.subversion" ]; then
 fi
 
 # Configure committer username and email in chroot .gitconfig
-git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all user.name \
-  "$(cd /tmp; git var GIT_COMMITTER_IDENT | sed -e 's/ *<.*//')"
-git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all user.email \
-  "$(cd /tmp; git var GIT_COMMITTER_IDENT | sed -e 's/.*<\([^>]*\)>.*/\1/')"
+if [ $FLAGS_git_config -eq $FLAGS_TRUE ]; then
+  git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all \
+    user.name "$(cd /tmp; git var GIT_COMMITTER_IDENT | sed -e 's/ *<.*//')"
+  git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all \
+    user.email "$(cd /tmp; git var GIT_COMMITTER_IDENT | \
+      sed -e 's/.*<\([^>]*\)>.*/\1/')"
+fi
 
 # Run command or interactive shell.  Also include the non-chrooted path to
 # the source trunk for scripts that may need to print it (e.g.

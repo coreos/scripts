@@ -840,7 +840,10 @@ def _PregenerateUpdates(parser, options):
     if src:
       src = ReinterpretPathForChroot(src)
 
-    return RunCommandCaptureOutput(['sudo',
+    return RunCommandCaptureOutput(['./enter_chroot.sh',
+                                    '--nogit_config',
+                                    '--',
+                                    'sudo',
                                     './start_devserver',
                                     '--pregenerate_update',
                                     '--exit',
@@ -848,7 +851,6 @@ def _PregenerateUpdates(parser, options):
                                     '--src_image=%s' % src,
                                     '--for_vm',
                                    ], combine_stdout_stderr=True,
-                                   enter_chroot=True,
                                    print_cmd=False)
 
   # Get the list of deltas by mocking out update method in test class.
@@ -911,9 +913,7 @@ def _RunTestsInParallel(parser, options, test_class):
     threads.append(unittest.TextTestRunner().run)
     args.append(test_case)
 
-  # TODO(sosa): Set back to options.jobs once parallel generation is
-  # no longer flaky.
-  results = _RunParallelJobs(1, threads, args, print_status=False)
+  results = _RunParallelJobs(options.jobs, threads, args, print_status=False)
   for test_result in results:
     if not test_result.wasSuccessful():
       Die('Test harness was not successful')
