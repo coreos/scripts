@@ -911,7 +911,9 @@ def _RunTestsInParallel(parser, options, test_class):
     threads.append(unittest.TextTestRunner().run)
     args.append(test_case)
 
-  results = _RunParallelJobs(options.jobs, threads, args, print_status=False)
+  # TODO(sosa): Set back to options.jobs once parallel generation is
+  # no longer flaky.
+  results = _RunParallelJobs(1, threads, args, print_status=False)
   for test_result in results:
     if not test_result.wasSuccessful():
       Die('Test harness was not successful')
