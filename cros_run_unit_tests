@@ -23,6 +23,8 @@ DEFINE_string package_file "" \
   "File with space-separated list of packages to run unit tests" f
 DEFINE_string packages "" \
   "Optional space-separated list of packages to run unit tests" p
+DEFINE_boolean withdebug "${FLAGS_TRUE}" \
+  "Build debug versions of Chromium-OS-specific packages."
 
 # Total count of packages with unit tests.
 TEST_COUNT=0
@@ -75,6 +77,10 @@ if [ -z "${FLAGS_package_file}" -a -z "${FLAGS_packages}" ]; then
 fi
 
 BLACK_LIST_FILE="$(dirname "$0")/unit_test_black_list.txt"
+
+if [ "${FLAGS_withdebug}" -eq "${FLAGS_FALSE}" ]; then
+  export USE="${USE} -cros-debug"
+fi
 
 for package in ${PACKAGE_LIST}; do
   if grep -xq "${package}" "${BLACK_LIST_FILE}"; then
