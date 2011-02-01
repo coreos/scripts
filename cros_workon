@@ -14,9 +14,6 @@
 # The path to common.sh should be relative to your script's location.
 . "$(dirname "$0")/common.sh"
 
-# Load common functions for workon scripts.
-. "$(dirname "$0")/lib/cros_workon_common.sh"
-
 # Script must be run inside the chroot
 restart_in_chroot_if_needed $*
 get_default_board
@@ -97,6 +94,32 @@ if [ ! -L "${UNMASK_FILE}" ]; then
   sudo ln -s "${WORKON_FILE}" "${UNMASK_FILE}" || \
     die "ln -s ${WORKON_FILE} ${UNMASK_FILE}"
 fi
+
+find_keyword_workon_ebuilds() {
+  keyword="${1}"
+
+  pushd "${BOARD_DIR}"/etc/ 1> /dev/null
+  source make.conf
+  popd 1> /dev/null
+  local CROS_OVERLAYS="${PORTDIR_OVERLAY}"
+
+  # NOTE: overlay may be a symlink, and we have to use ${overlay}/
+  for overlay in ${CROS_OVERLAYS}; do
+    # only look up ebuilds named 9999 to eliminate duplicates
+    find ${overlay}/ -name '*9999.ebuild' | \
+      xargs grep -l "inherit.*cros-workon" | \
+      xargs grep -l "KEYWORDS=.*${keyword}.*"
+  done
+}
+
+show_workon_ebuilds() {
+  keyword=$1
+
+  find_keyword_workon_ebuilds ${keyword} | \
+    sed -e 's/.*\/\([^/]*\)\/\([^/]*\)\/.*\.ebuild/\1\/\2/' | \
+       sort -u
+  # This changes the absolute path to ebuilds into category/package.
+}
 
 # Canonicalize package name to category/package.
 canonicalize_name () {
