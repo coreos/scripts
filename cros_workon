@@ -58,12 +58,14 @@ if [ -n "${FLAGS_board}" ]; then
   BOARD_DIR=/build/"${FLAGS_board}" # --board specified
   EQUERYCMD=equery-"${FLAGS_board}"
   EBUILDCMD=ebuild-"${FLAGS_board}"
+  PORTAGEQCMD=portageq-"${FLAGS_board}"
   BOARD_STR="${FLAGS_board}"
   BOARD_KEYWORD="$(portageq-${FLAGS_board} envvar ARCH)"
 else
   BOARD_DIR="" # --host specified
   EQUERYCMD=equery
   EBUILDCMD=ebuild
+  PORTAGEQCMD=portageq
   BOARD_STR="host"
   BOARD_KEYWORD="$(portageq envvar ARCH)"
 fi
@@ -98,13 +100,10 @@ fi
 find_keyword_workon_ebuilds() {
   keyword="${1}"
 
-  pushd "${BOARD_DIR}"/etc/ 1> /dev/null
-  source make.conf
-  popd 1> /dev/null
-  local CROS_OVERLAYS="${PORTDIR_OVERLAY}"
+  local cros_overlays=$("${PORTAGEQCMD}" envvar PORTDIR_OVERLAY)
 
   # NOTE: overlay may be a symlink, and we have to use ${overlay}/
-  for overlay in ${CROS_OVERLAYS}; do
+  for overlay in ${cros_overlays}; do
     # only look up ebuilds named 9999 to eliminate duplicates
     find ${overlay}/ -name '*9999.ebuild' | \
       xargs grep -l "inherit.*cros-workon" | \
