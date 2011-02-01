@@ -10,12 +10,9 @@
 # is intended to support development. The current source tip is fetched,
 # source modified and built using the unstable 'live' (9999) ebuild.
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-. "$(dirname "$0")/common.sh"
+. /usr/lib/crosutils/common.sh || (echo "Unable to load common.sh" && exit 1)
 
 # Script must be run inside the chroot
-restart_in_chroot_if_needed $*
 get_default_board
 
 DEFINE_string board "${DEFAULT_BOARD}" \
@@ -41,7 +38,6 @@ eval set -- "${FLAGS_ARGV}"
 # eat the workon command keywords: start, stop or list.
 WORKON_CMD=$1
 shift
-
 
 # Board dir config
 
@@ -98,7 +94,8 @@ if [ ! -L "${UNMASK_FILE}" ]; then
 fi
 
 find_keyword_workon_ebuilds() {
-  keyword="${1}"
+  local keyword="${1}"
+  local overlay
 
   local cros_overlays=$("${PORTAGEQCMD}" envvar PORTDIR_OVERLAY)
 
@@ -112,7 +109,7 @@ find_keyword_workon_ebuilds() {
 }
 
 show_workon_ebuilds() {
-  keyword=$1
+  local keyword=$1
 
   find_keyword_workon_ebuilds ${keyword} | \
     sed -e 's/.*\/\([^/]*\)\/\([^/]*\)\/.*\.ebuild/\1\/\2/' | \
@@ -150,6 +147,7 @@ canonicalize_name () {
 canonicalize_names () {
   local atoms=$1
   local names=""
+  local atom
 
   for atom in ${atoms}; do
     local name=$(canonicalize_name "${atom}")
@@ -168,6 +166,7 @@ show_live_ebuilds () {
 # Display ebuilds currently part of the live branch and open for development
 # for any board that currently has live ebuilds.
 show_all_live_ebuilds () {
+  local workon_file
   for workon_file in ${WORKON_DIR}/*; do
     if [ -s "${workon_file}" ]; then
       echo -e "${V_BOLD_GREEN}$(basename ${workon_file}):${V_VIDOFF}"
@@ -177,7 +176,10 @@ show_all_live_ebuilds () {
   done
 }
 
-# This is called only for "cros-workon start". We dont handle the "stop" case since the local changes are ignored anyway since the 9999.ebuild is masked and we dont want to deal with what to do with the user's local changes.
+# This is called only for "cros-workon start". We dont handle the
+# "stop" case since the local changes are ignored anyway since the
+# 9999.ebuild is masked and we dont want to deal with what to do with
+# the user's local changes.
 regen_manifest_and_sync() {
   # Nothing to do unless you are working on the minilayout
   local manifest=${CHROOT_TRUNK_DIR}/.repo/manifest.xml
@@ -185,6 +187,7 @@ regen_manifest_and_sync() {
       return
   fi
 
+  local pkgname
   for pkgname in $(show_live_ebuilds); do
     eval $(${EBUILDCMD} $(${EQUERYCMD} which ${pkgname}) info)
     local srcdir=$(readlink -m ${CROS_WORKON_SRCDIR})
@@ -201,6 +204,7 @@ regen_manifest_and_sync() {
 ebuild_to_live () {
   local atoms=$1
   local atoms_success=""
+  local atom
 
   for atom in ${atoms}; do
     if ! grep -qx "=${atom}-9999" "${WORKON_FILE}" ; then
@@ -219,6 +223,7 @@ ebuild_to_live () {
 ebuild_to_stable () {
   local atoms=$1
   local atoms_success=""
+  local atom
 
   for atom in ${atoms}; do
     if grep -qx "=${atom}-9999" "${WORKON_FILE}" ; then
@@ -236,6 +241,7 @@ ebuild_to_stable () {
 # Run a command on all or a set of repos.
 ebuild_iterate() {
   local atoms=$1
+  local atom
 
   for atom in ${atoms}; do
     info "Running \"${FLAGS_command}\" on ${atom}"
@@ -249,7 +255,7 @@ if [ ${FLAGS_all} = "${FLAGS_TRUE}" ]; then
   case ${WORKON_CMD} in
     start) ATOM_LIST=$(show_workon_ebuilds ${BOARD_KEYWORD});;
     stop|iterate) ATOM_LIST=$(show_live_ebuilds);;
-    list|list-all) ;;
+    list) ;;
     *) die "--all is invalid for the given command";;
   esac
 else # not selected --all
@@ -266,10 +272,11 @@ else # not selected --all
 fi
 
 case ${WORKON_CMD} in
-  start)  ebuild_to_live "${ATOM_LIST}" ;;
-  stop)   ebuild_to_stable "${ATOM_LIST}" ;;
-  list)   [ ${FLAGS_all} = "${FLAGS_FALSE}" ] && show_live_ebuilds || show_workon_ebuilds ${BOARD_KEYWORD} ;;
+  start) ebuild_to_live "${ATOM_LIST}" ;;
+  stop) ebuild_to_stable "${ATOM_LIST}" ;;
+  list) [ ${FLAGS_all} = "${FLAGS_FALSE}" ] && show_live_ebuilds || \
+    show_workon_ebuilds ${BOARD_KEYWORD} ;;
   list-all) show_all_live_ebuilds ;;
-  iterate)ebuild_iterate "${ATOM_LIST}" ;;
+  iterate) ebuild_iterate "${ATOM_LIST}" ;;
   *)      die "$(basename $0): command '${WORKON_CMD}' not recognized" ;;
 esac
