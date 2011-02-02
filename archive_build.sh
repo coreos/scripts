@@ -279,7 +279,7 @@ fi
 if [ $FLAGS_prebuilt_upload -eq $FLAGS_TRUE ]; then
   # Construct prebuilt upload command.
   # This will upload prebuilt packages to Google Storage.
-  prebuilt_cmd="${SCRIPTS_DIR}/prebuilt.py"
+  prebuilt_cmd="${GCLIENT_ROOT}/chromite/buildbot/prebuilt.py"
   prebuilt_cmd="$prebuilt_cmd -u gs://chromeos-prebuilt --git-sync -V master"
   prebuilt_cmd="$prebuilt_cmd -p ${GCLIENT_ROOT} -b ${FLAGS_board}"
 
