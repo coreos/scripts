@@ -7,16 +7,28 @@
 # Script to update a running device with an optionally built package out
 # of your build directory
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils "$(dirname "$(readlink -f "$0")")/..")
+  local path
 
-script_root=$(dirname $0)
-if [ -f ${script_root}/../common.sh ] ; then
-  script_root=${script_root}/..
-fi
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
 
-. "${script_root}/common.sh"
-. "${script_root}/remote_access.sh"
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
+. "${SCRIPT_ROOT}/remote_access.sh" || die "Unable to load remote_access.sh"
 
 get_default_board
 
@@ -89,8 +101,8 @@ for pkg in $@; do
         echo "Could not find latest built version of ${pkg}"
         exit 1
     fi
-    pkg_dir=$(basename $(dirname $latest_pkg))
-    pkg_name=$(basename $latest_pkg)
+    pkg_dir=$(basename "$(dirname "$latest_pkg")")
+    pkg_name=$(basename "$latest_pkg")
     echo "Installing ${latest_pkg}..."
 
     remote_sh "mktemp -d /tmp/cros_package_to_live.XXXX"

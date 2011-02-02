@@ -7,14 +7,38 @@
 # Script to convert the output of build_image.sh to a VMware image and write a
 # corresponding VMware config file.
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-. "$(dirname "$0")/common.sh"
-. "$(dirname "$0")/chromeos-common.sh"
-. "$(dirname "$0")/lib/cros_vm_constants.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
+# Need to be inside the chroot to load chromeos-common.sh
+assert_inside_chroot
+
+# Load functions and constants for chromeos-install
+. "/usr/lib/installer/chromeos-common.sh" || \
+  die "Unable to load /usr/lib/installer/chromeos-common.sh"
+
+. "${SCRIPT_ROOT}/lib/cros_vm_constants.sh" || \
+  die "Unable to load ${SCRIPT_ROOT}/lib/cros_vm_constants.sh"
 
 get_default_board
-assert_inside_chroot
 
 # Flags
 DEFINE_string board "${DEFAULT_BOARD}" \
@@ -120,7 +144,7 @@ if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
 fi
 
 # Memory units are in MBs
-TEMP_IMG="$(dirname ${SRC_IMAGE})/vm_temp_image.bin"
+TEMP_IMG="$(dirname "${SRC_IMAGE}")/vm_temp_image.bin"
 
 # If we're not building for VMWare, don't build the vmx
 if [ "${FLAGS_format}" != "vmware" ]; then
@@ -189,11 +213,11 @@ mkdir -p "${TEMP_ESP_MNT}"
 sudo mount -o loop "${TEMP_ESP}" "${TEMP_ESP_MNT}"
 
 if [ "${FLAGS_format}" = "qemu" ]; then
-  sudo python "$(dirname $0)/fixup_image_for_qemu.py" \
+  sudo python "${SCRIPTS_DIR}/fixup_image_for_qemu.py" \
       --mounted_dir="${TEMP_MNT}" \
       --enable_tablet=true
 else
-  sudo python "$(dirname $0)/fixup_image_for_qemu.py" \
+  sudo python "${SCRIPTS_DIR}/fixup_image_for_qemu.py" \
       --mounted_dir="${TEMP_MNT}" \
       --enable_tablet=false
 fi

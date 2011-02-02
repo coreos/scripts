@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
 
 # Usage:
 #   revert_image.sh [image_to_revert]
@@ -6,7 +9,7 @@
 # This assumes the image has been updated by update_image.sh.
 usage()
 {
-cat <<EOF
+  cat <<EOF
 
 usage:
    revert_image.sh [image_to_revert]
@@ -19,24 +22,23 @@ if [[ $# < 1 ]]; then
    exit 1
 fi
 
-IMAGE=$( readlink -f ${1} )
-IMAGE_DIR=$( dirname ${IMAGE} )
+IMAGE=$(readlink -f "$1")
+IMAGE_DIR=$(dirname "$IMAGE")
 
-if [[ -z "${IMAGE}" ]]; then
+if [[ -z "$IMAGE" ]]; then
    echo "Missing required argument 'image_to_revert'"
    usage
    exit 1
 fi
 
-cd ${IMAGE_DIR}
+cd "$IMAGE_DIR"
 
 if [[ ! -d "./orig_partitions" ]]; then
    echo "Could not find original partitions."
    exit 1
 fi
 
-yes | cp ./orig_partitions/* ./
+cp -f ./orig_partitions/* ./
 
-./pack_partitions.sh ${IMAGE}
+./pack_partitions.sh "$IMAGE"
 rm -rf ./orig_partitions
-cd -

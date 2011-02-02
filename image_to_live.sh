@@ -6,11 +6,28 @@
 
 # Script to update an image onto a live running ChromiumOS instance.
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
 
-. "$(dirname $0)/common.sh"
-. "$(dirname $0)/remote_access.sh"
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
+. "${SCRIPT_ROOT}/remote_access.sh" || die "Unable to load remote_access.sh"
 
 # Flags to control image_to_live.
 DEFINE_boolean ignore_hostname ${FLAGS_TRUE} \
@@ -130,7 +147,7 @@ function start_dev_server {
     # IMAGE_PATH should be the newest image and learn the board from
     # the target.
     learn_board
-    IMAGE_PATH="$($(dirname "$0")/get_latest_image.sh --board="${FLAGS_board}")"
+    IMAGE_PATH="$(${SCRIPTS_DIR}/get_latest_image.sh --board="${FLAGS_board}")"
     IMAGE_PATH="${IMAGE_PATH}/chromiumos_image.bin"
     devserver_flags="${devserver_flags} \
         --image $(reinterpret_path_for_chroot ${IMAGE_PATH})"
@@ -160,8 +177,7 @@ function start_dev_server {
 
   info "Waiting on devserver to start"
   info "note: be patient as the server generates the update before starting."
-  until netstat -anp 2>&1 | grep 0.0.0.0:${FLAGS_devserver_port} > /dev/null
-  do
+  until netstat -anp 2>&1 | grep 0.0.0.0:${FLAGS_devserver_port} > /dev/null; do
     sleep 5
     echo -n "."
     if ! pgrep -f start_devserver > /dev/null; then
@@ -314,7 +330,7 @@ function run_auto_update {
 
 function verify_image {
   info "Verifying image."
-  "${SCRIPTS_DIR}/mount_gpt_image.sh" --from "$(dirname ${IMAGE_PATH})" \
+  "${SCRIPTS_DIR}/mount_gpt_image.sh" --from "$(dirname "${IMAGE_PATH}")" \
                      --image "$(basename ${IMAGE_PATH})" \
                      --read_only
 
@@ -345,7 +361,7 @@ function find_root_dev {
 function main() {
   assert_outside_chroot
 
-  cd $(dirname "$0")
+  cd "${SCRIPTS_DIR}"
 
   FLAGS "$@" || exit 1
   eval set -- "${FLAGS_ARGV}"

@@ -41,11 +41,28 @@
 #   CHRONOS_PASSWD - default value for --chronos_passwd
 #
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-. "$(dirname "$0")/common.sh"
-# Allow remote access (for learning board type)
-. "$(dirname "$0")/remote_access.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
+. "${SCRIPT_ROOT}/remote_access.sh"
 
 DEFINE_string board "" "Board setting"
 DEFINE_boolean build ${FLAGS_TRUE} \
@@ -122,7 +139,7 @@ function validate_and_set_param_defaults() {
 
   if [[ -z "${FLAGS_top}" ]]; then
     # Use the top directory based on where this script runs from
-    FLAGS_top=$(dirname $(dirname $(dirname $0)))
+    FLAGS_top=${GCLIENT_ROOT}
   fi
 
   # Canonicalize any symlinks
@@ -487,7 +504,7 @@ function grab_buildbot() {
   export GSDCURL_USERNAME
   read -s -p "Password: " GSDCURL_PASSWORD
   export GSDCURL_PASSWORD
-  CURL="$(dirname $0)/bin/cros_gsdcurl.py"
+  CURL="${SCRIPTS_DIR}/bin/cros_gsdcurl.py"
   if [[ "${FLAGS_grab_buildbot}" == "LATEST" ]]; then
     local latest=$(${CURL} "${FLAGS_buildbot_uri}/LATEST")
     if [[ -z "${latest}" ]]; then
@@ -507,7 +524,7 @@ function grab_buildbot() {
 
   cd "${dl_dir}"
   unzip image.zip
-  local image_basename=$(basename $(dirname "${FLAGS_grab_buildbot}"))
+  local image_basename=$(basename "$(dirname "${FLAGS_grab_buildbot}")")
   local image_base_dir="${FLAGS_top}/src/build/images/${FLAGS_board}"
   local image_dir="${image_base_dir}/${image_basename}"
   info "Copying in build image to ${image_dir}"

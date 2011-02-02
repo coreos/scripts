@@ -6,12 +6,30 @@
 
 # Start the Dev Server after making sure we are running under a chroot.
 
-. "$(dirname "$0")/common.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
 
 # Script must be run inside the chroot if not in 'always serve' mode.
-if [[ "$1" != "--archive_dir" ]]
-then
-  restart_in_chroot_if_needed $*
+if [[ "$1" != "--archive_dir" ]]; then
+  restart_in_chroot_if_needed "$@"
 fi
 
 # Temporary workaround: to start devserver for update engine, pass in args
@@ -23,4 +41,4 @@ if [ -z "${PKG_INSTALL_MASK+x}" ]; then
 fi
 echo PKG_INSTALL_MASK=$PKG_INSTALL_MASK
 
-cd ${GCLIENT_ROOT}/src/platform/dev && python devserver.py $*
+cd ${GCLIENT_ROOT}/src/platform/dev && python devserver.py "$@"

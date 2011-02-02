@@ -4,8 +4,7 @@
 # found in the LICENSE file.
 set -e
 
-if [ -z $1 ]
-then
+if [ -z $1 ]; then
   echo "Usage: $0 localaccount_username [chroot_path]"
   exit 1
 fi

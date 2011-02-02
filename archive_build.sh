@@ -6,9 +6,26 @@
 
 # Script to archive build results.  Used by the buildbots.
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-. "$(dirname "$0")/common.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
 
 # Script must be run outside the chroot
 assert_outside_chroot
@@ -43,7 +60,8 @@ DEFINE_string acl "private" \
 DEFINE_string gsutil_archive "" \
     "Optional datastore archive location"
 DEFINE_integer keep_max 0 "Maximum builds to keep in archive (0=all)"
-DEFINE_boolean official_build $FLAGS_FALSE "Set CHROMEOS_OFFICIAL=1 for release builds."
+DEFINE_boolean official_build $FLAGS_FALSE \
+    "Set CHROMEOS_OFFICIAL=1 for release builds."
 DEFINE_boolean test_mod $FLAGS_TRUE "Modify image for testing purposes"
 DEFINE_boolean prebuilt_upload $FLAGS_FALSE "Upload prebuilt binary packages."
 DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
@@ -57,8 +75,7 @@ eval set -- "${FLAGS_ARGV}"
 DEFAULT_USED=
 
 # Reset "default" FLAGS_from based on passed-in board if not set on cmd-line
-if [ "$FLAGS_from" = "$DEFAULT_FROM" ]
-then
+if [ "$FLAGS_from" = "$DEFAULT_FROM" ]; then
   # Keep the directory name of the current image set (*.bin).
   IMG_DIR="$(readlink ${IMAGES_DIR}/${FLAGS_board}/latest)"
   FLAGS_from="${IMAGES_DIR}/${FLAGS_board}/${IMG_DIR}"
@@ -68,8 +85,7 @@ fi
 # Die on any errors.
 set -e
 
-if [ -z "$DEFAULT_USED" ]
-then
+if [ -z "$DEFAULT_USED" ]; then
   if [ $FLAGS_test_mod -eq $FLAGS_TRUE ] || \
      [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ] || \
      [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ]
@@ -81,14 +97,12 @@ then
   fi
 fi
 
-if [ ! -d "$FLAGS_from" ]
-then
+if [ ! -d "$FLAGS_from" ]; then
    echo "$FLAGS_from does not exist.  Exiting..."
    exit 1
 fi
 
-if [ $FLAGS_official_build -eq $FLAGS_TRUE ]
-then
+if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
    CHROMEOS_OFFICIAL=1
 fi
 
@@ -103,8 +117,7 @@ REVISION=${REVISION:0:8}
 # Use the version number plus revision as the last change.  (Need both, since
 # trunk builds multiple times with the same version string.)
 LAST_CHANGE="${CHROMEOS_VERSION_STRING}-r${REVISION}"
-if [ -n "$FLAGS_build_number" ]
-then
+if [ -n "$FLAGS_build_number" ]; then
    LAST_CHANGE="$LAST_CHANGE-b${FLAGS_build_number}"
 fi
 
@@ -141,8 +154,7 @@ function do_chroot_mod() {
 }
 
 # Modify image for test if flag set.
-if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]
-then
+if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]; then
   echo "Modifying image for test"
   do_chroot_mod "${FLAGS_from}/chromiumos_test_image.bin" ""
 
@@ -152,16 +164,14 @@ then
   popd
 fi
 
-if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ]
-then
+if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ]; then
   echo "Modifying image for factory test"
   do_chroot_mod "${FLAGS_from}/chromiumos_factory_image.bin" \
       "--factory"
 fi
 
 # Modify for recovery
-if [ $FLAGS_official_build -eq $FLAGS_TRUE ]
-then
+if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
   BUILDVER="$(readlink ${IMAGES_DIR}/${FLAGS_board}/latest)"
   CHROOT_IMAGE_DIR=/home/$USER/trunk/src/build/images/$FLAGS_board/$BUILDVER
   ./enter_chroot.sh -- ./mod_image_for_recovery.sh --board $FLAGS_board \
@@ -175,8 +185,7 @@ fi
 
 # Build differently sized shims. Currently only factory install shim is
 # supported, TODO(tgao): Add developer shim.
-if [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]
-then
+if [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]; then
   echo "Building factory install shim."
   # HACK: The build system can't currently handle more than one image size
   # at a time. Therefor eit's necessary to do another round of build after
@@ -205,8 +214,7 @@ MANIFEST=`ls | grep -v factory`
 zip -r "${ZIPFILE}" ${MANIFEST}
 
 if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
-   [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]
-then
+   [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]; then
   # We need to have directory structure for factory package, as
   # signing and packaging utilities need unpack_partitions.sh.
   echo "Compressing factory software"
@@ -268,8 +276,7 @@ then
 fi
 
 
-if [ $FLAGS_prebuilt_upload -eq $FLAGS_TRUE ]
-then
+if [ $FLAGS_prebuilt_upload -eq $FLAGS_TRUE ]; then
   # Construct prebuilt upload command.
   # This will upload prebuilt packages to Google Storage.
   prebuilt_cmd="${SCRIPTS_DIR}/prebuilt.py"
@@ -287,8 +294,7 @@ fi
 
 gsutil_archive "${ZIPFILE}" "${LAST_CHANGE}/${FLAGS_zipname}"
 
-if [ $FLAGS_archive_debug -eq $FLAGS_TRUE ]
-then
+if [ $FLAGS_archive_debug -eq $FLAGS_TRUE ]; then
   echo "Generating Breakpad symbols"
   ! ${SCRIPTS_DIR}/cros_generate_breakpad_symbols --board=${FLAGS_board}
   echo "Creating debug archive"
@@ -302,16 +308,14 @@ then
 fi
 
 if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
-   [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]
-then
+   [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]; then
   gsutil_archive "${FACTORY_ZIPFILE}" \
     "${LAST_CHANGE}/factory_${FLAGS_zipname}"
 fi
 gsutil_archive "${FLAGS_to}/LATEST" "LATEST"
 
 # Purge old builds if necessary
-if [ $FLAGS_keep_max -gt 0 ]
-then
+if [ $FLAGS_keep_max -gt 0 ]; then
   echo "Deleting old builds (all but the newest ${FLAGS_keep_max})..."
   cd "$FLAGS_to"
   # +2 because line numbers start at 1 and need to skip LATEST file

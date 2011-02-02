@@ -10,7 +10,26 @@
 
 # This script requires that you run build_packages first.
 
-. "$(dirname "$0")/common.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
 
 get_default_board
 
@@ -76,7 +95,7 @@ if [ -z "${FLAGS_package_file}" -a -z "${FLAGS_packages}" ]; then
                   egrep '^chromeos-base' )
 fi
 
-BLACK_LIST_FILE="$(dirname "$0")/unit_test_black_list.txt"
+BLACK_LIST_FILE="${SCRIPTS_DIR}/unit_test_black_list.txt"
 
 if [ "${FLAGS_withdebug}" -eq "${FLAGS_FALSE}" ]; then
   export USE="${USE} -cros-debug"

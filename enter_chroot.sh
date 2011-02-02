@@ -6,9 +6,26 @@
 
 # Script to enter the chroot environment
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-. "$(dirname "$0")/common.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
 
 # Script must be run outside the chroot and as a regular user.
 assert_outside_chroot
@@ -87,8 +104,7 @@ eval set -- "${_FLAGS_FIXED}"
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
-if [ $FLAGS_official_build -eq $FLAGS_TRUE ]
-then
+if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
    CHROMEOS_OFFICIAL=1
 fi
 
@@ -117,31 +133,26 @@ function setup_env {
 
     # Mount only if not already mounted
     MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/proc")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
-    then
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
       sudo mount none -t proc "$MOUNTED_PATH" || \
           die "Could not mount $MOUNTED_PATH"
     fi
 
     MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/sys")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
-    then
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
       sudo mount none -t sysfs "$MOUNTED_PATH" || \
           die "Could not mount $MOUNTED_PATH"
     fi
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}/dev")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
-    then
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
       sudo mount --bind /dev "$MOUNTED_PATH" || \
           die "Could not mount $MOUNTED_PATH"
     fi
 
     if [ $FLAGS_ssh_agent -eq $FLAGS_TRUE ]; then
       TARGET_DIR="$(readlink -f "${FLAGS_chroot}/home/${USER}/.ssh")"
-      if [ -n "${SSH_AUTH_SOCK}" \
-        -a -d "${HOME}/.ssh" ]
-      then
+      if [ -n "${SSH_AUTH_SOCK}" -a -d "${HOME}/.ssh" ]; then
         mkdir -p "${TARGET_DIR}"
         cp -r "${HOME}/.ssh/known_hosts" "${TARGET_DIR}"
         cp -r "${HOME}/.ssh/config" "${TARGET_DIR}"
@@ -153,22 +164,19 @@ function setup_env {
     fi
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}/dev/pts")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
-    then
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
       sudo mount none -t devpts "$MOUNTED_PATH" || \
           die "Could not mount $MOUNTED_PATH"
     fi
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}$CHROOT_TRUNK_DIR")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
-    then
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
       sudo mount --bind "$FLAGS_trunk" "$MOUNTED_PATH" || \
           die "Could not mount $MOUNTED_PATH"
     fi
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_CHROME_ROOT}")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
-    then
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
       ! CHROME_ROOT="$(readlink -f "$FLAGS_chrome_root")"
       if [ -z "$CHROME_ROOT" ]; then
         ! CHROME_ROOT="$(cat "${FLAGS_chroot}${CHROME_ROOT_CONFIG}" \
@@ -188,11 +196,10 @@ function setup_env {
     fi
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_DEPOT_TOOLS_ROOT}")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]
-    then
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
       if [ $(which gclient 2>/dev/null) ]; then
         info "Mounting depot_tools"
-        DEPOT_TOOLS=$(dirname $(which gclient) )
+        DEPOT_TOOLS=$(dirname "$(which gclient)")
         mkdir -p "$MOUNTED_PATH"
         if ! sudo mount --bind "$DEPOT_TOOLS" "$MOUNTED_PATH"; then
           warn "depot_tools failed to mount; perhaps it's on NFS?"
@@ -202,7 +209,7 @@ function setup_env {
     fi
 
     # Install fuse module.
-    if [ -c "${FUSE_DEVICE}" ] ; then
+    if [ -c "${FUSE_DEVICE}" ]; then
       sudo modprobe fuse 2> /dev/null ||\
         warn "-- Note: modprobe fuse failed.  gmergefs will not work"
     fi
@@ -271,8 +278,7 @@ function teardown_env {
   ) 200>>"$LOCKFILE" || die "teardown_env failed"
 }
 
-if [ $FLAGS_mount -eq $FLAGS_TRUE ]
-then
+if [ $FLAGS_mount -eq $FLAGS_TRUE ]; then
   setup_env
   info "Make sure you run"
   info "    $0 --unmount"
@@ -281,8 +287,7 @@ then
   exit 0
 fi
 
-if [ $FLAGS_unmount -eq $FLAGS_TRUE ]
-then
+if [ $FLAGS_unmount -eq $FLAGS_TRUE ]; then
   teardown_env
   exit 0
 fi

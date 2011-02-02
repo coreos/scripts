@@ -6,9 +6,26 @@
 
 # Script to report issues from the command line
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-. "$(dirname "$0")/common.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
 
 # Script must be run outside the chroot
 assert_outside_chroot
@@ -36,7 +53,7 @@ FLAGS_HELP="
     Assigned      = In someone's queue, but not started
     Started       = Work in progress
     Upstream      = Issue has been reported to another project
-    
+
   Closed Statuses:
     Fixed         = Work completed, needs verification
     Verified      = Test or reporter verified that the fix works
@@ -44,13 +61,13 @@ FLAGS_HELP="
     WontFix       = Cannot reproduce, works as intended, or obsolete
     FixUnreleased = Security bug fixed on all branches, not released
     Invalid       = Not a valid issue report
-    
+
   Types:
     Bug     = Software not working correctly
     Feature = Request for new or improved feature
     Task    = Project or work that doesn't change code
     Cleanup = Code maintenance unrelated to bugs
-    
+
   Priority:
     0 = Critical. Resolve now. Blocks other work or users need immediate update.
     1 = High. Required for the specified milestone release.

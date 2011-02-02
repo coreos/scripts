@@ -69,7 +69,7 @@ function start_kvm() {
     fi
 
     local net_option="-net nic,model=virtio"
-    if [ -f "$(dirname $1)/.use_e1000" ]; then
+    if [ -f "$(dirname "$1")/.use_e1000" ]; then
       info "Detected older image, using e1000 instead of virtio."
       net_option="-net nic,model=e1000"
     fi
@@ -91,7 +91,7 @@ function start_kvm() {
 
 # Checks to see if we can access the target virtual machine with ssh.
 function ssh_ping() {
-  "$(dirname $0)"/../ssh_test.sh \
+  "${SCRIPT_ROOT}/ssh_test.sh" \
     --ssh_port=${FLAGS_ssh_port} \
     --remote=127.0.0.1 >&2
 }

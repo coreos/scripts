@@ -12,10 +12,12 @@
 
 # The number of jobs to pass to tools that can run in parallel (such as make
 # and dpkg-buildpackage
-NUM_JOBS=`grep -c "^processor" /proc/cpuinfo`
+NUM_JOBS=$(grep -c "^processor" /proc/cpuinfo)
 
-# Store location of the calling script.
-TOP_SCRIPT_DIR="${TOP_SCRIPT_DIR:-$(dirname $0)}"
+# Make sure we have the location and name of the calling script, using
+# the current value if it is already set.
+SCRIPT_LOCATION=${SCRIPT_LOCATION:-$(dirname "$(readlink -f "$0")")}
+SCRIPT_NAME=${SCRIPT_NAME:-$(basename "$0")}
 
 # Detect whether we're inside a chroot or not
 if [ -e /etc/debian_chroot ]
@@ -77,8 +79,8 @@ get_gclient_root
 #     FOO = "$(cd $FOO ; pwd)"
 # since that leaves symbolic links intact.
 # Note that 'realpath' is equivalent to 'readlink -f'.
-TOP_SCRIPT_DIR=`readlink -f $TOP_SCRIPT_DIR`
-GCLIENT_ROOT=`readlink -f $GCLIENT_ROOT`
+SCRIPT_LOCATION=$(readlink -f $SCRIPT_LOCATION)
+GCLIENT_ROOT=$(readlink -f $GCLIENT_ROOT)
 
 # Other directories should always be pathed down from GCLIENT_ROOT.
 SRC_ROOT="$GCLIENT_ROOT/src"
@@ -89,10 +91,9 @@ SCRIPTS_DIR="$SRC_ROOT/scripts"
 # since that's available both inside and outside the chroot.  By convention,
 # settings from this file are variables starting with 'CHROMEOS_'
 CHROMEOS_DEV_SETTINGS="${CHROMEOS_DEV_SETTINGS:-$SCRIPTS_DIR/.chromeos_dev}"
-if [ -f $CHROMEOS_DEV_SETTINGS ]
-then
+if [ -f $CHROMEOS_DEV_SETTINGS ]; then
   # Turn on exit-on-error during custom settings processing
-  SAVE_OPTS=`set +o`
+  SAVE_OPTS=$(set +o)
   set -e
 
   # Read settings
@@ -106,7 +107,7 @@ fi
 if [[ -f /usr/lib/shflags ]]; then
   . /usr/lib/shflags
 elif [ -f ./lib/shflags/shflags ]; then
-  . "./lib/shflags/shflags"
+  . ./lib/shflags/shflags
 else
   . "${SRC_ROOT}/scripts/lib/shflags/shflags"
 fi
@@ -142,7 +143,7 @@ ALL_BOARDS=$(echo $ALL_BOARDS)
 DEFAULT_BOARD=$(echo $ALL_BOARDS | awk '{print $NF}')
 
 # Enable --fast by default.
-DEFAULT_FAST="${FLAGS_TRUE}"
+DEFAULT_FAST=${FLAGS_TRUE}
 
 # Directory locations inside the dev chroot
 CHROOT_TRUNK_DIR="/home/$USER/trunk"
@@ -216,8 +217,7 @@ case "$(basename $0)" in
   echo "RUNNING OLD BUILD SYSTEM SCRIPTS. RUN THE PORTAGE-BASED BUILD HERE:"
   echo "http://www.chromium.org/chromium-os/building-chromium-os/portage-based-build"
   echo
-  if [ "$USER" != "chrome-bot" ]
-  then
+  if [ "$USER" != "chrome-bot" ]; then
     read -n1 -p "Press any key to continue using the OLD build system..."
     echo
     echo
@@ -245,7 +245,7 @@ function get_default_board {
   DEFAULT_BOARD=
 
   if [ -f "$GCLIENT_ROOT/src/scripts/.default_board" ] ; then
-    DEFAULT_BOARD=`cat "$GCLIENT_ROOT/src/scripts/.default_board"`
+    DEFAULT_BOARD=$(cat "$GCLIENT_ROOT/src/scripts/.default_board")
   fi
 }
 
@@ -272,17 +272,17 @@ function make_pkg_common {
   set -e
 
   # Make output dir
-  OUT_DIR="$FLAGS_build_root/x86/local_packages"
-  mkdir -p "$OUT_DIR"
+  local out_dir="$FLAGS_build_root/x86/local_packages"
+  mkdir -p "$out_dir"
 
   # Remove previous package from output dir
-  rm -f "$OUT_DIR"/${PKG_BASE}_*.deb
+  rm -f "$out_dir"/${PKG_BASE}_*.deb
 
   # Rebuild the package
-  pushd "$TOP_SCRIPT_DIR"
+  pushd "$SCRIPT_LOCATION"
   rm -f ../${PKG_BASE}_*.deb
   dpkg-buildpackage -b -tc -us -uc -j$NUM_JOBS
-  mv ../${PKG_BASE}_*.deb "$OUT_DIR"
+  mv ../${PKG_BASE}_*.deb "$out_dir"
   rm ../${PKG_BASE}_*.changes
   popd
 }
@@ -290,19 +290,19 @@ function make_pkg_common {
 # Enter a chroot and restart the current script if needed
 function restart_in_chroot_if_needed {
   # NB:  Pass in ARGV:  restart_in_chroot_if_needed "$@"
-  if [ $INSIDE_CHROOT -ne 1 ]
-  then
-    # Equivalent to enter_chroot.sh -- <current command>
+  if [ $INSIDE_CHROOT -ne 1 ]; then
+    local abspath=$(readlink -f "$0")
+    # strip everything up to (and including) /scripts/ from abspath
+    local path_from_scripts="${abspath##*/scripts/}"
     exec $SCRIPTS_DIR/enter_chroot.sh -- \
-      $CHROOT_TRUNK_DIR/src/scripts/$(basename $0) "$@"
+      "$CHROOT_TRUNK_DIR/src/scripts/$path_from_scripts" "$@"
   fi
 }
 
 # Fail unless we're inside the chroot.  This guards against messing up your
 # workstation.
 function assert_inside_chroot {
-  if [ $INSIDE_CHROOT -ne 1 ]
-  then
+  if [ $INSIDE_CHROOT -ne 1 ]; then
     echo "This script must be run inside the chroot.  Run this first:"
     echo "    $SCRIPTS_DIR/enter_chroot.sh"
     exit 1
@@ -312,30 +312,16 @@ function assert_inside_chroot {
 # Fail if we're inside the chroot.  This guards against creating or entering
 # nested chroots, among other potential problems.
 function assert_outside_chroot {
-  if [ $INSIDE_CHROOT -ne 0 ]
-  then
+  if [ $INSIDE_CHROOT -ne 0 ]; then
     echo "This script must be run outside the chroot."
     exit 1
   fi
 }
 
 function assert_not_root_user {
-  if [ `id -u` = 0 ]; then
+  if [ $(id -u) = 0 ]; then
     echo "This script must be run as a non-root user."
     exit 1
-  fi
-}
-
-# Install a package if it's not already installed
-function install_if_missing {
-  # Positional parameters from calling script.  :? means "fail if unset".
-  PKG_NAME=${1:?}
-  shift
-
-  if [ -z `which $PKG_NAME` ]
-  then
-    echo "Can't find $PKG_NAME; attempting to install it."
-    sudo apt-get --yes --force-yes install $PKG_NAME
   fi
 }
 
@@ -402,12 +388,12 @@ function die {
 # Retry an emerge command according to $FLAGS_retries
 # The $EMERGE_JOBS flags will only be added the first time the command is run
 function eretry () {
-  local i=
+  local i
   for i in $(seq $FLAGS_retries); do
-    echo Retrying $*
-    $* $EMERGE_JOBS && return 0
+    echo "Retrying $@"
+    "$@" $EMERGE_JOBS && return 0
   done
-  $* && return 0
+  "$@" && return 0
   return 1
 }
 
@@ -455,6 +441,7 @@ function safe_umount {
 fix_broken_symlinks() {
   local build_root="${1}"
   local symlinks=$(find "${build_root}/usr/local" -lname "${build_root}/*")
+  local symlink
   for symlink in ${symlinks}; do
     echo "Fixing ${symlink}"
     local target=$(ls -l "${symlink}" | cut -f 2 -d '>')
@@ -491,6 +478,7 @@ setup_symlinks_on_root() {
   fi
 
   # Set up symlinks that should point to ${dev_image_target}.
+  local path
   for path in usr local; do
     if [ -h "${dev_image_root}/${path}" ]; then
       sudo unlink "${dev_image_root}/${path}"
@@ -556,10 +544,10 @@ start_time=$(date +%s)
 
 # Print time elsapsed since start_time.
 print_time_elapsed() {
-  end_time=$(date +%s)
-  elapsed_seconds="$(( $end_time - $start_time ))"
-  minutes="$(( $elapsed_seconds / 60 ))"
-  seconds="$(( $elapsed_seconds % 60 ))"
+  local end_time=$(date +%s)
+  local elapsed_seconds=$(($end_time - $start_time))
+  local minutes=$(($elapsed_seconds / 60))
+  local seconds=$(($elapsed_seconds % 60))
   echo "Elapsed time: ${minutes}m${seconds}s"
 }
 
@@ -574,7 +562,7 @@ print_time_elapsed() {
 # ${1} specifies the location of the chroot.
 chroot_hacks_from_outside() {
   # Give args better names.
-  local chroot_dir="${1}"
+  local chroot_dir=$1
 
   # Add root as a sudoer if not already done.
   if ! sudo grep -q '^root ALL=(ALL) ALL$' "${chroot_dir}/etc/sudoers" ; then

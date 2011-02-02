@@ -4,9 +4,26 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-. "$(dirname "$0")/common.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
 
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images"
 
@@ -22,8 +39,7 @@ eval set -- "${FLAGS_ARGV}"
 # Die on any errors.
 set -e
 
-if [ -z "${FLAGS_from}" -o -z "${FLAGS_to}" -o -z "${FLAGS_offset}" ]
-then
+if [ -z "${FLAGS_from}" -o -z "${FLAGS_to}" -o -z "${FLAGS_offset}" ]; then
   echo "You must define all of from, to and offset."
   exit 1
 fi

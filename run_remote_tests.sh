@@ -9,8 +9,28 @@
 # Load common constants.  This should be the first executable line.
 # The path to common.sh should be relative to your script's location.
 
-. "$(dirname $0)/common.sh"
-. "$(dirname $0)/remote_access.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
+. "${SCRIPT_ROOT}/remote_access.sh" || die "Unable to load remote_access.sh"
 
 get_default_board
 
@@ -33,8 +53,7 @@ function stop_ssh_agent() {
   # Call this function from the exit trap of the main script.
   # Iff we started ssh-agent, be nice and clean it up.
   # Note, only works if called from the main script - no subshells.
-  if [[ 1 -eq ${OWN_SSH_AGENT} ]]
-  then
+  if [[ 1 -eq ${OWN_SSH_AGENT} ]]; then
     kill ${SSH_AGENT_PID} 2>/dev/null
     unset OWN_SSH_AGENT SSH_AGENT_PID SSH_AUTH_SOCK
   fi
@@ -129,7 +148,7 @@ autotest autotest-tests (or use --build)."
   fi
 
   if [ ${FLAGS_build} -eq ${FLAGS_FALSE} ] &&
-      $(dirname $0)/cros_workon --board=${FLAGS_board} list |
+      "${SCRIPTS_DIR}/cros_workon" --board=${FLAGS_board} list |
       grep -q autotest; then
     AUTOTEST_DIR="${SRC_ROOT}/third_party/autotest/files"
     FLAGS_build=${FLAGS_TRUE}
@@ -165,7 +184,7 @@ autotest-tests to continue."
 }
 
 function main() {
-  cd $(dirname "$0")
+  cd "${SCRIPTS_DIR}"
 
   FLAGS "$@" || exit 1
 
@@ -261,7 +280,7 @@ function main() {
     echo ""
     info "Running ${test_type} test ${control_file}"
     local control_file_name=$(basename "${control_file}")
-    local short_name=$(basename $(dirname "${control_file}"))
+    local short_name=$(basename "$(dirname "${control_file}")")
 
     # testName/control --> testName
     # testName/control.bvt --> testName.bvt

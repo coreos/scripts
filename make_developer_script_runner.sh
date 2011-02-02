@@ -9,12 +9,33 @@
 # It is very straight forward, top to bottom to show clearly what is
 # little is needed to create a developer shim to run a signed script.
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-. "$(dirname "$0")/common.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
+# Need to be inside the chroot to load chromeos-common.sh
+assert_inside_chroot
 
 # Load functions and constants for chromeos-install
-. "$(dirname "$0")/chromeos-common.sh"
+. "/usr/lib/installer/chromeos-common.sh" || \
+  die "Unable to load /usr/lib/installer/chromeos-common.sh"
 
 DEFINE_integer statefulfs_size 2 \
   "Number of mebibytes to use for the stateful filesystem"

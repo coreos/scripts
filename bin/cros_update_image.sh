@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
 
 # Usage:
 # update_image.sh [image_to_update] [packages...]
@@ -24,7 +27,7 @@ else
 fi
 
 IMAGE=$( readlink -f ${1} )
-IMAGE_DIR=$( dirname ${IMAGE} )
+IMAGE_DIR=$( dirname "${IMAGE}" )
 shift
 PKGS=$@
 

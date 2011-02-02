@@ -9,19 +9,37 @@
 # kernel.  Alternatively, a signed recovery kernel can be used to
 # create a Chromium OS recovery image.
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-. "$(dirname "$0")/common.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
+# Need to be inside the chroot to load chromeos-common.sh
+assert_inside_chroot
 
 # Load functions and constants for chromeos-install
-. "$(dirname "$0")/chromeos-common.sh"
+. "/usr/lib/installer/chromeos-common.sh" || \
+  die "Unable to load /usr/lib/installer/chromeos-common.sh"
 
 # For update_partition_table
-. "$(dirname "$0")/resize_stateful_partition.sh"
-
-
-# We need to be in the chroot to emerge test packages.
-assert_inside_chroot
+. "${SCRIPT_ROOT}/resize_stateful_partition.sh" || \
+  die "Unable to load ${SCRIPT_ROOT}/resize_stateful_partition.sh"
 
 get_default_board
 
@@ -371,7 +389,7 @@ RECOVERY_KERNEL_IMAGE=\
 "${FLAGS_kernel_outfile:-${IMAGE_DIR}/recovery_vmlinuz.image}"
 RECOVERY_KERNEL_VBLOCK="${RECOVERY_KERNEL_IMAGE}.vblock"
 STATEFUL_DIR="$IMAGE_DIR/stateful_partition"
-SCRIPTS_DIR=$(dirname "$0")
+SCRIPTS_DIR=${SCRIPT_ROOT}
 
 # Mounts gpt image and sets up var, /usr/local and symlinks.
 # If there's a dev payload, mount stateful

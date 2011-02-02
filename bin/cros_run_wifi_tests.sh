@@ -7,17 +7,26 @@
 # Wrapper script around run_remote_tests.sh that knows how to find
 # device test cells.
 
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils "$(dirname "$(readlink -f "$0")")/..")
+  local path
 
-# TODO(pstew): Apparently the script files are in transition from
-# src/scripts to src/scripts/bin.  However this state has existed
-# for months now, therefore we need to look for the common libs in
-# both places
-script_root=$(dirname $0)
-if [ -f ${script_root}/../common.sh ] ; then
-  script_root=${script_root}/..
-fi
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
 
-. "${script_root}/common.sh"
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
 
 # Figure out the default chromelab server name.  In order for this to
 # work correctly, you have to:
@@ -145,10 +154,10 @@ fi
 set $ret
 remote=$1
 shift
-for arg in $*; do
+for arg in "$@"; do
     append_arg $arg
 done
 
-eval "exec ${script_root}/run_remote_tests.sh \
+eval "exec ${SCRIPTS_DIR}/run_remote_tests.sh \
       --args=\"${run_remote_args}\" --remote=${remote} $run_remote_flags \
       $FLAGS_ARGV"

@@ -6,12 +6,34 @@
 
 # Script to convert the output of build_image.sh to a usb image.
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-. "$(dirname "$0")/common.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
 
 # Load functions and constants for chromeos-install
-. "$(dirname "$0")/chromeos-common.sh"
+[ -f /usr/lib/installer/chromeos-common.sh ] && \
+  INSTALLER_ROOT=/usr/lib/installer || \
+  INSTALLER_ROOT=$(dirname "$(readlink -f "$0")")
+
+. "${INSTALLER_ROOT}/chromeos-common.sh" || \
+  die "Unable to load chromeos-common.sh"
 
 get_default_board
 
@@ -183,8 +205,7 @@ fi
 
 
 # Let's do it.
-if [ -b "${FLAGS_to}" ]
-then
+if [ -b "${FLAGS_to}" ]; then
   # Output to a block device (i.e., a real USB key), so need sudo dd
   if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
     echo "Copying USB image ${SRC_IMAGE} to device ${FLAGS_to}..."
@@ -205,24 +226,21 @@ then
   fi
 
   # Make sure this is really what the user wants, before nuking the device
-  if [ ${FLAGS_yes} -ne ${FLAGS_TRUE} ]
-  then
+  if [ ${FLAGS_yes} -ne ${FLAGS_TRUE} ]; then
     sudo fdisk -l "${FLAGS_to}" 2>/dev/null | grep Disk | head -1
     [ -n "$disk_manufacturer" ] && echo "Manufacturer: $disk_manufacturer"
     [ -n "$disk_product" ] && echo "Product: $disk_product"
     echo "This will erase all data on this device:"
     read -p "Are you sure (y/N)? " SURE
     SURE="${SURE:0:1}" # Get just the first character
-    if [ "${SURE}" != "y" ]
-    then
+    if [ "${SURE}" != "y" ]; then
       echo "Ok, better safe than sorry."
       exit 1
     fi
   fi
 
   echo "Attempting to unmount any mounts on the USB device..."
-  for i in $(mount | grep ^"${FLAGS_to}" | awk '{print $1}')
-  do
+  for i in $(mount | grep ^"${FLAGS_to}" | awk '{print $1}'); do
     if sudo umount "$i" 2>&1 >/dev/null | grep "not found"; then
       echo
       echo "The device you have specified is already mounted at some point "

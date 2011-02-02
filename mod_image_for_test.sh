@@ -6,15 +6,33 @@
 
 # Script to modify a keyfob-based chromeos system image for testability.
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-. "$(dirname "$0")/common.sh"
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
+# Need to be inside the chroot to load chromeos-common.sh
+assert_inside_chroot
 
 # Load functions and constants for chromeos-install
-. "$(dirname "$0")/chromeos-common.sh"
-
-# We need to be in the chroot to emerge test packages.
-assert_inside_chroot
+. "/usr/lib/installer/chromeos-common.sh" || \
+  die "Unable to load /usr/lib/installer/chromeos-common.sh"
 
 get_default_board
 
@@ -92,8 +110,7 @@ cleanup_mounts() {
   # root/stateful image file system open. We do a best effort attempt to kill
   # them.
   PIDS=`sudo lsof -t "$1" | sort | uniq`
-  for pid in ${PIDS}
-  do
+  for pid in ${PIDS}; do
     local cmdline=`cat /proc/$pid/cmdline`
     echo "Killing process that has open file on the mounted directory: $cmdline"
     sudo kill $pid || /bin/true
@@ -169,11 +186,11 @@ fi
 
 set -e
 
-IMAGE_DIR="$(dirname "$FLAGS_image")"
+IMAGE_DIR=$(dirname "$FLAGS_image")
 IMAGE_NAME="$(basename "$FLAGS_image")"
 ROOT_FS_DIR="$IMAGE_DIR/rootfs"
 STATEFUL_DIR="$IMAGE_DIR/stateful_partition"
-SCRIPTS_DIR=$(dirname "$0")
+SCRIPTS_DIR=${SCRIPT_ROOT}
 DEV_USER="chronos"
 
 trap cleanup EXIT
@@ -229,7 +246,7 @@ fi
 cleanup
 
 # Now make it bootable with the flags from build_image
-${SCRIPTS_DIR}/bin/cros_make_image_bootable $(dirname "${FLAGS_image}") \
+"${SCRIPTS_DIR}/bin/cros_make_image_bootable" "$(dirname "${FLAGS_image}")" \
                                             $(basename "${FLAGS_image}")
 
 print_time_elapsed

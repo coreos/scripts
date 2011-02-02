@@ -6,14 +6,31 @@
 
 # Script to update the kernel on a live running ChromiumOS instance.
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
 
-. "$(dirname $0)/common.sh"
-. "$(dirname $0)/remote_access.sh"
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
+. "${SCRIPT_ROOT}/remote_access.sh"
 
 # Script must be run inside the chroot.
-restart_in_chroot_if_needed $*
+restart_in_chroot_if_needed "$@"
 
 DEFINE_string board "" "Override board reported by target"
 DEFINE_string device "" "Override boot device reported by target"

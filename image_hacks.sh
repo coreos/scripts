@@ -23,20 +23,41 @@
 
 #------ These are the scripts we're trying to kill --------#
 
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
 function mod_image_for_test() {
-  $(dirname ${0})/mod_image_for_test.sh $* || return $?
+  "${SCRIPTS_DIR}/mod_image_for_test.sh" "$@" || return $?
 }
 
 function mod_image_for_recovery() {
-  $(dirname ${0})/mod_image_for_recovery.sh $* || return $?
+  "${SCRIPTS_DIR}/mod_image_for_recovery.sh" "$@" || return $?
 }
 
 function mod_image_for_dev_recovery() {
-  $(dirname ${0})/mod_image_for_dev_recovery.sh $* || return $?
+  "${SCRIPTS_DIR}/mod_image_for_dev_recovery.sh" "$@" || return $?
 }
 
 function customize_rootfs() {
-  $(dirname ${0})/customize_rootfs $* || return $?
+  "${SCRIPTS_DIR}/customize_rootfs" "$@" || return $?
 }
 
 #-------------------------- Tools -------------------------#
@@ -73,7 +94,6 @@ function corrupt_for_test() {
 }
 
 function main() {
-  . "$(dirname "$0")/common.sh"
   get_default_board
 
   # Flag definitions:
@@ -116,10 +136,10 @@ function main() {
 }
 
 case "$(basename $0)" in
-#  (mod_image_for_test.sh) mod_image_for_test $* || return $?;;
-#  (mod_image_for_recovery.sh) mod_image_for_recovery $* || return $?;;
-#  (mod_image_for_dev_recovery.sh) mod_image_for_dev_recovery $* || return $?;;
-#  (customize_rootfs) customize_rootfs $* || return $?;;
-  (image_hacks.sh) main $* || return $?;; # normal invocation
+#  (mod_image_for_test.sh) mod_image_for_test "$@" || return $?;;
+#  (mod_image_for_recovery.sh) mod_image_for_recovery "$@" || return $?;;
+#  (mod_image_for_dev_recovery.sh) mod_image_for_dev_recovery "$@" || return $?;;
+#  (customize_rootfs) customize_rootfs "$@" || return $?;;
+  (image_hacks.sh) main "$@" || return $?;; # normal invocation
   (*) echo "$0: Unknown invocation!"; exit 1 ;;
 esac

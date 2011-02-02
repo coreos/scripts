@@ -6,15 +6,40 @@
 
 # Script to verify integrity of root file system for a GPT-based image
 
-# Load functions and constants
-. "$(dirname "$0")/common.sh" || exit 1
-. "$(dirname "$0")/chromeos-common.sh" || exit 1
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
+# Load functions and constants for chromeos-install
+[ -f /usr/lib/installer/chromeos-common.sh ] && \
+  INSTALLER_ROOT=/usr/lib/installer || \
+  INSTALLER_ROOT=$(dirname "$(readlink -f "$0")")
+
+. "${INSTALLER_ROOT}/chromeos-common.sh" || \
+  die "Unable to load chromeos-common.sh"
 
 # Needed for partoffset and partsize calls
 locate_gpt
 
 # Script must be run inside the chroot.
-restart_in_chroot_if_needed $*
+restart_in_chroot_if_needed "$@"
 
 DEFINE_string image "" "Device or an image path. Default: (empty)."
 
@@ -58,8 +83,7 @@ function get_partitions() {
 }
 
 function cleanup() {
-  for i in ${KERNEL_IMG} ${ROOTFS_IMG}
-  do
+  for i in ${KERNEL_IMG} ${ROOTFS_IMG}; do
     if [ ! -b ${i} ]; then
       rm -f ${i}
     fi

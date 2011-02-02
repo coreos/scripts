@@ -7,21 +7,35 @@
 # Script which ensures that a given image has an up-to-date
 # kernel partition, rootfs integrity hashes, and legacy bootloader configs.
 
-# Load common constants.  This should be the first executable line.
-# The path to common.sh should be relative to your script's location.
-COMMON_PATH="$(dirname "$0")/../common.sh"
-if [ ! -r "${COMMON_PATH}" ]; then
-  echo "ERROR! Cannot find common.sh: ${COMMON_PATH}" 1>&2
-  exit 1
-fi
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils "$(dirname "$(readlink -f "$0")")/..")
+  local path
 
-. "$(dirname "$0")/../common.sh"
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
 
-# Script must be run inside the chroot.
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
+# Need to be inside the chroot to load chromeos-common.sh
 assert_inside_chroot
 
+# Load functions and constants for chromeos-install
+. "/usr/lib/installer/chromeos-common.sh" || \
+  die "Unable to load /usr/lib/installer/chromeos-common.sh"
+
 set -e
-. "$(dirname "$0")/../chromeos-common.sh"  # for partoffset and partsize
 
 if [ $# -lt 2 ]; then
   echo "Usage: ${0} /PATH/TO/IMAGE IMAGE.BIN [shflags overrides]"
@@ -41,7 +55,7 @@ if [ ! -r "${BOOT_DESC_FILE}" ]; then
   BOOT_DESC="${@}"
 else
   BOOT_DESC="$(cat ${BOOT_DESC_FILE} | tr -s '\n' ' ')"
-  info "Boot-time configuration for $(dirname ${IMAGE}): "
+  info "Boot-time configuration for $(dirname "${IMAGE}"): "
   cat ${BOOT_DESC_FILE} | while read line; do
     info "  ${line}"
   done
@@ -138,7 +152,7 @@ make_image_bootable() {
   fi
 
   trap "mount_gpt_cleanup" EXIT
-  ${SCRIPTS_DIR}/mount_gpt_image.sh --from "$(dirname ${image})" \
+  "${SCRIPTS_DIR}/mount_gpt_image.sh" --from "$(dirname "${image}")" \
     --image "$(basename ${image})" -r "${FLAGS_rootfs_mountpoint}" \
     -s "${FLAGS_statefulfs_mountpoint}"
 
