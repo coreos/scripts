@@ -190,7 +190,6 @@ IMAGE_DIR=$(dirname "$FLAGS_image")
 IMAGE_NAME="$(basename "$FLAGS_image")"
 ROOT_FS_DIR="$IMAGE_DIR/rootfs"
 STATEFUL_DIR="$IMAGE_DIR/stateful_partition"
-SCRIPTS_DIR=${SCRIPT_ROOT}
 DEV_USER="chronos"
 
 trap cleanup EXIT
