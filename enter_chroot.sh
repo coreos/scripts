@@ -125,6 +125,10 @@ sudo chmod 0777 "$FLAGS_chroot/var/lock"
 LOCKFILE="$FLAGS_chroot/var/lock/enter_chroot"
 
 function setup_env {
+  # Validate sudo timestamp before entering the critical section so that we
+  # don't stall for a password while we have the lockfile.
+  sudo -v
+
   (
     flock 200
     echo $$ >> "$LOCKFILE"
@@ -232,6 +236,10 @@ function setup_env {
 }
 
 function teardown_env {
+  # Validate sudo timestamp before entering the critical section so that we
+  # don't stall for a password while we have the lockfile.
+  sudo -v
+
   # Only teardown if we're the last enter_chroot to die
   (
     flock 200
