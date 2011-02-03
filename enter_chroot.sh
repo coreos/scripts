@@ -127,7 +127,8 @@ LOCKFILE="$FLAGS_chroot/var/lock/enter_chroot"
 function setup_env {
   # Validate sudo timestamp before entering the critical section so that we
   # don't stall for a password while we have the lockfile.
-  sudo -v
+  # Don't use sudo -v since that has issues on machines w/ no password.
+  sudo echo "" > /dev/null
 
   (
     flock 200
@@ -238,7 +239,8 @@ function setup_env {
 function teardown_env {
   # Validate sudo timestamp before entering the critical section so that we
   # don't stall for a password while we have the lockfile.
-  sudo -v
+  # Don't use sudo -v since that has issues on machines w/ no password.
+  sudo echo "" > /dev/null
 
   # Only teardown if we're the last enter_chroot to die
   (
