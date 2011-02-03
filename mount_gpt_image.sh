@@ -28,12 +28,14 @@ find_common_sh
 . "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
 # --- END COMMON.SH BOILERPLATE ---
 
-# Need to be inside the chroot to load chromeos-common.sh
-assert_inside_chroot
-
+if [ $INSIDE_CHROOT -ne 1 ]; then
+  INSTALL_ROOT="$SRC_ROOT/platform/installer/"
+else
+  INSTALL_ROOT=/usr/lib/installer/
+fi
 # Load functions and constants for chromeos-install
-. "/usr/lib/installer/chromeos-common.sh" || \
-  die "Unable to load /usr/lib/installer/chromeos-common.sh"
+. "${INSTALL_ROOT}/chromeos-common.sh" || \
+  die "Unable to load ${INSTALL_ROOT}/chromeos-common.sh"
 
 locate_gpt
 
