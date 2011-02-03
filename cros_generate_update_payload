@@ -247,6 +247,11 @@ if [ "$DELTA" -eq "$FLAGS_TRUE" -o "$FLAGS_old_style" -eq "$FLAGS_FALSE" ]; then
 else
   echo "Generating old-style full update"
 
+  # TODO(zbehan): Remove this branch entirely and disable the cmdline option.
+  echo "This is a deprecated and unused behaviour. It also introduces unwanted"
+  echo "dependency to a third script (mk_memento_images) which has become broken."
+  exit 1
+
   trap cleanup INT TERM EXIT
   DST_KERNEL=$(extract_partition_to_temp_file "$FLAGS_image" 2)
   if [ "$FLAGS_patch_kernel" -eq "$FLAGS_TRUE" ]; then
@@ -254,7 +259,7 @@ else
   fi
   DST_ROOT=$(extract_partition_to_temp_file "$FLAGS_image" 3)
 
-  GENERATOR="${SCRIPTS_DIR}/mk_memento_images.sh"
+#  GENERATOR="${SCRIPTS_DIR}/mk_memento_images.sh"
 
   CROS_GENERATE_UPDATE_PAYLOAD_CALLED=1 "$GENERATOR" "$DST_KERNEL" "$DST_ROOT"
   mv "$(dirname "$DST_KERNEL")/update.gz" "$FLAGS_output"
