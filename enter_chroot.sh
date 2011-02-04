@@ -51,6 +51,7 @@ DEFINE_boolean official_build $FLAGS_FALSE \
 DEFINE_boolean mount $FLAGS_FALSE "Only set up mounts."
 DEFINE_boolean unmount $FLAGS_FALSE "Only tear down mounts."
 DEFINE_boolean ssh_agent $FLAGS_TRUE "Import ssh agent."
+DEFINE_boolean verbose $FLAGS_FALSE "Print out actions taken"
 
 # More useful help
 FLAGS_HELP="USAGE: $0 [flags] [VAR=value] [-- command [arg1] [arg2] ...]
@@ -68,6 +69,13 @@ the command nor args should include single quotes.  For example:
 
 Otherwise, provides an interactive shell.
 "
+
+# Version of info from common.sh that only echos if --verbose is set.
+function v_info {
+  if [ $FLAGS_verbose -eq $FLAGS_TRUE ]; then
+    info "$1"
+  fi
+}
 
 # Double up on the first '--' argument.  Why?  For enter_chroot, we want to
 # emulate the behavior of sudo for setting environment vars.  That is, we want:
@@ -134,7 +142,7 @@ function setup_env {
     flock 200
     echo $$ >> "$LOCKFILE"
 
-    info "Mounting chroot environment."
+    v_info "Mounting chroot environment."
 
     # Mount only if not already mounted
     MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/proc")"
@@ -188,10 +196,10 @@ function setup_env {
           2>/dev/null)"
       fi
       if [[ ( -z "$CHROME_ROOT" ) || ( ! -d "${CHROME_ROOT}/src" ) ]]; then
-        info "Not mounting chrome source"
+        v_info "Not mounting chrome source"
         sudo rm -f "${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
       else
-        info "Mounting chrome source at: $INNER_CHROME_ROOT"
+        v_info "Mounting chrome source at: $INNER_CHROME_ROOT"
         echo "$CHROME_ROOT" | \
           sudo dd of="${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
         mkdir -p "$MOUNTED_PATH"
@@ -203,7 +211,7 @@ function setup_env {
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_DEPOT_TOOLS_ROOT}")"
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
       if [ $(which gclient 2>/dev/null) ]; then
-        info "Mounting depot_tools"
+        v_info "Mounting depot_tools"
         DEPOT_TOOLS=$(dirname "$(which gclient)")
         mkdir -p "$MOUNTED_PATH"
         if ! sudo mount --bind "$DEPOT_TOOLS" "$MOUNTED_PATH"; then
@@ -273,11 +281,11 @@ function teardown_env {
     fi
 
     if [ -s "$LOCKFILE" ]; then
-      info "At least one other pid is running in the chroot, so not"
-      info "tearing down env."
+      v_info "At least one other pid is running in the chroot, so not"
+      v_info "tearing down env."
     else
       MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
-      info "Unmounting chroot environment."
+      v_info "Unmounting chroot environment."
       # sort the list of mounts in reverse order, to ensure umount of
       # cascading mounts in proper order
       for i in \
@@ -290,10 +298,10 @@ function teardown_env {
 
 if [ $FLAGS_mount -eq $FLAGS_TRUE ]; then
   setup_env
-  info "Make sure you run"
-  info "    $0 --unmount"
-  info "before deleting $FLAGS_chroot"
-  info "or you'll end up deleting $FLAGS_trunk too!"
+  v_info "Make sure you run"
+  v_info "    $0 --unmount"
+  v_info "before deleting $FLAGS_chroot"
+  v_info "or you'll end up deleting $FLAGS_trunk too!"
   exit 0
 fi
 
@@ -333,7 +341,7 @@ CHROMEOS_VERSION_TRACK=$CHROMEOS_VERSION_TRACK CHROMEOS_VERSION_AUSERVER=$CHROME
 
 if [ -d "$HOME/.subversion" ]; then
   # Bind mounting .subversion into chroot
-  info "mounting ~/.subversion into chroot"
+  v_info "mounting ~/.subversion into chroot"
   MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}/home/${USER}/.subversion")"
   if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
     mkdir -p "$MOUNTED_PATH"
