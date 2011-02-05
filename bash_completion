@@ -133,7 +133,7 @@ _autotest_complete() {
 # TODO(petkov): Currently, this assumes that the command is the first
 # argument. In practice, the command is the first non-flag
 # argument. I.e., this should be fixed to support something like
-# "./cros_workon --all list".
+# "cros_workon --all list".
 _complete_cros_workon_command() {
   [ ${COMP_CWORD} -eq 1 ] || return 1
   local command="${COMP_WORDS[1]}"

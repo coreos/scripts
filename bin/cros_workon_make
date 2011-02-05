@@ -71,7 +71,7 @@ workpath=
 if ! pkgfile=$("${EQUERYCMD}" which "${workon_name}" 2> /dev/null); then
   if ACCEPT_KEYWORDS="~${BOARD_KEYWORD}" "${EQUERYCMD}" which "${workon_name}" \
       > /dev/null 2>&1; then
-    die "run './cros_workon --board ${BOARD_STR} start ${1}' first!" 1>&2
+    die "run 'cros_workon --board ${BOARD_STR} start ${1}' first!" 1>&2
   fi
   die "error looking up package $1"
 fi
