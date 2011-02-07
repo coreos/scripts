@@ -148,7 +148,7 @@ autotest autotest-tests (or use --build)."
   fi
 
   if [ ${FLAGS_build} -eq ${FLAGS_FALSE} ] &&
-      "${SCRIPTS_DIR}/cros_workon" --board=${FLAGS_board} list |
+      cros_workon --board=${FLAGS_board} list |
       grep -q autotest; then
     AUTOTEST_DIR="${SRC_ROOT}/third_party/autotest/files"
     FLAGS_build=${FLAGS_TRUE}
