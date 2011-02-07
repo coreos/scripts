@@ -50,6 +50,7 @@ eval set -- "${FLAGS_ARGV}"
 
 trap stop_kvm EXIT
 start_kvm "${FLAGS_vm_image_path}"
+retry_until_ssh
 
 if [ -n "${FLAGS_update_image_path}" ]; then
   IMAGE_ARGS="--image=$(readlink -f ${FLAGS_update_image_path})"

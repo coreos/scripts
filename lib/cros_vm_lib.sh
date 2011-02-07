@@ -100,10 +100,11 @@ function ssh_ping() {
 # shutting down and restarting kvm.
 function retry_until_ssh() {
   local can_ssh_into=1
+  local max_retries=3
   local retries=0
   ssh_ping && can_ssh_into=0
 
-  while [ ${can_ssh_into} -eq 1 ] && [ ${retries} -lt ${1} ]; do
+  while [ ${can_ssh_into} -eq 1 ] && [ ${retries} -lt ${max_retries} ]; do
     echo "Failed to connect to virtual machine, retrying ... " >&2
     stop_kvm || echo "Could not stop kvm.  Retrying anyway." >&2
     start_kvm "${LIVE_VM_IMAGE}"

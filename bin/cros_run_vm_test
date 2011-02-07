@@ -31,8 +31,6 @@ find_common_sh
 . "${SCRIPT_ROOT}/lib/cros_vm_constants.sh" || \
   die "Unable to load cros_vm_constants.sh"
 
-MAX_RETRIES=3
-
 get_default_board
 
 DEFINE_string board "$DEFAULT_BOARD" \
@@ -88,8 +86,7 @@ done
 
 trap stop_kvm EXIT
 start_kvm "${FLAGS_image_path}"
-info "Checking for ssh access to virtual machine."
-retry_until_ssh ${MAX_RETRIES}
+retry_until_ssh
 
 if [ -n "${FLAGS_verify_chrome_version}" ]; then
   info "Verifying version of Chrome matches what we expect."
