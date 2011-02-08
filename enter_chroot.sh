@@ -71,7 +71,7 @@ Otherwise, provides an interactive shell.
 "
 
 # Version of info from common.sh that only echos if --verbose is set.
-function v_info {
+function debug {
   if [ $FLAGS_verbose -eq $FLAGS_TRUE ]; then
     info "$1"
   fi
@@ -142,7 +142,7 @@ function setup_env {
     flock 200
     echo $$ >> "$LOCKFILE"
 
-    v_info "Mounting chroot environment."
+    debug "Mounting chroot environment."
 
     # Mount only if not already mounted
     MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/proc")"
@@ -194,24 +194,30 @@ function setup_env {
       if [ -z "$CHROME_ROOT" ]; then
         ! CHROME_ROOT="$(cat "${FLAGS_chroot}${CHROME_ROOT_CONFIG}" \
           2>/dev/null)"
+        CHROME_ROOT_AUTO=1
       fi
-      if [[ ( -z "$CHROME_ROOT" ) || ( ! -d "${CHROME_ROOT}/src" ) ]]; then
-        v_info "Not mounting chrome source"
-        sudo rm -f "${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
-      else
-        v_info "Mounting chrome source at: $INNER_CHROME_ROOT"
-        echo "$CHROME_ROOT" | \
-          sudo dd of="${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
-        mkdir -p "$MOUNTED_PATH"
-        sudo mount --bind "$CHROME_ROOT" "$MOUNTED_PATH" || \
-          die "Could not mount $MOUNTED_PATH"
+      if [[ ( -n "$CHROME_ROOT" ) ]]; then
+        if [[ ( ! -d "${CHROME_ROOT}/src" ) ]]; then
+          error "Not mounting chrome source"
+          sudo rm -f "${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
+          if [[ ! "$CHROME_ROOT_AUTO" ]]; then
+            exit 1
+          fi
+        else
+          debug "Mounting chrome source at: $INNER_CHROME_ROOT"
+          sudo bash -c "echo '$CHROME_ROOT' > \
+            '${FLAGS_chroot}${CHROME_ROOT_CONFIG}'"
+          mkdir -p "$MOUNTED_PATH"
+          sudo mount --bind "$CHROME_ROOT" "$MOUNTED_PATH" || \
+            die "Could not mount $MOUNTED_PATH"
+        fi
       fi
     fi
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_DEPOT_TOOLS_ROOT}")"
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
       if [ $(which gclient 2>/dev/null) ]; then
-        v_info "Mounting depot_tools"
+        debug "Mounting depot_tools"
         DEPOT_TOOLS=$(dirname "$(which gclient)")
         mkdir -p "$MOUNTED_PATH"
         if ! sudo mount --bind "$DEPOT_TOOLS" "$MOUNTED_PATH"; then
@@ -281,11 +287,11 @@ function teardown_env {
     fi
 
     if [ -s "$LOCKFILE" ]; then
-      v_info "At least one other pid is running in the chroot, so not"
-      v_info "tearing down env."
+      debug "At least one other pid is running in the chroot, so not"
+      debug "tearing down env."
     else
       MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
-      v_info "Unmounting chroot environment."
+      debug "Unmounting chroot environment."
       # sort the list of mounts in reverse order, to ensure umount of
       # cascading mounts in proper order
       for i in \
@@ -298,10 +304,10 @@ function teardown_env {
 
 if [ $FLAGS_mount -eq $FLAGS_TRUE ]; then
   setup_env
-  v_info "Make sure you run"
-  v_info "    $0 --unmount"
-  v_info "before deleting $FLAGS_chroot"
-  v_info "or you'll end up deleting $FLAGS_trunk too!"
+  info "Make sure you run"
+  info "    $0 --unmount"
+  info "before deleting $FLAGS_chroot"
+  info "or you'll end up deleting $FLAGS_trunk too!"
   exit 0
 fi
 
@@ -341,7 +347,7 @@ CHROMEOS_VERSION_TRACK=$CHROMEOS_VERSION_TRACK CHROMEOS_VERSION_AUSERVER=$CHROME
 
 if [ -d "$HOME/.subversion" ]; then
   # Bind mounting .subversion into chroot
-  v_info "mounting ~/.subversion into chroot"
+  debug "mounting ~/.subversion into chroot"
   MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}/home/${USER}/.subversion")"
   if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
     mkdir -p "$MOUNTED_PATH"
