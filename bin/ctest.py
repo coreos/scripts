@@ -257,24 +257,23 @@ def RunAUTestHarness(board, channel, latest_url_base, zip_server_base,
   zip_url = GetLatestZipUrl(board, channel, latest_url_base, zip_server_base)
   GrabZipAndExtractImage(zip_url, download_folder, _IMAGE_TO_EXTRACT)
 
-  no_graphics_flag = ''
-  if no_graphics: no_graphics_flag = '--no_graphics'
-
   # Tests go here.
   latest_image = RunCommand(['./get_latest_image.sh', '--board=%s' % board],
                             cwd=crosutils_root, redirect_stdout=True,
                             print_cmd=True).strip()
 
-  RunCommand(['bin/cros_au_test_harness',
-              '--base_image=%s' % os.path.join(download_folder,
-                                                 _IMAGE_TO_EXTRACT),
-              '--target_image=%s' % os.path.join(latest_image,
-                                                 _IMAGE_TO_EXTRACT),
-              no_graphics_flag,
-              '--board=%s' % board,
-              '--type=%s' % type,
-              '--remote=%s' % remote,
-             ], cwd=crosutils_root)
+  cmd = ['bin/cros_au_test_harness',
+         '--base_image=%s' % os.path.join(download_folder,
+                                          _IMAGE_TO_EXTRACT),
+         '--target_image=%s' % os.path.join(latest_image,
+                                            _IMAGE_TO_EXTRACT),
+         '--board=%s' % board,
+         '--type=%s' % type,
+         '--remote=%s' % remote,
+         ]
+  if no_graphics: cmd.append('--no_graphics')
+
+  RunCommand(cmd, cwd=crosutils_root)
 
 
 def main():
