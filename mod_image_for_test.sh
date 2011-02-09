@@ -235,6 +235,9 @@ else
   fi
 fi
 
+# Re-run ldconfig to fix /etc/ldconfig.so.cache.
+sudo /sbin/ldconfig -r "${ROOT_FS_DIR}"
+
 # Let's have a look at the image just in case..
 if [ "${VERIFY}" = "true" ]; then
   pushd "${ROOT_FS_DIR}"
