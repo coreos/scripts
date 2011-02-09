@@ -32,11 +32,10 @@ find_common_sh
 . "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
 # --- END COMMON.SH BOILERPLATE ---
 
-# Need to be inside the chroot to load chromeos-common.sh
-assert_inside_chroot
-
 # Load functions and constants for chromeos-install
-. "/usr/lib/installer/chromeos-common.sh" || \
+# NOTE: This script needs to be called from outside the chroot.
+. "/usr/lib/installer/chromeos-common.sh" &> /dev/null || \
+. "${SRC_ROOT}/platform/installer/chromeos-common.sh" || \
   die "Unable to load /usr/lib/installer/chromeos-common.sh"
 
 # Load functions designed for image processing
