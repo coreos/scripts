@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -40,7 +40,7 @@ get_default_board
 # Flags
 DEFINE_string board "${DEFAULT_BOARD}" "Board for which the image was built"
 DEFINE_string from "" \
-  "Directory containing chromiumos_image.bin"
+  "Directory containing ${CHROMEOS_IMAGE_NAME}"
 DEFINE_string to "/dev/sdX" "${DEFAULT_TO_HELP}"
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts" "y"
 DEFINE_boolean force_copy ${FLAGS_FALSE} "Always rebuild test image"
@@ -53,8 +53,8 @@ DEFINE_boolean factory ${FLAGS_FALSE} \
 DEFINE_boolean copy_kernel ${FLAGS_FALSE} \
   "Copy the kernel to the fourth partition."
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
-  "Copies normal image to chromiumos_test_image.bin, modifies it for test."
-DEFINE_string image_name "chromiumos_image.bin" \
+  "Copies normal image to ${CHROMEOS_TEST_IMAGE_NAME}, modifies it for test."
+DEFINE_string image_name "${CHROMEOS_IMAGE_NAME}" \
   "Base name of the image" i
 DEFINE_string build_root "/build" \
   "The root location for board sysroots."
@@ -103,6 +103,8 @@ fi
 # We have a board name but no image set.  Use image at default location
 if [ -z "${FLAGS_from}" ]; then
   IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
+
+  # Get latest image directory
   FLAGS_from="${IMAGES_DIR}/$(ls -t ${IMAGES_DIR} 2>&-| head -1)"
 fi
 
@@ -153,9 +155,6 @@ if [ -b "${FLAGS_to}" ]; then
   fi
 fi
 
-# Use this image as the source image to copy
-SRC_IMAGE="${FLAGS_from}/${FLAGS_image_name}"
-
 STATEFUL_DIR="${FLAGS_from}/stateful_partition"
 mkdir -p "${STATEFUL_DIR}"
 
@@ -169,40 +168,14 @@ function do_cleanup {
   fi
 }
 
-
-# If we're asked to modify the image for test, then let's make a copy and
-# modify that instead.
 if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
-  if [ ! -f "${FLAGS_from}/chromiumos_test_image.bin" ] || \
-     [ ${FLAGS_force_copy} -eq ${FLAGS_TRUE} ] ; then
-    # Copy it.
-    echo "Creating test image from original..."
-    cp -f "${SRC_IMAGE}" "${FLAGS_from}/chromiumos_test_image.bin"
-
-    # Check for manufacturing image.
-    if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
-      EXTRA_ARGS="--factory"
-    fi
-
-    # Check for instqall shim.
-    if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
-      EXTRA_ARGS="--factory_install"
-    fi
-
-    # Modify it.  Pass --yes so that mod_image_for_test.sh won't ask us if we
-    # really want to modify the image; the user gave their assent already with
-    # --test-image and the original image is going to be preserved.
-    "${SCRIPTS_DIR}/mod_image_for_test.sh" --image \
-      "${FLAGS_from}/chromiumos_test_image.bin" --board=${FLAGS_board} \
-      ${EXTRA_ARGS} --yes
-    echo "Done with mod_image_for_test."
-  else
-    echo "Using cached test image."
-  fi
-  SRC_IMAGE="${FLAGS_from}/chromiumos_test_image.bin"
-  echo "Source test image is: ${SRC_IMAGE}"
+  # Make a test image - this returns the test filename in CHROMEOS_RETURN_VAL
+  prepare_test_image "${FLAGS_from}" "${FLAGS_image_name}"
+  SRC_IMAGE="${CHROMEOS_RETURN_VAL}"
+else
+  # Use the standard image
+  SRC_IMAGE="${FLAGS_from}/${FLAGS_image_name}"
 fi
-
 
 # Let's do it.
 if [ -b "${FLAGS_to}" ]; then
@@ -253,15 +226,9 @@ if [ -b "${FLAGS_to}" ]; then
   sleep 3
 
   if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
-    echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
-    if type pv >/dev/null 2>&1; then
-      # pv displays file size in k=1024 while dd uses k=1000.
-      # To prevent confusion, we suppress the summary report from dd.
-      sudo pv -ptreb -B 4m "${SRC_IMAGE}" |
-        sudo dd of="${FLAGS_to}" bs=4M oflag=sync status=noxfer
-    else
-      sudo dd if="${SRC_IMAGE}" of="${FLAGS_to}" bs=4M oflag=sync
-    fi
+    echo "Copying with dd ${SRC_IMAGE} to ${FLAGS_to}..."
+    sudo ${COMMON_PV_CAT} "${SRC_IMAGE}" |
+      sudo dd of="${FLAGS_to}" bs=4M oflag=sync status=noxfer
     sync
   else
     if [ ${INSIDE_CHROOT} -ne 1 ]; then
@@ -282,7 +249,7 @@ if [ -b "${FLAGS_to}" ]; then
 else
   # Output to a file, so just make a copy.
   echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
-  cp -f "${SRC_IMAGE}" "${FLAGS_to}"
+  ${COMMON_PV_CAT} "${SRC_IMAGE}" >"${FLAGS_to}"
 
   echo "Done.  To copy to a USB drive, do something like:"
   echo "   sudo dd if=${FLAGS_to} of=/dev/sdX bs=4M oflag=sync"

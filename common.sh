@@ -14,6 +14,14 @@
 # and dpkg-buildpackage
 NUM_JOBS=$(grep -c "^processor" /proc/cpuinfo)
 
+# True if we have the 'pv' utility - also set up COMMON_PV_CAT for convenience
+COMMON_PV_OK=1
+COMMON_PV_CAT=pv
+pv -V >/dev/null 2>&1 || COMMON_PV_OK=0
+if [ $COMMON_PV_OK -eq 0 ]; then
+  COMMON_PV_CAT=cat
+fi
+
 # Make sure we have the location and name of the calling script, using
 # the current value if it is already set.
 SCRIPT_LOCATION=${SCRIPT_LOCATION:-$(dirname "$(readlink -f "$0")")}
@@ -144,6 +152,12 @@ DEFAULT_BOARD=$(echo $ALL_BOARDS | awk '{print $NF}')
 
 # Enable --fast by default.
 DEFAULT_FAST=${FLAGS_TRUE}
+
+
+# Standard filenames
+CHROMEOS_IMAGE_NAME="chromiumos_image.bin"
+CHROMEOS_TEST_IMAGE_NAME="chromiumos_test_image.bin"
+
 
 # Directory locations inside the dev chroot
 CHROOT_TRUNK_DIR="/home/$USER/trunk"
@@ -589,4 +603,47 @@ get_board_and_variant() {
   else
     BOARD_VARIANT="${BOARD}"
   fi
+}
+
+# This function converts a chromiumos image into a test image, either
+# in place or by copying to a new test image filename first. It honors
+# the following flags (see mod_image_for_test.sh)
+#
+#   --factory
+#   --factory_install
+#   --force_copy
+#
+# On entry, pass the directory containing the image, and the image filename
+# On exit, it puts the pathname of the resulting test image into
+# CHROMEOS_RETURN_VAL
+# (yes this is ugly, but perhaps less ugly than the alternatives)
+#
+# Usage:
+#   SRC_IMAGE=$(prepare_test_image "directory" "imagefile")
+prepare_test_image() {
+  # If we're asked to modify the image for test, then let's make a copy and
+  # modify that instead.
+  # Check for manufacturing image.
+  local args
+
+  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+    args="--factory"
+  fi
+
+  # Check for install shim.
+  if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
+    args="--factory_install"
+  fi
+
+  # Check for forcing copy of image
+  if [ ${FLAGS_force_copy} -eq ${FLAGS_TRUE} ]; then
+    args="${args} --force_copy"
+  fi
+
+  # Modify the image for test, creating a new test image
+  "${SCRIPTS_DIR}/mod_image_for_test.sh" --board=${FLAGS_board} \
+    --image="$1/$2" --noinplace ${args}
+
+  # From now on we use the just-created test image
+  CHROMEOS_RETURN_VAL="$1/${CHROMEOS_TEST_IMAGE_NAME}"
 }
