@@ -357,7 +357,7 @@ delete_prompt() {
 
   # Only prompt if both stdin and stdout are a tty. If either is not a tty,
   # then the user may not be present, so we shouldn't bother prompting.
-  if tty -s && tty -s <&1 && [ "${USER}" -ne 'chrome-bot' ]; then
+  if tty -s && tty -s <&1 && [ "${USER}" != 'chrome-bot' ]; then
     read -p "Would you like to delete the output directory (y/N)? " SURE
     SURE="${SURE:0:1}" # Get just the first character.
   else
