@@ -216,7 +216,6 @@ IMAGE_DIR=$(dirname "$FLAGS_image")
 IMAGE_NAME="$(basename "$FLAGS_image")"
 ROOT_FS_DIR="$IMAGE_DIR/rootfs"
 STATEFUL_DIR="$IMAGE_DIR/stateful_partition"
-DEV_USER="chronos"
 
 trap cleanup EXIT
 
@@ -241,9 +240,6 @@ http:\/\/${FACTORY_SERVER}:8080\/update/" \
   fi
 else
   emerge_chromeos_test
-
-  # Mark "OOBE completed" flag so that OEM partition is not mounted on startup.
-  sudo touch "${ROOT_FS_DIR}/home/${DEV_USER}/.oobe_completed"
 
   MOD_TEST_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
   # Run test setup script to modify the image
