@@ -314,6 +314,13 @@ if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
 fi
 gsutil_archive "${FLAGS_to}/LATEST" "LATEST"
 
+if [ -n "${FLAGS_gsutil_archive}" ]; then
+  FULL_INDEX_PATH="${FLAGS_gsutil_archive}/${LAST_CHANGE}/_index.html"
+  RELATIVE_ARCHIVE_URL_PATH="${FULL_INDEX_PATH#gs://}"
+  echo "CROS_ARCHIVE_URL=\
+https://sandbox.google.com/storage/${RELATIVE_ARCHIVE_URL_PATH}"
+fi
+
 # Purge old builds if necessary
 if [ $FLAGS_keep_max -gt 0 ]; then
   echo "Deleting old builds (all but the newest ${FLAGS_keep_max})..."
