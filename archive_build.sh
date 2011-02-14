@@ -45,6 +45,7 @@ DEFINE_string build_number "" \
     "The build-bot build number (when called by buildbot only)." "b"
 DEFINE_string chroot "$DEFAULT_CHROOT_DIR" \
     "The chroot of the build to archive."
+DEFINE_boolean debug $FLAGS_FALSE "Run, but don't upload anything."
 DEFINE_boolean factory_install_mod $FLAGS_FALSE \
     "Modify image for factory install purposes"
 DEFINE_boolean factory_test_mod $FLAGS_FALSE \
@@ -62,6 +63,7 @@ DEFINE_string gsutil_archive "" \
 DEFINE_integer keep_max 0 "Maximum builds to keep in archive (0=all)"
 DEFINE_boolean official_build $FLAGS_FALSE \
     "Set CHROMEOS_OFFICIAL=1 for release builds."
+DEFINE_string test_tarball "" "Optional path to test tarball to archive"
 DEFINE_boolean test_mod $FLAGS_TRUE "Modify image for testing purposes"
 DEFINE_boolean prebuilt_upload $FLAGS_FALSE "Upload prebuilt binary packages."
 DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
@@ -248,20 +250,22 @@ cp -f  "${FLAGS_from}/au-generator.zip" "${OUTDIR}/"
 function gsutil_archive() {
   IN_PATH="$1"
   OUT_PATH="$2"
-  if [ -n "$FLAGS_gsutil_archive" ]
-  then
-    FULL_OUT_PATH="${FLAGS_gsutil_archive}/${OUT_PATH}"
-    echo "Using gsutil to archive to ${OUT_PATH}..."
-    ${FLAGS_gsutil} cp ${IN_PATH} ${FULL_OUT_PATH}
-    ${FLAGS_gsutil} setacl ${FLAGS_acl} ${FULL_OUT_PATH}
-    if [ -n "$FLAGS_gsd_gen_index" ]
-    then
-      echo "Updating indexes..."
-      ${FLAGS_gsd_gen_index} \
-        --gsutil=${FLAGS_gsutil} \
-        -a ${FLAGS_acl} \
-        -p ${FULL_OUT_PATH} ${FLAGS_gsutil_archive}
-    fi
+  echo "Using gsutil to archive to ${OUT_PATH}..."
+  if [ -z "$FLAGS_gsutil_archive" -o ${FLAGS_debug} -eq ${FLAGS_TRUE} ]; then
+    echo -n "In debug mode.  Would have run: "
+    echo "gsutil cp ${IN_PATH} <gsutil_archive>/${OUT_PATH}"
+    return
+  fi
+
+  FULL_OUT_PATH="${FLAGS_gsutil_archive}/${OUT_PATH}"
+  ${FLAGS_gsutil} cp ${IN_PATH} ${FULL_OUT_PATH}
+  ${FLAGS_gsutil} setacl ${FLAGS_acl} ${FULL_OUT_PATH}
+  if [ -n "$FLAGS_gsd_gen_index" ]; then
+    echo "Updating indexes..."
+    ${FLAGS_gsd_gen_index} \
+      --gsutil=${FLAGS_gsutil} \
+      -a ${FLAGS_acl} \
+      -p ${FULL_OUT_PATH} ${FLAGS_gsutil_archive}
   fi
 }
 
@@ -288,8 +292,12 @@ if [ $FLAGS_prebuilt_upload -eq $FLAGS_TRUE ]; then
     prebuilt_cmd="$prebuilt_cmd --sync-host"
   fi
 
-  echo "Running $prebuilt_cmd"
-  $prebuilt_cmd
+  if [ ${FLAGS_debug} -eq ${FLAGS_FALSE} ]; then
+    echo "Running $prebuilt_cmd"
+    $prebuilt_cmd
+  else
+    echo "Would have run $prebuilt_cmd"
+  fi
 fi
 
 gsutil_archive "${ZIPFILE}" "${LAST_CHANGE}/${FLAGS_zipname}"
@@ -312,6 +320,7 @@ if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
   gsutil_archive "${FACTORY_ZIPFILE}" \
     "${LAST_CHANGE}/factory_${FLAGS_zipname}"
 fi
+
 gsutil_archive "${FLAGS_to}/LATEST" "LATEST"
 
 if [ -n "${FLAGS_gsutil_archive}" ]; then
@@ -319,6 +328,10 @@ if [ -n "${FLAGS_gsutil_archive}" ]; then
   RELATIVE_ARCHIVE_URL_PATH="${FULL_INDEX_PATH#gs://}"
   echo "CROS_ARCHIVE_URL=\
 https://sandbox.google.com/storage/${RELATIVE_ARCHIVE_URL_PATH}"
+fi
+
+if [ -n "${FLAGS_test_tarball}" ]; then
+  gsutil_archive "${FLAGS_test_tarball}" "${LAST_CHANGE}/test_results.tgz"
 fi
 
 # Purge old builds if necessary
