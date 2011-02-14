@@ -73,7 +73,7 @@ Otherwise, provides an interactive shell.
 # Version of info from common.sh that only echos if --verbose is set.
 function debug {
   if [ $FLAGS_verbose -eq $FLAGS_TRUE ]; then
-    info "$*"
+    info "$1"
   fi
 }
 
@@ -132,24 +132,6 @@ sudo chmod 0777 "$FLAGS_chroot/var/lock"
 
 LOCKFILE="$FLAGS_chroot/var/lock/enter_chroot"
 
-
-function ensure_mounted {
-  # If necessary, mount $source in the host FS at $target inside the
-  # chroot directory with $mount_args.
-  local source="$1"
-  local mount_args="$2"
-  local target="$3"
-
-  local mounted_path="$(readlink -f "${FLAGS_chroot}/$target")"
-
-  if [ -z "$(mount | grep -F "on ${mounted_path} ")" ]; then
-    # NB:  mount_args deliberately left unquoted
-    debug mount ${mount_args} "${source}" "${mounted_path}"
-    sudo -- mount ${mount_args} "${source}" "${mounted_path}" || \
-      die "Could not mount ${source} on ${mounted_path}"
-  fi
-}
-
 function setup_env {
   # Validate sudo timestamp before entering the critical section so that we
   # don't stall for a password while we have the lockfile.
@@ -161,11 +143,25 @@ function setup_env {
     echo $$ >> "$LOCKFILE"
 
     debug "Mounting chroot environment."
-    ensure_mounted none "-t proc" /proc
-    ensure_mounted none "-t sysfs" /sys
-    ensure_mounted /dev "--bind" /dev
-    ensure_mounted none "-t devpts" /dev/pts
-    ensure_mounted "${FLAGS_trunk}" "--bind" "${CHROOT_TRUNK_DIR}"
+
+    # Mount only if not already mounted
+    MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/proc")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
+      sudo mount none -t proc "$MOUNTED_PATH" || \
+          die "Could not mount $MOUNTED_PATH"
+    fi
+
+    MOUNTED_PATH="$(readlink -f "$FLAGS_chroot/sys")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
+      sudo mount none -t sysfs "$MOUNTED_PATH" || \
+          die "Could not mount $MOUNTED_PATH"
+    fi
+
+    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}/dev")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
+      sudo mount --bind /dev "$MOUNTED_PATH" || \
+          die "Could not mount $MOUNTED_PATH"
+    fi
 
     if [ $FLAGS_ssh_agent -eq $FLAGS_TRUE ]; then
       TARGET_DIR="$(readlink -f "${FLAGS_chroot}/home/${USER}/.ssh")"
@@ -174,8 +170,22 @@ function setup_env {
         cp -r "${HOME}/.ssh/known_hosts" "${TARGET_DIR}"
         cp -r "${HOME}/.ssh/config" "${TARGET_DIR}"
         ASOCK="$(dirname "${SSH_AUTH_SOCK}")"
-        ensure_mounted "${ASOCK}" "--bind" "${ASOCK}"
+        mkdir -p "${FLAGS_chroot}/${ASOCK}"
+        sudo mount --bind "${ASOCK}" "${FLAGS_chroot}/${ASOCK}" || \
+          die "Count not mount ${ASOCK}"
       fi
+    fi
+
+    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}/dev/pts")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
+      sudo mount none -t devpts "$MOUNTED_PATH" || \
+          die "Could not mount $MOUNTED_PATH"
+    fi
+
+    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}$CHROOT_TRUNK_DIR")"
+    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
+      sudo mount --bind "$FLAGS_trunk" "$MOUNTED_PATH" || \
+          die "Could not mount $MOUNTED_PATH"
     fi
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_CHROME_ROOT}")"
@@ -369,7 +379,13 @@ CHROMEOS_VERSION_TRACK=$CHROMEOS_VERSION_TRACK CHROMEOS_VERSION_AUSERVER=$CHROME
 
 if [ -d "$HOME/.subversion" ]; then
   # Bind mounting .subversion into chroot
-  ensure_mounted "${HOME}/.subversion" "--bind" "/home/${USER}/.subversion"
+  debug "mounting ~/.subversion into chroot"
+  MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}/home/${USER}/.subversion")"
+  if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
+    mkdir -p "$MOUNTED_PATH"
+    sudo mount --bind "$HOME/.subversion" "$MOUNTED_PATH" || \
+      die "Could not mount $MOUNTED_PATH"
+  fi
 fi
 
 # Configure committer username and email in chroot .gitconfig
