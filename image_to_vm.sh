@@ -50,7 +50,7 @@ DEFINE_boolean factory_install $FLAGS_FALSE \
 
 # We default to TRUE so the buildbot gets its image. Note this is different
 # behavior from image_to_usb.sh
-DEFINE_boolean force_copy ${FLAGS_TRUE} "Always rebuild test image"
+DEFINE_boolean force_copy ${FLAGS_FALSE} "Always rebuild test image"
 DEFINE_string format "qemu" \
   "Output format, either qemu, vmware or virtualbox"
 DEFINE_string from "" \

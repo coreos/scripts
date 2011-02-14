@@ -15,8 +15,10 @@
 import optparse
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -53,10 +55,73 @@ class AUTest(object):
     self.crosutils = os.path.join(os.path.dirname(__file__), '..')
     self.crosutilsbin = os.path.join(os.path.dirname(__file__))
     self.download_folder = os.path.join(self.crosutils, 'latest_download')
+    self.vm_image_path = None
     if not os.path.exists(self.download_folder):
       os.makedirs(self.download_folder)
 
   # -------- Helper functions ---------
+
+  def _PrepareRealBase(self, image_path):
+    self.PerformUpdate(image_path)
+
+  def _PrepareVMBase(self, image_path):
+    # VM Constants.
+    FULL_VDISK_SIZE = 6072
+    FULL_STATEFULFS_SIZE = 3074
+    # Needed for VM delta updates.  We need to use the qemu image rather
+    # than the base image on a first update.  By tracking the first_update
+    # we can set src_image to the qemu form of the base image when
+    # performing generating the delta payload.
+    self._first_update = True
+    self.vm_image_path = '%s/chromiumos_qemu_image.bin' % os.path.dirname(
+        image_path)
+    if not os.path.exists(self.vm_image_path):
+      Info('Creating %s' % self.vm_image_path)
+      RunCommand(['%s/image_to_vm.sh' % self.crosutils,
+                  '--full',
+                  '--from=%s' % ReinterpretPathForChroot(
+                      os.path.dirname(image_path)),
+                  '--vdisk_size=%s' % FULL_VDISK_SIZE,
+                  '--statefulfs_size=%s' % FULL_STATEFULFS_SIZE,
+                  '--board=%s' % self.board,
+                  '--test_image'], enter_chroot=True)
+
+    Info('Using %s as base' % self.vm_image_path)
+    self.assertTrue(os.path.exists(self.vm_image_path))
+
+  def AppendUpdateFlags(self, cmd, image_path, src_image_path, proxy_port,
+                        private_key_path):
+    """Appends common args to an update cmd defined by an array.
+
+    Modifies cmd in places by appending appropriate items given args.
+    """
+    if proxy_port: cmd.append('--proxy_port=%s' % proxy_port)
+
+    # Get pregenerated update if we have one.
+    update_id = _GenerateUpdateId(target=image_path, src=src_image_path,
+                                  key=private_key_path)
+    cache_path = dev_server_cache[update_id]
+    if cache_path:
+      update_url = DevServerWrapper.GetDevServerURL(proxy_port, cache_path)
+      cmd.append('--update_url=%s' % update_url)
+    else:
+      cmd.append('--image=%s' % image_path)
+      if src_image_path: cmd.append('--src_image=%s' % src_image_path)
+
+  def RunUpdateCmd(self, cmd):
+    """Runs the given update cmd given verbose options.
+
+    Raises an UpdateException if the update fails.
+    """
+    if self.verbose:
+      try:
+        RunCommand(cmd)
+      except Exception, e:
+        raise UpdateException(1, e.message)
+    else:
+      (code, stdout, stderr) = RunCommandCaptureOutput(cmd)
+      if code != 0:
+        raise UpdateException(code, stdout)
 
   def GetStatefulChangeFlag(self, stateful_change):
     """Returns the flag to pass to image_to_vm for the stateful change."""
@@ -101,7 +166,7 @@ class AUTest(object):
     return percent_passed
 
   def PerformUpdate(self, image_path, src_image_path='', stateful_change='old',
-                    proxy_port=None):
+                    proxy_port=None, private_key_path=None):
     """Performs an update using  _UpdateImage and reports any error.
 
     Subclasses should not override this method but override _UpdateImage
@@ -121,10 +186,14 @@ class AUTest(object):
     Raises an UpdateException if _UpdateImage returns an error.
     """
     try:
-      if not self.use_delta_updates:
-        src_image_path = ''
+      if not self.use_delta_updates: src_image_path = ''
+      if private_key_path:
+        key_to_use = private_key_path
+      else:
+        key_to_use = self.private_key
 
-      self._UpdateImage(image_path, src_image_path, stateful_change, proxy_port)
+      self._UpdateImage(image_path, src_image_path, stateful_change, proxy_port,
+                        key_to_use)
     except UpdateException as err:
       # If the update fails, print it out
       Warning(err.stdout)
@@ -178,6 +247,9 @@ class AUTest(object):
     cls.base_image_path = options.base_image
     cls.target_image_path = options.target_image
     cls.use_delta_updates = options.delta
+    cls.board = options.board
+    cls.private_key = options.private_key
+    cls.clean = options.clean
     if options.quick_test:
       cls.verify_suite = 'build_RootFilesystemSize'
     else:
@@ -199,7 +271,7 @@ class AUTest(object):
     pass
 
   def _UpdateImage(self, image_path, src_image_path='', stateful_change='old',
-                   proxy_port=None):
+                   proxy_port=None, private_key_path=None):
     """Implementation of an actual update.
 
     See PerformUpdate for description of args.  Subclasses must override this
@@ -410,32 +482,20 @@ class RealAUTest(unittest.TestCase, AUTest):
 
   def PrepareBase(self, image_path):
     """Auto-update to base image to prepare for test."""
-    self.PerformUpdate(image_path)
+    _PrepareRealBase(image_path)
 
   def _UpdateImage(self, image_path, src_image_path='', stateful_change='old',
-                   proxy_port=None):
+                   proxy_port=None, private_key_path=None):
     """Updates a remote image using image_to_live.sh."""
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
     cmd = ['%s/image_to_live.sh' % self.crosutils,
-           '--image=%s' % image_path,
            '--remote=%s' % self.remote,
            stateful_change_flag,
            '--verify',
-           '--src_image=%s' % src_image_path
           ]
-
-    if proxy_port:
-      cmd.append('--proxy_port=%s' % proxy_port)
-
-    if self.verbose:
-      try:
-        RunCommand(cmd)
-      except Exception, e:
-        raise UpdateException(1, e.message)
-    else:
-      (code, stdout, stderr) = RunCommandCaptureOutput(cmd)
-      if code != 0:
-        raise UpdateException(code, stdout)
+    self.AppendUpdateFlags(cmd, image_path, src_image_path, proxy_port,
+                           private_key_path)
+    self.RunUpdateCmd(cmd)
 
   def _UpdateUsingPayload(self, update_path, stateful_change='old',
                          proxy_port=None):
@@ -447,19 +507,8 @@ class RealAUTest(unittest.TestCase, AUTest):
            stateful_change_flag,
            '--verify',
           ]
-
-    if proxy_port:
-      cmd.append('--proxy_port=%s' % proxy_port)
-
-    if self.verbose:
-      try:
-        RunCommand(cmd)
-      except Exception, e:
-        raise UpdateException(1, e.message)
-    else:
-      (code, stdout, stderr) = RunCommandCaptureOutput(cmd)
-      if code != 0:
-        raise UpdateException(code, stdout)
+    if proxy_port: cmd.append('--proxy_port=%s' % proxy_port)
+    self.RunUpdateCmd(cmd)
 
   def VerifyImage(self, percent_required_to_pass):
     """Verifies an image using run_remote_tests.sh with verification suite."""
@@ -473,10 +522,6 @@ class RealAUTest(unittest.TestCase, AUTest):
 
 class VirtualAUTest(unittest.TestCase, AUTest):
   """Test harness for updating virtual machines."""
-
-  # VM Constants.
-  _FULL_VDISK_SIZE = 6072
-  _FULL_STATEFULFS_SIZE = 3074
 
   # Class variables used to acquire individual VM variables per test.
   _vm_lock = threading.Lock()
@@ -501,7 +546,6 @@ class VirtualAUTest(unittest.TestCase, AUTest):
   def setUp(self):
     """Unit test overriden method.  Is called before every test."""
     AUTest.setUp(self)
-    self.vm_image_path = None
     self._AcquireUniquePortAndPidFile()
     self._KillExistingVM(self._kvm_pid_file)
 
@@ -512,85 +556,37 @@ class VirtualAUTest(unittest.TestCase, AUTest):
   def ProcessOptions(cls, parser, options):
     """Processes vm-specific options."""
     AUTest.ProcessOptions(parser, options)
-    cls.board = options.board
 
     # Communicate flags to tests.
     cls.graphics_flag = ''
     if options.no_graphics: cls.graphics_flag = '--no_graphics'
-
-    if not cls.board:
-      parser.error('Need board to convert base image to vm.')
+    if not cls.board: parser.error('Need board to convert base image to vm.')
 
   def PrepareBase(self, image_path):
     """Creates an update-able VM based on base image."""
-    # Needed for VM delta updates.  We need to use the qemu image rather
-    # than the base image on a first update.  By tracking the first_update
-    # we can set src_image to the qemu form of the base image when
-    # performing generating the delta payload.
-    self._first_update = True
-    self.vm_image_path = '%s/chromiumos_qemu_image.bin' % os.path.dirname(
-        image_path)
-    if not os.path.exists(self.vm_image_path):
-      Info('Creating %s' % vm_image_path)
-      RunCommand(['%s/image_to_vm.sh' % self.crosutils,
-                  '--full',
-                  '--from=%s' % ReinterpretPathForChroot(
-                      os.path.dirname(image_path)),
-                  '--vdisk_size=%s' % self._FULL_VDISK_SIZE,
-                  '--statefulfs_size=%s' % self._FULL_STATEFULFS_SIZE,
-                  '--board=%s' % self.board,
-                  '--test_image'], enter_chroot=True)
-
-    Info('Using %s as base' % self.vm_image_path)
-    self.assertTrue(os.path.exists(self.vm_image_path))
+    self._PrepareVMBase(image_path)
 
   def _UpdateImage(self, image_path, src_image_path='', stateful_change='old',
-                   proxy_port=''):
+                   proxy_port='', private_key_path=None):
     """Updates VM image with image_path."""
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
     if src_image_path and self._first_update:
       src_image_path = self.vm_image_path
       self._first_update = False
 
-    # Check image payload cache first.
-    update_id = _GenerateUpdateId(target=image_path, src=src_image_path)
-    cache_path = dev_server_cache[update_id]
-    if cache_path:
-      Info('Using cache %s' % cache_path)
-      update_url = DevServerWrapper.GetDevServerURL(proxy_port, cache_path)
-      cmd = ['%s/cros_run_vm_update' % self.crosutilsbin,
-             '--vm_image_path=%s' % self.vm_image_path,
-             '--snapshot',
-             self.graphics_flag,
-             '--persist',
-             '--kvm_pid=%s' % self._kvm_pid_file,
-             '--ssh_port=%s' % self._ssh_port,
-             stateful_change_flag,
-             '--update_url=%s' % update_url,
-             ]
-    else:
-      cmd = ['%s/cros_run_vm_update' % self.crosutilsbin,
-             '--update_image_path=%s' % image_path,
-             '--vm_image_path=%s' % self.vm_image_path,
-             '--snapshot',
-             self.graphics_flag,
-             '--persist',
-             '--kvm_pid=%s' % self._kvm_pid_file,
-             '--ssh_port=%s' % self._ssh_port,
-             stateful_change_flag,
-             '--src_image=%s' % src_image_path,
-             '--proxy_port=%s' % proxy_port
-             ]
+    cmd = ['%s/cros_run_vm_update' % self.crosutilsbin,
+           '--vm_image_path=%s' % self.vm_image_path,
+           '--snapshot',
+           self.graphics_flag,
+           '--persist',
+           '--kvm_pid=%s' % self._kvm_pid_file,
+           '--ssh_port=%s' % self._ssh_port,
+           stateful_change_flag,
+          ]
 
-    if self.verbose:
-      try:
-        RunCommand(cmd)
-      except Exception, e:
-        raise UpdateException(1, e.message)
-    else:
-      (code, stdout, stderr) = RunCommandCaptureOutput(cmd)
-      if code != 0:
-        raise UpdateException(code, stdout)
+    self.AppendUpdateFlags(cmd, image_path, src_image_path, proxy_port,
+                           private_key_path)
+    self.RunUpdateCmd(cmd)
 
   def _UpdateUsingPayload(self, update_path, stateful_change='old',
                          proxy_port=None):
@@ -606,19 +602,8 @@ class VirtualAUTest(unittest.TestCase, AUTest):
            '--ssh_port=%s' % self._ssh_port,
            stateful_change_flag,
            ]
-
-    if proxy_port:
-      cmd.append('--proxy_port=%s' % proxy_port)
-
-    if self.verbose:
-      try:
-        RunCommand(cmd)
-      except Exception, e:
-        raise UpdateException(1, e.message)
-    else:
-      (code, stdout, stderr) = RunCommandCaptureOutput(cmd)
-      if code != 0:
-        raise UpdateException(code, stdout)
+    if proxy_port: cmd.append('--proxy_port=%s' % proxy_port)
+    self.RunUpdateCmd(cmd)
 
   def VerifyImage(self, percent_required_to_pass):
     """Runs vm smoke suite to verify image."""
@@ -642,8 +627,12 @@ class VirtualAUTest(unittest.TestCase, AUTest):
     return self.AssertEnoughTestsPassed(self, output, percent_required_to_pass)
 
 
-class GenerateVirtualAUDeltasTest(VirtualAUTest):
-  """Class the overrides VirtualAUTest and stores deltas we will generate."""
+class PregenerateAUDeltas(unittest.TestCase, AUTest):
+  """Magical class that emulates an AUTest to store deltas we will generate.
+
+  This class emulates an AUTest such that when it runs as a TestCase it runs
+  through the exact up
+  """
   delta_list = {}
 
   def setUp(self):
@@ -652,16 +641,29 @@ class GenerateVirtualAUDeltasTest(VirtualAUTest):
   def tearDown(self):
     pass
 
+  @classmethod
+  def ProcessOptions(cls, parser, options):
+    AUTest.ProcessOptions(parser, options)
+    cls.au_type = options.type
+
+  def PrepareBase(self, image_path):
+    if self.au_type == 'vm':
+      self._PrepareVMBase(image_path)
+    else:
+      self._PrepareRealBase(image_path)
+
   def _UpdateImage(self, image_path, src_image_path='', stateful_change='old',
-                   proxy_port=None):
-    if src_image_path and self._first_update:
+                   proxy_port=None, private_key_path=None):
+    if self.au_type == 'vm' and src_image_path and self._first_update:
       src_image_path = self.vm_image_path
       self._first_update = False
 
+    # Generate a value that combines delta with private key path.
+    val = '%s+%s' % (src_image_path, private_key_path)
     if not self.delta_list.has_key(image_path):
-      self.delta_list[image_path] = set([src_image_path])
+      self.delta_list[image_path] = set([val])
     else:
-      self.delta_list[image_path].add(src_image_path)
+      self.delta_list[image_path].add(val)
 
   def AttemptUpdateWithPayloadExpectedFailure(self, payload, expected_msg):
     pass
@@ -756,15 +758,16 @@ class DevServerWrapper(threading.Thread):
     return url
 
 
-def _GenerateUpdateId(target, src):
+def _GenerateUpdateId(target, src, key):
   """Returns a simple representation id of target and src paths."""
-  if src:
-    return '%s->%s' % (target, src)
-  else:
-    return target
+  update_id = target
+  if src: update_id = '->'.join([update_id, src])
+  if key: update_id = '+'.join([update_id, key])
+  return update_id
 
 
-def _RunParallelJobs(number_of_sumultaneous_jobs, jobs, jobs_args, print_status):
+def _RunParallelJobs(number_of_sumultaneous_jobs, jobs, jobs_args,
+                     print_status):
 
   """Runs set number of specified jobs in parallel.
 
@@ -834,40 +837,47 @@ def _PregenerateUpdates(parser, options):
   Raises:
     UpdateException if we fail to generate an update.
   """
-  def _GenerateVMUpdate(target, src):
+  def _GenerateVMUpdate(target, src, private_key_path):
     """Generates an update using the devserver."""
-    target = ReinterpretPathForChroot(target)
-    if src:
-      src = ReinterpretPathForChroot(src)
+    command = ['./enter_chroot.sh',
+               '--nogit_config',
+               '--',
+               'sudo',
+               './start_devserver',
+               '--pregenerate_update',
+               '--exit',
+              ]
+    # Add actual args to command.
+    command.append('--image=%s' % ReinterpretPathForChroot(target))
+    if src: command.append('--src_image=%s' % ReinterpretPathForChroot(src))
+    if options.type == 'vm': command.append('--for_vm')
+    if private_key_path:
+      command.append('--private_key=%s' %
+                     ReinterpretPathForChroot(private_key_path))
 
-    return RunCommandCaptureOutput(['./enter_chroot.sh',
-                                    '--nogit_config',
-                                    '--',
-                                    'sudo',
-                                    './start_devserver',
-                                    '--pregenerate_update',
-                                    '--exit',
-                                    '--image=%s' % target,
-                                    '--src_image=%s' % src,
-                                    '--for_vm',
-                                   ], combine_stdout_stderr=True,
-                                   print_cmd=False)
+    return RunCommandCaptureOutput(command, combine_stdout_stderr=True,
+                                   print_cmd=True)
 
   # Get the list of deltas by mocking out update method in test class.
-  test_suite = _PrepareTestSuite(parser, options, GenerateVirtualAUDeltasTest)
+  test_suite = _PrepareTestSuite(parser, options, PregenerateAUDeltas)
   test_result = unittest.TextTestRunner(verbosity=0).run(test_suite)
+  if not test_result.wasSuccessful():
+    raise UpdateException(1, 'Error finding updates to generate.')
 
   Info('The following delta updates are required.')
   update_ids = []
   jobs = []
   args = []
-  for target, srcs in GenerateVirtualAUDeltasTest.delta_list.items():
-    for src in srcs:
-      update_id = _GenerateUpdateId(target=target, src=src)
+  for target, srcs in PregenerateAUDeltas.delta_list.items():
+    for src_key in srcs:
+      (src, key) = src_key.split('+')
+      # TODO(sosa): Add private key as part of caching name once devserver can
+      # handle it its own cache.
+      update_id = _GenerateUpdateId(target=target, src=src, key=key)
       print >> sys.stderr, 'AU: %s' % update_id
       update_ids.append(update_id)
       jobs.append(_GenerateVMUpdate)
-      args.append((target, src))
+      args.append((target, src, key))
 
   raw_results = _RunParallelJobs(options.jobs, jobs, args, print_status=True)
   results = []
@@ -919,12 +929,74 @@ def _RunTestsInParallel(parser, options, test_class):
       Die('Test harness was not successful')
 
 
+def InsertPublicKeyIntoImage(image_path, key_path):
+  """Inserts public key into image @ static update_engine location."""
+  from_dir = os.path.dirname(image_path)
+  image = os.path.basename(image_path)
+  crosutils_dir = os.path.abspath(__file__).rsplit('/', 2)[0]
+  target_key_path = 'usr/share/update_engine/update-payload-key.pub.pem'
+
+  # Temporary directories for this function.
+  rootfs_dir = tempfile.mkdtemp(suffix='rootfs', prefix='tmp')
+  stateful_dir = tempfile.mkdtemp(suffix='stateful', prefix='tmp')
+
+  Info('Copying %s into %s' % (key_path, image_path))
+  try:
+    RunCommand(['./mount_gpt_image.sh',
+                '--from=%s' % from_dir,
+                '--image=%s' % image,
+                '--rootfs_mountpt=%s' % rootfs_dir,
+                '--stateful_mountpt=%s' % stateful_dir,
+               ], print_cmd=False, redirect_stdout=True,
+               redirect_stderr=True, cwd=crosutils_dir)
+    path = os.path.join(rootfs_dir, target_key_path)
+    dir_path = os.path.dirname(path)
+    RunCommand(['sudo', 'mkdir', '--parents', dir_path], print_cmd=False)
+    RunCommand(['sudo', 'cp', '--force', '-p', key_path, path],
+               print_cmd=False)
+  finally:
+    # Unmount best effort regardless.
+    RunCommand(['./mount_gpt_image.sh',
+                '--unmount',
+                '--rootfs_mountpt=%s' % rootfs_dir,
+                '--stateful_mountpt=%s' % stateful_dir,
+               ], print_cmd=False, redirect_stdout=True, redirect_stderr=True,
+               cwd=crosutils_dir)
+    # Clean up our directories.
+    os.rmdir(rootfs_dir)
+    os.rmdir(stateful_dir)
+
+  RunCommand(['bin/cros_make_image_bootable', from_dir, image, ],
+             print_cmd=False, redirect_stdout=True, redirect_stderr=True,
+             enter_chroot=True, cwd=crosutils_dir)
+
+
+def CleanPreviousWork(options):
+  """Cleans up previous work from the devserver cache and local image cache."""
+  Info('Cleaning up previous work.')
+  # Wipe devserver cache.
+  RunCommandCaptureOutput(
+      ['sudo', './start_devserver', '--clear_cache', '--exit', ],
+      enter_chroot=True, print_cmd=False, combine_stdout_stderr=True)
+
+  # Clean previous vm images if they exist.
+  if options.type == 'vm':
+    target_vm_image_path = '%s/chromiumos_qemu_image.bin' % os.path.dirname(
+        options.target_image)
+    base_vm_image_path = '%s/chromiumos_qemu_image.bin' % os.path.dirname(
+        options.base_image)
+    if os.path.exists(target_vm_image_path): os.remove(target_vm_image_path)
+    if os.path.exists(base_vm_image_path): os.remove(base_vm_image_path)
+
+
 def main():
   parser = optparse.OptionParser()
   parser.add_option('-b', '--base_image',
                     help='path to the base image.')
   parser.add_option('-r', '--board',
                     help='board for the images.')
+  parser.add_option('--clean', default=False, dest='clean', action='store_true',
+                    help='Clean all previous state')
   parser.add_option('--no_delta', action='store_false', default=True,
                     dest='delta',
                     help='Disable using delta updates.')
@@ -932,6 +1004,10 @@ def main():
                     help='Disable graphics for the vm test.')
   parser.add_option('-j', '--jobs', default=8, type=int,
                      help='Number of simultaneous jobs')
+  parser.add_option('--public_key', default=None,
+                     help='Public key to use on images and updates.')
+  parser.add_option('--private_key', default=None,
+                     help='Private key to use on images and updates.')
   parser.add_option('-q', '--quick_test', default=False, action='store_true',
                     help='Use a basic test to verify image.')
   parser.add_option('-m', '--remote',
@@ -948,31 +1024,52 @@ def main():
                          'possible.')
   (options, leftover_args) = parser.parse_args()
 
-  if leftover_args:
-    parser.error('Found extra options we do not support: %s' % leftover_args)
+  if leftover_args: parser.error('Found unsupported flags: %s' % leftover_args)
+
+  assert options.target_image and os.path.exists(options.target_image), \
+    'Target image path does not exist'
+  if not options.base_image:
+    Info('Base image not specified.  Using target image as base image.')
+    options.base_image = options.target_image
+
+  # Sanity checks on keys and insert them onto the image.  The caches must be
+  # cleaned so we know that the vm images and payloads match the possibly new
+  # key.
+  if options.private_key or options.public_key:
+    error_msg = ('Could not find %s key.  Both private and public keys must be '
+                 'specified if either is specified.')
+    assert options.private_key and os.path.exists(options.private_key), \
+        error_msg % 'private'
+    assert options.public_key and os.path.exists(options.public_key), \
+        error_msg % 'public'
+    InsertPublicKeyIntoImage(options.target_image, options.public_key)
+    InsertPublicKeyIntoImage(options.base_image, options.public_key)
+    options.clean = True
+
+  # Clean up previous work if requested.
+  if options.clean: CleanPreviousWork(options)
 
   # Figure out the test_class.
   if options.type == 'vm':  test_class = VirtualAUTest
   elif options.type == 'real': test_class = RealAUTest
   else: parser.error('Could not parse harness type %s.' % options.type)
 
-  # TODO(sosa): Caching doesn't really make sense on non-vm images (yet).
+  # Generate cache of updates to use during test harness.
   global dev_server_cache
-  if options.type == 'vm' and options.jobs > 1:
-    dev_server_cache = _PregenerateUpdates(parser, options)
-    my_server = DevServerWrapper()
-    my_server.start()
-    try:
+  dev_server_cache = _PregenerateUpdates(parser, options)
+  my_server = DevServerWrapper()
+  my_server.start()
+  try:
+    if options.type == 'vm':
       _RunTestsInParallel(parser, options, test_class)
-    finally:
-      my_server.Stop()
-
-  else:
-    dev_server_cache = None
-    test_suite = _PrepareTestSuite(parser, options, test_class)
-    test_result = unittest.TextTestRunner(verbosity=2).run(test_suite)
-    if not test_result.wasSuccessful():
-      Die('Test harness was not successful.')
+    else:
+      # TODO(sosa) - Take in a machine pool for a real test.
+      # Can't run in parallel with only one remote device.
+      test_suite = _PrepareTestSuite(parser, options, test_class)
+      test_result = unittest.TextTestRunner(verbosity=2).run(test_suite)
+      if not test_result.wasSuccessful(): Die('Test harness failed.')
+  finally:
+    my_server.Stop()
 
 
 if __name__ == '__main__':

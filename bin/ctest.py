@@ -225,17 +225,8 @@ def GrabZipAndExtractImage(zip_url, download_folder, image_name) :
     fh.close()
 
 
-def WipeDevServerCache():
-  """Wipes the cache of the dev server."""
-  RunCommand(['sudo',
-              './start_devserver',
-              '--clear_cache',
-              '--exit',
-             ], enter_chroot=True)
-
-
 def RunAUTestHarness(board, channel, latest_url_base, zip_server_base,
-                     no_graphics, type, remote):
+                     no_graphics, type, remote, clean):
   """Runs the auto update test harness.
 
   The auto update test harness encapsulates testing the auto-update mechanism
@@ -251,6 +242,7 @@ def RunAUTestHarness(board, channel, latest_url_base, zip_server_base,
     no_graphics: boolean - If True, disable graphics during vm test.
     type: which test harness to run.  Possible values: real, vm.
     remote: ip address for real test harness run.
+    clean: Clean the state of test harness before running.
   """
   crosutils_root = os.path.join(os.path.dirname(__file__), '..')
   download_folder = os.path.abspath('latest_download')
@@ -262,6 +254,9 @@ def RunAUTestHarness(board, channel, latest_url_base, zip_server_base,
                             cwd=crosutils_root, redirect_stdout=True,
                             print_cmd=True).strip()
 
+  update_engine_path = os.path.join(crosutils_root, '..', 'platform',
+                                    'update_engine')
+
   cmd = ['bin/cros_au_test_harness',
          '--base_image=%s' % os.path.join(download_folder,
                                           _IMAGE_TO_EXTRACT),
@@ -270,8 +265,13 @@ def RunAUTestHarness(board, channel, latest_url_base, zip_server_base,
          '--board=%s' % board,
          '--type=%s' % type,
          '--remote=%s' % remote,
+         '--private_key=%s' % os.path.join(update_engine_path,
+                                           'unittest_key.pem'),
+         '--public_key=%s' % os.path.join(update_engine_path,
+                                          'unittest_key.pub.pem'),
          ]
   if no_graphics: cmd.append('--no_graphics')
+  if clean: cmd.append('--clean')
 
   RunCommand(cmd, cwd=crosutils_root)
 
@@ -299,25 +299,14 @@ def main():
   parser.set_usage(parser.format_help())
   (options, args) = parser.parse_args()
 
-  if args:
-    parser.error('Extra args found %s.' % args)
-
-  if not options.board:
-    parser.error('Need board for image to compare against.')
-
-  if not options.channel:
-    parser.error('Need channel for image to compare against.')
-
-  if not options.zipbase:
-    parser.error('Need zip url base to get images.')
-
-  if not options.cache:
-    Info('Wiping dev server cache.')
-    WipeDevServerCache()
+  if args: parser.error('Extra args found %s.' % args)
+  if not options.board: parser.error('Need board for image to compare against.')
+  if not options.channel: parser.error('Need channel e.g. dev-channel.')
+  if not options.zipbase: parser.error('Need zip url base to get images.')
 
   RunAUTestHarness(options.board, options.channel, options.latestbase,
                    options.zipbase, options.no_graphics, options.type,
-                   options.remote)
+                   options.remote, not options.cache)
 
 
 if __name__ == '__main__':
