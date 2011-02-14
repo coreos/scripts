@@ -67,7 +67,7 @@ EMERGE_CMD="emerge"
 EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
 if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
   echo "Using alternate emerge"
-  EMERGE_CMD="${SCRIPTS_DIR}/parallel_emerge"
+  EMERGE_CMD="${GCLIENT_ROOT}/chromite/bin/parallel_emerge"
   EMERGE_BOARD_CMD="${EMERGE_CMD} --board=${FLAGS_board}"
 fi
 

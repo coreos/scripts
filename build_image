@@ -182,7 +182,8 @@ fi
 EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
 if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
   echo "Using alternate emerge"
-  EMERGE_BOARD_CMD="${SCRIPTS_DIR}/parallel_emerge --board=${FLAGS_board}"
+  EMERGE_CMD="${GCLIENT_ROOT}/chromite/bin/parallel_emerge"
+  EMERGE_BOARD_CMD="${EMERGE_CMD} --board=${FLAGS_board}"
 fi
 
 # Determine build version.
