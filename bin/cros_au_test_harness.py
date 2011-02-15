@@ -659,7 +659,8 @@ class PregenerateAUDeltas(unittest.TestCase, AUTest):
       self._first_update = False
 
     # Generate a value that combines delta with private key path.
-    val = '%s+%s' % (src_image_path, private_key_path)
+    val = src_image_path
+    if private_key_path: val = '%s+%s' % (val, private_key_path)
     if not self.delta_list.has_key(image_path):
       self.delta_list[image_path] = set([val])
     else:
@@ -870,7 +871,7 @@ def _PregenerateUpdates(parser, options):
   args = []
   for target, srcs in PregenerateAUDeltas.delta_list.items():
     for src_key in srcs:
-      (src, key) = src_key.split('+')
+      (src, _ , key) = src_key.partition('+')
       # TODO(sosa): Add private key as part of caching name once devserver can
       # handle it its own cache.
       update_id = _GenerateUpdateId(target=target, src=src, key=key)
