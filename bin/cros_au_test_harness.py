@@ -515,6 +515,7 @@ class RealAUTest(unittest.TestCase, AUTest):
     output = RunCommand([
         '%s/run_remote_tests.sh' % self.crosutils,
         '--remote=%s' % self.remote,
+        '--hide_info',
         self.verify_suite,
        ], error_ok=True, enter_chroot=False, redirect_stdout=True)
     return self.AssertEnoughTestsPassed(self, output, percent_required_to_pass)

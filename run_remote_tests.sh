@@ -41,6 +41,7 @@ DEFINE_string board "$DEFAULT_BOARD" \
 DEFINE_boolean build ${FLAGS_FALSE} "Build tests while running" b
 DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
 DEFINE_boolean cleanup ${FLAGS_FALSE} "Clean up temp directory"
+DEFINE_boolean hide_info ${FLAGS_FALSE} "Hide most test logs on success"
 DEFINE_integer iterations 1 "Iterations to run every top level test" i
 DEFINE_string results_dir_root "" "alternate root results directory"
 DEFINE_boolean verbose ${FLAGS_FALSE} "Show verbose autoserv output" v
@@ -69,7 +70,10 @@ function start_ssh_agent() {
   fi
   cp $FLAGS_private_key $tmp_private_key
   chmod 0400 $tmp_private_key
-  ssh-add $tmp_private_key
+
+  # Run this way to capture normal stderr output but only display it
+  # on failure.
+  result="$(ssh-add $tmp_private_key 2>&1)" || die "$result"
 }
 
 function cleanup() {
@@ -319,13 +323,21 @@ function main() {
 
     sudo chmod a+w ./server/{tests,site_tests}
     echo ./server/autoserv ${autoserv_args}
-
+    
+    # run autoserv in subshell, capture it's output, and only display output
+    # on error.
+    code=0
     if [ ${FLAGS_build} -eq ${FLAGS_TRUE} ]; then
-      # run autoserv in subshell
-      (. ${BUILD_ENV} && tc-export CC CXX PKG_CONFIG &&
-       ./server/autoserv ${autoserv_args})
+      result="$(. ${BUILD_ENV} && tc-export CC CXX PKG_CONFIG &&
+                ./server/autoserv ${autoserv_args} 2>&1)" || code=1
     else
-      ./server/autoserv ${autoserv_args}
+      result="$(./server/autoserv ${autoserv_args} 2>&1)" || code=1
+    fi
+    
+    if [ $code -ne 0 -o ${FLAGS_hide_info} -eq ${FLAGS_FALSE} ]; then
+      echo
+      echo "${result}"
+      exit $code
     fi
   done
   popd > /dev/null
