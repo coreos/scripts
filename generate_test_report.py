@@ -22,6 +22,13 @@ from cros_build_lib import Color, Die
 
 _STDOUT_IS_TTY = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
 
+# List of crashes which are okay to ignore. This list should almost always be
+# empty. If you add an entry, mark it with a TODO(<your name>) and the issue
+# filed for the crash.
+_CRASH_WHITELIST = {
+  # TODO(dalecurtis): chromium-os:12212. Remove when resolved.
+  'chromeos-wm': ['sig 6']
+}
 
 class ReportGenerator(object):
   """Collects and displays data from autoserv results directories.
@@ -116,6 +123,9 @@ class ReportGenerator(object):
     crashes = []
     regex = re.compile('Received crash notification for ([-\w]+).+ (sig \d+)')
     for match in regex.finditer(status_raw):
+      if (match.group(1) in _CRASH_WHITELIST and
+          match.group(2) in _CRASH_WHITELIST[match.group(1)]):
+        continue
       crashes.append('%s %s' % match.groups())
 
     self._results[testdir] = {'crashes': crashes,
