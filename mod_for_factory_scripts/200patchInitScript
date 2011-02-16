@@ -43,9 +43,9 @@ date >>/var/log/factory.log
 if [ ! -e factory_started ]; then
   touch factory_started
   cp -f site_tests/suite_Factory/control .
-  ./bin/autotest control >>/var/log/factory.log 2>&1
+  ./bin/autotest -t factory control >>/var/log/factory.log 2>&1
 else
-  ./tools/autotest >>/var/log/factory.log 2>&1
+  ./bin/autotest -t factory -c control >>/var/log/factory.log 2>&1
 fi
 end script
 EOF
