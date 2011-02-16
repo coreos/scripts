@@ -54,10 +54,10 @@ DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
 DEFINE_boolean inplace $FLAGS_TRUE \
     "Modify/overwrite the image ${CHROMEOS_IMAGE_NAME} in place.  \
 Otherwise the image will be copied to ${CHROMEOS_TEST_IMAGE_NAME} \
-if needed, and  modified there"
+(or ${CHROMEOS_FACTORY_TEST_IMAGE_NAME} for --factory) if needed, and \
+modified there"
 DEFINE_boolean force_copy ${FLAGS_FALSE} \
     "Always rebuild test image if --noinplace"
-
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -182,7 +182,11 @@ IMAGE_DIR="$(dirname "${FLAGS_image}")"
 
 # Copy the image to a test location if required
 if [ ${FLAGS_inplace} -eq ${FLAGS_FALSE} ]; then
-  TEST_PATHNAME="${IMAGE_DIR}/${CHROMEOS_TEST_IMAGE_NAME}"
+  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+    TEST_PATHNAME="${IMAGE_DIR}/${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
+  else
+    TEST_PATHNAME="${IMAGE_DIR}/${CHROMEOS_TEST_IMAGE_NAME}"
+  fi
   if [ ! -f "${TEST_PATHNAME}" ] || \
      [ ${FLAGS_force_copy} -eq ${FLAGS_TRUE} ] ; then
     echo "Creating test image from original..."

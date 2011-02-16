@@ -66,6 +66,7 @@ DEFINE_boolean official_build $FLAGS_FALSE \
 DEFINE_string test_tarball "" "Optional path to test tarball to archive"
 DEFINE_boolean test_mod $FLAGS_TRUE "Modify image for testing purposes"
 DEFINE_boolean prebuilt_upload $FLAGS_FALSE "Upload prebuilt binary packages."
+DEFINE_boolean remove_dev $FLAGS_TRUE "Remove the de image during archive."
 DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
 DEFINE_string zipname "image.zip" "Name of zip file to create."
 
@@ -138,27 +139,11 @@ echo "archive to file: $ZIPFILE"
 rm -rf "$OUTDIR"
 mkdir -p "$OUTDIR"
 
-
-SRC_IMAGE="${FLAGS_from}/chromiumos_image.bin"
-BACKUP_IMAGE="${FLAGS_from}/chromiumos_image_bkup.bin"
-
-# Apply mod_image_for_test to the developer image, and store the
-# result in a new location. Usage:
-# do_chroot_mod "$OUTPUT_IMAGE" "--flags_to_mod_image_for_test"
-function do_chroot_mod() {
-  MOD_ARGS=$2
-  OUTPUT_IMAGE=$1
-  cp -f "${SRC_IMAGE}" "${BACKUP_IMAGE}"
-  ./enter_chroot.sh -- ./mod_image_for_test.sh --board $FLAGS_board \
-      --yes ${MOD_ARGS}
-  mv "${SRC_IMAGE}" "${OUTPUT_IMAGE}"
-  mv "${BACKUP_IMAGE}" "${SRC_IMAGE}"
-}
-
 # Modify image for test if flag set.
 if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]; then
   echo "Modifying image for test"
-  do_chroot_mod "${FLAGS_from}/chromiumos_test_image.bin" ""
+  ./enter_chroot.sh -- ./mod_image_for_test.sh --board $FLAGS_board \
+      --noinplace --yes
 
   pushd "${FLAGS_chroot}/build/${FLAGS_board}/usr/local"
   echo "Archiving autotest build artifacts"
@@ -168,8 +153,8 @@ fi
 
 if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ]; then
   echo "Modifying image for factory test"
-  do_chroot_mod "${FLAGS_from}/chromiumos_factory_image.bin" \
-      "--factory"
+  ./enter_chroot.sh -- ./mod_image_for_test.sh --board $FLAGS_board \
+      --yes --noinplace --factory
 fi
 
 # Modify for recovery
@@ -181,8 +166,8 @@ if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
 fi
 
 # Remove the developer build if test image is also built.
-if [ $FLAGS_test_mod -eq $FLAGS_TRUE ] ; then
-  rm -f ${SRC_IMAGE}
+if [ $FLAGS_remove_dev -eq $FLAGS_TRUE ]; then
+  rm -f "${FLAGS_from}/${CHROMEOS_IMAGE_NAME}"
 fi
 
 # Build differently sized shims. Currently only factory install shim is

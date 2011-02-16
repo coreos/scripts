@@ -157,7 +157,7 @@ DEFAULT_FAST=${FLAGS_TRUE}
 # Standard filenames
 CHROMEOS_IMAGE_NAME="chromiumos_image.bin"
 CHROMEOS_TEST_IMAGE_NAME="chromiumos_test_image.bin"
-
+CHROMEOS_FACTORY_TEST_IMAGE_NAME="chromiumos_factory_image.bin"
 
 # Directory locations inside the dev chroot
 CHROOT_TRUNK_DIR="/home/$USER/trunk"
