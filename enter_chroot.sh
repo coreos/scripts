@@ -143,6 +143,11 @@ function ensure_mounted {
   local mounted_path="$(readlink -f "${FLAGS_chroot}/$target")"
 
   if [ -z "$(mount | grep -F "on ${mounted_path} ")" ]; then
+    # Attempt to make the mountpoint as the user.  This depends on the
+    # fact that all mountpoints that should be owned by root are
+    # already present.
+    mkdir -p "${mounted_path}"
+
     # NB:  mount_args deliberately left unquoted
     debug mount ${mount_args} "${source}" "${mounted_path}"
     sudo -- mount ${mount_args} "${source}" "${mounted_path}" || \
