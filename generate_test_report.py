@@ -113,7 +113,13 @@ class ReportGenerator(object):
     if testdir.startswith(self._options.strip):
       testdir = testdir.replace(self._options.strip, '', 1)
 
-    self._results[testdir] = {'status': status,
+    crashes = []
+    regex = re.compile('Received crash notification for ([-\w]+).+ (sig \d+)')
+    for match in regex.finditer(status_raw):
+      crashes.append('%s %s' % match.groups())
+
+    self._results[testdir] = {'crashes': crashes,
+                              'status': status,
                               'perf': perf}
 
   def _CollectResultsRec(self, resdir):
@@ -176,6 +182,7 @@ class ReportGenerator(object):
     width = self.GetTestColumnWidth()
     line = ''.ljust(width + 5, '-')
 
+    crashes = {}
     tests_pass = 0
     print line
     for test in tests:
@@ -205,12 +212,38 @@ class ReportGenerator(object):
         perf_value_entry = self._color.Color(Color.BOLD, perf[perf_key])
         print perf_key_entry + perf_value_entry
 
+      # Ignore top-level entry, since it's just a combination of all the
+      # individual results.
+      if result['crashes'] and test != tests[0]:
+        for crash in result['crashes']:
+          if not crash in crashes:
+            crashes[crash] = set([])
+          crashes[crash].add(test)
+
     print line
 
     total_tests = len(tests)
     percent_pass = 100 * tests_pass / total_tests
     pass_str = '%d/%d (%d%%)' % (tests_pass, total_tests, percent_pass)
     print 'Total PASS: ' + self._color.Color(Color.BOLD, pass_str)
+
+    if self._options.crash_detection:
+      print ''
+      if crashes:
+        print self._color.Color(Color.RED, 'Crashes detected during testing:')
+        print line
+
+        for crash_name, crashed_tests in sorted(crashes.iteritems()):
+          print self._color.Color(Color.RED, crash_name)
+          for crashed_test in crashed_tests:
+            print ' '*self._KEYVAL_INDENT + crashed_test
+
+        print line
+        print 'Total unique crashes: ' + self._color.Color(Color.BOLD,
+                                                           str(len(crashes)))
+      else:
+        print self._color.Color(Color.GREEN,
+                                'No crashes detected during testing.')
 
     # Print out the client debug information for failed tests.
     if self._options.print_debug:
@@ -243,7 +276,8 @@ class ReportGenerator(object):
     self._CollectResults()
     self._GenerateReportText()
     for v in self._results.itervalues():
-      if v['status'] != 'PASS':
+      if v['status'] != 'PASS' or (self._options.crash_detection
+                                   and v['crashes']):
         sys.exit(1)
 
 
@@ -255,6 +289,9 @@ def main():
                     help='Use color for text reports [default if TTY stdout]')
   parser.add_option('--no-color', dest='color', action='store_false',
                     help='Don\'t use color for text reports')
+  parser.add_option('--no-crash-detection', dest='crash_detection',
+                    action='store_false', default=True,
+                    help='Don\'t report crashes or error out when detected')
   parser.add_option('--perf', dest='perf', action='store_true',
                     default=True,
                     help='Include perf keyvals in the report [default]')
@@ -268,7 +305,7 @@ def main():
                     help='Don\'t strip a prefix from test directory names')
   parser.add_option('--no-debug', dest='print_debug', action='store_false',
                     default=True,
-                    help='Do not print out the debug log when a test fails.')
+                    help='Don\'t print out the debug log when a test fails.')
   (options, args) = parser.parse_args()
 
   if not args:
