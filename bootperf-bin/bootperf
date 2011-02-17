@@ -32,6 +32,13 @@ find_common_sh
 . "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
 # --- END COMMON.SH BOILERPLATE ---
 
+# TODO(jrbarnette) Although run_remote_tests.sh works outside the
+# chroot, the log files it produces will be stored inside the
+# chroot.  So, from outside the chroot, this script doesn't work.
+# Yes, I think it's a bug, too.  You're welcome to fix it, if you
+# think it's so easy. :-)
+assert_inside_chroot
+
 DEFINE_string output_dir "" "output directory for results" o
 DEFINE_boolean keep_logs "$FLAGS_FALSE" "keep autotest results" k
 
@@ -147,12 +154,13 @@ run_boot_test() {
   i=0
   while [ $i -lt $count ]; do
     local iter_rundir=$RUNDIR.$iter
-    local logfile=$iter_rundir/$RUNDIR_LOG
+    local logfile=$(pwd)/$iter_rundir/$RUNDIR_LOG
     local summary_dir=$iter_rundir/$RUNDIR_SUMMARY
     local all_results_dir=$iter_rundir/$RUNDIR_ALL_RESULTS
 
     mkdir $iter_rundir
-    echo "run $iter start at $(date)"
+    date
+    echo "  logging in $logfile"
 
     # BEWARE:  The --use_emerged option means that you must manually
     # emerge chromeos-base/autotest-tests if a) you are working on
@@ -163,7 +171,7 @@ run_boot_test() {
               --remote="$remote" $TEST >$logfile 2>&1
     if [ ! -e "$TMP_RESULTS/$RESULTS_KEYVAL" ]; then
       error "No results file; terminating test runs."
-      error "Check $(pwd)/$logfile for output from the test run,"
+      error "Check $logfile for output from the test run,"
       error "and see $TMP_RESULTS for full test logs and output."
       return
     fi
@@ -179,8 +187,7 @@ run_boot_test() {
     i=$(expr $i + 1)
     iter=$(echo $iter | awk '{printf "%03d\n", $1 + 1}')
   done
-  #    "run 000 start at $(date)"
-  echo "      ... end at $(date)"
+  date
   cat $RUNDIR.???/$RUNDIR_SUMMARY/$RESULTS_KEYVAL >$KEYVAL_SUMMARY
 }
 
