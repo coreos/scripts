@@ -967,7 +967,9 @@ def InsertPublicKeyIntoImage(image_path, key_path):
     os.rmdir(rootfs_dir)
     os.rmdir(stateful_dir)
 
-  RunCommand(['bin/cros_make_image_bootable', from_dir, image, ],
+  RunCommand(['bin/cros_make_image_bootable',
+              ReinterpretPathForChroot(from_dir),
+              image],
              print_cmd=False, redirect_stdout=True, redirect_stderr=True,
              enter_chroot=True, cwd=crosutils_dir)
 
