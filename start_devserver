@@ -41,4 +41,4 @@ if [ -z "${PKG_INSTALL_MASK+x}" ]; then
 fi
 echo PKG_INSTALL_MASK=$PKG_INSTALL_MASK
 
-cd ${GCLIENT_ROOT}/src/platform/dev && python devserver.py "$@"
+python "${GCLIENT_ROOT}/src/platform/dev/devserver.py" "$@"
