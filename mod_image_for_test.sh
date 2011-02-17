@@ -87,12 +87,6 @@ fi
 # Turn path into an absolute path.
 FLAGS_image=`eval readlink -f ${FLAGS_image}`
 
-# Abort early if we can't find the image
-if [ ! -f $FLAGS_image ] ; then
-  echo "No image found at $FLAGS_image"
-  exit 1
-fi
-
 # What cross-build are we targeting?
 . "${FLAGS_build_root}/${FLAGS_board}/etc/make.conf.board_setup"
 # Figure out ARCH from the given toolchain.
@@ -212,6 +206,11 @@ if [ $FLAGS_yes -ne $FLAGS_TRUE ]; then
   fi
 else
   echo "Modifying image ${FLAGS_image} for test..."
+fi
+
+# Abort early if we can't find the image
+if [ ! -f $FLAGS_image ] && [ ${FLAGS_inplace} -eq ${FLAGS_TRUE} ; then
+  die "No image found at $FLAGS_image to modify"
 fi
 
 set -e
