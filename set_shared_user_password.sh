@@ -43,10 +43,13 @@ set -e
 # Get password
 read -p "Enter password for shared user account: " PASSWORD
 
-CRYPTED_PASSWD_FILE=$SCRIPTS_DIR/shared_user_passwd.txt
 CRYPTED_PASSWD="$(echo "$PASSWORD" | openssl passwd -1 -stdin)"
 PASSWORD="gone now"
 
-echo "$CRYPTED_PASSWD" > $CRYPTED_PASSWD_FILE
+CRYPTED_PASSWD_FILE="${SCRIPTS_DIR}/shared_user_passwd.txt"
+echo "${CRYPTED_PASSWD}" > "${CRYPTED_PASSWD_FILE}"
 
-echo "Shared user password set in $CRYPTED_PASSWD_FILE"
+SHARED_USER_PASSWD_FILE="/etc/shared_user_passwd.txt"
+echo "${CRYPTED_PASSWD}" | sudo_clobber "${SHARED_USER_PASSWD_FILE}"
+
+echo "Password set in ${CRYPTED_PASSWD_FILE} and ${SHARED_USER_PASSWD_FILE}"
