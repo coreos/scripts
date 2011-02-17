@@ -101,10 +101,20 @@ function remote_reboot_sh {
 # to us.
 function get_hostname {
   local hostname
-  # Try to parse ifconfig for ip address
-  hostname=$(ifconfig eth0 \
-      | grep 'inet addr' \
-      | sed 's/.\+inet addr:\(\S\+\).\+/\1/') || hostname=${HOSTNAME}
+  # Try to parse ifconfig for ip address. Use sudo, because not all distros
+  # allow a common user to call ifconfig.
+  # TODO(zbehan): What if target is not connected via eth0? Update over wifi?
+  # Dedicated usb NIC? Perhaps this detection should be done in the target,
+  # which will get the return address in one way or another. Or maybe we should
+  # just open a ssh tunnel and use localhost.
+  hostname=$(sudo ifconfig eth0 |
+      grep 'inet addr' |
+      cut -f2 -d':' |
+      cut -f1 -d' ')
+
+  # Fallback to $HOSTNAME if that failed
+  [ -z "${hostname}" ] && hostname=${HOSTNAME}
+
   echo ${hostname}
 }
 
