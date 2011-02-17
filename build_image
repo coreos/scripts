@@ -139,6 +139,10 @@ check_blacklist() {
 
 check_blacklist
 
+# TODO(petkov): Remove along with the --move_to_etc flag support once the
+# transition dust settles.
+"${SCRIPTS_DIR}"/set_shared_user_password.sh --move_to_etc
+
 # Verify user didn't specify incompatible flags for dev install shim
 if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ] &&
    [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ] ; then
