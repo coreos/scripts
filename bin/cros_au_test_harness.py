@@ -482,7 +482,7 @@ class RealAUTest(unittest.TestCase, AUTest):
 
   def PrepareBase(self, image_path):
     """Auto-update to base image to prepare for test."""
-    _PrepareRealBase(image_path)
+    self._PrepareRealBase(image_path)
 
   def _UpdateImage(self, image_path, src_image_path='', stateful_change='old',
                    proxy_port=None, private_key_path=None):

@@ -256,8 +256,8 @@ def GetIPAddress(device='eth0'):
   this method gives you a generic way to get the address so you are reachable
   either via a VM or remote machine on the same network.
   """
-  ifconfig_output = RunCommand(['ifconfig', device], redirect_stdout=True,
-                               print_cmd=False)
+  ifconfig_output = RunCommand(['sudo', 'ifconfig', device],
+                               redirect_stdout=True, print_cmd=False)
   match = re.search('.*inet addr:(\d+\.\d+\.\d+\.\d+).*', ifconfig_output)
   if match:
     return match.group(1)
