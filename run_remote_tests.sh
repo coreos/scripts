@@ -79,6 +79,7 @@ function cleanup() {
      [[ ${RAN_ANY_TESTS} -eq ${FLAGS_FALSE} ]]; then
     rm -rf "${TMP}"
   else
+    ln -sf "${TMP}" /tmp/run_remote_tests.latest
     echo ">>> Details stored under ${TMP}"
   fi
   stop_ssh_agent
