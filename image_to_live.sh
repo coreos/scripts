@@ -107,7 +107,7 @@ function get_hostname {
   # Dedicated usb NIC? Perhaps this detection should be done in the target,
   # which will get the return address in one way or another. Or maybe we should
   # just open a ssh tunnel and use localhost.
-  hostname=$(sudo ifconfig eth0 |
+  hostname=$(/sbin/ifconfig eth0 |
       grep 'inet addr' |
       cut -f2 -d':' |
       cut -f1 -d' ')
