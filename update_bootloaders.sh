@@ -77,7 +77,7 @@ set -e
 # be set when the rootfs is stuffed.
 if ! type -p update_x86_bootloaders; then
   update_x86_bootloaders() {
-    local old_root="$1"  # e.g., sd%D%P
+    local old_root="$1"  # e.g., /dev/sd%D%P or %U+1
     local kernel_cmdline="$2"
     local esp_fs_dir="$3"
     local template_dir="$4"
@@ -89,25 +89,25 @@ if ! type -p update_x86_bootloaders; then
     fi
 
     # Rewrite grub table
-    grub_dm_table_a=${dm_table//${old_root}/\$linuxpartA}
-    grub_dm_table_b=${dm_table//${old_root}/\$linuxpartB}
+    grub_dm_table_a=${dm_table//${old_root}/\/dev\/\$linuxpartA}
+    grub_dm_table_b=${dm_table//${old_root}/\/dev\/\$linuxpartB}
     sed -e "s|DMTABLEA|${grub_dm_table_a}|g" \
         -e "s|DMTABLEB|${grub_dm_table_b}|g" \
         "${template_dir}"/efi/boot/grub.cfg |
         sudo dd of="${esp_fs_dir}"/efi/boot/grub.cfg
 
     # Rewrite syslinux DM_TABLE
-    syslinux_dm_table_usb=${dm_table//\/dev\/${old_root}/${FLAGS_usb_disk}}
+    syslinux_dm_table_usb=${dm_table//${old_root}/${FLAGS_usb_disk}}
     sed -e "s|DMTABLEA|${syslinux_dm_table_usb}|g" \
         "${template_dir}"/syslinux/usb.A.cfg |
         sudo dd of="${esp_fs_dir}"/syslinux/usb.A.cfg
 
-    syslinux_dm_table_a=${dm_table//\/dev\/${old_root}/HDROOTA}
+    syslinux_dm_table_a=${dm_table//${old_root}/HDROOTA}
     sed -e "s|DMTABLEA|${syslinux_dm_table_a}|g" \
         "${template_dir}"/syslinux/root.A.cfg |
         sudo dd of="${esp_fs_dir}"/syslinux/root.A.cfg
 
-    syslinux_dm_table_b=${dm_table//\/dev\/${old_root}/HDROOTB}
+    syslinux_dm_table_b=${dm_table//${old_root}/HDROOTB}
     sed -e "s|DMTABLEB|${syslinux_dm_table_b}|g" \
         "${template_dir}"/syslinux/root.B.cfg |
         sudo dd of="${esp_fs_dir}"/syslinux/root.B.cfg
@@ -117,7 +117,7 @@ if ! type -p update_x86_bootloaders; then
     sudo cp -f "${template_dir}"/vmlinuz "${esp_fs_dir}"/syslinux/vmlinuz.B
 
     # The only work left for the installer is to pick the correct defaults
-    # and replace HDROOTA and HDROOTB with the correct /dev/sd%D%P.
+    # and replace HDROOTA and HDROOTB with the correct /dev/sd%D%P/%U+1
   }
 fi
 
@@ -187,7 +187,7 @@ if [[ "${FLAGS_arch}" = "x86" ]]; then
 
   # Extract kernel flags
   kernel_cfg=
-  old_root="sd%D%P"
+  old_root="%U+1"
   if [[ -n "${FLAGS_kernel_cmdline}" ]]; then
     info "Using supplied kernel_cmdline to update templates."
     kernel_cfg="${FLAGS_kernel_cmdline}"

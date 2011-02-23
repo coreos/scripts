@@ -47,13 +47,15 @@ DEFINE_string keys_dir "${SRC_ROOT}/platform/vboot_reference/tests/testkeys" \
 DEFINE_boolean use_dev_keys ${FLAGS_FALSE} \
   "Use developer keys for signing. (Default: false)"
 # Note, to enable verified boot, the caller would manually pass:
-# --boot_args='dm="... /dev/sd%D%P /dev/sd%D%P ..." \
+# --boot_args='dm="... %U+1 %U+1 ..." \
 # --root=/dev/dm-0
 DEFINE_string boot_args "noinitrd" \
   "Additional boot arguments to pass to the commandline (Default: noinitrd)"
+# By default, we use a firmware enumerated value, but it isn't reliable for
+# production use.  If +%d can be added upstream, then we can use:
+#   root=PARTUID=uuid+1
 DEFINE_string root "/dev/sd%D%P" \
-  "Expected device root (Default: root=/dev/sd%D%P)"
-
+  "Expected device root partition"
 # If provided, will automatically add verified boot arguments.
 DEFINE_string rootfs_image "" \
   "Optional path to the rootfs device or image.(Default: \"\")"
@@ -64,8 +66,8 @@ DEFINE_integer verity_error_behavior 2 \
 (Default: 2)"
 DEFINE_integer verity_tree_depth 1 \
   "Optional Verified boot hash tree depth. (Default: 1)"
-DEFINE_integer verity_max_ios 1024 \
-  "Optional number of outstanding I/O operations. (Default: 1024)"
+DEFINE_integer verity_max_ios -1 \
+  "Optional number of outstanding I/O operations. (Default: -1)"
 DEFINE_string verity_hash_alg "sha1" \
   "Cryptographic hash algorithm used for dm-verity. (Default: sha1)"
 
@@ -108,7 +110,7 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
   # under the system.
   if [[ ${FLAGS_root} = "/dev/dm-0" ]]; then
     if [[ "${FLAGS_arch}" = "x86" ]]; then
-      base_root='/dev/sd%D%P'
+      base_root='%U+1'  # kern_guid + 1
     elif [[ "${FLAGS_arch}" = "arm" ]]; then
       base_root='/dev/${devname}${rootpart}'
     fi

@@ -143,6 +143,8 @@ make_image_bootable() {
   local image="$1"
   local use_dev_keys=
 
+  # Default to non-verified, non-UUID boot unless verified.
+  # Long term we want root=PARTUUID=uuid+1.
   cros_root=/dev/sd%D%P
   if [[ "${FLAGS_arch}" = "arm" ]]; then
     cros_root='/dev/${devname}${rootpart}'
