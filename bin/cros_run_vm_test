@@ -34,8 +34,7 @@ find_common_sh
 get_default_board
 
 DEFINE_string board "$DEFAULT_BOARD" \
-    "The board for which you built autotest."
-DEFINE_boolean build ${FLAGS_FALSE} "Build tets while running" b
+    "The board for which you built autotest." b
 DEFINE_string image_path "" "Full path of the VM image"
 DEFINE_string results_dir_root "" "alternate root results directory"
 DEFINE_string test_case "" "Name of the test case to run"
@@ -102,13 +101,8 @@ if [ -n "${FLAGS_verify_chrome_version}" ]; then
   fi
 fi
 
-# Set the build flag for run_remote_tests.
-BUILD_FLAG=""
-[ ${FLAGS_build}-eq ${FLAGS_true} ] && BUILD_FLAG="--build"
-
 "${SCRIPTS_DIR}/run_remote_tests.sh" \
     --board=${FLAGS_board} \
-    ${BUILD_FLAG} \
     --ssh_port=${FLAGS_ssh_port} \
     --remote=127.0.0.1 \
     --results_dir_root="${FLAGS_results_dir_root}" \
