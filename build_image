@@ -444,9 +444,9 @@ update_dev_packages() {
 
   # Install the bare necessary files so that the "emerge" command works
   if [ ${FLAGS_statefuldev} -eq ${FLAGS_TRUE} ]; then
-    sudo ln -sft ${ROOT_FS_DIR}/usr/share ../../usr/local/share/portage
+    sudo cp -a ${root_dev_dir}/share/portage ${ROOT_FS_DIR}/usr/share
     sudo sed -i s,/usr/bin/wget,wget, \
-      ${root_dev_dir}/share/portage/config/make.globals
+      ${ROOT_FS_DIR}/usr/share/portage/config/make.globals
   fi
   sudo mkdir -p ${ROOT_FS_DIR}/etc/make.profile
 
