@@ -71,6 +71,10 @@ DEFINE_integer verity_max_ios -1 \
 DEFINE_string verity_hash_alg "sha1" \
   "Cryptographic hash algorithm used for dm-verity. (Default: sha1)"
 
+# TODO(clchiou): Remove this flag after arm verified boot is stable
+DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_FALSE} \
+  "Sign kernel partition for ARM images (temporary hack)."
+
 # Parse flags
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -145,15 +149,11 @@ EOF
 WORK="${WORK} ${FLAGS_working_dir}/boot.config"
 info "Emitted cross-platform boot params to ${FLAGS_working_dir}/boot.config"
 
-# FIXME: At the moment, we're working on signed images for x86 only. ARM will
-# support this before shipping, but at the moment they don't.
 if [[ "${FLAGS_arch}" = "x86" ]]; then
-
   # Legacy BIOS will use the kernel in the rootfs (via syslinux), as will
   # standard EFI BIOS (via grub, from the EFI System Partition). Chrome OS
   # BIOS will use a separate signed kernel partition, which we'll create now.
   # FIXME: remove serial output, debugging messages.
-  mkdir -p ${FLAGS_working_dir}
   cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
     > "${FLAGS_working_dir}/config.txt"
 console=tty2
@@ -170,6 +170,35 @@ tpm_tis.interrupts=0
 EOF
   WORK="${WORK} ${FLAGS_working_dir}/config.txt"
 
+  bootloader_path="/lib64/bootstub/bootstub.efi"
+  kernel_image="${FLAGS_vmlinuz}"
+
+  sign_the_kernel=${FLAGS_TRUE}
+elif [[ "${FLAGS_arch}" = "arm" ]]; then
+  cp "${FLAGS_working_dir}/boot.config" "${FLAGS_working_dir}/config.txt"
+  WORK="${WORK} ${FLAGS_working_dir}/config.txt"
+
+  kernel_script="${FLAGS_working_dir}/kernel.scr"
+  kernel_script_img="${FLAGS_working_dir}/kernel.scr.uimg"
+
+  echo -n 'setenv bootargs ${bootargs} ' > "${kernel_script}"
+  tr '\n' ' ' < "${FLAGS_working_dir}/boot.config" >> "${kernel_script}"
+  echo >> "${kernel_script}"
+
+  mkimage -A arm -O linux -T script -C none -a 0 -e 0 \
+    -n kernel_script -d "${kernel_script}" "${kernel_script_img}"
+
+  WORK="${WORK} ${kernel_script} ${kernel_script_img}"
+
+  bootloader_path="${kernel_script_img}"
+  kernel_image="${FLAGS_vmlinuz/vmlinuz/vmlinux.uimg}"
+
+  sign_the_kernel=${FLAGS_crosbug12352_arm_kernel_signing}
+else
+  error "Unknown arch: ${FLAGS_arch}"
+fi
+
+if [[ "${sign_the_kernel}" -eq "${FLAGS_TRUE}" ]]; then
   # We sign the image with the recovery_key, because this is what goes onto the
   # USB key. We can only boot from the USB drive in recovery mode.
   # For dev install shim, we need to use the installer keyblock instead of
@@ -189,8 +218,9 @@ EOF
     --signprivate "${FLAGS_keys_dir}/recovery_kernel_data_key.vbprivk" \
     --version 1 \
     --config "${FLAGS_working_dir}/config.txt" \
-    --bootloader /lib64/bootstub/bootstub.efi \
-    --vmlinuz "${FLAGS_vmlinuz}"
+    --bootloader "${bootloader_path}" \
+    --vmlinuz "${kernel_image}" \
+    --arch "${FLAGS_arch}"
 
   # And verify it.
   vbutil_kernel \
@@ -223,24 +253,14 @@ EOF
   rm -f $tempfile
   trap - EXIT
 
-elif [[ "${FLAGS_arch}" = "arm" ]]; then
-  # FIXME: This stuff is unsigned, and will likely change with vboot_reference
-  # but it doesn't technically have to.
-
-  kernel_script="${FLAGS_working_dir}/kernel.scr"
-  kernel_script_img="${FLAGS_working_dir}/kernel.scr.uimg"
-  # HACK: !! Kernel image construction requires some stuff from portage, not
-  # sure how to get that information here cleanly !!
-  kernel_image="${FLAGS_vmlinuz/vmlinuz/vmlinux.uimg}"
-  WORK="${WORK} ${kernel_script} ${kernel_script_img}"
+else
+  # FIXME: This stuff is unsigned. This part should be removed or made
+  # non-default after ARM verified boot is stable.
 
   kernel_size=$((($(stat -c %s "${kernel_image}") + 511) / 512))
   script_size=16
 
-  # Build boot script image
-  echo -n 'setenv bootargs ${bootargs} ' > "${kernel_script}"
-  tr '\n' ' ' <"${FLAGS_working_dir}/boot.config" >> "${kernel_script}"
-  echo >> "${kernel_script}"
+  # Add more scripts to boot script image for loading kernel image
   printf 'read ${devtype} ${devnum}:${kernelpart} ${loadaddr} %x %x\n' \
     ${script_size} ${kernel_size} >> "${kernel_script}"
   echo 'bootm ${loadaddr}' >> ${kernel_script}
@@ -262,8 +282,6 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
   # phony hd.vblock to keep chromeos-install and cros_generate_update_payload
   # working.
   dd if="${FLAGS_to}" of="${FLAGS_hd_vblock}" bs=64K count=1
-else
-  error "Unknown arch: ${FLAGS_arch}"
 fi
 
 set +e  # cleanup failure is a-ok

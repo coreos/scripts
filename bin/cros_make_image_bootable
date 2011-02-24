@@ -117,6 +117,10 @@ DEFINE_string espfs_mountpoint "/tmp/espfs" \
 DEFINE_boolean use_dev_keys ${FLAGS_FALSE} \
   "Use developer keys for signing. (Default: false)"
 
+# TODO(clchiou): Remove this flag after arm verified boot is stable
+DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_FALSE} \
+  "Sign kernel partition for ARM images (temporary hack)."
+
 # TODO(sosa):  Remove once known images no longer use this in their config.
 DEFINE_string arm_extra_bootargs "" "DEPRECATED FLAG.  Do not use."
 
@@ -127,6 +131,12 @@ FLAGS "${@}" || exit 1
 # Only now can we die on error.  shflags functions leak non-zero error codes,
 # so will die prematurely if 'set -e' is specified before now.
 set -e -u
+
+if [[ ${FLAGS_crosbug12352_arm_kernel_signing} -eq ${FLAGS_TRUE} ]]; then
+  crosbug12352_flag="--crosbug12352_arm_kernel_signing"
+else
+  crosbug12352_flag="--nocrosbug12352_arm_kernel_signing"
+fi
 
 # $1 - Directory where developer rootfs is mounted.
 # $2 - Directory where developer stateful_partition is mounted.
@@ -195,6 +205,7 @@ make_image_bootable() {
     --verity_error_behavior=${FLAGS_verity_error_behavior} \
     --root=${cros_root} \
     --keys_dir="${FLAGS_keys_dir}" \
+    ${crosbug12352_flag} \
     ${use_dev_keys}
 
   local rootfs_hash_size=$(stat -c '%s' ${FLAGS_rootfs_hash})
