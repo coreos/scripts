@@ -48,6 +48,15 @@ else
   ./bin/autotest -t factory -c control >>/var/log/factory.log 2>&1
 fi
 end script
+
+pre-stop script
+  pkill python
+  pkill X
+end script
+
+post-stop script
+  chvt 2
+end script
 EOF
 
 cat >"${ROOT_FS_DIR}/etc/init/factorylog.conf" <<EOF
