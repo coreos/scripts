@@ -32,11 +32,9 @@ find_common_sh
 
 . "${SCRIPT_ROOT}/remote_access.sh" || die "Unable to load remote_access.sh"
 
-get_default_board
-
 DEFINE_string args "" \
     "Command line arguments for test. Quoted and space separated if multiple." a
-DEFINE_string board "$DEFAULT_BOARD" \
+DEFINE_string board "" \
     "The board for which you are building autotest"
 DEFINE_boolean build ${FLAGS_FALSE} "Build tests while running" b
 DEFINE_string chroot "${DEFAULT_CHROOT_DIR}" "alternate chroot location" c
