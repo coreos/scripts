@@ -108,9 +108,6 @@ DEFINE_integer verity_max_ios -1 \
 DEFINE_string verity_algorithm "sha1" \
   "Cryptographic hash algorithm used for kernel vboot. Default : sha1"
 
-DEFINE_string oem_customization "" \
-  "Path to directory containing OEM partner partition contents"
-
 # Parse command line.
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -249,9 +246,6 @@ ROOT_FS_HASH="${OUTPUT_DIR}/rootfs.hash"
 STATEFUL_FS_IMG="${OUTPUT_DIR}/stateful_partition.image"
 STATEFUL_FS_DIR="${OUTPUT_DIR}/stateful_partition"
 
-OEM_FS_IMG="${OUTPUT_DIR}/partner_partition.image"
-OEM_FS_DIR="${OUTPUT_DIR}/partner_partition"
-
 ESP_FS_IMG=${OUTPUT_DIR}/esp.image
 ESP_FS_DIR=${OUTPUT_DIR}/esp
 
@@ -259,7 +253,6 @@ DEVKEYSDIR="/usr/share/vboot/devkeys"
 
 LOOP_DEV=
 STATEFUL_LOOP_DEV=
-OEM_LOOP_DEV=
 ESP_LOOP_DEV=
 
 # ${DEV_IMAGE_ROOT} specifies the location of where developer packages will
@@ -329,11 +322,6 @@ cleanup_stateful_fs_loop() {
   sudo umount -d "${STATEFUL_FS_DIR}"
 }
 
-cleanup_oem_fs_loop() {
-  sudo umount -d "${OEM_FS_DIR}"
-}
-
-
 cleanup_esp_loop() {
   sudo umount -d "${ESP_FS_DIR}"
 }
@@ -345,10 +333,6 @@ cleanup() {
   if [[ -n "${STATEFUL_LOOP_DEV}" ]]; then
     cleanup_stateful_fs_loop
     STATEFUL_LOOP_DEV=
-  fi
-
-  if [[ -n "${OEM_LOOP_DEV}" ]]; then
-    cleanup_oem_fs_loop
   fi
 
   if [[ -n "${LOOP_DEV}" ]]; then
@@ -613,39 +597,6 @@ create_base_image() {
   sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${STATEFUL_LOOP_DEV}"
   sudo mount "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"
 
-  # Create OEM partner partition.
-  OEM_LOOP_DEV=$(sudo losetup -f)
-  if [ -z "${OEM_LOOP_DEV}" ] ; then
-    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
-    exit 1
-  fi
-  OEM_SIZE_BYTES=$((1024 * 1024 * 16))
-  dd if=/dev/zero of="${OEM_FS_IMG}" bs=1 count=1 seek=$((OEM_SIZE_BYTES - 1))
-
-  # Tune and mount OEM partner partition.
-  UUID=$(uuidgen)
-  DISK_LABEL="C-OEM"
-  sudo losetup "${OEM_LOOP_DEV}" "${OEM_FS_IMG}"
-  sudo mkfs.ext3 "${OEM_LOOP_DEV}"
-  sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${OEM_LOOP_DEV}"
-  sudo mount "${OEM_LOOP_DEV}" "${OEM_FS_DIR}"
-
-  # Populate OEM partner partition.
-  if [ ! -z "${FLAGS_oem_customization}" ]; then
-    if [ ! -d ${FLAGS_oem_customization} ]; then
-      echo "Specified OEM content directory does not exist.  exiting."
-      exit 1
-    fi
-    for ITEM in `ls -A ${FLAGS_oem_customization}`
-      do sudo cp -a "${FLAGS_oem_customization}/$ITEM" "${OEM_FS_DIR}"
-    done
-    sudo find "${OEM_FS_DIR}" -type d -exec chmod 755 "{}" \;
-    sudo find "${OEM_FS_DIR}" -type f -exec chmod 644 "{}" \;
-    sudo chown -R root:root "${OEM_FS_DIR}"
-  else
-    echo "Empty OEM partition: OEM customizations will not be applied."
-  fi
-
   # -- Install packages into the root file system --
 
   # We need to install libc manually from the cross toolchain.
@@ -767,7 +718,6 @@ generate_au_zip () {
 mkdir -p "${OUTPUT_DIR}"
 mkdir -p "${ROOT_FS_DIR}"
 mkdir -p "${STATEFUL_FS_DIR}"
-mkdir -p "${OEM_FS_DIR}"
 mkdir -p "${ESP_FS_DIR}"
 
 # Preserve old images by copying them forward for --preserve.
@@ -845,8 +795,8 @@ fi
 
 # Clean up temporary files.
 rm -f "${ROOT_FS_IMG}" "${STATEFUL_FS_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \
-  "${ESP_FS_IMG}" "${OEM_FS_IMG}" "${OUTPUT_DIR}/vmlinuz_hd.vblock"
-rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${OEM_FS_DIR}" "${ESP_FS_DIR}"
+  "${ESP_FS_IMG}" "${OUTPUT_DIR}/vmlinuz_hd.vblock"
+rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 
 # Generating AU generator zip file to run outside chroot
 generate_au_zip || echo "Failed generating AU zip file - ignoring Error..."
