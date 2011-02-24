@@ -70,28 +70,35 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
          (GetCallerName(), cmd, cwd))
 
   for retry_count in range(num_retries + 1):
-    try:
-      proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
-                              stdout=stdout, stderr=stderr)
-      (output, error) = proc.communicate(input)
-      if exit_code and retry_count == num_retries:
-        return proc.returncode
 
-      if proc.returncode == 0:
-        break
+    # If it's not the first attempt, it's a retry
+    if retry_count > 0 and print_cmd:
+      Info('PROGRAM(%s) -> RunCommand: retrying %r in dir %s' %
+           (GetCallerName(), cmd, cwd))
+    
+    proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
+                            stdout=stdout, stderr=stderr)
+    (output, error) = proc.communicate(input)
 
+    # if the command worked, don't retry any more.
+    if proc.returncode == 0:
+      break
+
+  # If the command (and all retries) failed, handle error result
+  if proc.returncode != 0:
+    if error_ok:
+      if print_cmd:
+        Warning('Command "%r" failed.\n' % (cmd) +
+                (error_message or error or output or ''))
+    else:
       raise RunCommandException('Command "%r" failed.\n' % (cmd) +
                                 (error_message or error or output or ''))
-    except RunCommandException as e:
-      if not error_ok and retry_count == num_retries:
-        raise e
-      else:
-        Warning(str(e))
-        if print_cmd:
-          Info('PROGRAM(%s) -> RunCommand: retrying %r in dir %s' %
-               (GetCallerName(), cmd, cwd))
 
-  return output
+  # return final result
+  if exit_code:
+    return proc.returncode
+  else:
+    return output
 
 
 def RunCommandCaptureOutput(cmd, print_cmd=True, cwd=None, input=None,
