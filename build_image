@@ -262,7 +262,7 @@ DEV_IMAGE_ROOT="${STATEFUL_FS_DIR}/dev_image"
 
 # What cross-build are we targeting?
 . "${BOARD_ROOT}/etc/make.conf.board_setup"
-LIBC_VERSION=${LIBC_VERSION:-"2.10.1-r1"}
+LIBC_VERSION=${LIBC_VERSION}
 
 if [ ${FLAGS_jobs} -ne -1 ]; then
   EMERGE_JOBS="--jobs=${FLAGS_jobs}"
@@ -601,10 +601,19 @@ create_base_image() {
 
   # We need to install libc manually from the cross toolchain.
   # TODO: Improve this? We only want libc and not the whole toolchain.
-  PKGDIR="/var/lib/portage/pkgs/cross/"
-  sudo tar jxvpf \
-    "${PKGDIR}/${CHOST}/cross-${CHOST}"/glibc-${LIBC_VERSION}.tbz2 \
-    -C "${ROOT_FS_DIR}" --strip-components=3 \
+  # TODO(raymes): Remove this check after some time which ensures
+  # backward compatibility with the crossdev location change.
+  PKGDIR="/var/lib/portage/pkgs"
+  LIBC_TAR="glibc-${LIBC_VERSION}.tbz2"
+  NEW_LIBC_PATH="${PKGDIR}/cross-${CHOST}/${LIBC_TAR}"
+  OLD_LIBC_PATH="${PKGDIR}/cross/${CHOST}/cross-${CHOST}/${LIBC_TAR}"
+  if [ -e "${NEW_LIBC_PATH}" ] ; then
+    LIBC_PATH="${NEW_LIBC_PATH}"
+  else
+    LIBC_PATH="${OLD_LIBC_PATH}"
+  fi
+
+  sudo tar jxvpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}" --strip-components=3 \
     --exclude=usr/include --exclude=sys-include --exclude=*.a --exclude=*.o
 
   # We need to install libstdc++ manually from the cross toolchain.
