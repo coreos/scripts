@@ -25,10 +25,7 @@ _STDOUT_IS_TTY = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
 # List of crashes which are okay to ignore. This list should almost always be
 # empty. If you add an entry, mark it with a TODO(<your name>) and the issue
 # filed for the crash.
-_CRASH_WHITELIST = {
-  # TODO(dalecurtis): chromium-os:12212. Remove when resolved.
-  'chromeos-wm': ['sig 6']
-}
+_CRASH_WHITELIST = {}
 
 class ReportGenerator(object):
   """Collects and displays data from autoserv results directories.
