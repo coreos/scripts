@@ -12,7 +12,8 @@
 # /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
 # location.
 find_common_sh() {
-  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local thisdir="$(dirname "$(readlink -f "$0")")"
+  local common_paths=(/usr/lib/crosutils "${thisdir}")
   local path
 
   SCRIPT_ROOT=
@@ -22,17 +23,22 @@ find_common_sh() {
       break
     fi
   done
+
+  # HACK(zbehan): We have to fake GCLIENT_ROOT in case we're running inside
+  # au_zip enviroment. GCLIENT_ROOT detection became fatal...
+  [ "${SCRIPT_ROOT}" == "${thisdir}" ] && \
+    export GCLIENT_ROOT="."
 }
 
 find_common_sh
 . "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
 # --- END COMMON.SH BOILERPLATE ---
 
-# Need to be inside the chroot to load chromeos-common.sh
-assert_inside_chroot
-
 # Load functions and constants for chromeos-install
-. "/usr/lib/installer/chromeos-common.sh" || \
+# NOTE: Needs to be called from outside the chroot.
+. "/usr/lib/installer/chromeos-common.sh" &> /dev/null || \
+. "${SRC_ROOT}/platform/installer/chromeos-common.sh" &> /dev/null || \
+. "./chromeos-common.sh" || \
   die "Unable to load /usr/lib/installer/chromeos-common.sh"
 
 SRC_MNT=""
