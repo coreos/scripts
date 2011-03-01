@@ -450,6 +450,7 @@ class PingUpdateResponse(StringUpdateResponse):
       codebase="%s"
       hash="%s"
       sha256="%s"
+      IsDelta="true"
       needsadmin="false"
       size="%s"
       status="ok"/>
