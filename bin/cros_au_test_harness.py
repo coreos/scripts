@@ -737,7 +737,7 @@ class DevServerWrapper(threading.Thread):
     RunCommand(['sudo', 'pkill', '-f', 'devserver.py'], error_ok=True,
                print_cmd=False)
     RunCommand(['sudo',
-                './start_devserver',
+                'start_devserver',
                 '--archive_dir=./static',
                 '--client_prefix=ChromeOSUpdateEngine',
                 '--production',
@@ -844,7 +844,7 @@ def _PregenerateUpdates(parser, options):
                '--nogit_config',
                '--',
                'sudo',
-               './start_devserver',
+               'start_devserver',
                '--pregenerate_update',
                '--exit',
               ]
@@ -979,7 +979,7 @@ def CleanPreviousWork(options):
   Info('Cleaning up previous work.')
   # Wipe devserver cache.
   RunCommandCaptureOutput(
-      ['sudo', './start_devserver', '--clear_cache', '--exit', ],
+      ['sudo', 'start_devserver', '--clear_cache', '--exit', ],
       enter_chroot=True, print_cmd=False, combine_stdout_stderr=True)
 
   # Clean previous vm images if they exist.

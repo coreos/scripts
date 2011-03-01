@@ -206,7 +206,7 @@ class CrosEnv(object):
       self.Info('Using cached update image %s' % dst)
       return True
 
-    if not self.cmd.Run(self.CrosUtilsPath('cros_generate_update_payload'),
+    if not self.cmd.Run(self.ChrootPath('/usr/bin/cros_generate_update_payload'),
                         '--image=%s' % src, '--output=%s' % dst,
                         '--patch_kernel'):
       self.Error('generate_payload failed')
@@ -221,8 +221,8 @@ class CrosEnv(object):
       self.Info('Using cached stateful %s' % dst_file)
       return True
 
-    return self.cmd.Run(self.CrosUtilsPath(
-        'cros_generate_stateful_update_payload'),
+    return self.cmd.Run(
+        self.ChrootPath('/usr/bin/cros_generate_stateful_update_payload'),
         '--image=%s' % src, '--output=%s' % dst_dir)
 
   def GetSize(self, filename):
@@ -343,7 +343,7 @@ class CrosEnv(object):
       return False
 
     self.Info('Update complete - running update script on client')
-    self.ssh_cmd.Copy(self.CrosUtilsPath('../platform/dev/stateful_update'),
+    self.ssh_cmd.Copy(self.ChrootPath('/usr/bin/stateful_update'),
                       '/tmp')
     if not self.ssh_cmd.Run('/tmp/stateful_update', url_base,
                             remote_tunnel=(port, port)):

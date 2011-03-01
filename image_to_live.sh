@@ -180,7 +180,7 @@ function start_dev_server {
       --src_image=\"$(reinterpret_path_for_chroot ${FLAGS_src_image})\""
 
   info "Starting devserver with flags ${devserver_flags}"
-  ./enter_chroot.sh -- sudo sh -c "./start_devserver ${devserver_flags} \
+  ./enter_chroot.sh -- sudo sh -c "start_devserver ${devserver_flags} \
        --client_prefix=ChromeOSUpdateEngine \
        --board=${FLAGS_board} \
        --port=${FLAGS_devserver_port} > ${FLAGS_server_log} 2>&1" &
@@ -222,8 +222,10 @@ function run_stateful_update {
   info "Starting stateful update using URL ${stateful_url}"
 
   # Copy over update script and run update.
-  local dev_dir="${SCRIPTS_DIR}/../platform/dev"
-  remote_cp_to "${dev_dir}/stateful_update" "/tmp"
+  local chroot_path="${SCRIPTS_DIR}/../../chroot"
+  local stateful_update_script="/usr/bin/stateful_update"
+
+  remote_cp_to "${chroot_path}/${stateful_update_script}" "/tmp"
   remote_sh "/tmp/stateful_update ${stateful_update_args} ${stateful_url}"
 }
 

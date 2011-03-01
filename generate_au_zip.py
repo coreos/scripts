@@ -106,7 +106,7 @@ def CopyRequiredFiles(dest_files_root):
                '/usr/bin/bspatch', '/usr/bin/cgpt']
   # statically linked files and scripts etc.,
   static_files = ['~/trunk/src/scripts/common.sh',
-                  '~/trunk/src/scripts/cros_generate_update_payload',
+                  '/usr/bin/cros_generate_update_payload',
                   '~/trunk/src/scripts/chromeos-common.sh']
   # We need directories to be copied recursively to a destination within tempdir
   recurse_dirs = {'~/trunk/src/scripts/lib/shflags': 'lib/shflags'}
