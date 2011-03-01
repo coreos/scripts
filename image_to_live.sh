@@ -307,12 +307,30 @@ function status_thread {
   done
 }
 
+# Pings the update_engine to see if it responds or a max timeout is reached.
+# Returns 1 if max timeout is reached.
+function wait_until_update_engine_is_ready {
+  local wait_timeout=1
+  local max_timeout=60
+  local time_elapsed=0
+  while ! get_update_var CURRENT_OP > /dev/null; do
+    sleep ${wait_timeout}
+    time_elapsed=$(( time_elapsed + wait_timeout ))
+    echo -n "."
+    if [ ${time_elapsed} -gt ${max_timeout} ]; then
+      return 1
+    fi
+  done
+}
 
 function run_auto_update {
   # Truncate the update log so our log file is clean.
   truncate_update_log
 
   local update_args="$(get_update_args "$(get_devserver_url)")"
+  info "Waiting to initiate contact with the update_engine."
+  wait_until_update_engine_is_ready || die "Could not contact update engine."
+
   info "Starting update using args ${update_args}"
 
   # Sets up a secondary thread to track the update progress.
