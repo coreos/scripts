@@ -351,22 +351,7 @@ chroot_hacks_too
 trap teardown_env EXIT
 setup_env
 
-# Get the git revision to pass into the chroot.
-#
-# This must be determined outside the chroot because (1) there is no
-# git inside the chroot, and (2) if there were it would likely be
-# the wrong version, which would mess up the .git directories.
-#
-# Note that this fixes $CHROMEOS_REVISION at the time the chroot is
-# entered.  That's ok for the main use case of automated builds,
-# which pass each command line into a separate call to enter_chroot
-# so always have up-to-date info.  For developer builds, there may not
-# be a single revision, since the developer may have
-# hand-sync'd some subdirs and edited files in others.
-# In that case, check against origin/HEAD and mark** revision.
-# Use git:8 chars of sha1
-REVISION=$(cd ${FLAGS_trunk}/src/scripts ; git rev-parse --short=8 HEAD)
-CHROOT_PASSTHRU="CHROMEOS_REVISION=$REVISION BUILDBOT_BUILD=$FLAGS_build_number CHROMEOS_OFFICIAL=$CHROMEOS_OFFICIAL"
+CHROOT_PASSTHRU="BUILDBOT_BUILD=$FLAGS_build_number CHROMEOS_OFFICIAL=$CHROMEOS_OFFICIAL"
 CHROOT_PASSTHRU="${CHROOT_PASSTHRU} \
 CHROMEOS_RELEASE_APPID=${CHROMEOS_RELEASE_APPID:-"{DEV-BUILD}"}"
 CHROOT_PASSTHRU="${CHROOT_PASSTHRU} \
