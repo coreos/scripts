@@ -647,3 +647,48 @@ prepare_test_image() {
   # From now on we use the just-created test image
   CHROMEOS_RETURN_VAL="$1/${CHROMEOS_TEST_IMAGE_NAME}"
 }
+
+# Check that the specified file exists.  If the file path is empty or the file
+# doesn't exist on the filesystem generate useful error messages.  Otherwise
+# show the user the name and path of the file that will be used.  The padding
+# parameter can be used to tabulate multiple name:path pairs.  For example:
+#
+# check_for_file "really long name" "...:" "file.foo"
+# check_for_file "short name" ".........:" "another.bar"
+#
+# Results in the following output:
+#
+# Using really long name...: file.foo
+# Using short name.........: another.bar
+#
+# If tabulation is not required then passing "" for padding generates the
+# output "Using <name> <path>"
+check_for_file() {
+  local name=$1
+  local padding=$2
+  local path=$3
+
+  if [ -z "${path}" ]; then
+    die "No ${name} file specified."
+  fi
+
+  if [ ! -e "${path}" ]; then
+    die "No ${name} file found at: ${path}"
+  else
+    info "Using ${name}${padding} ${path}"
+  fi
+}
+
+# Check that the specified tool exists.  If it does not exist in the PATH
+# generate a useful error message indicating how to install the ebuild
+# that contains the required tool.
+check_for_tool() {
+  local tool=$1
+  local ebuild=$2
+
+  if ! which "${tool}" >/dev/null ; then
+    error "The ${tool} utility was not found in your path.  Run the following"
+    error "command in your chroot to install it: sudo -E emerge ${ebuild}"
+    exit 1
+  fi
+}
