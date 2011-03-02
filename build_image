@@ -191,8 +191,10 @@ if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
   EMERGE_BOARD_CMD="${EMERGE_CMD} --board=${FLAGS_board}"
 fi
 
+OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos/"
+
 # Determine build version.
-. ${SRC_ROOT}/third_party/chromiumos-overlay/chromeos/config/chromeos_version.sh
+. "${OVERLAY_CHROMEOS_DIR}/config/chromeos_version.sh"
 
 # Configure extra USE or packages for this type of build.
 EXTRA_PACKAGES=""
@@ -647,10 +649,9 @@ create_base_image() {
     --root="${ROOT_FS_DIR}" --root-deps=rdeps \
     --usepkgonly chromeos ${EXTRA_PACKAGES} ${EMERGE_JOBS}
 
-  # Perform any customizations on the root file system that are needed.
-  "${SCRIPTS_DIR}/customize_rootfs" \
+  # Set /etc/lsb-release on the image.
+  "${OVERLAY_CHROMEOS_DIR}/scripts/cros_set_lsb_release" \
     --root="${ROOT_FS_DIR}" \
-    --target="${ARCH}" \
     --board="${BOARD}"
 
   # Populates the root filesystem with legacy bootloader templates
