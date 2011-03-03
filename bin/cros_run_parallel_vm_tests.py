@@ -27,8 +27,8 @@ class ParallelTestRunner(object):
   """
 
   def __init__(self, tests, base_ssh_port=_DEFAULT_BASE_SSH_PORT, board=None,
-               image_path=None, order_output=False, results_dir_root=None,
-               use_emerged=False):
+               image_path=None, order_output=False, quiet=False,
+               results_dir_root=None, use_emerged=False):
     """Constructs and initializes the test runner class.
 
     Args:
@@ -41,15 +41,19 @@ class ParallelTestRunner(object):
         the latest image.
       order_output: If True, output of individual VMs will be piped to
         temporary files and emitted at the end.
+      quiet: Emits no output from the VMs.  Forces --order_output to be false,
+        and requires specifying --results_dir_root
       results_dir_root: The results directory root. If provided, the results
         directory root for each test will be created under it with the SSH port
         appended to the test name.
+      use_emerged: Force use of emerged autotest packages.
     """
     self._tests = tests
     self._base_ssh_port = base_ssh_port
     self._board = board
     self._image_path = image_path
     self._order_output = order_output
+    self._quiet = quiet
     self._results_dir_root = results_dir_root
     self._use_emerged = use_emerged
 
@@ -73,14 +77,18 @@ class ParallelTestRunner(object):
                '--ssh_port=%d' % ssh_port ]
       if self._board: args.append('--board=%s' % self._board)
       if self._image_path: args.append('--image_path=%s' % self._image_path)
+      results_dir = None
       if self._results_dir_root:
-        args.append('--results_dir_root=%s/%s.%d' %
-                    (self._results_dir_root, test, ssh_port))
+        results_dir = '%s/%s.%d' % (self._results_dir_root, test, ssh_port)
+        args.append('--results_dir_root=%s' % results_dir)
       if self._use_emerged: args.append('--use_emerged')
       args.append(test)
       Info('Running %r...' % args)
       output = None
-      if self._order_output:
+      if self._quiet:
+        output = open('/dev/null', mode='w')
+        Info('Log files are in %s' % results_dir)
+      elif self._order_output:
         output = tempfile.NamedTemporaryFile(prefix='parallel_vm_test_')
         Info('Piping output to %s.' % output.name)
       proc = subprocess.Popen(args, stdout=output, stderr=output)
@@ -108,7 +116,7 @@ class ParallelTestRunner(object):
       proc.wait()
       if proc.returncode: failed_tests.append(test_info['test'])
       output = test_info['output']
-      if output:
+      if output and not self._quiet:
         test = test_info['test']
         Info('------ START %s:%s ------' % (test, output.name))
         output.seek(0)
@@ -142,6 +150,9 @@ def main():
                     help='Rather than emitting interleaved progress output '
                     'from the individual VMs, accumulate the outputs in '
                     'temporary files and dump them at the end.')
+  parser.add_option('--quiet', action='store_true', default=False,
+                    help='Emits no output from the VMs.  Forces --order_output'
+                    'to be false, and requires specifying --results_dir_root')
   parser.add_option('--results_dir_root',
                     help='Root results directory. If none specified, each test '
                     'will store its results in a separate /tmp directory.')
@@ -153,9 +164,14 @@ def main():
     parser.print_help()
     Die('no tests provided')
 
+  if options.quiet:
+    options.order_output = False
+    if not options.results_dir_root:
+      Die('--quiet requires --results_dir_root')
   runner = ParallelTestRunner(args, options.base_ssh_port, options.board,
                               options.image_path, options.order_output,
-                              options.results_dir_root, options.use_emerged)
+                              options.quiet, options.results_dir_root,
+                              options.use_emerged)
   runner.Run()
 
 
