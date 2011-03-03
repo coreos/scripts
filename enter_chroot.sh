@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -354,8 +354,6 @@ setup_env
 CHROOT_PASSTHRU="BUILDBOT_BUILD=$FLAGS_build_number CHROMEOS_OFFICIAL=$CHROMEOS_OFFICIAL"
 CHROOT_PASSTHRU="${CHROOT_PASSTHRU} \
 CHROMEOS_RELEASE_APPID=${CHROMEOS_RELEASE_APPID:-"{DEV-BUILD}"}"
-CHROOT_PASSTHRU="${CHROOT_PASSTHRU} \
-CHROMEOS_VERSION_TRACK=$CHROMEOS_VERSION_TRACK CHROMEOS_VERSION_AUSERVER=$CHROMEOS_VERSION_AUSERVER CHROMEOS_VERSION_DEVSERVER=$CHROMEOS_VERSION_DEVSERVER"
 
 if [ -d "$HOME/.subversion" ]; then
   TARGET="/home/${USER}/.subversion"
