@@ -178,8 +178,10 @@ IMAGE_DIR="$(dirname "${FLAGS_image}")"
 if [ ${FLAGS_inplace} -eq ${FLAGS_FALSE} ]; then
   if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
     TEST_PATHNAME="${IMAGE_DIR}/${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
+    typename="factory"
   else
     TEST_PATHNAME="${IMAGE_DIR}/${CHROMEOS_TEST_IMAGE_NAME}"
+    typename="test"
   fi
   if [ ! -f "${TEST_PATHNAME}" ] || \
      [ ${FLAGS_force_copy} -eq ${FLAGS_TRUE} ] ; then
@@ -188,7 +190,7 @@ if [ ${FLAGS_inplace} -eq ${FLAGS_FALSE} ]; then
       || die "Cannot copy ${FLAGS_image} to test image"
     FLAGS_image="${TEST_PATHNAME}"
   else
-    echo "Using cached test image"
+    echo "Using cached ${typename} image"
     exit
   fi
 

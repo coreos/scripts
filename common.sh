@@ -645,7 +645,11 @@ prepare_test_image() {
     --image="$1/$2" --noinplace ${args}
 
   # From now on we use the just-created test image
-  CHROMEOS_RETURN_VAL="$1/${CHROMEOS_TEST_IMAGE_NAME}"
+  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+    CHROMEOS_RETURN_VAL="$1/${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
+  else
+    CHROMEOS_RETURN_VAL="$1/${CHROMEOS_TEST_IMAGE_NAME}"
+  fi
 }
 
 # Check that the specified file exists.  If the file path is empty or the file
