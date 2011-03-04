@@ -226,7 +226,7 @@ def GrabZipAndExtractImage(zip_url, download_folder, image_name) :
 
 
 def RunAUTestHarness(board, channel, latest_url_base, zip_server_base,
-                     no_graphics, type, remote, clean):
+                     no_graphics, type, remote, clean, test_results_root):
   """Runs the auto update test harness.
 
   The auto update test harness encapsulates testing the auto-update mechanism
@@ -243,6 +243,7 @@ def RunAUTestHarness(board, channel, latest_url_base, zip_server_base,
     type: which test harness to run.  Possible values: real, vm.
     remote: ip address for real test harness run.
     clean: Clean the state of test harness before running.
+    test_results_root: Root directory to store au_test_harness results.
   """
   crosutils_root = os.path.join(os.path.dirname(__file__), '..')
   download_folder = os.path.abspath('latest_download')
@@ -270,6 +271,7 @@ def RunAUTestHarness(board, channel, latest_url_base, zip_server_base,
          '--public_key=%s' % os.path.join(update_engine_path,
                                           'unittest_key.pub.pem'),
          ]
+  if test_results_root: cmd.append('--test_results_root=%s' % test_results_root)
   if no_graphics: cmd.append('--no_graphics')
   if clean: cmd.append('--clean')
 
@@ -290,6 +292,9 @@ def main():
                     help='Base url for hosted images.')
   parser.add_option('--no_graphics', action='store_true', default=False,
                     help='Disable graphics for the vm test.')
+  parser.add_option('--test_results_root', default=None,
+                    help='Root directory to store test results.  Should '
+                         'be defined relative to chroot root.')
   parser.add_option('--type', default='vm',
                     help='type of test to run: [vm, real]. Default: vm.')
   parser.add_option('--remote', default='0.0.0.0',

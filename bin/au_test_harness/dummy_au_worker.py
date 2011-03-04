@@ -18,8 +18,8 @@ class DummyAUWorker(au_worker.AUWorker):
   # Class variable that stores the list of payloads that would be needed.
   delta_list = {}
 
-  def __init__(self, options):
-    au_worker.AUWorker.__init__(self, options)
+  def __init__(self, options, test_results_root):
+    au_worker.AUWorker.__init__(self, options, test_results_root)
     self.au_type = options.type
 
   def PrepareBase(self, image_path):

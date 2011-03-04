@@ -5,6 +5,7 @@
 """Module containing a test suite that is run to test auto updates."""
 
 import os
+import tempfile
 import time
 import unittest
 
@@ -23,6 +24,8 @@ class AUTest(unittest.TestCase):
   be created to perform and validates updates on both virtual and real devices.
   See documentation for au_worker for more information.
   """
+  test_results_root = None
+
   @classmethod
   def ProcessOptions(cls, options, use_dummy_worker):
     """Processes options for the test suite and sets up the worker class.
@@ -54,6 +57,15 @@ class AUTest(unittest.TestCase):
       cros_lib.Die('Need path to target image to update with.')
     elif not os.path.exists(cls.target_image_path):
       cros_lib.Die('%s does not exist' % cls.target_image_path)
+
+    # Initialize test root.
+    if not cls.test_results_root:
+      if options.test_results_root:
+        cls.test_results_root = options.test_results_root
+      else:
+        cls.test_results_root = tempfile.mkdtemp(prefix='au_test_harness')
+
+      cros_lib.Info('Using %s as the test results root' % cls.test_results_root)
 
     # Cache away options to instantiate workers later.
     cls.options = options
@@ -98,7 +110,7 @@ class AUTest(unittest.TestCase):
     Sets instance specific variables and initializes worker.
     """
     unittest.TestCase.setUp(self)
-    self.worker = self.worker_class(self.options)
+    self.worker = self.worker_class(self.options, AUTest.test_results_root)
     self.crosutils = os.path.join(os.path.dirname(__file__), '..', '..')
     self.download_folder = os.path.join(self.crosutils, 'latest_download')
     if not os.path.exists(self.download_folder):
@@ -114,6 +126,7 @@ class AUTest(unittest.TestCase):
     This test checks that we can update by updating the stateful partition
     rather than wiping it.
     """
+    self.worker.InitializeResultsDirectory()
     # Just make sure some tests pass on original image.  Some old images
     # don't pass many tests.
     self.worker.PrepareBase(self.base_image_path)
@@ -135,6 +148,7 @@ class AUTest(unittest.TestCase):
     This test checks that we can update successfully after wiping the
     stateful partition.
     """
+    self.worker.InitializeResultsDirectory()
     # Just make sure some tests pass on original image.  Some old images
     # don't pass many tests.
     self.worker.PrepareBase(self.base_image_path)
@@ -182,6 +196,7 @@ class AUTest(unittest.TestCase):
         self.data_size += len(data)
         return data
 
+    self.worker.InitializeResultsDirectory()
     self.AttemptUpdateWithFilter(InterruptionFilter(), proxy_port=8082)
 
   def testDelayedUpdate(self):
@@ -212,6 +227,7 @@ class AUTest(unittest.TestCase):
         self.data_size += len(data)
         return data
 
+    self.worker.InitializeResultsDirectory()
     self.AttemptUpdateWithFilter(DelayedFilter(), proxy_port=8083)
 
   def SimpleTest(self):
@@ -220,8 +236,9 @@ class AUTest(unittest.TestCase):
     We explicitly don't use test prefix so that isn't run by default.  Can be
     run using test_prefix option.
     """
+    self.worker.InitializeResultsDirectory()
     self.worker.PrepareBase(self.base_image_path)
-    self.worker.PerformUpdate(self.target_image_path, self.base_image_path)
+    #self.worker.PerformUpdate(self.target_image_path, self.base_image_path)
     self.worker.VerifyImage(self)
 
   # --- DISABLED TESTS ---
@@ -229,6 +246,7 @@ class AUTest(unittest.TestCase):
   # TODO(sosa): Get test to work with verbose.
   def NotestPartialUpdate(self):
     """Tests what happens if we attempt to update with a truncated payload."""
+    self.worker.InitializeResultsDirectory()
     # Preload with the version we are trying to test.
     self.worker.PrepareBase(self.target_image_path)
 
@@ -247,6 +265,7 @@ class AUTest(unittest.TestCase):
   # TODO(sosa): Get test to work with verbose.
   def NotestCorruptedUpdate(self):
     """Tests what happens if we attempt to update with a corrupted payload."""
+    self.worker.InitializeResultsDirectory()
     # Preload with the version we are trying to test.
     self.worker.PrepareBase(self.target_image_path)
 

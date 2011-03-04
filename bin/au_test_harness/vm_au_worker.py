@@ -20,9 +20,9 @@ class VMAUWorker(au_worker.AUWorker):
   _vm_lock = threading.Lock()
   _next_port = 9222
 
-  def __init__(self, options):
+  def __init__(self, options, test_results_root):
     """Processes vm-specific options."""
-    au_worker.AUWorker.__init__(self, options)
+    au_worker.AUWorker.__init__(self, options, test_results_root)
     self.graphics_flag = ''
     if options.no_graphics: self.graphics_flag = '--no_graphics'
     if not self.board: cros_lib.Die('Need board to convert base image to vm.')
@@ -95,6 +95,7 @@ class VMAUWorker(au_worker.AUWorker):
 
   def VerifyImage(self, unittest, percent_required_to_pass=100):
     """Runs vm smoke suite to verify image."""
+    test_directory = self.GetNextResultsPath('verify')
     # image_to_live already verifies lsb-release matching.  This is just
     # for additional steps.
     commandWithArgs = ['%s/cros_run_vm_test' % self.crosutilsbin,
@@ -103,6 +104,7 @@ class VMAUWorker(au_worker.AUWorker):
                        '--persist',
                        '--kvm_pid=%s' % self._kvm_pid_file,
                        '--ssh_port=%s' % self._ssh_port,
+                       '--results_dir_root=%s' % test_directory,
                        self.verify_suite,
                       ]
     if self.graphics_flag: commandWithArgs.append(self.graphics_flag)

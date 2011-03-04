@@ -9,6 +9,8 @@ and validating updates on a target.  This should be subclassed to handle
 various types of target.  Types of targets include VM's, real devices, etc.
 """
 
+import inspect
+import threading
 import os
 import sys
 
@@ -20,15 +22,16 @@ import update_exception
 
 class AUWorker(object):
   """Interface for a worker that updates and verifies images."""
-
+  # Mapping between cached payloads to directory locations.
   update_cache = None
 
   # --- INTERFACE ---
 
-  def __init__(self, options):
+  def __init__(self, options, test_results_root):
     """Processes options for the specific-type of worker."""
     self.board = options.board
     self.private_key = options.private_key
+    self.test_results_root = test_results_root
     self.use_delta_updates = options.delta
     self.verbose = options.verbose
     self.vm_image_path = None
@@ -224,6 +227,23 @@ class AUWorker(object):
         percent_passed, percent_required_to_pass))
     unittest.assertTrue(percent_passed >= percent_required_to_pass)
     return percent_passed
+
+  def InitializeResultsDirectory(self):
+    """Called by a test to initialize a results directory for this worker."""
+    # Use the name of the test.
+    test_name = inspect.stack()[1][3]
+    self.results_directory = os.path.join(self.test_results_root, test_name)
+    self.results_count = 0
+
+  def GetNextResultsPath(self, label):
+    """Returns a new results path based for this label.
+
+    Prefixes directory returned for worker with time called i.e. 1_label,
+    2_label, etc.
+    """
+    self.results_count += 1
+    return os.path.join(self.results_directory, '%s_%s' % (self.results_count,
+                                                           label))
 
   # --- PRIVATE HELPER FUNCTIONS ---
 

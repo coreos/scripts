@@ -13,9 +13,9 @@ import au_worker
 class RealAUWorker(au_worker.AUWorker):
   """Test harness for updating real images."""
 
-  def __init__(self, options):
+  def __init__(self, options, test_results_root):
     """Processes non-vm-specific options."""
-    au_worker.AUWorker.__init__(self, options)
+    au_worker.AUWorker.__init__(self, options, test_results_root)
     self.remote = options.remote
     if not self.remote: cros_lib.Die('We require a remote address for tests.')
 
@@ -51,9 +51,11 @@ class RealAUWorker(au_worker.AUWorker):
 
   def VerifyImage(self, unittest, percent_required_to_pass=100):
     """Verifies an image using run_remote_tests.sh with verification suite."""
+    test_directory = self.GetNextResultsPath('verify')
     output = cros_lib.RunCommand(
         ['%s/run_remote_tests.sh' % self.crosutils,
          '--remote=%s' % self.remote,
+         '--results_dir_root=%s' % test_directory,
          self.verify_suite,
         ], error_ok=True, enter_chroot=False, redirect_stdout=True)
     return self.AssertEnoughTestsPassed(unittest, output,

@@ -237,6 +237,9 @@ def main():
                     help='Remote address for real test.')
   parser.add_option('-t', '--target_image',
                     help='path to the target image.')
+  parser.add_option('--test_results_root', default=None,
+                    help='Root directory to store test results.  Should '
+                         'be defined relative to chroot root.')
   parser.add_option('--test_prefix', default='test',
                     help='Only runs tests with specific prefix i.e. '
                          'testFullUpdateWipeStateful.')
