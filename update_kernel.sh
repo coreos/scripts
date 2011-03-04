@@ -62,8 +62,12 @@ function learn_device() {
 # Ask the target what the kernel partition is
 function learn_partition() {
   [ -n "${FLAGS_partition}" ] && return
-  remote_sh cat /proc/cmdline
-  if echo "${REMOTE_OUT}" | egrep -q "${FLAGS_device}3"; then
+  ! remote_sh rootdev
+  if [ "${REMOTE_OUT}" == "/dev/dm-0" ]; then
+    remote_sh ls /sys/block/dm-0/slaves
+    REMOTE_OUT="/dev/${REMOTE_OUT}"
+  fi
+  if [ "${REMOTE_OUT}" == "${FLAGS_device}3" ]; then
     FLAGS_partition="${FLAGS_device}2"
   else
     FLAGS_partition="${FLAGS_device}4"
