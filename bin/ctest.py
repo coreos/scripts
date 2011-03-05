@@ -311,7 +311,8 @@ def main():
 
   RunAUTestHarness(options.board, options.channel, options.latestbase,
                    options.zipbase, options.no_graphics, options.type,
-                   options.remote, not options.cache)
+                   options.remote, not options.cache,
+                   options.test_results_root)
 
 
 if __name__ == '__main__':
