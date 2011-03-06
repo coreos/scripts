@@ -151,12 +151,6 @@ if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]; then
   popd
 fi
 
-if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ]; then
-  echo "Modifying image for factory test"
-  ./enter_chroot.sh -- ./mod_image_for_test.sh --board $FLAGS_board \
-      --yes --noinplace --factory
-fi
-
 # Modify for recovery
 if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
   BUILDVER="$(readlink ${IMAGES_DIR}/${FLAGS_board}/latest)"
@@ -170,12 +164,36 @@ if [ $FLAGS_remove_dev -eq $FLAGS_TRUE ]; then
   rm -f "${FLAGS_from}/${CHROMEOS_IMAGE_NAME}"
 fi
 
+if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ]; then
+  echo "Generating image for factory test"
+  # HACK: The build system can't currently handle more than one image size
+  # at a time. Therefore it's necessary to do another round of build after
+  # archiving the original build. This should be fixed in Chromite.
+
+  # HACK: cbuild has a special case when running on chrome-bot that
+  # zeroes out the current revision, which makes calling build_image directly
+  # fail. You must explictly call replace and specify a unique name numerically
+  # using build_attempt.
+  ./enter_chroot.sh -- ./build_image --board $FLAGS_board \
+      --replace --noenable_rootfs_verification --build_attempt 4
+
+  ./enter_chroot.sh -- ./mod_image_for_test.sh --board $FLAGS_board \
+      --yes --noinplace --factory
+
+  # Get the factory test dir: It is the newest build.
+  # This is the output dir for the factory shim, the factory test and
+  # release images will remain in IMG_DIR, defined previously.
+  FACTORY_DIR="$(readlink ${IMAGES_DIR}/${FLAGS_board}/latest)"
+
+  echo "Factory image dir: ${FACTORY_DIR}"
+fi
+
 # Build differently sized shims. Currently only factory install shim is
 # supported, TODO(tgao): Add developer shim.
 if [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]; then
   echo "Building factory install shim."
   # HACK: The build system can't currently handle more than one image size
-  # at a time. Therefor eit's necessary to do another round of build after
+  # at a time. Therefore it's necessary to do another round of build after
   # archiving the original build. This should be fixed in Chromite.
 
   # HACK: cbuild has a special case when running on chrome-bot that
@@ -190,7 +208,6 @@ if [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]; then
   # release images will remain in IMG_DIR, defined previously.
   SHIM_DIR="$(readlink ${IMAGES_DIR}/${FLAGS_board}/latest)"
 
-  echo "Factory image dir: ${IMG_DIR}"
   echo "Factory install shim dir: ${SHIM_DIR}"
 fi
 
@@ -206,8 +223,10 @@ if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
   # signing and packaging utilities need unpack_partitions.sh.
   echo "Compressing factory software"
   pushd ..
-  [ -n "${SHIM_DIR}" ] && rm -f factory_shim && ln -s "${SHIM_DIR}" factory_shim
-  [ -n "${IMG_DIR}" ] && rm -f factory_test && ln -s "${IMG_DIR}" factory_test
+  [ -n "${SHIM_DIR}" ] && rm -f factory_shim && \
+      ln -s "${SHIM_DIR}" factory_shim
+  [ -n "${FACTORY_DIR}" ] && rm -f factory_test && \
+      ln -s "${FACTORY_DIR}" factory_test
 
   # Restore "latest" status to the original image.
   # The "latest" symlink and latest timestamp are used extensively
