@@ -252,23 +252,23 @@ class ReportGenerator(object):
         print self._color.Color(Color.GREEN,
                                 'No crashes detected during testing.')
 
-    # Print out the client debug information for failed tests.
+    # Print out error log for failed tests.
     if self._options.print_debug:
       for test in tests_with_errors:
         debug_file_regex = os.path.join(self._options.strip, test, 'debug',
-                                       '%s*.DEBUG' % os.path.basename(test))
+                                       '%s*.ERROR' % os.path.basename(test))
         for path in glob.glob(debug_file_regex):
           try:
             fh = open(path)
             print >> sys.stderr, (
-                '\n========== DEBUG FILE %s FOR TEST %s ==============\n' % (
+                '\n========== ERROR FILE %s FOR TEST %s ==============\n' % (
                 path, test))
             out = fh.read()
             while out:
               print >> sys.stderr, out
               out = fh.read()
             print >> sys.stderr, (
-                 '\n=========== END DEBUG %s FOR TEST %s ===============\n' % (
+                 '\n=========== END ERROR FILE %s FOR TEST %s ===========\n' % (
                  path, test))
             fh.close()
           except:
@@ -312,7 +312,7 @@ def main():
                     help='Don\'t strip a prefix from test directory names')
   parser.add_option('--no-debug', dest='print_debug', action='store_false',
                     default=True,
-                    help='Don\'t print out the debug log when a test fails.')
+                    help='Don\'t print out logs when tests fail.')
   (options, args) = parser.parse_args()
 
   if not args:
