@@ -238,7 +238,7 @@ class AUTest(unittest.TestCase):
     """
     self.worker.InitializeResultsDirectory()
     self.worker.PrepareBase(self.base_image_path)
-    #self.worker.PerformUpdate(self.target_image_path, self.base_image_path)
+    self.worker.PerformUpdate(self.target_image_path, self.base_image_path)
     self.worker.VerifyImage(self)
 
   # --- DISABLED TESTS ---
