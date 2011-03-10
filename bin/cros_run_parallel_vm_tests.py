@@ -23,12 +23,13 @@ class ParallelTestRunner(object):
 
   This class is a simple wrapper around cros_run_vm_test that provides an easy
   way to spawn several test instances in parallel and aggregate the results when
-  the tests complete.
+  the tests complete.  Only uses emerged autotest packaged, as trying to pull
+  from the caller's source tree creates races that cause tests to fail.
   """
 
   def __init__(self, tests, base_ssh_port=_DEFAULT_BASE_SSH_PORT, board=None,
                image_path=None, order_output=False, quiet=False,
-               results_dir_root=None, use_emerged=False):
+               results_dir_root=None):
     """Constructs and initializes the test runner class.
 
     Args:
@@ -46,7 +47,6 @@ class ParallelTestRunner(object):
       results_dir_root: The results directory root. If provided, the results
         directory root for each test will be created under it with the SSH port
         appended to the test name.
-      use_emerged: Force use of emerged autotest packages.
     """
     self._tests = tests
     self._base_ssh_port = base_ssh_port
@@ -55,7 +55,6 @@ class ParallelTestRunner(object):
     self._order_output = order_output
     self._quiet = quiet
     self._results_dir_root = results_dir_root
-    self._use_emerged = use_emerged
 
   def _SpawnTests(self):
     """Spawns VMs and starts the test runs on them.
@@ -74,6 +73,7 @@ class ParallelTestRunner(object):
       args = [ os.path.join(os.path.dirname(__file__), 'cros_run_vm_test'),
                '--snapshot',  # The image is shared so don't modify it.
                '--no_graphics',
+               '--use_emerged',
                '--ssh_port=%d' % ssh_port ]
       if self._board: args.append('--board=%s' % self._board)
       if self._image_path: args.append('--image_path=%s' % self._image_path)
@@ -81,7 +81,6 @@ class ParallelTestRunner(object):
       if self._results_dir_root:
         results_dir = '%s/%s.%d' % (self._results_dir_root, test, ssh_port)
         args.append('--results_dir_root=%s' % results_dir)
-      if self._use_emerged: args.append('--use_emerged')
       args.append(test)
       Info('Running %r...' % args)
       output = None
@@ -156,8 +155,6 @@ def main():
   parser.add_option('--results_dir_root',
                     help='Root results directory. If none specified, each test '
                     'will store its results in a separate /tmp directory.')
-  parser.add_option('--use_emerged', action='store_true', default=False,
-                    help='Force use of emerged autotest packages')
   (options, args) = parser.parse_args()
 
   if not args:
@@ -170,8 +167,7 @@ def main():
       Die('--quiet requires --results_dir_root')
   runner = ParallelTestRunner(args, options.base_ssh_port, options.board,
                               options.image_path, options.order_output,
-                              options.quiet, options.results_dir_root,
-                              options.use_emerged)
+                              options.quiet, options.results_dir_root)
   runner.Run()
 
 
