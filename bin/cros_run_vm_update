@@ -36,6 +36,8 @@ DEFINE_string src_image "" \
   "Create a delta update by passing in the image on the remote machine."
 DEFINE_string stateful_update_flag "" "Flags to pass to stateful update." s
 DEFINE_string image "" "Path of the image to update to." u
+DEFINE_string update_log "update_engine.log" \
+  "Path to log for the update_engine."
 DEFINE_string update_url "" "Full url of an update image."
 DEFINE_string vm_image_path "" "Path of the VM image to update from." v
 
@@ -70,6 +72,7 @@ fi
   --ssh_port=${FLAGS_ssh_port} \
   --stateful_update_flag=${FLAGS_stateful_update_flag} \
   --src_image="${FLAGS_src_image}" \
+  --update_log="${FLAGS_update_log}" \
   --update_url="${FLAGS_update_url}" \
   --verify \
   ${IMAGE_ARGS}

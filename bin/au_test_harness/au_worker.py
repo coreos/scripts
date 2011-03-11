@@ -192,14 +192,18 @@ class AUWorker(object):
       cmd.append('--image=%s' % image_path)
       if src_image_path: cmd.append('--src_image=%s' % src_image_path)
 
-  def RunUpdateCmd(self, cmd):
+  def RunUpdateCmd(self, cmd, log_directory=None):
     """Runs the given update cmd given verbose options.
 
     Raises an update_exception.UpdateException if the update fails.
     """
     if self.verbose:
       try:
-        cros_lib.RunCommand(cmd)
+        if log_directory:
+          cros_lib.RunCommand(cmd, log_to_file=os.path.join(log_directory,
+                                                            'update.log'))
+        else:
+          cros_lib.RunCommand(cmd)
       except Exception as e:
         Warning(str(e))
         raise update_exception.UpdateException(1, str(e))
@@ -236,14 +240,20 @@ class AUWorker(object):
     self.results_count = 0
 
   def GetNextResultsPath(self, label):
-    """Returns a new results path based for this label.
+    """Returns a path for the results directory for this label.
 
     Prefixes directory returned for worker with time called i.e. 1_label,
-    2_label, etc.
+    2_label, etc.  The directory returned is outside the chroot so if passing
+    to an script that is called with enther_chroot, make sure to use
+    ReinterpretPathForChroot.
     """
     self.results_count += 1
-    return os.path.join(self.results_directory, '%s_%s' % (self.results_count,
-                                                           label))
+    dir = os.path.join(self.results_directory, '%s_%s' % (self.results_count,
+                                                          label))
+    if not os.path.exists(dir):
+      os.makedirs(dir)
+
+    return dir
 
   # --- PRIVATE HELPER FUNCTIONS ---
 

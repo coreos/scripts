@@ -27,7 +27,8 @@ def GetCallerName():
 
 def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
                exit_code=False, redirect_stdout=False, redirect_stderr=False,
-               cwd=None, input=None, enter_chroot=False, num_retries=0):
+               cwd=None, input=None, enter_chroot=False, num_retries=0,
+               log_to_file=None):
   """Runs a shell command.
 
   Arguments:
@@ -44,6 +45,7 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
     enter_chroot: this command should be run from within the chroot.  If set,
       cwd must point to the scripts directory.
     num_retries: the number of retries to perform before dying
+    log_to_file: Redirects all stderr and stdout to file specified by this path.
 
   Returns:
     If exit_code is True, returns the return code of the shell command.
@@ -51,24 +53,36 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
 
   Raises:
     Exception:  Raises RunCommandException on error with optional error_message,
+
                 but only if exit_code, and error_ok are both False. 
   """
   # Set default for variables.
   stdout = None
   stderr = None
   stdin = None
+  file_handle = None
   output = ''
 
   # Modify defaults based on parameters.
-  if redirect_stdout:  stdout = subprocess.PIPE
-  if redirect_stderr:  stderr = subprocess.PIPE
+  if log_to_file:
+    file_handle = open(log_to_file, 'w+')
+    stdout = file_handle
+    stderr = file_handle
+  else:
+    if redirect_stdout:  stdout = subprocess.PIPE
+    if redirect_stderr:  stderr = subprocess.PIPE
+
   if input:  stdin = subprocess.PIPE
   if enter_chroot:  cmd = ['./enter_chroot.sh', '--'] + cmd
 
   # Print out the command before running.
+  cmd_string = Info('PROGRAM(%s) -> RunCommand: %r in dir %s' %
+                    (GetCallerName(), cmd, cwd))
   if print_cmd:
-    Info('PROGRAM(%s) -> RunCommand: %r in dir %s' %
-         (GetCallerName(), cmd, cwd))
+    if not log_to_file:
+      Info(cmd_string)
+    else:
+      Info('%s -- Logging to %s' % (cmd_string, log_to_file))
 
   for retry_count in range(num_retries + 1):
 
@@ -84,6 +98,8 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
     # if the command worked, don't retry any more.
     if proc.returncode == 0:
       break
+
+  if file_handle: file_handle.close()
 
   # If they asked for an exit_code, give it to them on success or failure
   if exit_code:
@@ -254,6 +270,15 @@ def ReinterpretPathForChroot(path):
 
   new_path = os.path.join('/home', os.getenv('USER'), 'trunk', relative_path)
   return new_path
+
+
+def PrependChrootPath(path):
+  """Assumes path is a chroot path and prepends chroot to create full path."""
+  chroot_path = os.path.join(FindRepoDir(), '..', 'chroot')
+  if path.startswith('/'):
+    return os.path.realpath(os.path.join(chroot_path, path[1:]))
+  else:
+    return os.path.realpath(os.path.join(chroot_path, path))
 
 
 def GetIPAddress(device='eth0'):
