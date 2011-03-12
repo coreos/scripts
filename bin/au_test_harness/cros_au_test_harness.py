@@ -280,8 +280,7 @@ def main():
   update_cache = _PregenerateUpdates(options)
   au_worker.AUWorker.SetUpdateCache(update_cache)
 
-  my_server = dev_server_wrapper.DevServerWrapper(
-      au_test.AUTest.test_results_root)
+  my_server = dev_server_wrapper.DevServerWrapper()
   my_server.start()
   try:
     if options.type == 'vm':

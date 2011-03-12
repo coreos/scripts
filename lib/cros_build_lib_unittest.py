@@ -6,8 +6,6 @@
 
 """Unit tests for cros_build_lib."""
 
-import os
-import tempfile
 import unittest
 
 import cros_build_lib
@@ -88,20 +86,6 @@ class CrosBuildLibTest(unittest.TestCase):
                                        redirect_stdout=True,
                                        redirect_stderr=True)
     self.assertEqual(result, 'Hi')
-
-  def testRunCommandLogToFile(self):
-    """Test that RunCommand can log output to a file correctly."""
-    log_file = tempfile.mktemp()
-    cros_build_lib.RunCommand(['echo', '-n', 'Hi'],
-                               # Keep the test quiet options
-                               print_cmd=False,
-                               # Test specific options
-                               log_to_file=log_file)
-    log_fh = open(log_file)
-    log_data = log_fh.read()
-    self.assertEquals('Hi', log_data)
-    log_fh.close()
-    os.remove(log_file)
 
 
 if __name__ == '__main__':

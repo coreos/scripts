@@ -58,7 +58,6 @@ class VMAUWorker(au_worker.AUWorker):
   def UpdateImage(self, image_path, src_image_path='', stateful_change='old',
                   proxy_port='', private_key_path=None):
     """Updates VM image with image_path."""
-    log_directory = self.GetNextResultsPath('update')
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
     if src_image_path and self._first_update:
       src_image_path = self.vm_image_path
@@ -66,7 +65,6 @@ class VMAUWorker(au_worker.AUWorker):
 
     cmd = ['%s/cros_run_vm_update' % self.crosutilsbin,
            '--vm_image_path=%s' % self.vm_image_path,
-           '--update_log=%s' % os.path.join(log_directory, 'update_engine.log'),
            '--snapshot',
            self.graphics_flag,
            '--persist',
@@ -76,17 +74,15 @@ class VMAUWorker(au_worker.AUWorker):
           ]
     self.AppendUpdateFlags(cmd, image_path, src_image_path, proxy_port,
                            private_key_path)
-    self.RunUpdateCmd(cmd, log_directory)
+    self.RunUpdateCmd(cmd)
 
   def UpdateUsingPayload(self, update_path, stateful_change='old',
                          proxy_port=None):
     """Updates a vm image using cros_run_vm_update."""
-    log_directory = self.GetNextResultsPath('update')
     stateful_change_flag = self.GetStatefulChangeFlag(stateful_change)
     cmd = ['%s/cros_run_vm_update' % self.crosutilsbin,
            '--payload=%s' % update_path,
            '--vm_image_path=%s' % self.vm_image_path,
-           '--update_log=%s' % os.path.join(log_directory, 'update_engine.log'),
            '--snapshot',
            self.graphics_flag,
            '--persist',
@@ -95,12 +91,11 @@ class VMAUWorker(au_worker.AUWorker):
            stateful_change_flag,
            ]
     if proxy_port: cmd.append('--proxy_port=%s' % proxy_port)
-    self.RunUpdateCmd(cmd, log_directory)
+    self.RunUpdateCmd(cmd)
 
   def VerifyImage(self, unittest, percent_required_to_pass=100):
     """Runs vm smoke suite to verify image."""
-    log_directory = self.GetNextResultsPath('verify')
-    (_, _, log_directory_in_chroot) = log_directory.rpartition('chroot')
+    test_directory = self.GetNextResultsPath('verify')
     # image_to_live already verifies lsb-release matching.  This is just
     # for additional steps.
     commandWithArgs = ['%s/cros_run_vm_test' % self.crosutilsbin,
@@ -109,7 +104,7 @@ class VMAUWorker(au_worker.AUWorker):
                        '--persist',
                        '--kvm_pid=%s' % self._kvm_pid_file,
                        '--ssh_port=%s' % self._ssh_port,
-                       '--results_dir_root=%s' % log_directory_in_chroot,
+                       '--results_dir_root=%s' % test_directory,
                        self.verify_suite,
                       ]
     if self.graphics_flag: commandWithArgs.append(self.graphics_flag)

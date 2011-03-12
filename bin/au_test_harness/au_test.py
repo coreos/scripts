@@ -58,16 +58,12 @@ class AUTest(unittest.TestCase):
     elif not os.path.exists(cls.target_image_path):
       cros_lib.Die('%s does not exist' % cls.target_image_path)
 
-    # Initialize test root.  Test root path must be in the chroot.
+    # Initialize test root.
     if not cls.test_results_root:
       if options.test_results_root:
-        assert 'chroot/tmp' in options.test_results_root, \
-          'Must specify a test results root inside tmp in a chroot.'
         cls.test_results_root = options.test_results_root
       else:
-        cls.test_results_root = tempfile.mkdtemp(
-            prefix='au_test_harness',
-            dir=cros_lib.PrependChrootPath('/tmp'))
+        cls.test_results_root = tempfile.mkdtemp(prefix='au_test_harness')
 
       cros_lib.Info('Using %s as the test results root' % cls.test_results_root)
 
