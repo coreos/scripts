@@ -37,6 +37,7 @@ start on stopped udev-addon
 stop on starting halt or starting reboot
 
 script
+/sbin/modprobe i2c-dev
 cd /usr/local/autotest
 eval \$(./site_tests/suite_Factory/startx.sh)
 date >>/var/log/factory.log
