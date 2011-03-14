@@ -53,7 +53,6 @@ def _PregenerateUpdates(options):
   def _GenerateVMUpdate(target, src, private_key_path):
     """Generates an update using the devserver."""
     command = ['./enter_chroot.sh',
-               '--nogit_config',
                '--',
                'sudo',
                'start_devserver',
