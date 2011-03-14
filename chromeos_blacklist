@@ -1,5 +1,7 @@
 app-text/iso-codes
 dev-java/icedtea
 dev-java/icedtea6-bin
+dev-lang/perl
 dev-lang/python
+media-sound/pulseaudio
 x11-libs/libxklavier
