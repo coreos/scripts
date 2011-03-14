@@ -275,6 +275,10 @@ def main():
   # Clean up previous work if requested.
   if options.clean: _CleanPreviousWork(options)
 
+  # Make sure we have a log directory.
+  if not os.path.exists(options.test_results_root):
+    os.makedirs(options.test_results_root)
+
   # Generate cache of updates to use during test harness.
   update_cache = _PregenerateUpdates(options)
   au_worker.AUWorker.SetUpdateCache(update_cache)
