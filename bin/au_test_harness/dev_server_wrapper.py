@@ -5,6 +5,7 @@
 """Module containing methods and classes to interact with a devserver instance.
 """
 
+import os
 import threading
 
 import cros_build_lib as cros_lib
@@ -19,8 +20,9 @@ def GenerateUpdateId(target, src, key):
 class DevServerWrapper(threading.Thread):
   """A Simple wrapper around a dev server instance."""
 
-  def __init__(self):
+  def __init__(self, test_root):
     self.proc = None
+    self.test_root = test_root
     threading.Thread.__init__(self)
 
   def run(self):
@@ -32,7 +34,9 @@ class DevServerWrapper(threading.Thread):
                          '--archive_dir=./static',
                          '--client_prefix=ChromeOSUpdateEngine',
                          '--production',
-                        ], enter_chroot=True, print_cmd=False)
+                         ], enter_chroot=True, print_cmd=False,
+                         log_to_file=os.path.join(self.test_root,
+                                                  'dev_server.log'))
 
   def Stop(self):
     """Kills the devserver instance."""
