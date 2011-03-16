@@ -11,6 +11,8 @@ import subprocess
 import sys
 
 _STDOUT_IS_TTY = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
+CROSUTILS_DIRECTORY = os.path.realpath(os.path.dirname(os.path.dirname(
+    __file__)))
 
 # TODO(sosa):  Move logging to logging module.
 
@@ -297,3 +299,30 @@ def GetIPAddress(device='eth0'):
   else:
     Warning('Failed to find ip address in %s' % ifconfig_output)
     return None
+
+
+def MountImage(image_path, root_dir, stateful_dir, read_only):
+  """Mounts a Chromium OS image onto mount dir points."""
+  from_dir = os.path.dirname(image_path)
+  image = os.path.basename(image_path)
+  extra_args = []
+  if read_only: extra_args.append('--read_only')
+  cmd = ['./mount_gpt_image.sh',
+         '--from=%s' % from_dir,
+         '--image=%s' % image,
+         '--rootfs_mountpt=%s' % root_dir,
+         '--stateful_mountpt=%s' % stateful_dir,
+        ]
+  cmd.extend(extra_args)
+  RunCommand(cmd, print_cmd=False, redirect_stdout=True, redirect_stderr=True,
+             cwd=CROSUTILS_DIRECTORY)
+
+
+def UnmountImage(root_dir, stateful_dir):
+  """Unmounts a Chromium OS image specified by mount dir points."""
+  RunCommand(['./mount_gpt_image.sh',
+              '--unmount',
+              '--rootfs_mountpt=%s' % root_dir,
+              '--stateful_mountpt=%s' % stateful_dir,
+             ], print_cmd=False, redirect_stdout=True, redirect_stderr=True,
+             cwd=CROSUTILS_DIRECTORY)

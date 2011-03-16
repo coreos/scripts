@@ -16,7 +16,6 @@ import optparse
 import os
 import re
 import sys
-import tempfile
 import unittest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../lib'))
@@ -27,8 +26,8 @@ import au_worker
 import dummy_au_worker
 import dev_server_wrapper
 import parallel_test_job
+import public_key_manager
 import update_exception
-
 
 def _PrepareTestSuite(options, use_dummy_worker=False):
   """Returns a prepared test suite given by the options and test class."""
@@ -82,9 +81,12 @@ def _PregenerateUpdates(options):
   update_ids = []
   jobs = []
   args = []
+  modified_images = set()
   for target, srcs in dummy_au_worker.DummyAUWorker.delta_list.items():
+    modified_images.add(target)
     for src_key in srcs:
       (src, _ , key) = src_key.partition('+')
+      if src: modified_images.add(src)
       # TODO(sosa): Add private key as part of caching name once devserver can
       # handle it its own cache.
       update_id = dev_server_wrapper.GenerateUpdateId(target, src, key)
@@ -92,6 +94,17 @@ def _PregenerateUpdates(options):
       update_ids.append(update_id)
       jobs.append(_GenerateVMUpdate)
       args.append((target, src, key))
+
+  # Always add the base image path.  This is only useful for non-delta updates.
+  modified_images.add(options.base_image)
+
+  # Add public key to all images we are using.
+  if options.public_key:
+    cros_lib.Info('Adding public keys to images for testing.')
+    for image in modified_images:
+      manager = public_key_manager.PublicKeyManager(image, options.public_key)
+      manager.AddKeyToImage()
+      au_test.AUTest.public_key_managers.append(manager)
 
   raw_results = parallel_test_job.RunParallelJobs(options.jobs, jobs, args,
                                                   print_status=True)
@@ -137,7 +150,7 @@ def _RunTestsInParallel(options):
   for test in test_suite:
     test_name = test.id()
     test_case = unittest.TestLoader().loadTestsFromName(test_name)
-    threads.append(unittest.TextTestRunner().run)
+    threads.append(unittest.TextTestRunner(verbosity=2).run)
     args.append(test_case)
 
   results = parallel_test_job.RunParallelJobs(options.jobs, threads, args,
@@ -145,52 +158,6 @@ def _RunTestsInParallel(options):
   for test_result in results:
     if not test_result.wasSuccessful():
       cros_lib.Die('Test harness was not successful')
-
-
-def _InsertPublicKeyIntoImage(image_path, key_path):
-  """Inserts public key into image @ static update_engine location."""
-  from_dir = os.path.dirname(image_path)
-  image = os.path.basename(image_path)
-  crosutils_dir = os.path.abspath(__file__).rsplit('/', 2)[0]
-  target_key_path = 'usr/share/update_engine/update-payload-key.pub.pem'
-
-  # Temporary directories for this function.
-  rootfs_dir = tempfile.mkdtemp(suffix='rootfs', prefix='tmp')
-  stateful_dir = tempfile.mkdtemp(suffix='stateful', prefix='tmp')
-
-  cros_lib.Info('Copying %s into %s' % (key_path, image_path))
-  try:
-    cros_lib.RunCommand(['./mount_gpt_image.sh',
-                         '--from=%s' % from_dir,
-                         '--image=%s' % image,
-                         '--rootfs_mountpt=%s' % rootfs_dir,
-                         '--stateful_mountpt=%s' % stateful_dir,
-                        ], print_cmd=False, redirect_stdout=True,
-                        redirect_stderr=True, cwd=crosutils_dir)
-    path = os.path.join(rootfs_dir, target_key_path)
-    dir_path = os.path.dirname(path)
-    cros_lib.RunCommand(['sudo', 'mkdir', '--parents', dir_path],
-                        print_cmd=False)
-    cros_lib.RunCommand(['sudo', 'cp', '--force', '-p', key_path, path],
-                        print_cmd=False)
-  finally:
-    # Unmount best effort regardless.
-    cros_lib.RunCommand(['./mount_gpt_image.sh',
-                         '--unmount',
-                         '--rootfs_mountpt=%s' % rootfs_dir,
-                         '--stateful_mountpt=%s' % stateful_dir,
-                        ], print_cmd=False, redirect_stdout=True,
-                        redirect_stderr=True, cwd=crosutils_dir)
-    # Clean up our directories.
-    os.rmdir(rootfs_dir)
-    os.rmdir(stateful_dir)
-
-  cros_lib.RunCommand(['bin/cros_make_image_bootable',
-                       cros_lib.ReinterpretPathForChroot(from_dir),
-                       image],
-                      print_cmd=False, redirect_stdout=True,
-                      redirect_stderr=True, enter_chroot=True,
-                      cwd=crosutils_dir)
 
 
 def _CleanPreviousWork(options):
@@ -257,9 +224,6 @@ def main():
     cros_lib.Info('Base image not specified.  Using target as base image.')
     options.base_image = options.target_image
 
-  # Sanity checks on keys and insert them onto the image.  The caches must be
-  # cleaned so we know that the vm images and payloads match the possibly new
-  # key.
   if options.private_key or options.public_key:
     error_msg = ('Could not find %s key.  Both private and public keys must be '
                  'specified if either is specified.')
@@ -267,10 +231,6 @@ def main():
         error_msg % 'private'
     assert options.public_key and os.path.exists(options.public_key), \
         error_msg % 'public'
-    _InsertPublicKeyIntoImage(options.target_image, options.public_key)
-    if options.target_image != options.base_image:
-      _InsertPublicKeyIntoImage(options.base_image, options.public_key)
-    options.clean = True
 
   # Clean up previous work if requested.
   if options.clean: _CleanPreviousWork(options)
@@ -279,24 +239,38 @@ def main():
   if not os.path.exists(options.test_results_root):
     os.makedirs(options.test_results_root)
 
-  # Generate cache of updates to use during test harness.
-  update_cache = _PregenerateUpdates(options)
-  au_worker.AUWorker.SetUpdateCache(update_cache)
-
-  my_server = dev_server_wrapper.DevServerWrapper(
-      au_test.AUTest.test_results_root)
-  my_server.start()
+  # Pre-generate update modifies images by adding public keys to them.
+  # Wrap try to make sure we clean this up before we're done.
   try:
-    if options.type == 'vm':
-      _RunTestsInParallel(options)
-    else:
-      # TODO(sosa) - Take in a machine pool for a real test.
-      # Can't run in parallel with only one remote device.
-      test_suite = _PrepareTestSuite(options)
-      test_result = unittest.TextTestRunner(verbosity=2).run(test_suite)
-      if not test_result.wasSuccessful(): cros_lib.Die('Test harness failed.')
+    # Generate cache of updates to use during test harness.
+    update_cache = _PregenerateUpdates(options)
+    au_worker.AUWorker.SetUpdateCache(update_cache)
+
+    my_server = dev_server_wrapper.DevServerWrapper(
+        au_test.AUTest.test_results_root)
+    my_server.start()
+    try:
+      if options.type == 'vm':
+        _RunTestsInParallel(options)
+      else:
+        # TODO(sosa) - Take in a machine pool for a real test.
+        # Can't run in parallel with only one remote device.
+        test_suite = _PrepareTestSuite(options)
+        test_result = unittest.TextTestRunner(verbosity=2).run(test_suite)
+        if not test_result.wasSuccessful(): cros_lib.Die('Test harness failed.')
+
+    finally:
+      my_server.Stop()
+
   finally:
-    my_server.Stop()
+    # Un-modify any target images we modified.  We don't need to un-modify
+    # non-targets because they aren't important for archival steps.
+    if options.public_key:
+      cros_lib.Info('Cleaning up.  Removing keys added as part of testing.')
+      target_directory = os.path.dirname(options.target_image)
+      for key_manager in au_test.AUTest.public_key_managers:
+        if key_manager.image_path.startswith(target_directory):
+          key_manager.RemoveKeyFromImage()
 
 
 if __name__ == '__main__':

@@ -54,7 +54,6 @@ class ParallelJob(threading.Thread):
 
   def _Cleanup(self):
     """Releases semaphores for a waiting caller."""
-    cros_lib.Info('Completed job %s' % self)
     self._starting_semaphore.release()
     self._ending_semaphore.release()
 
@@ -89,7 +88,7 @@ def RunParallelJobs(number_of_simultaneous_jobs, jobs, jobs_args,
     threads.append(thread)
 
   # Cache sudo access.
-  cros_lib.RunCommand(['sudo', 'echo', 'Starting test harness'],
+  cros_lib.RunCommand(['sudo', 'echo', 'Caching sudo credentials'],
                       print_cmd=False, redirect_stdout=True,
                       redirect_stderr=True)
 
@@ -98,11 +97,9 @@ def RunParallelJobs(number_of_simultaneous_jobs, jobs, jobs_args,
   # Acquire blocks of num jobs reached and continues when a thread finishes.
   for next_thread in threads:
     job_start_semaphore.acquire(blocking=True)
-    cros_lib.Info('Starting job %s' % next_thread)
     next_thread.start()
 
   # Wait on the rest of the threads to finish.
-  cros_lib.Info('Waiting for threads to complete.')
   for thread in threads:
     while not join_semaphore.acquire(blocking=False):
       time.sleep(5)

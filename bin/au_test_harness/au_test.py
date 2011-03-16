@@ -25,6 +25,7 @@ class AUTest(unittest.TestCase):
   See documentation for au_worker for more information.
   """
   test_results_root = None
+  public_key_managers = []
 
   @classmethod
   def ProcessOptions(cls, options, use_dummy_worker):

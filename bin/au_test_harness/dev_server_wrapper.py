@@ -13,7 +13,7 @@ import cros_build_lib as cros_lib
 def GenerateUpdateId(target, src, key):
   """Returns a simple representation id of target and src paths."""
   update_id = target
-  if src: update_id = '->'.join([update_id, src])
+  if src: update_id = '->'.join([src, update_id])
   if key: update_id = '+'.join([update_id, key])
   return update_id
 
