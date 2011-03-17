@@ -236,7 +236,8 @@ def main():
   if options.clean: _CleanPreviousWork(options)
 
   # Make sure we have a log directory.
-  if not os.path.exists(options.test_results_root):
+  if options.test_results_root and not os.path.exists(
+      options.test_results_root):
     os.makedirs(options.test_results_root)
 
   # Pre-generate update modifies images by adding public keys to them.
