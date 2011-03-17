@@ -70,8 +70,6 @@ DEFINE_string to "" \
 DEFINE_boolean factory_install ${FLAGS_FALSE} \
   "Build a smaller image to overlay the factory install shim on; this argument \
 is also required in image_to_usb."
-DEFINE_boolean dev_install ${FLAGS_FALSE} \
-  "Build a smaller image to overlay the dev recovery install shim on"
 DEFINE_integer rootfs_partition_size 1024 \
   "rootfs partition size in MiBs."
 DEFINE_integer rootfs_size 850 \
@@ -144,12 +142,8 @@ check_blacklist
 # transition dust settles.
 "${SCRIPTS_DIR}"/set_shared_user_password.sh --move_to_etc
 
-# Verify user didn't specify incompatible flags for dev install shim
-if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ] &&
-   [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ] ; then
-  die "Incompatible flags: --factory_install and --dev_install cannot be \
-both set to True. Please specify one or none."
-fi
+# TODO(vlaviano): Validate command line flags. Check for conflicting flags and
+# reconcile them if possible. Exit with an error message otherwise.
 
 INSTALL_MASK=""
 if [ "${FLAGS_installmask}" -eq "${FLAGS_TRUE}" ] ; then
@@ -157,14 +151,13 @@ if [ "${FLAGS_installmask}" -eq "${FLAGS_TRUE}" ] ; then
 fi
 
 # Reduce the size of factory install shim.
-if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ] ||
-   [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ] ; then
-  # Disable --withdev flag when --*_install is set to True. Otherwise, the
+if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
+  # Disable --withdev flag when --factory_install is set to True. Otherwise, the
   # dev image produced will be based on install shim, rather than a pristine
   # image
   if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
-    info "Incompatible flags: --withdev and --dev_install or --factory_install \
-cannot be both set to True. Reset --withdev to False."
+    info "Incompatible flags: --withdev and --factory_install cannot both be \
+set to True. Resetting --withdev to False."
     FLAGS_withdev=${FLAGS_FALSE}
   fi
 
@@ -228,9 +221,7 @@ PRISTINE_IMAGE_NAME=chromiumos_image.bin
 if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
   PRISTINE_IMAGE_NAME=chromiumos_base_image.bin
   DEVELOPER_IMAGE_NAME=chromiumos_image.bin
-elif [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ]; then
-# Rename pristine images for install shims
-  PRISTINE_IMAGE_NAME=dev_install_shim.bin
+# Rename pristine image for factory install shim
 elif [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
   PRISTINE_IMAGE_NAME=factory_install_shim.bin
 fi
@@ -487,10 +478,9 @@ update_dev_packages() {
   fi
 
   # Check that the image has been correctly created.  Only do it if not
-  # building a factory install image and not a dev install shim, as the
-  # INSTALL_MASK for it will make test_image fail.
-  if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ] &&
-     [ ${FLAGS_dev_install} -eq ${FLAGS_FALSE} ] ; then
+  # building a factory install shim, as the INSTALL_MASK for it will make
+  # test_image fail.
+  if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]; then
     "${SCRIPTS_DIR}/test_image" \
       --root="${ROOT_FS_DIR}" \
       --target="${ARCH}"
@@ -671,9 +661,8 @@ create_base_image() {
     --install \
     ${enable_rootfs_verification}
 
-  # Don't test the factory install shim or the dev install shim
-  if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ] &&
-     [ ${FLAGS_dev_install} -eq ${FLAGS_FALSE} ]; then
+  # Don't test the factory install shim
+  if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]; then
     # Check that the image has been correctly created.
     "${SCRIPTS_DIR}/test_image" \
       --root="${ROOT_FS_DIR}" \
@@ -762,8 +751,7 @@ else
 fi
 
 USE_DEV_KEYS=
-if [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ] || \
-   [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
+if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
   USE_DEV_KEYS="--use_dev_keys"
 fi
 
@@ -779,10 +767,10 @@ if [[ "${ARCH}" = "x86" ]] ||
    [[ "${ARCH}" = "arm" &&
       "${FLAGS_crosbug12352_arm_kernel_signing}" -eq "${FLAGS_TRUE}" ]]; then
   BOOT_FLAG=
-  if [ "${FLAGS_dev_install}" -eq "${FLAGS_TRUE}" ] ||
-     [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
+  if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
     BOOT_FLAG="-b 1"  # BOOT_FLAG_DEVELOPER value defined in load_kernel_fw.h
-    info "--dev_install set, pass BOOT_FLAG_DEVELOPER flag to load_kernel_test"
+    info "--factory_install set, pass BOOT_FLAG_DEVELOPER flag to \
+load_kernel_test"
   fi
 
   # Verify the final image.
