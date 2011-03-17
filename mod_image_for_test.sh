@@ -39,8 +39,6 @@ get_default_board
 DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built" b
 DEFINE_boolean factory $FLAGS_FALSE \
     "Modify the image for manufacturing testing" f
-DEFINE_boolean factory_install $FLAGS_FALSE \
-    "Modify the image for factory install shim"
 DEFINE_string image "" "Location of the rootfs raw image file" i
 DEFINE_boolean installmask $FLAGS_TRUE \
     "Use INSTALL_MASK to shrink the resulting image." m
@@ -228,38 +226,21 @@ trap cleanup EXIT
 "$SCRIPTS_DIR/mount_gpt_image.sh" -i "$IMAGE_NAME" -f "$IMAGE_DIR" \
   -r "$ROOT_FS_DIR" -s "$STATEFUL_DIR"
 
-if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
-  # We don't want to emerge test packages on factory install, otherwise we run
-  # out of space.
+emerge_chromeos_test
 
-  # Run factory setup script to modify the image.
-  sudo $EMERGE_BOARD_CMD --root=$ROOT_FS_DIR --usepkgonly \
-      --root-deps=rdeps --nodeps chromeos-factoryinstall
+MOD_TEST_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
+# Run test setup script to modify the image
+sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
+    STATEFUL_DIR="${STATEFUL_DIR}" ARCH="${ARCH}" "${MOD_TEST_ROOT}/test_setup.sh"
 
-  # Set factory server if necessary.
-  if [ "${FACTORY_SERVER}" != "" ]; then
-    sudo sed -i \
-      "s/CHROMEOS_AUSERVER=.*$/CHROMEOS_AUSERVER=\
-http:\/\/${FACTORY_SERVER}:8080\/update/" \
-      ${ROOT_FS_DIR}/etc/lsb-release
-  fi
-else
-  emerge_chromeos_test
+if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+  install_autotest
 
-  MOD_TEST_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts"
-  # Run test setup script to modify the image
+  MOD_FACTORY_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts"
+  # Run factory setup script to modify the image
   sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-      STATEFUL_DIR="${STATEFUL_DIR}" ARCH="${ARCH}" "${MOD_TEST_ROOT}/test_setup.sh"
-
-  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
-    install_autotest
-
-    MOD_FACTORY_ROOT="${GCLIENT_ROOT}/src/scripts/mod_for_factory_scripts"
-    # Run factory setup script to modify the image
-    sudo GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-        QUALDB="${FLAGS_qualdb}" BOARD=${FLAGS_board} \
-        "${MOD_FACTORY_ROOT}/factory_setup.sh"
-  fi
+      QUALDB="${FLAGS_qualdb}" BOARD=${FLAGS_board} \
+      "${MOD_FACTORY_ROOT}/factory_setup.sh"
 fi
 
 # Re-run ldconfig to fix /etc/ldconfig.so.cache.
