@@ -231,6 +231,10 @@ sudo GCLIENT_ROOT="$GCLIENT_ROOT" ROOT_FS_DIR="$ROOT_FS_DIR" \
     STATEFUL_DIR="$STATEFUL_DIR" ARCH="$ARCH" "$MOD_TEST_SCRIPT"
 
 if [ $FLAGS_factory -eq $FLAGS_TRUE ]; then
+  sudo INSTALL_MASK="$INSTALL_MASK" $EMERGE_BOARD_CMD \
+    --root="$ROOT_FS_DIR" --root-deps=rdeps \
+    factorytest-init $EMERGE_JOBS
+
   install_autotest
 
   MOD_FACTORY_SCRIPT="$SCRIPTS_DIR/mod_for_factory_scripts/factory_setup.sh"

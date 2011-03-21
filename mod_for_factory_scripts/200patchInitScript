@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -23,54 +23,6 @@ diff -Naur old/etc/init/boot-complete.conf new/etc/init/boot-complete.conf
 @@ -15 +15 @@
 -start on login-prompt-visible
 +start on started udev
-EOF
-
-cat >"${ROOT_FS_DIR}/etc/init/factory.conf" <<EOF
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
-
-description   "Chrome OS factory startup stub"
-author        "chromium-os-dev@chromium.org"
-
-start on stopped udev-addon
-stop on starting halt or starting reboot
-
-script
-/sbin/modprobe i2c-dev
-cd /usr/local/autotest
-eval \$(./site_tests/suite_Factory/startx.sh)
-date >>/var/log/factory.log
-if [ ! -e factory_started ]; then
-  touch factory_started
-  cp -f site_tests/suite_Factory/control .
-  ./bin/autotest -t factory control >>/var/log/factory.log 2>&1
-else
-  ./bin/autotest -t factory -c control >>/var/log/factory.log 2>&1
-fi
-end script
-
-pre-stop script
-  pkill python
-  pkill X
-end script
-EOF
-
-cat >"${ROOT_FS_DIR}/etc/init/factorylog.conf" <<EOF
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
-
-description   "Print Chrome OS factory log to tty3"
-author        "chromium-os-dev@chromium.org"
-
-start on started factory
-stop on starting halt or starting reboot
-
-respawn
-script
-tail -n 48 -F /var/log/factory.log >/dev/tty3
-end script
 EOF
 
 if [ -r "${ROOT_FS_DIR}/etc/init/chrontel.conf" ]; then
