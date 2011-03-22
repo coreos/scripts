@@ -11,8 +11,8 @@ import subprocess
 import sys
 
 _STDOUT_IS_TTY = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
-CROSUTILS_DIRECTORY = os.path.realpath(os.path.dirname(os.path.dirname(
-    __file__)))
+CROSUTILS_DIRECTORY = os.path.dirname(os.path.dirname(
+    os.path.realpath(__file__)))
 
 # TODO(sosa):  Move logging to logging module.
 
