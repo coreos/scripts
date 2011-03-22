@@ -40,7 +40,7 @@ get_default_board
 # Flags
 DEFINE_string board "${DEFAULT_BOARD}" "Board for which the image was built"
 DEFINE_string from "" \
-  "Directory containing ${CHROMEOS_IMAGE_NAME}"
+  "Directory containing ${CHROMEOS_IMAGE_NAME}, or filename"
 DEFINE_string to "/dev/sdX" "${DEFAULT_TO_HELP}"
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts" "y"
 DEFINE_boolean force_copy ${FLAGS_FALSE} "Always rebuild test image"
@@ -71,6 +71,15 @@ if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
     exit 1
   fi
 fi
+
+# Allow --from /foo/file.bin
+if [ -f "${FLAGS_from}" ]; then
+  pathname=$(dirname "${FLAGS_from}")
+  filename=$(basename "${FLAGS_from}")
+  FLAGS_image_name="${filename}"
+  FLAGS_from="${pathname}"
+fi
+
 
 # Require autotest for manucaturing image.
 if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
