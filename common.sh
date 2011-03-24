@@ -305,11 +305,10 @@ function make_pkg_common {
 function restart_in_chroot_if_needed {
   # NB:  Pass in ARGV:  restart_in_chroot_if_needed "$@"
   if [ $INSIDE_CHROOT -ne 1 ]; then
-    local abspath=$(readlink -f "$0")
-    # strip everything up to (and including) /scripts/ from abspath
-    local path_from_scripts="${abspath##*/scripts/}"
+    # Get inside_chroot path for script.
+    local chroot_path="$(reinterpret_path_for_chroot "$0")"
     exec $SCRIPTS_DIR/enter_chroot.sh -- \
-      "$CHROOT_TRUNK_DIR/src/scripts/$path_from_scripts" "$@"
+      "$chroot_path" "$@"
   fi
 }
 
@@ -694,5 +693,33 @@ check_for_tool() {
     error "The ${tool} utility was not found in your path.  Run the following"
     error "command in your chroot to install it: sudo -E emerge ${ebuild}"
     exit 1
+  fi
+}
+
+# Reinterprets path from outside the chroot for use inside.
+# Returns "" if "" given.
+# $1 - The path to reinterpret.
+function reinterpret_path_for_chroot() {
+  if [ $INSIDE_CHROOT -ne 1 ]; then
+    if [ -z "${1}" ]; then
+      echo ""
+    else
+      local path_abs_path=$(readlink -f "${1}")
+      local gclient_root_abs_path=$(readlink -f "${GCLIENT_ROOT}")
+
+      # Strip the repository root from the path.
+      local relative_path=$(echo ${path_abs_path} \
+          | sed s:${gclient_root_abs_path}/::)
+
+      if [ "${relative_path}" = "${path_abs_path}" ]; then
+        die "Error reinterpreting path.  Path ${1} is not within source tree."
+      fi
+
+      # Prepend the chroot repository path.
+      echo "/home/${USER}/trunk/${relative_path}"
+    fi
+  else
+    # Path is already inside the chroot :).
+    echo "${1}"
   fi
 }
