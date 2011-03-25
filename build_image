@@ -572,7 +572,7 @@ create_base_image() {
                -e remount-ro \
                 "${LOOP_DEV}"
   # TODO(wad) call tune2fs prior to finalization to set the mount count to 0.
-  sudo mount "${LOOP_DEV}" "${ROOT_FS_DIR}"
+  sudo mount -t ext2 "${LOOP_DEV}" "${ROOT_FS_DIR}"
 
   # Create stateful partition of the same size as the rootfs.
   STATEFUL_LOOP_DEV=$(sudo losetup -f)
@@ -590,7 +590,7 @@ create_base_image() {
   sudo losetup "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_IMG}"
   sudo mkfs.ext3 "${STATEFUL_LOOP_DEV}"
   sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${STATEFUL_LOOP_DEV}"
-  sudo mount "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"
+  sudo mount -t ext3 "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"
 
   # -- Install packages into the root file system --
 
