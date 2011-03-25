@@ -60,6 +60,8 @@ DEFINE_string acl "private" \
     "ACL to set on GSD archives"
 DEFINE_string gsutil_archive "" \
     "Optional datastore archive location"
+DEFINE_boolean gsutil_append_last_change $FLAGS_TRUE \
+    "Optional Whether to append build # and chrome os hash to GS uploads"
 DEFINE_integer keep_max 0 "Maximum builds to keep in archive (0=all)"
 DEFINE_boolean official_build $FLAGS_FALSE \
     "Set CHROMEOS_OFFICIAL=1 for release builds."
@@ -254,6 +256,10 @@ cp -f  "${FLAGS_from}/au-generator.zip" "${OUTDIR}/"
 function gsutil_archive() {
   IN_PATH="$1"
   OUT_PATH="$2"
+  if [ ${FLAGS_gsutil_append_last_change} -eq ${FLAGS_TRUE} ]; then
+     OUT_PATH="${LAST_CHANGE}/${OUT_PATH}"
+  fi
+
   echo "Using gsutil to archive to ${OUT_PATH}..."
   if [ -z "$FLAGS_gsutil_archive" -o ${FLAGS_debug} -eq ${FLAGS_TRUE} ]; then
     echo -n "In debug mode.  Would have run: "
@@ -280,7 +286,7 @@ then
   "${SCRIPTS_DIR}/archive_hwqual" --from "${OUTDIR}" \
     --output_tag "${HWQUAL_NAME}"
   gsutil_archive "${OUTDIR}/${HWQUAL_NAME}.tar.bz2" \
-    "${LAST_CHANGE}/${HWQUAL_NAME}.tar.bz2"
+    "${HWQUAL_NAME}.tar.bz2"
 fi
 
 
@@ -304,7 +310,7 @@ if [ $FLAGS_prebuilt_upload -eq $FLAGS_TRUE ]; then
   fi
 fi
 
-gsutil_archive "${ZIPFILE}" "${LAST_CHANGE}/${FLAGS_zipname}"
+gsutil_archive "${ZIPFILE}" "${FLAGS_zipname}"
 
 if [ $FLAGS_archive_debug -eq $FLAGS_TRUE ]; then
   echo "Generating Breakpad symbols"
@@ -316,26 +322,30 @@ if [ $FLAGS_archive_debug -eq $FLAGS_TRUE ]; then
   CMD="chown \${SUDO_UID}:\${SUDO_GID} ${OUTDIR}/debug.tgz"
   sudo sh -c "${CMD}"
   popd
-  gsutil_archive "${OUTDIR}/debug.tgz" "${LAST_CHANGE}/debug.tgz"
+  gsutil_archive "${OUTDIR}/debug.tgz" "debug.tgz"
 fi
 
 if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
    [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]; then
   gsutil_archive "${FACTORY_ZIPFILE}" \
-    "${LAST_CHANGE}/factory_${FLAGS_zipname}"
+    "factory_${FLAGS_zipname}"
 fi
 
 gsutil_archive "${FLAGS_to}/LATEST" "LATEST"
 
 if [ -n "${FLAGS_gsutil_archive}" ]; then
-  FULL_INDEX_PATH="${FLAGS_gsutil_archive}/${LAST_CHANGE}/_index.html"
+  if [ ${FLAGS_gsutil_append_last_change} -eq ${FLAGS_TRUE} ]; then
+    FULL_INDEX_PATH="${FLAGS_gsutil_archive}/${LAST_CHANGE}/_index.html"
+  else
+    FULL_INDEX_PATH="${FLAGS_gsutil_archive}/_index.html"
+  fi
   RELATIVE_ARCHIVE_URL_PATH="${FULL_INDEX_PATH#gs://}"
   echo "CROS_ARCHIVE_URL=\
 https://sandbox.google.com/storage/${RELATIVE_ARCHIVE_URL_PATH}"
 fi
 
 if [ -n "${FLAGS_test_tarball}" ]; then
-  gsutil_archive "${FLAGS_test_tarball}" "${LAST_CHANGE}/test_results.tgz"
+  gsutil_archive "${FLAGS_test_tarball}" "test_results.tgz"
 fi
 
 # Purge old builds if necessary
