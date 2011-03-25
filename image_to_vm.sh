@@ -189,16 +189,6 @@ sudo mount -o loop "${TEMP_ROOTFS}" "${TEMP_MNT}"
 mkdir -p "${TEMP_ESP_MNT}"
 sudo mount -o loop "${TEMP_ESP}" "${TEMP_ESP_MNT}"
 
-if [ "${FLAGS_format}" = "qemu" ]; then
-  sudo python "${SCRIPTS_DIR}/fixup_image_for_qemu.py" \
-      --mounted_dir="${TEMP_MNT}" \
-      --enable_tablet=true
-else
-  sudo python "${SCRIPTS_DIR}/fixup_image_for_qemu.py" \
-      --mounted_dir="${TEMP_MNT}" \
-      --enable_tablet=false
-fi
-
 # Modify the unverified usb template which uses a default usb_disk of sdb3
 sudo sed -i -e 's/sdb3/sda3/g' "${TEMP_MNT}/boot/syslinux/usb.A.cfg"
 
