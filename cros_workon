@@ -10,7 +10,7 @@
 # is intended to support development. The current source tip is fetched,
 # source modified and built using the unstable 'live' (9999) ebuild.
 
-. /usr/lib/crosutils/common.sh || (echo "Unable to load common.sh" && exit 1)
+. /usr/lib/crosutils/common.sh || exit 1
 
 # Script must be run inside the chroot
 get_default_board
