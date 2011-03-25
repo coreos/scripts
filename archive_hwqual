@@ -118,7 +118,7 @@ function main() {
   mv autotest "tarball/${FLAGS_output_tag}"
   # Copy call_autoserv.py to tarball.
   cp "${script_dir}/call_autoserv.py" "tarball/${FLAGS_output_tag}/."
-  cp "${script_dir}/generate_test_report.py" \
+  cp "${script_dir}/generate_test_report" \
     "tarball/${FLAGS_output_tag}/generate_test_report"
   # Copy python lib used in generate_test_report.
   mkdir -p "tarball/${FLAGS_output_tag}/lib"
