@@ -523,7 +523,10 @@ update_base_packages() {
 zero_free_space() {
   local fs_mount_point=$1
   info "Zeroing freespace in ${fs_mount_point}"
-  sudo dd if=/dev/zero of="${fs_mount_point}/filler" oflag=sync bs=4096 || true
+  # dd is a silly thing and will produce a "No space left on device" message
+  # that cannot be turned off and is confusing to unsuspecting victims.
+  ( sudo dd if=/dev/zero of="${fs_mount_point}/filler" oflag=sync bs=4096 \
+    || true ) 2>&1 |grep -v "No space left on device"
   sudo rm -f "${fs_mount_point}/filler"
   sudo sync
 }
