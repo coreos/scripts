@@ -6,13 +6,14 @@
 
 """Unit tests for cros_build_lib."""
 
+import mox
 import os
 import tempfile
 import unittest
 
 import cros_build_lib
 
-class CrosBuildLibTest(unittest.TestCase):
+class CrosBuildLibTest(mox.MoxTestBase):
   """Test class for cros_build_lib."""
 
   def testRunCommandSimple(self):
@@ -102,6 +103,57 @@ class CrosBuildLibTest(unittest.TestCase):
     self.assertEquals('Hi', log_data)
     log_fh.close()
     os.remove(log_file)
+
+  def testGetCrosUtilsPathInChroot(self):
+    """Tests whether we can get crosutils from chroot."""
+    self.mox.StubOutWithMock(cros_build_lib, 'IsInsideChroot')
+    crosutils_path_src = '/home/' + os.getenv('USER') + 'trunk/src/scripts'
+    crosutils_path_installed = '/usr/lib/crosutils'
+
+    cros_build_lib.IsInsideChroot().MultipleTimes().AndReturn(True)
+
+    self.mox.ReplayAll()
+    self.assertTrue(cros_build_lib.GetCrosUtilsPath(source_dir_path=True),
+                    crosutils_path_src)
+    self.assertTrue(cros_build_lib.GetCrosUtilsPath(source_dir_path=False),
+                    crosutils_path_installed)
+    self.mox.VerifyAll()
+
+  def testGetCrosUtilsPathOutsideChroot(self):
+    """Tests whether we can get crosutils from outside chroot."""
+    self.mox.StubOutWithMock(cros_build_lib, 'IsInsideChroot')
+    path = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+    cros_build_lib.IsInsideChroot().MultipleTimes().AndReturn(False)
+
+    self.mox.ReplayAll()
+    self.assertTrue(cros_build_lib.GetCrosUtilsPath(), path)
+    self.mox.VerifyAll()
+
+  def testGetCrosUtilsBinPath(self):
+    """Tests whether we can get crosutilsbin correctly."""
+    self.mox.StubOutWithMock(cros_build_lib, 'IsInsideChroot')
+    self.mox.StubOutWithMock(cros_build_lib, 'GetCrosUtilsPath')
+    src_path = '/fake/src'
+    chroot_src_path = '/chroot/fake/src'
+    chroot_path = '/usr/bin'
+
+    cros_build_lib.IsInsideChroot().AndReturn(False)
+    cros_build_lib.GetCrosUtilsPath(True).AndReturn(src_path)
+    cros_build_lib.IsInsideChroot().AndReturn(True)
+    cros_build_lib.GetCrosUtilsPath(True).AndReturn(chroot_src_path)
+    cros_build_lib.IsInsideChroot().AndReturn(True)
+
+    self.mox.ReplayAll()
+    # Outside chroot.
+    self.assertTrue(cros_build_lib.GetCrosUtilsBinPath(source_dir_path=True),
+                    src_path + '/bin')
+    # Rest inside chroot.
+    self.assertTrue(cros_build_lib.GetCrosUtilsBinPath(source_dir_path=True),
+                    chroot_src_path + '/bin')
+    self.assertTrue(cros_build_lib.GetCrosUtilsBinPath(source_dir_path=False),
+                    chroot_path)
+    self.mox.VerifyAll()
+
 
 
 if __name__ == '__main__':

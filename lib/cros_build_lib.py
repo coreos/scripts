@@ -11,8 +11,6 @@ import subprocess
 import sys
 
 _STDOUT_IS_TTY = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
-CROSUTILS_DIRECTORY = os.path.dirname(os.path.dirname(
-    os.path.realpath(__file__)))
 
 # TODO(sosa):  Move logging to logging module.
 
@@ -326,3 +324,40 @@ def UnmountImage(root_dir, stateful_dir):
               '--stateful_mountpt=%s' % stateful_dir,
              ], print_cmd=False, redirect_stdout=True, redirect_stderr=True,
              cwd=CROSUTILS_DIRECTORY)
+
+
+def GetCrosUtilsPath(source_dir_path=True):
+  """Return the path to src/scripts.
+
+  Args:
+    source_dir_path:  If True, returns the path from the source code directory.
+  """
+  if IsInsideChroot():
+    if source_dir_path:
+      return os.path.join(os.getenv('HOME'), 'trunk', 'src', 'scripts')
+
+    return os.path.join('/usr/lib/crosutils')
+
+  # Outside the chroot => from_source.
+  return os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+
+
+def GetCrosUtilsBinPath(source_dir_path=True):
+  """Return the path to crosutils/bin.
+
+  Args:
+    source_dir_path:  If True, returns the path from the source code directory.
+  """
+  if IsInsideChroot() and not source_dir_path:
+      return '/usr/bin'
+
+  return os.path.join(GetCrosUtilsPath(source_dir_path), 'bin')
+
+
+def IsInsideChroot():
+  """Returns True if we are inside chroot."""
+  return os.path.exists('/etc/debian_chroot')
+
+
+# TODO(sosa): Remove once all callers use method.
+CROSUTILS_DIRECTORY = GetCrosUtilsPath(True)
