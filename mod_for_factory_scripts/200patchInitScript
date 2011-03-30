@@ -25,6 +25,17 @@ diff -Naur old/etc/init/boot-complete.conf new/etc/init/boot-complete.conf
 +start on started udev
 EOF
 
+if [ -r "${ROOT_FS_DIR}/etc/init/update-engine.conf" ]; then
+  patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
+diff -Na -U 0 old/etc/init/update-engine.conf new/etc/init/
+--- old/etc/init/update-engine.conf	2010-08-05 16:32:55.000000000 -0700
++++ new/etc/init/update-engine.conf	2010-08-05 16:32:45.000000000 -0700
+@@ -8 +8 @@
+-start on starting system-services and started dbus
++start on never
+EOF
+fi
+
 if [ -r "${ROOT_FS_DIR}/etc/init/chrontel.conf" ]; then
   patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
 diff -Nau old/etc/init/chrontel.conf new/etc/init/
