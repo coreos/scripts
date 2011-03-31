@@ -7,13 +7,13 @@
     'all': {
       'filepath': '.',
     },
-    'build_kernel_image': {
-      'filepath': 'build_kernel_image\.sh',
+    'buildimage': {
+      'filepath': 'build.*image.*',
     },
   },
   'WATCHLISTS': {
     'all': ['sosa@chromium.org', 'msb@chromium.org',
 	    'anush@chromium.org'],
-    'build_kernel_image': ['jimhebert@chromium.org'],
+    'buildimage': ['jimhebert@chromium.org'],
   },
 }
