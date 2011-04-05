@@ -418,14 +418,14 @@ update_dev_packages() {
     root_dev_dir="${ROOT_FS_DIR}/usr/local"
 
   # Install developer packages described in chromeos-dev.
-  sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
-      --root="${root_dev_dir}" --root-deps=rdeps \
+  sudo -E USE="${USE} ${EXTRA_USE}" INSTALL_MASK="${INSTALL_MASK}" \
+      ${EMERGE_BOARD_CMD} --root="${root_dev_dir}" --root-deps=rdeps \
       --usepkgonly -uDNv chromeos-dev ${EMERGE_JOBS}
 
   if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
     # Clean out unused packages
-    sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
-      --root="${ROOT_FS_DIR}" --root-deps=rdeps \
+    sudo -E USE="${USE} ${EXTRA_USE}" INSTALL_MASK="${INSTALL_MASK}" \
+      ${EMERGE_BOARD_CMD} --root="${ROOT_FS_DIR}" --root-deps=rdeps \
       --usepkgonly --depclean ${EMERGE_JOBS}
   fi
 
