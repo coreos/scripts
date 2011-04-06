@@ -129,6 +129,7 @@ SAVED_AUTOMOUNT_PREF_FILE="/tmp/.automount_pref"
 sudo chmod 0777 "$FLAGS_chroot/var/lock"
 
 LOCKFILE="$FLAGS_chroot/var/lock/enter_chroot"
+SYNCERPIDFILE="${FLAGS_chroot}/var/tmp/enter_chroot_sync.pid"
 
 
 function ensure_mounted {
@@ -153,11 +154,45 @@ function ensure_mounted {
   fi
 }
 
+function env_sync_proc {
+  # This function runs and performs periodic updates to the chroot env, if
+  # necessary.
+
+  local poll_interval=10
+  local sync_files="etc/resolv.conf etc/hosts"
+
+  # Make sure the synced files are writable by normal user, so that we
+  # don't have to sudo inside the loop.
+  for file in ${sync_files}; do
+    sudo chown ${USER} ${FLAGS_chroot}/${file} 1>&2
+  done
+
+  while true; do
+    # Sync files
+    for file in ${sync_files}; do
+      if ! cmp /${file} ${FLAGS_chroot}/${file} &> /dev/null; then
+        cp -f /${file} ${FLAGS_chroot}/${file}
+      fi
+    done
+
+    sleep ${poll_interval}
+  done
+}
+
 function setup_env {
   # Validate sudo timestamp before entering the critical section so that we
   # don't stall for a password while we have the lockfile.
   # Don't use sudo -v since that has issues on machines w/ no password.
   sudo echo "" > /dev/null
+
+  # Syncer proc, but only the first time
+  if ! [ -f "${SYNCERPIDFILE}" ] || \
+     ! [ -d /proc/$(cat "${SYNCERPIDFILE}") ]; then
+    debug "Starting sync process"
+    env_sync_proc &
+    echo $! > "${SYNCERPIDFILE}"
+    disown $!
+  fi
 
   (
     flock 200
@@ -283,6 +318,9 @@ function teardown_env {
       debug "At least one other pid is running in the chroot, so not"
       debug "tearing down env."
     else
+      debug "Stopping syncer process"
+      kill $(cat "${SYNCERPIDFILE}")
+
       MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
       debug "Unmounting chroot environment."
       # sort the list of mounts in reverse order, to ensure umount of
