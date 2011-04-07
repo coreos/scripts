@@ -99,8 +99,6 @@ DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
 DEFINE_integer verity_error_behavior 3 \
   "Kernel verified boot error behavior (0: I/O errors, 1: panic, 2: nothing, \
 3: cros) Default: 3"
-DEFINE_integer verity_depth 3 \
-  "Kernel verified boot hash tree depth. Default: 3"
 DEFINE_integer verity_max_ios -1 \
   "Number of outstanding I/O operations dm-verity caps at. Default: -1"
 DEFINE_string verity_algorithm "sha1" \
@@ -389,7 +387,7 @@ create_boot_desc() {
   --statefulfs_mountpoint="${STATEFUL_FS_DIR}"
   --espfs_mountpoint="${ESP_FS_DIR}"
   --verity_error_behavior="${FLAGS_verity_error_behavior}"
-  --verity_depth="${FLAGS_verity_depth}"
+  --verity_depth="0"
   --verity_max_ios="${FLAGS_verity_max_ios}"
   --verity_algorithm="${FLAGS_verity_algorithm}"
   --keys_dir="${DEVKEYSDIR}"
