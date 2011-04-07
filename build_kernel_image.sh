@@ -135,8 +135,6 @@ fi
 
 cat <<EOF > "${FLAGS_working_dir}/boot.config"
 root=${FLAGS_root}
-quiet
-loglevel=1
 rootwait
 ro
 dm_verity.error_behavior=${FLAGS_verity_error_behavior}
@@ -156,6 +154,8 @@ if [[ "${FLAGS_arch}" = "x86" ]]; then
   # FIXME: remove serial output, debugging messages.
   cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
     > "${FLAGS_working_dir}/config.txt"
+quiet
+loglevel=1
 console=tty2
 init=/sbin/init
 add_efi_memmap
@@ -176,7 +176,10 @@ EOF
 
   sign_the_kernel=${FLAGS_TRUE}
 elif [[ "${FLAGS_arch}" = "arm" ]]; then
-  cp "${FLAGS_working_dir}/boot.config" "${FLAGS_working_dir}/config.txt"
+  cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
+    > "${FLAGS_working_dir}/config.txt"
+earlyprintk
+EOF
   WORK="${WORK} ${FLAGS_working_dir}/config.txt"
 
   kernel_script="${FLAGS_working_dir}/kernel.scr"
