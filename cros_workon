@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -26,11 +26,11 @@ DEFINE_boolean all "${FLAGS_FALSE}" \
 
 FLAGS_HELP="usage: $0 <command> [flags] [<list of packages>|--all]
 commands:
-  start:  Moves an ebuild to live (intended to support development)
-  stop:  Moves an ebuild to stable (use last known good)
-  list:  List of live ebuilds (workon ebuilds if --all)
+  start:     Moves an ebuild to live (intended to support development)
+  stop:      Moves an ebuild to stable (use last known good)
+  list:      List of live ebuilds (workon ebuilds if --all)
   list-all:  List all of the live ebuilds for all setup boards
-  iterate:  For each ebuild, cd to the source dir and run a commond"
+  iterate:   For each ebuild, cd to the source dir and run a command"
 FLAGS "$@" || { [ "${FLAGS_help}" = "${FLAGS_TRUE}" ]  && exit 0; } || exit 1
 eval set -- "${FLAGS_ARGV}"
 
