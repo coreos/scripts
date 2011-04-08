@@ -48,18 +48,19 @@ diff -Nau old/etc/init/chrontel.conf new/etc/init/
 EOF
 fi
 
-if [ -r "${ROOT_FS_DIR}/etc/init/nvrm.conf" ]; then
-  patch -d "${ROOT_FS_DIR}" -Np1 << EOF
---- old/etc/init/nvrm.conf	2010-11-19 14:57:16.000000000 -0800
-+++ new/etc/init/nvrm.conf	2010-11-19 16:52:48.000000000 -0800
-@@ -2,7 +2,7 @@
- # Use of this source code is governed by a BSD-style license that can be
- # found in the LICENSE file.
+if [ -r "${ROOT_FS_DIR}/etc/init/tegra-devices.conf" ]; then
+  patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
+diff -Nau old/etc/init/tegra-devices.conf new/etc/init/
+--- old/etc/init/tegra-devices.conf	2011-04-08 10:40:01.000000000 -0500
++++ new/etc/init/tegra-devices.conf	2011-04-08 10:40:16.000000000 -0500
+@@ -9,7 +9,7 @@ author        "chromium-os-dev@chromium.
+ # ui runs, so we won't be racing with X starting. It will be left in
+ # "running" state by upstart so it won't re-launch on every ui restart
  
 -start on starting ui
 +start on starting factory
  
- respawn
- 
+ pre-start script
+   for i in nvmap nvos nvrm nvrpc nvfw tegra_avp tegra_sema tegra_rpc ; do
 EOF
 fi
