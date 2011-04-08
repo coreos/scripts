@@ -143,17 +143,17 @@ check_blacklist
 # TODO(vlaviano): Validate command line flags. Check for conflicting flags and
 # reconcile them if possible. Exit with an error message otherwise.
 
-INSTALL_MASK=""
-if [ "${FLAGS_installmask}" -eq "${FLAGS_TRUE}" ] ; then
+export INSTALL_MASK=""
+if [ ${FLAGS_installmask} -eq ${FLAGS_TRUE} ] ; then
   INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
 fi
 
 # Reduce the size of factory install shim.
-if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
+if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   # Disable --withdev flag when --factory_install is set to True. Otherwise, the
   # dev image produced will be based on install shim, rather than a pristine
   # image
-  if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
+  if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
     info "Incompatible flags: --withdev and --factory_install cannot both be \
 set to True. Resetting --withdev to False."
     FLAGS_withdev=${FLAGS_FALSE}
@@ -169,14 +169,14 @@ set to True. Resetting --withdev to False."
   FLAGS_statefulfs_size=140
 fi
 
-if [ "$((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad))" -gt \
-     "${FLAGS_rootfs_partition_size}" ] ; then
+if [ $((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) -gt \
+     ${FLAGS_rootfs_partition_size} ] ; then
   die "rootfs ($((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) MiB) is \
 bigger than partition (${FLAGS_rootfs_partition_size} MiB)."
 fi
 
 EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
-if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
+if [ ${FLAGS_fast} -eq ${FLAGS_TRUE} ]; then
   echo "Using alternate emerge"
   EMERGE_CMD="${GCLIENT_ROOT}/chromite/bin/parallel_emerge"
   EMERGE_BOARD_CMD="${EMERGE_CMD} --board=${FLAGS_board}"
@@ -189,21 +189,24 @@ OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos/"
 
 # Configure extra USE or packages for this type of build.
 EXTRA_PACKAGES=""
-EXTRA_USE=""
-if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ] ; then
+if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
   # Factory install needs to have the kernel initrmafs enabled,
   # and the factory installer added.
   EXTRA_PACKAGES="${EXTRA_PACKAGES} chromeos-base/chromeos-factoryinstall"
-  EXTRA_USE="${EXTRA_USE} initramfs"
+  export USE="${USE} initramfs"
 fi
+
+emerge_to_image() {
+  sudo -E ${EMERGE_BOARD_CMD} --root-deps=rdeps --usepkgonly \
+    "$@" ${EMERGE_JOBS}
+}
 
 # Freshen kernel with correct USE flags. This is a noop if we have
 # the right kernel prebuilt. Factory install uses USE="initramfs".
 # We don't allow building from source with the image as a target,
 # and it's not possible to store prebuilts for the same package
 # with different use flags.
-USE="${EXTRA_USE} ${USE}" emerge-${FLAGS_board} \
-    -uNDvg --binpkg-respect-use=y virtual/kernel
+sudo -E ${EMERGE_BOARD_CMD} -uDNv -g virtual/kernel
 
 # Use canonical path since some tools (e.g. mount) do not like symlinks.
 # Append build attempt to output directory.
@@ -216,11 +219,11 @@ OUTSIDE_OUTPUT_DIR="../build/images/${FLAGS_board}/${IMAGE_SUBDIR}"
 # different name.
 DEVELOPER_IMAGE_NAME=
 PRISTINE_IMAGE_NAME=chromiumos_image.bin
-if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
+if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
   PRISTINE_IMAGE_NAME=chromiumos_base_image.bin
   DEVELOPER_IMAGE_NAME=chromiumos_image.bin
 # Rename pristine image for factory install shim
-elif [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
+elif [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   PRISTINE_IMAGE_NAME=factory_install_shim.bin
 fi
 
@@ -416,15 +419,11 @@ update_dev_packages() {
     root_dev_dir="${ROOT_FS_DIR}/usr/local"
 
   # Install developer packages described in chromeos-dev.
-  sudo -E USE="${USE} ${EXTRA_USE}" INSTALL_MASK="${INSTALL_MASK}" \
-      ${EMERGE_BOARD_CMD} --root="${root_dev_dir}" --root-deps=rdeps \
-      --usepkgonly -uDNv chromeos-dev ${EMERGE_JOBS}
+  emerge_to_image --root="${root_dev_dir}" -uDNv chromeos-dev
 
   if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
     # Clean out unused packages
-    sudo -E USE="${USE} ${EXTRA_USE}" INSTALL_MASK="${INSTALL_MASK}" \
-      ${EMERGE_BOARD_CMD} --root="${ROOT_FS_DIR}" --root-deps=rdeps \
-      --usepkgonly --depclean ${EMERGE_JOBS}
+    emerge_to_image --root="${ROOT_FS_DIR}" --depclean
   fi
 
   # Install the bare necessary files so that the "emerge" command works
@@ -504,14 +503,10 @@ update_base_packages() {
     -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
 
   # Emerge updated packages, exactly like when creating base image
-  sudo USE="${EXTRA_USE}" INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
-    --root="${ROOT_FS_DIR}" --root-deps=rdeps \
-    --usepkgonly -uDNv chromeos ${EXTRA_PACKAGES} ${EMERGE_JOBS}
+  emerge_to_image --root="${ROOT_FS_DIR}" -uDNv chromeos ${EXTRA_PACKAGES}
 
   # Clean out unused packages
-  sudo INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
-    --root="${ROOT_FS_DIR}" --root-deps=rdeps \
-    --usepkgonly --depclean ${EMERGE_JOBS}
+  emerge_to_image --root="${ROOT_FS_DIR}" --depclean
 
   trap - EXIT
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
@@ -636,9 +631,7 @@ create_base_image() {
   # runtime packages for chrome os. This builds up a chrome os image from
   # binary packages with runtime dependencies only.  We use INSTALL_MASK to
   # trim the image size as much as possible.
-  sudo USE="${EXTRA_USE}" INSTALL_MASK="${INSTALL_MASK}" ${EMERGE_BOARD_CMD} \
-    --root="${ROOT_FS_DIR}" --root-deps=rdeps \
-    --usepkgonly chromeos ${EXTRA_PACKAGES} ${EMERGE_JOBS}
+  emerge_to_image --root="${ROOT_FS_DIR}" chromeos ${EXTRA_PACKAGES}
 
   # Set /etc/lsb-release on the image.
   "${OVERLAY_CHROMEOS_DIR}/scripts/cros_set_lsb_release" \
@@ -736,7 +729,7 @@ if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
 fi
 
 # Perform an eclean to remove packages which are not installed
-if [[ "${FLAGS_eclean}" -eq "${FLAGS_TRUE}" ]]; then
+if [[ ${FLAGS_eclean} -eq ${FLAGS_TRUE} ]]; then
   eclean-${FLAGS_board} -d packages
 fi
 
@@ -752,7 +745,7 @@ else
 fi
 
 USE_DEV_KEYS=
-if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
+if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   USE_DEV_KEYS="--use_dev_keys"
 fi
 
@@ -766,9 +759,9 @@ ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
 # should unconditionally test an image after crosbug12352 is fixed
 if [[ "${ARCH}" = "x86" ]] ||
    [[ "${ARCH}" = "arm" &&
-      "${FLAGS_crosbug12352_arm_kernel_signing}" -eq "${FLAGS_TRUE}" ]]; then
+      ${FLAGS_crosbug12352_arm_kernel_signing} -eq ${FLAGS_TRUE} ]]; then
   BOOT_FLAG=
-  if [ "${FLAGS_factory_install}" -eq "${FLAGS_TRUE}" ]; then
+  if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
     BOOT_FLAG="-b 1"  # BOOT_FLAG_DEVELOPER value defined in load_kernel_fw.h
     info "--factory_install set, pass BOOT_FLAG_DEVELOPER flag to \
 load_kernel_test"
@@ -780,7 +773,7 @@ load_kernel_test"
 fi
 
 # Create a developer image based on the chromium os base image.
-if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ] ; then
+if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ] ; then
   if [[ ! -f ${DEVELOPER_IMG} ]] ; then
     echo "Creating developer image from base image ${PRISTINE_IMAGE_NAME}"
     cp ${PRISTINE_IMG} ${DEVELOPER_IMG}
@@ -805,7 +798,7 @@ ln -s $(basename ${OUTPUT_DIR}) ${FLAGS_output_root}/${FLAGS_board}/latest
 
 echo "Done.  Image created in ${OUTPUT_DIR}"
 echo "Chromium OS image created as ${PRISTINE_IMAGE_NAME}"
-if [ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]; then
+if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
   echo "Developer image created as ${DEVELOPER_IMAGE_NAME}"
 fi
 
