@@ -28,7 +28,7 @@ def GetCallerName():
 def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
                exit_code=False, redirect_stdout=False, redirect_stderr=False,
                cwd=None, input=None, enter_chroot=False, num_retries=0,
-               log_to_file=None):
+               log_to_file=None, combine_stdout_stderr=False):
   """Runs a shell command.
 
   Arguments:
@@ -46,6 +46,8 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
       cwd must point to the scripts directory.
     num_retries: the number of retries to perform before dying
     log_to_file: Redirects all stderr and stdout to file specified by this path.
+    combine_stdout_stderr: Combines stdout and stdin streams into stdout. Auto
+      set to true if log_to_file specifies a file.
 
   Returns:
     If exit_code is True, returns the return code of the shell command.
@@ -71,6 +73,7 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
   else:
     if redirect_stdout:  stdout = subprocess.PIPE
     if redirect_stderr:  stderr = subprocess.PIPE
+    if combine_stdout_stderr: stderr = subprocess.STDOUT
 
   if input:  stdin = subprocess.PIPE
   if enter_chroot:  cmd = ['./enter_chroot.sh', '--'] + cmd
@@ -106,13 +109,11 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
     return proc.returncode
 
   # If the command (and all retries) failed, handle error result
-  if proc.returncode != 0:
-    if error_ok:
-      Warning('Command "%r" failed.\n' % (cmd) +
-              (error_message or error or output or ''))
-    else:
-      raise RunCommandException('Command "%r" failed.\n' % (cmd) +
-                                (error_message or error or output or ''))
+  if proc.returncode != 0 and not error_ok:
+    error_info = ('Command "%r" failed.\n' % (cmd) +
+                  (error_message or error or output or ''))
+    if log_to_file: error_info += '\nOutput logged to %s' % log_to_file
+    raise RunCommandException(error_info)
 
   # return final result
   return output

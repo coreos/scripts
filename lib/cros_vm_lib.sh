@@ -31,7 +31,6 @@ function blocking_kill() {
   local timeout=1
   sudo kill -$2 $1
   while ps -p $1 > /dev/null && [ ${timeout} -le $3 ]; do
-    warn "Process still running, sleeping for ${timeout}"
     sleep ${timeout}
     timeout=$((timeout*2))
   done
@@ -129,7 +128,6 @@ function stop_kvm() {
     echo "Stopping the KVM instance" >&2
     local pid=$(get_pid)
     if [ -n "${pid}" ]; then
-      echo "Killing ${pid}" >&2
       blocking_kill ${pid} 1 16 || blocking_kill 9 1
       sudo rm "${KVM_PID_FILE}"
     else
