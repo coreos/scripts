@@ -36,8 +36,7 @@ DEFINE_string board "" "Override board reported by target"
 DEFINE_string device "" "Override boot device reported by target"
 DEFINE_string partition "" "Override kernel partition reported by target"
 DEFINE_string arch "" "Override architecture reported by target"
-DEFINE_boolean modules false "Update modules on target"
-DEFINE_boolean firmware false "Update firmware on target"
+DEFINE_boolean reboot $FLAGS_TRUE "Reboot system after update"
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -60,12 +59,17 @@ function learn_device() {
 }
 
 # Ask the target what the kernel partition is
-function learn_partition() {
+function learn_partition_and_ro() {
   [ -n "${FLAGS_partition}" ] && return
   ! remote_sh rootdev
   if [ "${REMOTE_OUT}" == "/dev/dm-0" ]; then
     remote_sh ls /sys/block/dm-0/slaves
     REMOTE_OUT="/dev/${REMOTE_OUT}"
+    REMOTE_VERITY=${FLAGS_TRUE}
+    info "System is using verity: not updating firmware"
+  else
+    REMOTE_VERITY=${FLAGS_FALSE}
+    info "System is not using verity: updating firmware and modules"
   fi
   if [ "${REMOTE_OUT}" == "${FLAGS_device}3" ]; then
     FLAGS_partition="${FLAGS_device}2"
@@ -96,6 +100,16 @@ function make_kernelimage() {
   fi
 }
 
+function copy_kernelimage() {
+  if [ "${FLAGS_arch}" == "arm" -a ${REMOTE_VERITY} -eq ${FLAGS_FALSE} ]; then
+    remote_cp_to /build/${FLAGS_board}/boot/vmlinux.uimg /boot
+  fi
+
+  remote_cp_to new_kern.bin /tmp
+
+  remote_sh dd if=/tmp/new_kern.bin of="${FLAGS_partition}"
+}
+
 function main() {
   trap cleanup EXIT
 
@@ -109,7 +123,7 @@ function main() {
 
   learn_device
 
-  learn_partition
+  learn_partition_and_ro
 
   remote_sh uname -r -v
 
@@ -117,35 +131,37 @@ function main() {
 
   make_kernelimage
 
-  remote_cp_to new_kern.bin /tmp
-
-  remote_sh dd if=/tmp/new_kern.bin of="${FLAGS_partition}"
-
-  if [[ ${FLAGS_modules} -eq ${FLAGS_TRUE} ]]; then
-    echo "copying modules"
+  if [[ ${REMOTE_VERITY} -eq ${FLAGS_FALSE} ]]; then
     tar -C /build/"${FLAGS_board}"/lib/modules -cjf /tmp/new_modules.tar .
-
-    remote_cp_to /tmp/new_modules.tar /tmp/
-
-    remote_sh mount -o remount,rw /
-    remote_sh tar -C /lib/modules -xjf /tmp/new_modules.tar
-  fi
-
-  if [[ ${FLAGS_firmware} -eq ${FLAGS_TRUE} ]]; then
-    echo "copying firmware"
     tar -C /build/"${FLAGS_board}"/lib/firmware -cjf /tmp/new_firmware.tar .
 
+    remote_sh mount -o remount,rw /
+    echo "copying modules"
+    remote_cp_to /tmp/new_modules.tar /tmp/
+
+    remote_sh tar -C /lib/modules -xjf /tmp/new_modules.tar
+
+    echo "copying firmware"
     remote_cp_to /tmp/new_firmware.tar /tmp/
 
-    remote_sh mount -o remount,rw /
     remote_sh tar -C /lib/firmware -xjf /tmp/new_firmware.tar
   fi
 
-  remote_reboot
+  echo "copying kernel"
 
-  remote_sh uname -r -v
-  info "old kernel: ${old_kernel}"
-  info "new kernel: ${REMOTE_OUT}"
+  copy_kernelimage
+
+  if [ "${FLAGS_reboot}" -eq ${FLAGS_TRUE} ]; then
+    echo "rebooting"
+
+    remote_reboot
+
+    remote_sh uname -r -v
+    info "old kernel: ${old_kernel}"
+    info "new kernel: ${REMOTE_OUT}"
+  else
+    info "Not rebooting (per request)"
+  fi
 }
 
 main "$@"
