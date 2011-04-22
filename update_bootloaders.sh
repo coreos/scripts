@@ -215,9 +215,6 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
     sudo cp "${FLAGS_from}/boot-A.scr.uimg" \
       "${ESP_FS_DIR}/u-boot/boot.scr.uimg"
   fi
-  # Create VbNvContext storage file to ESP partition
-  sudo mkdir -p "${ESP_FS_DIR}/u-boot"
-  sudo dd if=/dev/zero of="${ESP_FS_DIR}/u-boot/nvcxt.bin" bs=512 count=1
 fi
 
 set +e
