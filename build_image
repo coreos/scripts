@@ -193,7 +193,7 @@ if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
   # Factory install needs to have the kernel initrmafs enabled,
   # and the factory installer added.
   EXTRA_PACKAGES="${EXTRA_PACKAGES} chromeos-base/chromeos-factoryinstall"
-  export USE="${USE} initramfs"
+  export USE="${USE} fbconsole initramfs"
 fi
 
 emerge_to_image() {

@@ -175,7 +175,7 @@ emerge_recovery_kernel() {
   $EMERGE_BOARD_CMD \
     $emerge_flags --binpkg-respect-use=y \
     chromeos-initramfs || die "no initramfs"
-  USE="initramfs" $EMERGE_BOARD_CMD \
+  USE="fbconsole initramfs" $EMERGE_BOARD_CMD \
                     $emerge_flags --binpkg-respect-use=y \
                     virtual/kernel
 }
