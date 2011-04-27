@@ -64,8 +64,8 @@ DEFINE_string rootfs_hash "" \
 DEFINE_integer verity_error_behavior 2 \
   "Verified boot error behavior [0: I/O errors, 1: reboot, 2: nothing] \
 (Default: 2)"
-DEFINE_integer verity_tree_depth 1 \
-  "Optional Verified boot hash tree depth. (Default: 1)"
+DEFINE_integer verity_tree_depth 0 \
+  "Optional Verified boot hash tree depth. (Default: 0)"
 DEFINE_integer verity_max_ios -1 \
   "Optional number of outstanding I/O operations. (Default: -1)"
 DEFINE_string verity_hash_alg "sha1" \
