@@ -110,8 +110,12 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
 
   # If the command (and all retries) failed, handle error result
   if proc.returncode != 0 and not error_ok:
+    if output:
+      print >> sys.stderr, output
+      sys.stderr.flush()
+
     error_info = ('Command "%r" failed.\n' % (cmd) +
-                  (error_message or error or output or ''))
+                  (error_message or error or ''))
     if log_to_file: error_info += '\nOutput logged to %s' % log_to_file
     raise RunCommandException(error_info)
 
