@@ -190,10 +190,16 @@ OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos/"
 # Configure extra USE or packages for this type of build.
 EXTRA_PACKAGES=""
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
-  # Factory install needs to have the kernel initrmafs enabled,
-  # and the factory installer added.
+  # Factory install needs to have the factory installer added.
   EXTRA_PACKAGES="${EXTRA_PACKAGES} chromeos-base/chromeos-factoryinstall"
-  export USE="${USE} fbconsole initramfs"
+  # On x86, booting factory install shim on SD card needs to have the kernel
+  # initrmafs enabled. On ARM, booting factory install image on network does
+  # not needs initramfs. Force to enable fbconsole to fix a display driver bug.
+  if [ ${ARCH} -eq "arm" ] ; then
+    export USE="${USE} fbconsole"
+  else
+    export USE="${USE} initramfs"
+  fi
 fi
 
 emerge_to_image() {
