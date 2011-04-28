@@ -97,9 +97,6 @@ DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
 DEFINE_integer verity_error_behavior 2 \
   "Kernel verified boot error behavior (0: I/O errors, 1: reboot, 2: nothing)"
-# TODO(msb) remove this option (http://crosbug.com/14357)
-DEFINE_integer verity_depth 0 \
-  "Kernel verified boot hash tree depth"
 DEFINE_integer verity_max_ios 1024 \
   "Number of outstanding I/O operations dm-verity caps at."
 DEFINE_string verity_algorithm "sha1" \
@@ -201,7 +198,6 @@ make_image_bootable() {
     --rootfs_image=${root_dev} \
     --rootfs_hash=${FLAGS_rootfs_hash} \
     --verity_hash_alg=${FLAGS_verity_algorithm} \
-    --verity_tree_depth=${FLAGS_verity_depth} \
     --verity_max_ios=${FLAGS_verity_max_ios} \
     --verity_error_behavior=${FLAGS_verity_error_behavior} \
     --root=${cros_root} \

@@ -64,8 +64,6 @@ DEFINE_string rootfs_hash "" \
 DEFINE_integer verity_error_behavior 2 \
   "Verified boot error behavior [0: I/O errors, 1: reboot, 2: nothing] \
 (Default: 2)"
-DEFINE_integer verity_tree_depth 0 \
-  "Optional Verified boot hash tree depth. (Default: 0)"
 DEFINE_integer verity_max_ios -1 \
   "Optional number of outstanding I/O operations. (Default: -1)"
 DEFINE_string verity_hash_alg "sha1" \
@@ -101,7 +99,8 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
 
   info "Generating root fs hash tree."
   # Runs as sudo in case the image is a block device.
-  table=$(sudo verity create ${FLAGS_verity_tree_depth} \
+  # First argument to verity is reserved/unused and MUST be 0
+  table=$(sudo verity create 0 \
                         ${FLAGS_verity_hash_alg} \
                         ${FLAGS_rootfs_image} \
                         ${root_fs_blocks} \

@@ -98,13 +98,12 @@ KERNEL_CONFIG=$(sudo "${DUMP_KERNEL_CONFIG}" "${KERNEL_IMG}")
 kernel_cfg="$(echo "${KERNEL_CONFIG}" | sed -e 's/.*dm="\([^"]*\)".*/\1/g' |
               cut -f2- -d,)"
 rootfs_sectors=$(echo ${kernel_cfg} | cut -f2 -d' ')
-verity_depth=$(echo ${kernel_cfg} | cut -f7 -d' ')
 verity_algorithm=$(echo ${kernel_cfg} | cut -f8 -d' ')
 
 # Compute the rootfs hash tree
 VERITY=/bin/verity
-table="vroot none ro,"$(sudo "${VERITY}" create \
-        ${verity_depth} \
+# First argument to verity is reserved/unused and MUST be 0
+table="vroot none ro,"$(sudo "${VERITY}" create 0 \
         "${verity_algorithm}" \
         "${ROOTFS_IMG}" \
         $((rootfs_sectors / 8)) \

@@ -208,7 +208,6 @@ create_recovery_kernel_image() {
   # TODO(wad) just update these everywhere
   verity_args=$(echo $verity_args | sed \
     -e 's/verity_algorithm/verity_hash_alg/g' \
-    -e 's/verity_depth/verity_tree_depth/g' \
     -e 's/"//g')
 
   # Tie the installed recovery kernel to the final kernel.  If we don't

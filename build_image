@@ -396,7 +396,6 @@ create_boot_desc() {
   --statefulfs_mountpoint="${STATEFUL_FS_DIR}"
   --espfs_mountpoint="${ESP_FS_DIR}"
   --verity_error_behavior="${FLAGS_verity_error_behavior}"
-  --verity_depth="0"
   --verity_max_ios="${FLAGS_verity_max_ios}"
   --verity_algorithm="${FLAGS_verity_algorithm}"
   --keys_dir="${DEVKEYSDIR}"
