@@ -187,18 +187,42 @@ OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos/"
 # Determine build version.
 . "${OVERLAY_CHROMEOS_DIR}/config/chromeos_version.sh"
 
+BOARD="${FLAGS_board}"
+BOARD_ROOT="${FLAGS_build_root}/${BOARD}"
+
+# What cross-build are we targeting?
+. "${BOARD_ROOT}/etc/make.conf.board_setup"
+LIBC_VERSION=${LIBC_VERSION}
+
+# Figure out ARCH from the given toolchain.
+# TODO: Move to common.sh as a function after scripts are switched over.
+TC_ARCH=$(echo "${CHOST}" | awk -F'-' '{ print $1 }')
+case "${TC_ARCH}" in
+  arm*)
+    ARCH="arm"
+    ;;
+  *86)
+    ARCH="x86"
+    ;;
+  *)
+    error "Unable to determine ARCH from toolchain: ${CHOST}"
+    exit 1
+esac
+
 # Configure extra USE or packages for this type of build.
 EXTRA_PACKAGES=""
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
   # Factory install needs to have the factory installer added.
   EXTRA_PACKAGES="${EXTRA_PACKAGES} chromeos-base/chromeos-factoryinstall"
-  # On x86, booting factory install shim on SD card needs to have the kernel
-  # initrmafs enabled. On ARM, booting factory install image on network does
-  # not needs initramfs. Force to enable fbconsole to fix a display driver bug.
-  if [ ${ARCH} -eq "arm" ] ; then
-    export USE="${USE} fbconsole"
-  else
+  # On x86, we boot the factory install shim from an SD card using
+  # initramfs for our root.  On ARM, we boot the factory install shim
+  # over the network, so we don't require initramfs, but we do require
+  # fbconsole to fix a display driver bug.
+  if [ "${ARCH}" = "x86" ] ; then
     export USE="${USE} initramfs"
+  fi
+  if [ "${ARCH}" = "arm" ] ; then
+    export USE="${USE} fbconsole"
   fi
 fi
 
@@ -236,9 +260,6 @@ fi
 PRISTINE_IMG="${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}"
 DEVELOPER_IMG="${OUTPUT_DIR}/${DEVELOPER_IMAGE_NAME}"
 
-BOARD="${FLAGS_board}"
-BOARD_ROOT="${FLAGS_build_root}/${BOARD}"
-
 ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
 ROOT_FS_DIR="${OUTPUT_DIR}/rootfs"
 ROOT_FS_HASH="${OUTPUT_DIR}/rootfs.hash"
@@ -260,28 +281,9 @@ ESP_LOOP_DEV=
 # translate to /usr/local.
 DEV_IMAGE_ROOT="${STATEFUL_FS_DIR}/dev_image"
 
-# What cross-build are we targeting?
-. "${BOARD_ROOT}/etc/make.conf.board_setup"
-LIBC_VERSION=${LIBC_VERSION}
-
 if [ ${FLAGS_jobs} -ne -1 ]; then
   EMERGE_JOBS="--jobs=${FLAGS_jobs}"
 fi
-
-# Figure out ARCH from the given toolchain.
-# TODO: Move to common.sh as a function after scripts are switched over.
-TC_ARCH=$(echo "${CHOST}" | awk -F'-' '{ print $1 }')
-case "${TC_ARCH}" in
-  arm*)
-    ARCH="arm"
-    ;;
-  *86)
-    ARCH="x86"
-    ;;
-  *)
-    error "Unable to determine ARCH from toolchain: ${CHOST}"
-    exit 1
-esac
 
 if [[ ${FLAGS_crosbug12352_arm_kernel_signing} -eq ${FLAGS_TRUE} ]]; then
   crosbug12352_flag="--crosbug12352_arm_kernel_signing"
