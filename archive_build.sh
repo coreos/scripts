@@ -35,6 +35,9 @@ IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images"
 DEFAULT_TO="${GCLIENT_ROOT}/archive"
 DEFAULT_FROM="${IMAGES_DIR}/$DEFAULT_BOARD/$(ls -t1 \
               $IMAGES_DIR/$DEFAULT_BOARD 2>&-| head -1)"
+# The set of environment assignment we need to pass to enter_chroots for this
+# build.  e.g. USE flags alter some of the commands' effect.
+CHROOT_ENV=""
 
 # Flags
 DEFINE_boolean archive_debug $FLAGS_TRUE \
@@ -71,6 +74,7 @@ DEFINE_boolean prebuilt_upload $FLAGS_FALSE "Upload prebuilt binary packages."
 DEFINE_boolean remove_dev $FLAGS_TRUE "Remove the de image during archive."
 DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
 DEFINE_string zipname "image.zip" "Name of zip file to create."
+DEFINE_string useflags "" "USE flags to pass into mod_image_* and build_image."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -89,6 +93,10 @@ fi
 
 # Die on any errors.
 set -e
+
+if [ -n "${FLAGS_useflags}" ]; then
+  CHROOT_ENV="${CHROOT_ENV} USE='${FLAGS_useflags}'"
+fi
 
 if [ -z "$DEFAULT_USED" ]; then
   if [ $FLAGS_test_mod -eq $FLAGS_TRUE ] || \
@@ -144,8 +152,8 @@ mkdir -p "$OUTDIR"
 # Modify image for test if flag set.
 if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]; then
   echo "Modifying image for test"
-  ./enter_chroot.sh -- ./mod_image_for_test.sh --board $FLAGS_board \
-      --noinplace --yes
+  ./enter_chroot.sh $CHROOT_ENV -- ./mod_image_for_test.sh \
+    --board $FLAGS_board --noinplace --yes
 
   pushd "${FLAGS_chroot}/build/${FLAGS_board}/usr/local"
   echo "Archiving autotest build artifacts"
@@ -157,8 +165,8 @@ fi
 if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
   BUILDVER="$(readlink ${IMAGES_DIR}/${FLAGS_board}/latest)"
   CHROOT_IMAGE_DIR=/home/$USER/trunk/src/build/images/$FLAGS_board/$BUILDVER
-  ./enter_chroot.sh -- ./mod_image_for_recovery.sh --board $FLAGS_board \
-    --image $CHROOT_IMAGE_DIR/chromiumos_base_image.bin
+  ./enter_chroot.sh $CHROOT_ENV -- ./mod_image_for_recovery.sh \
+    --board $FLAGS_board --image $CHROOT_IMAGE_DIR/chromiumos_base_image.bin
 fi
 
 # Remove the developer build if test image is also built.
@@ -176,11 +184,11 @@ if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ]; then
   # zeroes out the current revision, which makes calling build_image directly
   # fail. You must explictly call replace and specify a unique name numerically
   # using build_attempt.
-  ./enter_chroot.sh -- ./build_image --board $FLAGS_board \
+  ./enter_chroot.sh $CHROOT_ENV -- ./build_image --board $FLAGS_board \
       --replace --noenable_rootfs_verification --build_attempt 4
 
-  ./enter_chroot.sh -- ./mod_image_for_test.sh --board $FLAGS_board \
-      --yes --noinplace --factory
+  ./enter_chroot.sh $CHROOT_ENV -- ./mod_image_for_test.sh \
+      --board $FLAGS_board --yes --noinplace --factory
 
   # Get the factory test dir: It is the newest build.
   # This is the output dir for the factory shim, the factory test and
@@ -202,8 +210,8 @@ if [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]; then
   # zeroes out the current revision, which makes calling build_image directly
   # fail. You must explictly call replace and specify a unique name numerically
   # using build_attempt.
-  ./enter_chroot.sh -- ./build_image --board $FLAGS_board --factory_install \
-      --replace --build_attempt 7
+  ./enter_chroot.sh $CHROOT_ENV -- ./build_image --board $FLAGS_board \
+    --factory_install --replace --build_attempt 7
 
   # Get the install shim dir: It is the newest build.
   # This is the output dir for the factory shim, the factory test and
