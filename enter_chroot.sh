@@ -275,6 +275,9 @@ function setup_env {
       fi
     fi
 
+    # Fix permissions on shared memory to allow non-root users access to POSIX
+    # semaphores.
+    sudo chmod -R 777 "${FLAGS_chroot}/dev/shm"
   ) 200>>"$LOCKFILE" || die "setup_env failed"
 }
 
