@@ -403,6 +403,14 @@ CHROMEOS_VERSION_TRACK=${CHROMEOS_VERSION_TRACK} \
 CHROMEOS_VERSION_AUSERVER=${CHROMEOS_VERSION_AUSERVER} \
 CHROMEOS_VERSION_DEVSERVER=${CHROMEOS_VERSION_DEVSERVER}"
 
+# Pass proxy variables into the environment.
+for type in http_proxy ftp_proxy all_proxy GIT_PROXY_COMMAND GIT_SSH; do
+   eval value=\$${type}
+   if [ -n "${value}" ]; then
+      CHROOT_PASSTHRU="${CHROOT_PASSTHRU} ${type}=${value}"
+   fi
+done
+
 if [ -d "$HOME/.subversion" ]; then
   TARGET="/home/${USER}/.subversion"
   mkdir -p "${FLAGS_chroot}${TARGET}"
