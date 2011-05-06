@@ -105,9 +105,12 @@ def CopyRequiredFiles(dest_files_root):
   ldd_files = ['/usr/bin/delta_generator', '/usr/bin/bsdiff',
                '/usr/bin/bspatch', '/usr/bin/cgpt']
   # statically linked files and scripts etc.,
+  image_sign_dir = '~/trunk/src/platform/vboot_reference/scripts/image_signing'
   static_files = ['~/trunk/src/scripts/common.sh',
                   '/usr/bin/cros_generate_update_payload',
-                  '~/trunk/src/scripts/chromeos-common.sh']
+                  '~/trunk/src/scripts/chromeos-common.sh',
+                  '%s/convert_recovery_to_ssd.sh' % image_sign_dir,
+                  '%s/common_minimal.sh' % image_sign_dir]
   # We need directories to be copied recursively to a destination within tempdir
   recurse_dirs = {'~/trunk/src/scripts/lib/shflags': 'lib/shflags'}
 
