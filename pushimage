@@ -1,0 +1,187 @@
+#!/bin/bash
+# Set PROGram name
+PROG=$(basename $0)
+########################################################################
+#+
+#+ NAME
+#+     $PROG - ChromeOS image pusher (.zip and .bin)
+#+ 
+#+ SYNOPSIS
+#+     $PROG  [--nolatest] [--beta] [--branch=<branch>]
+#+             --board=<board> <image directory>
+#+     $PROG  [--help | -man] 
+#+     $PROG  [--usage | -?]
+#+ 
+#+ DESCRIPTION
+#+     Push images up to archive server, chromeos-images and chrome-master.mtv.
+#+     Always pushes up to -rc (release candidate) namespace.
+#+ 
+#+ OPTIONS
+#+     [--beta]                       - Beta Channel
+#+     [--nolatest]                   - Do not set LATEST file
+#+     [--branch]                     - branch value determines if support
+#+                                      scripts also get updated
+#+     [--help | -man]                - display man page for this script
+#+     [--usage | -?]                 - display usage information
+#+ 
+#+ EXAMPLES
+#+ 
+#+ FILES
+#+     Applicable files
+#+     Related files
+#+ 
+#+ SEE ALSO
+#+     stdlib.sh                 -  function definitions for TimeStamp, etc.
+#+     Other related scripts
+#+ 
+#+ BUGS/TODO
+#+     Known problems with script
+#+ 
+#- AUTHOR & DT : djmm Wed Jul 21 15:02:45 PDT 2010
+#-
+########################################################################
+# If NO ARGUMENTS should return *usage*, uncomment the following line:
+usage=${1-yes}
+
+# This construct allows $PROG to be a symlink or simply PATH'd to
+symlink=$(readlink $0)
+# Set up basic env and standard functions
+. $(dirname ${symlink:-$0})/stdlib.sh
+
+# Set some default options
+DRYRUN=false
+VERBOSE=false
+CHANNEL=dev-channel
+NOLATEST=false
+RC=-rc
+for arg in $LOOSEARGS
+do
+   case "$arg" in
+     --beta) CHANNEL=beta-channel ;;
+     --nolatest) NOLATEST=true ;;
+     -v) VERBOSE=true ;;
+      *) looseargs="$looseargs $arg" ;;
+   esac
+done
+# strip leading spaces from final looseargs to pass to program
+basedir=$(echo $looseargs)
+basedir=$(cd $basedir && pwd)
+if [ -z "$board" ]
+then
+   $PROG -?
+   exit
+fi
+BOARD=$board
+
+###############################################################################
+# MAIN
+###############################################################################
+tooldir=$(dirname $0)
+cversion=$(basename $basedir)
+cversion2=${cversion%%-*}
+binfile=/tmp/ChromeOS-$cversion-$BOARD.bin.gz
+image_host='chromeos-images.corp.google.com'
+# This should change based on architecture/board and dev/beta channel
+imagetarget_base=/var/www/chromeos-official
+imagetarget=$imagetarget_base/$CHANNEL/$BOARD$RC
+usbtarget=/usr/local/google/cltbld/chromeos/$CHANNEL
+baseimagename=chromiumos_base_image.bin
+baseimage=$(dirname $basedir)/src/build/images/$BOARD/$cversion2-a1/$baseimagename
+
+# BEGIN script
+TimeStamp begin
+
+ReleaseNotify() {
+local lmailto=${1:-"$USER"}
+local lmailfile=/tmp/$PROG-mail.$$
+
+logecho -r
+logecho "Notifying $lmailto of release push..."
+cat <<+_MailFile > $lmailfile
+$cversion2 $BOARD is ready for testing at http://go/chromeos-images.
+<P>
+The ChromeOS-RE Team
++_MailFile
+
+mail -s "ChromeOS $cversion2 $BOARD ready for testing" \
+     -a "From: ChromeOS Releng<chromeos-re@google.com>" \
+     -a "Content-type: text/html" $lmailto < $lmailfile
+
+# cleanup
+rm -f $lmailfile
+}
+
+# SEND TO MAIN IMAGE TARGET
+if ssh $image_host test -d $imagetarget/$cversion2
+then
+   echo "$imagetarget already exists.  Skipping..."
+else
+   echo "Sending images up to $imagetarget/$cversion2..."
+   ssh $image_host mkdir -p $imagetarget/$cversion2
+   scp $basedir/image.zip $image_host:$imagetarget/$cversion2/ChromeOS-$cversion-$BOARD.zip
+   scp $basedir/factory_image.zip $image_host:$imagetarget/$cversion2/ChromeOS-factory-$cversion-$BOARD.zip
+   scp $basedir/*.tar.bz2 $image_host:$imagetarget/$cversion2
+   if [ -f $basedir/au-generator.zip ]; then
+      scp $basedir/au-generator.zip $image_host:$imagetarget/$cversion2/
+   fi
+   scp $basedir/debug.tgz $image_host:$imagetarget/$cversion2/debug-$BOARD.tgz
+   # Copy the build log, ChangeLog and manifest.xml files
+   scp $basedir/*.log $basedir/*.*ml $image_host:$imagetarget/$cversion2
+   # Only update support scripts if master
+   if [ "$branch" = master ]
+   then
+      scp $(dirname $0)/promoterc $image_host:$imagetarget_base
+   fi
+
+   case "$BOARD" in
+     x86-mario|x86-agz|x86-alex|x86-zgb)
+       # Create PVT signed/mod'd images by default
+       ssh $image_host touch $imagetarget/$cversion2/.tobesigned
+       # Copy over the new format signing insturctions.
+       scp $(dirname $0)/signer_instructions/$BOARD.instructions \
+         $image_host:$imagetarget/$cversion2/ChromeOS-$cversion-$BOARD.instructions
+       ;;
+   esac
+
+   $NOLATEST || ssh $image_host "cd $imagetarget && echo $cversion > LATEST"
+   ReleaseNotify chromeos-releases@google.com
+fi
+
+if [ "$USER" = "chrome-bot" ]
+then
+   Exit 0 "Can't send images to chrome-master.mtv from bot jail.  Do it by hand. Exiting..."
+fi
+
+# SEND TO USB TARGET
+echo "Compressing image..."
+# Make compressed image
+if [ -f $baseimage ]
+then
+   cat $baseimage |gzip > $binfile
+else
+   echo "$baseimage not found!  Extracting from image.zip..."
+   mkdir /tmp/foobar.$$
+   cd /tmp/foobar.$$
+   unzip $basedir/image.zip $baseimagename
+   cat $baseimagename | gzip > $binfile
+   cd /tmp
+   rm -rf /tmp/foobar.$$
+fi
+# To store usb key insructions images
+echo "Copying to chrome-master.mtv..."
+scp $binfile chrome-master.mtv:$usbtarget
+if ! $NOLATEST
+then
+   echo "Updating LATEST-$BOARD$RC file..."
+   ssh chrome-master.mtv "echo $(basename $binfile) > $usbtarget/LATEST-$BOARD$RC"
+fi
+# Recursive 775 of upload dir
+ssh chrome-master.mtv "chmod -R 775 $usbtarget 2>&-"
+
+# Copy script and README
+scp $tooldir/mkcrosusb.sh chrome-master.mtv:$usbtarget/..
+scp $tooldir/mkcrosusb.README chrome-master.mtv:$usbtarget/../README.txt
+rm -f $binfile
+
+# END script
+TimeStamp end
