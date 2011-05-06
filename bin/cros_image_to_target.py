@@ -605,6 +605,25 @@ def main(argv):
   if not options.board:
     options.board = cros_env.GetDefaultBoard()
 
+  if options.remote:
+    cros_env.Info('Contacting client %s' % options.remote)
+    cros_env.SetRemote(options.remote)
+    rel = cros_env.GetRemoteRelease()
+    if not rel:
+      cros_env.Fatal('Could not retrieve remote lsb-release')
+    board = rel.get('CHROMEOS_RELEASE_BOARD', '(None)')
+    if not options.board:
+      options.board = board
+    elif board != options.board and not options.force_mismatch:
+      cros_env.Error('Board %s does not match expected %s' %
+                     (board, options.board))
+      cros_env.Error('(Use --force-mismatch option to override this)')
+      cros_env.Fatal()
+
+  elif not options.server_only:
+    parser.error('Either --server-only must be specified or '
+                 '--remote=<client> needs to be given')
+
   if not options.src:
     options.src = cros_env.GetLatestImage(options.board)
     if options.src is None:
@@ -653,23 +672,6 @@ def main(argv):
   cros_env.Debug("Image file %s" % image_file)
   cros_env.Debug("Update file %s" % update_file)
   cros_env.Debug("Stateful file %s" % stateful_file)
-
-  if options.remote:
-    cros_env.Info('Contacting client %s' % options.remote)
-    cros_env.SetRemote(options.remote)
-    rel = cros_env.GetRemoteRelease()
-    if not rel:
-      cros_env.Fatal('Could not retrieve remote lsb-release')
-    board = rel.get('CHROMEOS_RELEASE_BOARD', '(None)')
-    if board != options.board and not options.force_mismatch:
-      cros_env.Error('Board %s does not match expected %s' %
-                     (board, options.board))
-      cros_env.Error('(Use --force-mismatch option to override this)')
-      cros_env.Fatal()
-
-  elif not options.server_only:
-    parser.error('Either --server-only must be specified or '
-                 '--remote=<client> needs to be given')
 
   if (not cros_env.GenerateUpdatePayload(image_file, update_file) or
       not cros_env.BuildStateful(image_file, image_directory, stateful_file)):
