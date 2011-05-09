@@ -116,7 +116,7 @@ DEFINE_boolean use_dev_keys ${FLAGS_FALSE} \
   "Use developer keys for signing. (Default: false)"
 
 # TODO(clchiou): Remove this flag after arm verified boot is stable
-DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_FALSE} \
+DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
   "Sign kernel partition for ARM images (temporary hack)."
 
 # TODO(sosa):  Remove once known images no longer use this in their config.
