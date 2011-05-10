@@ -77,7 +77,7 @@ class LocalManifest:
     """
 
     for project in self._root.findall('project'):
-      if project.attrib['name'].split('/')[-1] == name:
+      if project.attrib['name'] == name:
         return project
     return None
 
