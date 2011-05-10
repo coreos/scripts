@@ -227,6 +227,9 @@ emerge_to_image() {
     "$@" ${EMERGE_JOBS}
 }
 
+# Check that the build root is sane.
+"${SCRIPTS_DIR}/test_build_root" --root="${BOARD_ROOT}"
+
 # Freshen kernel with correct USE flags. This is a noop if we have
 # the right kernel prebuilt. Factory install uses USE="initramfs".
 # We don't allow building from source with the image as a target,

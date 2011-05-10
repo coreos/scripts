@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+# --- END COMMON.SH BOILERPLATE ---
+
+# Flags
+DEFINE_string root ""      \
+  "The root file system to check."
+
+# Parse command line
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Die on any errors
+set -e
+
+# Check all parts of a pipe
+set -o pipefail
+
+ROOT="$FLAGS_root"
+if [[ ! -d "$ROOT" ]]; then
+  echo "Error: Root FS does not exist ($ROOT)"
+  exit 1
+fi
+
+BINARIES="$ROOT/usr/bin/Xorg
+          $ROOT/usr/bin/chromeos-wm
+          $ROOT/boot/vmlinuz
+          $ROOT/sbin/session_manager
+          $ROOT/bin/sed
+          $ROOT/opt/google/chrome/chrome"
+
+EXITCODE=0
+for i in $BINARIES; do
+  if ! [[ -f $i ]]; then
+    echo test_build_root: Cannot find $i
+    EXITCODE=1
+  fi
+done
+
+# Extract the version number from lines like:
+# kCrosAPIMinVersion = 29,
+# kCrosAPIVersion = 30
+extract_cros_version() {
+  NAME="$1"
+  FILE="$2"
+  VERSION=$(perl -ne "print \$1 if /^\\s*${NAME}\\s*=\\s*(\\d+)/" "$FILE")
+  test -z "$VERSION" && die "Failed to get $NAME from $FILE"
+  echo $VERSION
+}
+
+# Check the libcros version compatibility, like we do in libcros at run time.
+# See also platform/cros/version_check.cc and load.cc.
+check_cros_version() {
+  CHROME_CROS="${ROOT}/opt/google/chrome/include/chromeos_cros_api.h"
+  SYSTEM_CROS="${ROOT}/usr/include/cros/chromeos_cros_api.h"
+
+  if [ ! -f "$SYSTEM_CROS" ]; then
+    echo "test_build_root: Missing libcros headers."
+    return 1
+  fi
+
+
+  if [ ! -f "$CHROME_CROS" ]; then
+    # For compatiblity with old versions of Chrome which don't install headers
+    # and already check the libcros version, skip the check here.
+    return 0
+  fi
+
+  # Get the version of libcros in the chromium tree.
+  VERSION=$(extract_cros_version kCrosAPIVersion "${CHROME_CROS}")
+
+  # Get the min version of libcros in the chromium os tree.
+  MIN_VERSION=$(extract_cros_version kCrosAPIMinVersion "${SYSTEM_CROS}")
+
+  # Get the max version of libcros in the chromium os tree.
+  MAX_VERSION=$(extract_cros_version kCrosAPIVersion "${SYSTEM_CROS}")
+
+  if [ "$MIN_VERSION" -gt "$VERSION" ]; then
+    echo "test_build_root: System libcros not compatible with Chromium."
+    echo "Chromium has version $VERSION, but system requires $MIN_VERSION or"
+    echo "later."
+    return 1
+  fi
+  if [ "$VERSION" -gt "$MAX_VERSION" ]; then
+    echo "test_build_root: System libcros not compatible with Chromium headers."
+    echo "Chromium has version $VERSION, but system requires $MAX_VERSION or"
+    echo "earlier."
+    return 1
+  fi
+  return 0
+}
+
+check_cros_version || EXITCODE=1
+
+exit $EXITCODE
