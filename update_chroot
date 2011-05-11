@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Performs an update of the chroot.
+
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+. "$(dirname $0)/common.sh" || ! echo "Unable to load common.sh" || exit 1
+
+# Script must run inside the chroot
+assert_inside_chroot "$@"
+
+# Flags
+DEFINE_boolean usepkg $FLAGS_TRUE \
+  "Use binary packages to bootstrap."
+DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
+DEFINE_integer retries -1 \
+  "On build failure, the number of times to retry."
+
+# Parse command line flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Only now can we die on error.  shflags functions leak non-zero error codes,
+# so will die prematurely if 'set -e' is specified before now.
+set -e
+
+info "Updating chroot"
+
+# Perform an update of hard-host-depends and world in the chroot.
+EMERGE_CMD="emerge"
+if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
+  EMERGE_CMD="${GCLIENT_ROOT}/chromite/bin/parallel_emerge"
+fi
+if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
+  EMERGE_CMD="${EMERGE_CMD} -g"
+fi
+eretry sudo -E ${EMERGE_CMD} -uDNv chromeos-base/hard-host-depends world
+
