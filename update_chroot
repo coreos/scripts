@@ -14,6 +14,9 @@
 # Script must run inside the chroot
 assert_inside_chroot "$@"
 
+# Do not run as root
+assert_not_root_user
+
 # Flags
 DEFINE_boolean usepkg $FLAGS_TRUE \
   "Use binary packages to bootstrap."
@@ -28,6 +31,9 @@ eval set -- "${FLAGS_ARGV}"
 # Only now can we die on error.  shflags functions leak non-zero error codes,
 # so will die prematurely if 'set -e' is specified before now.
 set -e
+
+# Run version hooks as pre-update
+${SCRIPTS_DIR}/run_chroot_version_hooks
 
 info "Updating chroot"
 
