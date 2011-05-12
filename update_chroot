@@ -31,6 +31,8 @@ set -e
 
 info "Updating chroot"
 
+EMERGE_FLAGS="-uDNv --with-bdeps=y"
+
 # Perform an update of hard-host-depends and world in the chroot.
 EMERGE_CMD="emerge"
 if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
@@ -39,5 +41,6 @@ fi
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   EMERGE_CMD="${EMERGE_CMD} -g"
 fi
-eretry sudo -E ${EMERGE_CMD} -uDNv chromeos-base/hard-host-depends world
+eretry sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
+    chromeos-base/hard-host-depends world
 
