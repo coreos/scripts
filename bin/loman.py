@@ -97,6 +97,9 @@ def main(argv):
   parser.add_option('-f', '--file', dest='local_manifest',
                     default='%s/local_manifest.xml' % repo_dir,
                     help='Non-default manifest file to read.')
+  parser.add_option('-m', '--main', dest='main_manifest',
+                    default='%s/manifest.xml' % repo_dir,
+                    help='Main manifest file to read.')
   parser.add_option('-d', '--default', dest='full_manifest',
                     default='%s/manifests/full.xml' % repo_dir,
                     help='Default manifest file to read.')
@@ -110,14 +113,17 @@ def main(argv):
   name = args[0]
 
   local_tree = _ReadManifest(options.local_manifest)
+  main_tree = _ReadManifest(options.main_manifest)
   full_tree = _ReadManifest(options.full_manifest)
 
-  project_element = full_tree.GetProject(name)
-  if project_element == None:
-    Die('No project named, %s, in the default manifest.' % name)
-  success = local_tree.AddWorkonProjectElement(project_element)
-  if not success:
-    Die('name "%s" already exits with a different path.' % name)
+  # Only add this project to local_manifest.xml if not in manifest.xml
+  if main_tree.GetProject(name) == None:
+    project_element = full_tree.GetProject(name)
+    if project_element == None:
+      Die('No project named, %s, in the default manifest.' % name)
+    success = local_tree.AddWorkonProjectElement(project_element)
+    if not success:
+      Die('name "%s" already exits with a different path.' % name)
 
   try:
     print >> open(options.local_manifest, 'w'), local_tree.ToString()

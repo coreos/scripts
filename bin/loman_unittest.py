@@ -80,9 +80,13 @@ class MainTest(unittest.TestCase):
 
   def setUp(self):
     self.utf8 = "<?xml version='1.0' encoding='UTF-8'?>\n"
-    self.tiny_manifest = '<manifest>\n</manifest>'
+    self.tiny_manifest = self.utf8 + '<manifest>\n</manifest>\n'
     self.stderr = sys.stderr
     sys.stderr = StringIO.StringIO()
+    self.main = tempfile.NamedTemporaryFile('w')
+    print >> self.main, '%s' % self.tiny_manifest
+    self.main.flush()
+    os.fsync(self.main.fileno())
 
   def tearDown(self):
     sys.stderr = self.stderr
@@ -110,10 +114,11 @@ class MainTest(unittest.TestCase):
     default.flush()
     os.fsync(default.fileno())
     temp = tempfile.NamedTemporaryFile('w')
-    print >> temp, '<manifest>\n</manifest>'
+    print >> temp, '%s' % self.tiny_manifest
     temp.flush()
     os.fsync(temp.fileno())
     loman.main(['loman', 'add', '--workon', '-f', temp.name,
+                '-m', self.main.name,
                 '-d', default.name, 'foo'])
     self.assertEqual(
       open(temp.name, 'r').read(),
@@ -133,6 +138,7 @@ class MainTest(unittest.TestCase):
     temp.flush()
     os.fsync(temp.fileno())
     loman.main(['loman', 'add', '--workon', '-f', temp.name,
+                '-m', self.main.name,
                 '-d', default.name, 'foo'])
 
   def testAddDup(self):
@@ -150,7 +156,26 @@ class MainTest(unittest.TestCase):
     os.fsync(temp.fileno())
     self.assertRaises(SystemExit, loman.main,
                       ['loman', 'add', '--workon', '-f', temp.name,
+                       '-m', self.main.name,
                        '-d', default.name, 'foo'])
+
+  def testAddDupInMain(self):
+    default = tempfile.NamedTemporaryFile('w')
+    print >> default, '<manifest>\n' \
+      '<project name="foo" path="path/to/foo" />\n' \
+      '</manifest>\n'
+    default.flush()
+    os.fsync(default.fileno())
+    temp = tempfile.NamedTemporaryFile('w')
+    print >> temp, '%s' % self.tiny_manifest
+    temp.flush()
+    os.fsync(temp.fileno())
+    loman.main(['loman', 'add', '--workon', '-f', temp.name,
+                '-m', default.name,
+                '-d', default.name, 'foo'])
+    self.assertEqual(
+      open(temp.name, 'r').read(),
+      self.tiny_manifest)
 
   def testAddNonexistant(self):
     default = tempfile.NamedTemporaryFile('w')
@@ -165,6 +190,7 @@ class MainTest(unittest.TestCase):
     os.fsync(temp.fileno())
     self.assertRaises(SystemExit, loman.main,
                       ['loman', 'add', '--workon', '-f', temp.name,
+                       '-m', self.main.name,
                        '-d', default.name, 'bar'])
 
 
