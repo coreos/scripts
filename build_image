@@ -91,7 +91,7 @@ DEFINE_string usb_disk /dev/sdb3 \
   "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
 
 # TODO(clchiou): Remove this flag after arm verified boot is stable
-DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
+DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_FALSE} \
   "Sign kernel partition for ARM images (temporary hack)."
 
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \

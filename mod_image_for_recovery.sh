@@ -82,7 +82,7 @@ DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
   "Directory containing the signing keys."
 
 # TODO(clchiou): Remove this flag after arm verified boot is stable
-DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
+DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_FALSE} \
   "Sign kernel partition for ARM images (temporary hack)."
 
 # Parse command line

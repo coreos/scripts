@@ -70,7 +70,7 @@ DEFINE_string verity_hash_alg "sha1" \
   "Cryptographic hash algorithm used for dm-verity. (Default: sha1)"
 
 # TODO(clchiou): Remove this flag after arm verified boot is stable
-DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
+DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_FALSE} \
   "Sign kernel partition for ARM images (temporary hack)."
 
 # Parse flags
