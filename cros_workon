@@ -131,7 +131,7 @@ show_project_ebuild_map() {
 show_project_path_map() {
   # Column 1: Repo name
   # Column 2: Source directory
-  repo forall -c 'echo $REPO_PROJECT $REPO_PATH'
+  repo list | awk -F ' : ' '{ print $2, $1 }'
 }
 
 show_workon_ebuilds() {
