@@ -28,6 +28,7 @@ FLAGS_HELP="usage: $0 <command> [flags] [<list of packages>|--all]
 commands:
   start:     Moves an ebuild to live (intended to support development)
   stop:      Moves an ebuild to stable (use last known good)
+  info:      Print package name, repo name, and source directory.
   list:      List of live ebuilds (workon ebuilds if --all)
   list-all:  List all of the live ebuilds for all setup boards
   iterate:   For each ebuild, cd to the source dir and run a command"
@@ -108,13 +109,48 @@ find_keyword_workon_ebuilds() {
   done
 }
 
-show_workon_ebuilds() {
-  local keyword=$1
-
-  find_keyword_workon_ebuilds ${keyword} | \
-    sed -e 's/.*\/\([^/]*\)\/\([^/]*\)\/.*\.ebuild/\1\/\2/' | \
-       sort -u
+ebuild_to_package() {
   # This changes the absolute path to ebuilds into category/package.
+  sed -e 's/.*\/\([^/]*\)\/\([^/]*\)\/.*\.ebuild/\1\/\2/'
+}
+
+show_project_ebuild_map() {
+  local keyword="$1"
+
+  # Column 1: Repo name
+  # Column 2: Package name
+  for EBUILD in $(find_keyword_workon_ebuilds ${keyword}); do
+    (
+      eval $(grep -E '^CROS_WORKON' "${EBUILD}")
+      CP=$(echo "$EBUILD" | ebuild_to_package)
+      echo "${CROS_WORKON_PROJECT}" "${CP}"
+    )
+  done
+}
+
+show_project_path_map() {
+  # Column 1: Repo name
+  # Column 2: Source directory
+  repo forall -c 'echo $REPO_PROJECT $REPO_PATH'
+}
+
+show_workon_ebuilds() {
+  local keyword="$1"
+  find_keyword_workon_ebuilds "${keyword}" | ebuild_to_package | sort -u
+}
+
+show_workon_info() {
+   local atoms="$1"
+   local keyword="$2"
+   # Column 1: Package name
+   # Column 2: Repo name
+   # Column 3: Source directory (if present locally)
+   join \
+     <(echo "$atoms" | sed -e 's/ /\n/g' | sort -u) \
+     <(join -a 1 -e - -o 1.2,1.1,2.2 \
+       <(show_project_ebuild_map "${keyword}" | sort -u) \
+       <(show_project_path_map | sort -u) \
+       | sort -u)
 }
 
 # Canonicalize package name to category/package.
@@ -253,14 +289,14 @@ ebuild_iterate() {
 # --all makes commands operate on different lists
 if [ ${FLAGS_all} = "${FLAGS_TRUE}" ]; then
   case ${WORKON_CMD} in
-    start) ATOM_LIST=$(show_workon_ebuilds ${BOARD_KEYWORD});;
+    start|info) ATOM_LIST=$(show_workon_ebuilds ${BOARD_KEYWORD});;
     stop|iterate) ATOM_LIST=$(show_live_ebuilds);;
     list) ;;
     *) die "--all is invalid for the given command";;
   esac
 else # not selected --all
   case ${WORKON_CMD} in
-    start|stop|iterate)
+    start|stop|info|iterate)
       ATOM_LIST=$@
       if [ -z "${ATOM_LIST}" ]; then
         die "${WORKON_CMD}: No packages specified"
@@ -274,6 +310,7 @@ fi
 case ${WORKON_CMD} in
   start) ebuild_to_live "${ATOM_LIST}" ;;
   stop) ebuild_to_stable "${ATOM_LIST}" ;;
+  info) show_workon_info "${ATOM_LIST}" "${BOARD_KEYWORD}" ;;
   list) [ ${FLAGS_all} = "${FLAGS_FALSE}" ] && show_live_ebuilds || \
     show_workon_ebuilds ${BOARD_KEYWORD} ;;
   list-all) show_all_live_ebuilds ;;
