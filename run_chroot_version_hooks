@@ -25,7 +25,7 @@ DEFINE_boolean skipfirst "${FLAGS_FALSE}" \
 FLAGS "$@" || exit 1
 
 VERSION_FILE=/etc/cros_chroot_version
-UPGRADE_D="$(dirname ${0})/chroot_upgrade.d"
+UPGRADE_D="$(dirname ${0})/chroot_version_hooks.d"
 
 function update_version() {
   sudo touch ${VERSION_FILE}
