@@ -4,6 +4,11 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+# Script to generate an universal factory install shim image, by merging
+# multiple images signed by different keys.
+# CAUTION: Recovery shim images are not supported yet because they require the
+# kernel partitions to be laid out in a special way
+
 SCRIPT="$0"
 set -e
 
