@@ -1,0 +1,32 @@
+#!/bin/bash
+########################################################################
+#- PROGRAM NAME: namevalue
+#- AUTHOR & DT : David McMahon
+#- RCS Ident   : 
+#+ USAGE       : . namevalue
+#+ DESCRIPTION : Set local shell environment from arguments name=value
+#+               or -name=value or --name=value
+########################################################################
+
+# XXX: At some point, this should find all --whatever args without an =
+# and set then to true, but this will mess with all existing independent
+# handling of --whatever args passed through current with LOOSEARGS.
+# but a nice exercise to simplify and centralize cmd-line processing.
+
+ORIG_CMDLINE="$*"
+for arg in "$@"
+do
+   case $arg in
+   *=*) # Strip off any leading -*
+        arg=$(echo $arg |sed 's,^-*,,g')
+        # "set" any arguments that have = in them
+        NAMEX=${arg%%=*}
+        # change -'s to _ for legal vars in bash
+        NAMEX=${NAMEX/-/_}
+        VALUEX=${arg#*=}
+        eval export $NAMEX=\""$VALUEX"\"
+        ;;
+     *) LOOSEARGS="$LOOSEARGS $arg"
+        ;;
+   esac
+done
