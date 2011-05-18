@@ -100,14 +100,14 @@ check_cros_version() {
 
   if [ "$MIN_VERSION" -gt "$VERSION" ]; then
     echo "test_build_root: System libcros not compatible with Chromium."
-    echo "Chromium has version $VERSION, but system requires $MIN_VERSION or"
-    echo "later."
+    echo "Chromium requires version $VERSION, but system provides $MIN_VERSION"
+    echo "or later."
     return 1
   fi
   if [ "$VERSION" -gt "$MAX_VERSION" ]; then
     echo "test_build_root: System libcros not compatible with Chromium headers."
-    echo "Chromium has version $VERSION, but system requires $MAX_VERSION or"
-    echo "earlier."
+    echo "Chromium requires version $VERSION, but system provides $MAX_VERSION"
+    echo "or earlier."
     return 1
   fi
   return 0
