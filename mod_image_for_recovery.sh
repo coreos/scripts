@@ -215,10 +215,7 @@ create_recovery_kernel_image() {
 
   trap "sudo losetup -d $root_dev" EXIT
 
-  cros_root=/dev/sd%D%P  # only used for non-verified images
-  if [[ "${ARCH}" = "arm" ]]; then
-    cros_root='/dev/${devname}${rootpart}'
-  fi
+  cros_root="PARTUUID=%U/PARTNROFF=1"  # only used for non-verified images
   if grep -q enable_rootfs_verification "${IMAGE_DIR}/boot.desc"; then
     cros_root=/dev/dm-0
   fi

@@ -54,7 +54,7 @@ DEFINE_string boot_args "noinitrd" \
 # By default, we use a firmware enumerated value, but it isn't reliable for
 # production use.  If +%d can be added upstream, then we can use:
 #   root=PARTUID=uuid+1
-DEFINE_string root "/dev/sd%D%P" \
+DEFINE_string root "PARTUUID=%U/PARTNROFF=1" \
   "Expected device root partition"
 # If provided, will automatically add verified boot arguments.
 DEFINE_string rootfs_image "" \
