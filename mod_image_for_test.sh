@@ -97,6 +97,9 @@ case "$TC_ARCH" in
   *86)
     ARCH="x86"
     ;;
+  *x86_64)
+    ARCH="amd64"
+    ;;
   *)
     error "Unable to determine ARCH from toolchain: $CHOST"
     exit 1
