@@ -27,15 +27,11 @@ PROG=$(basename $0)
 #+ EXAMPLES
 #+ 
 #+ FILES
-#+     Applicable files
-#+     Related files
 #+ 
 #+ SEE ALSO
 #+     stdlib.sh                 -  function definitions for TimeStamp, etc.
-#+     Other related scripts
 #+ 
 #+ BUGS/TODO
-#+     Known problems with script
 #+ 
 #- AUTHOR & DT : djmm Wed Jul 21 15:02:45 PDT 2010
 #-
@@ -49,7 +45,6 @@ symlink=$(readlink $0)
 . $(dirname ${symlink:-$0})/stdlib.sh
 
 # Set some default options
-DRYRUN=false
 VERBOSE=false
 CHANNEL=dev-channel
 NOLATEST=false
@@ -76,7 +71,7 @@ BOARD=$board
 ###############################################################################
 # MAIN
 ###############################################################################
-tooldir=$(dirname $0)
+TOOLDIR=$(CanonicalizePath $(dirname $0))
 cversion=$(basename $basedir)
 cversion2=${cversion%%-*}
 binfile=/tmp/ChromeOS-$cversion-$BOARD.bin.gz
@@ -114,9 +109,9 @@ rm -f $lmailfile
 # SEND TO MAIN IMAGE TARGET
 if ssh $image_host test -d $imagetarget/$cversion2
 then
-   echo "$imagetarget already exists.  Skipping..."
+   logecho "$imagetarget/$cversion2 already exists.  Skipping..."
 else
-   echo "Sending images up to $imagetarget/$cversion2..."
+   logecho "Sending images up to $imagetarget/$cversion2..."
    ssh $image_host mkdir -p $imagetarget/$cversion2
    scp $basedir/image.zip $image_host:$imagetarget/$cversion2/ChromeOS-$cversion-$BOARD.zip
    scp $basedir/factory_image.zip $image_host:$imagetarget/$cversion2/ChromeOS-factory-$cversion-$BOARD.zip
@@ -127,61 +122,42 @@ else
    scp $basedir/debug.tgz $image_host:$imagetarget/$cversion2/debug-$BOARD.tgz
    # Copy the build log, ChangeLog and manifest.xml files
    scp $basedir/*.log $basedir/*.*ml $image_host:$imagetarget/$cversion2
-   # Only update support scripts if master
-   if [ "$branch" = master ]
-   then
-      scp $(dirname $0)/promoterc $image_host:$imagetarget_base
-   fi
+   # Put up a temp copy of the script to use
+   remote_tooldir=/tmp/pushimage.$$
+   ssh $image_host "rm -rf $remote_tooldir && mkdir -p $remote_tooldir"
+   scp $TOOLDIR/contrib/channelsign $TOOLDIR/contrib/gsrestore \
+       $image_host:$remote_tooldir
 
-   case "$BOARD" in
-     x86-mario|x86-agz|x86-alex|x86-zgb)
-       # Create PVT signed/mod'd images by default
-       ssh $image_host touch $imagetarget/$cversion2/.tobesigned
-       # Copy over the new format signing insturctions.
-       scp $(dirname $0)/signer_instructions/$BOARD.instructions \
-         $image_host:$imagetarget/$cversion2/ChromeOS-$cversion-$BOARD.instructions
-       ;;
-   esac
+   instructionsfile=$TOOLDIR/signer_instructions/$BOARD.instructions
+   if [ -f $instructionsfile ]
+   then
+      # Copy over the new format signing instructions.
+      scp $instructionsfile \
+          $image_host:$imagetarget/$cversion2/ChromeOS-$cversion-$BOARD.instructions
+      # Check signing instructions for final destination
+      signingchannels=$(awk '/^channel/ {print $3}' $instructionsfile |sort -u)
+      for sc in $signingchannels
+      do
+         if [ "$sc" = dev ]
+         then
+            # Set signing for dev
+            logecho "Touching .tobesigned file..."
+            ssh $image_host touch $imagetarget/$cversion2/.tobesigned
+         else
+            # Or move channels
+            ssh $image_host "cd $imagetarget_base && \
+                         $remote_tooldir/channelsign $cversion2 $sc $BOARD && \
+                         rm -rf $remote_tooldir"
+         fi
+      done
+   fi
 
    $NOLATEST || ssh $image_host "cd $imagetarget && echo $cversion > LATEST"
    ReleaseNotify chromeos-releases@google.com
 fi
 
-if [ "$USER" = "chrome-bot" ]
-then
-   Exit 0 "Can't send images to chrome-master.mtv from bot jail.  Do it by hand. Exiting..."
-fi
-
-# SEND TO USB TARGET
-echo "Compressing image..."
-# Make compressed image
-if [ -f $baseimage ]
-then
-   cat $baseimage |gzip > $binfile
-else
-   echo "$baseimage not found!  Extracting from image.zip..."
-   mkdir /tmp/foobar.$$
-   cd /tmp/foobar.$$
-   unzip $basedir/image.zip $baseimagename
-   cat $baseimagename | gzip > $binfile
-   cd /tmp
-   rm -rf /tmp/foobar.$$
-fi
-# To store usb key insructions images
-echo "Copying to chrome-master.mtv..."
-scp $binfile chrome-master.mtv:$usbtarget
-if ! $NOLATEST
-then
-   echo "Updating LATEST-$BOARD$RC file..."
-   ssh chrome-master.mtv "echo $(basename $binfile) > $usbtarget/LATEST-$BOARD$RC"
-fi
-# Recursive 775 of upload dir
-ssh chrome-master.mtv "chmod -R 775 $usbtarget 2>&-"
-
-# Copy script and README
-scp $tooldir/mkcrosusb.sh chrome-master.mtv:$usbtarget/..
-scp $tooldir/mkcrosusb.README chrome-master.mtv:$usbtarget/../README.txt
-rm -f $binfile
+# Cleanup
+ssh $image_host rm -rf $remote_tooldir
 
 # END script
 TimeStamp end
