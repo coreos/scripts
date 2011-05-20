@@ -117,6 +117,11 @@ if [ -z "${FLAGS_board}" ] ; then
   exit 1
 fi
 
+# Perform an eclean to remove packages which are not installed
+if [[ ${FLAGS_eclean} -eq ${FLAGS_TRUE} ]]; then
+  eclean-${FLAGS_board} -d packages
+fi
+
 check_blacklist() {
   info "Verifying that the base image does not contain a blacklisted package."
   info "Generating list of packages for chromeos-base/chromeos."
@@ -735,11 +740,6 @@ if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
       cp ${PREVIOUS_DIR}/${DEVELOPER_IMAGE_NAME} ${OUTPUT_DIR}
     fi
   fi
-fi
-
-# Perform an eclean to remove packages which are not installed
-if [[ ${FLAGS_eclean} -eq ${FLAGS_TRUE} ]]; then
-  eclean-${FLAGS_board} -d packages
 fi
 
 # Create the boot.desc file which stores the build-time configuration
