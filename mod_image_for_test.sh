@@ -56,6 +56,9 @@ Otherwise the image will be copied to $CHROMEOS_TEST_IMAGE_NAME \
 modified there"
 DEFINE_boolean force_copy $FLAGS_FALSE \
     "Always rebuild test image if --noinplace"
+# TODO(clchiou): Remove this flag after arm verified boot is stable
+DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
+  "Sign kernel partition for ARM images (temporary hack)."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -104,6 +107,12 @@ case "$TC_ARCH" in
     error "Unable to determine ARCH from toolchain: $CHOST"
     exit 1
 esac
+
+if [[ ${FLAGS_crosbug12352_arm_kernel_signing} -eq ${FLAGS_TRUE} ]]; then
+  crosbug12352_flag="--crosbug12352_arm_kernel_signing"
+else
+  crosbug12352_flag="--nocrosbug12352_arm_kernel_signing"
+fi
 
 # Make sure anything mounted in the rootfs/stateful is cleaned up ok on exit.
 cleanup_mounts() {
@@ -260,7 +269,9 @@ cleanup
 
 # Now make it bootable with the flags from build_image
 "$SCRIPTS_DIR/bin/cros_make_image_bootable" "$(dirname "$FLAGS_image")" \
-                                            "$(basename "$FLAGS_image")"
+                                            "$(basename "$FLAGS_image")" \
+                                            ${crosbug12352_flag}
+
 
 print_time_elapsed
 
