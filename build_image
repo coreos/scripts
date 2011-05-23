@@ -460,8 +460,12 @@ update_dev_packages() {
   # Leave core files for developers to inspect.
   sudo touch "${ROOT_FS_DIR}/root/.leave_core"
 
-  # The ldd tool is a useful shell script but lives in glibc; just copy it.
-  sudo cp -a "$(which ldd)" "${root_dev_dir}/usr/bin"
+  # This hack is only needed for devs who have old versions of glibc, which
+  # filtered out ldd when cross-compiling.  TODO(davidjames): Remove this hack
+  # once everybody has upgraded to a new version of glibc.
+  if [[ ! -x "${ROOT_FS_DIR}/usr/bin/ldd" ]]; then
+    sudo cp -a "$(which ldd)" "${ROOT_FS_DIR}/usr/bin"
+  fi
 
   # If vim is installed, then a vi symlink would probably help.
   if [[ -x "${ROOT_FS_DIR}/usr/local/bin/vim" ]]; then
