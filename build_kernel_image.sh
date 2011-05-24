@@ -178,6 +178,7 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
   cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
     > "${FLAGS_working_dir}/config.txt"
 earlyprintk
+kern_guid=%U
 EOF
   WORK="${WORK} ${FLAGS_working_dir}/config.txt"
 
