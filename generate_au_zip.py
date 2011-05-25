@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -63,8 +63,9 @@ def DepsToCopy(ldd_files, black_list):
       ldd_files: List of dynamic files that needs to have the deps evaluated
       black_list: List of files that we should ignore
    Returns:
-     library_list: List of files that are dependencies
+     List of files that are dependencies
   """
+  libs = set()
   for file_name in ldd_files:
     logging.debug('Running ldd on %s', file_name)
     cmd = ['/usr/bin/ldd', file_name]
@@ -81,16 +82,14 @@ def DepsToCopy(ldd_files, black_list):
       logging.error('ouput %s', e.output)
       raise
 
-    library_list = []
-    if not stdout_data:
-      return library_list
+    if not stdout_data: continue
 
     logging.debug('ldd for %s = stdout = %s stderr =%s', file_name,
                   stdout_data, stderr_data)
 
-    library_list = _SplitAndStrip(stdout_data)
+    libs |= set(_SplitAndStrip(stdout_data))
 
-    return _ExcludeBlacklist(library_list, black_list)
+  return _ExcludeBlacklist(list(libs), black_list)
 
 
 def CopyRequiredFiles(dest_files_root):
@@ -247,7 +246,7 @@ def main():
 
   (options, args) = parser.parse_args()
   if options.debug:
-    logging.setLevel(logging.DEBUG)
+    logging.getLogger().setLevel(logging.DEBUG)
 
   logging.debug('Options are %s ', options)
 
