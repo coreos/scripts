@@ -84,20 +84,23 @@ function learn_partition_and_ro() {
 }
 
 function make_kernelimage() {
-
+  local bootloader_path
+  local kernel_image
   if [[ "${FLAGS_arch}" == "arm" ]]; then
-    ./build_kernel_image.sh --arch=arm \
-    --root='/dev/${devname}${rootpart}' \
-    --vmlinuz=/build/${FLAGS_board}/boot/vmlinux.uimg --to new_kern.bin
+    bootloader_path="../build/images/${FLAGS_board}/latest/kernel.scr.uimg"
+    kernel_image="/build/${FLAGS_board}/boot/vmlinux.uimg"
   else
-    vbutil_kernel --pack new_kern.bin \
+    bootloader_path="/lib64/bootstub/bootstub.efi"
+    kernel_image="/build/${FLAGS_board}/boot/vmlinuz"
+  fi
+  vbutil_kernel --pack new_kern.bin \
     --keyblock /usr/share/vboot/devkeys/kernel.keyblock \
     --signprivate /usr/share/vboot/devkeys/kernel_data_key.vbprivk \
     --version 1 \
     --config ../build/images/${FLAGS_board}/latest/config.txt \
-    --bootloader /lib64/bootstub/bootstub.efi \
-    --vmlinuz /build/${FLAGS_board}/boot/vmlinuz
-  fi
+    --bootloader "${bootloader_path}" \
+    --vmlinuz "${kernel_image}" \
+    --arch "${FLAGS_arch}"
 }
 
 function copy_kernelimage() {
