@@ -4,7 +4,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Script to convert the output of build_image.sh to a usb image.
+# Script to convert the output of build_image.sh to a usb or SD image.
 
 # --- BEGIN COMMON.SH BOILERPLATE ---
 # Load common CrOS utilities.  Inside the chroot this file is installed in
@@ -35,6 +35,9 @@ find_common_sh
 . "${INSTALLER_ROOT}/chromeos-common.sh" || \
   die "Unable to load chromeos-common.sh"
 
+# In case chromeos-common.sh doesn't support MMC yet
+declare -F list_mmc_disks >/dev/null || list_mmc_disks() { true; }
+
 get_default_board
 
 # Flags
@@ -45,7 +48,7 @@ DEFINE_string to "/dev/sdX" "${DEFAULT_TO_HELP}"
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts" "y"
 DEFINE_boolean force_copy ${FLAGS_FALSE} "Always rebuild test image"
 DEFINE_boolean force_non_usb ${FLAGS_FALSE} \
-  "Write out image even if target (--to) doesn't look like a USB disk"
+  "Write out image even if target (--to) doesn't look like a USB or MMC disk"
 DEFINE_boolean factory_install ${FLAGS_FALSE} \
   "Whether to generate a factory install shim."
 DEFINE_boolean factory ${FLAGS_FALSE} \
@@ -58,7 +61,7 @@ DEFINE_string image_name "${CHROMEOS_IMAGE_NAME}" \
   "Base name of the image" i
 DEFINE_string build_root "/build" \
   "The root location for board sysroots."
-DEFINE_boolean install ${FLAGS_FALSE} "Install to the usb device."
+DEFINE_boolean install ${FLAGS_FALSE} "Install to the USB or MMC device."
 DEFINE_string arch "" "Architecture of the image."
 
 # Parse command line
@@ -124,9 +127,9 @@ fi
 
 if [ "${FLAGS_to}" == "/dev/sdX" ]; then
   echo "You must specify a file or device to write to using --to."
-  disks=$(list_usb_disks)
+  disks="$(list_usb_disks) $(list_mmc_disks)"
   if [ -n "$disks" ]; then
-    echo "Available USB disks:"
+    echo "Available USB & MMC disks:"
     for disk in $disks; do
       echo "  /dev/$disk:"
       echo "    Manufacturer: $(get_disk_info $disk manufacturer)"
@@ -153,12 +156,13 @@ FLAGS_to=`eval readlink -f ${FLAGS_to}`
 
 # One last check to make sure user is not shooting themselves in the foot
 if [ -b "${FLAGS_to}" ]; then
-  if list_usb_disks | grep -q '^'${FLAGS_to##*/}'$'; then
+  if list_usb_disks | grep -q '^'${FLAGS_to##*/}'$' ||
+     list_mmc_disks | grep -q '^'${FLAGS_to##*/}'$'; then
     disk_manufacturer=$(get_disk_info ${FLAGS_to##*/} manufacturer)
     disk_product=$(get_disk_info ${FLAGS_to##*/} product)
-  elif [ ${FLAGS_force_non_usb} -ne ${FLAGS_TRUE} ]; then
-    # Safeguard against writing to a real non-USB disk
-    echo "Error: Device ${FLAGS_to} does not appear to be a USB disk!"
+  elif [ ${FLAGS_force_non} -ne ${FLAGS_TRUE} ]; then
+    # Safeguard against writing to a real non-USB disk or non-SD disk
+    echo "Error: Device ${FLAGS_to} does not appear to be a USB or MMC disk!"
     echo "       To override this safeguard, use the --force_non_usb flag"
     exit 1
   fi
@@ -188,11 +192,11 @@ fi
 
 # Let's do it.
 if [ -b "${FLAGS_to}" ]; then
-  # Output to a block device (i.e., a real USB key), so need sudo dd
+  # Output to a block device (i.e., a real USB key / SD card), so need sudo dd
   if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
     echo "Copying USB image ${SRC_IMAGE} to device ${FLAGS_to}..."
   else
-    echo "Installing USB image ${SRC_IMAGE} to device ${FLAGS_to}..."
+    echo "Installing  image ${SRC_IMAGE} to device ${FLAGS_to}..."
   fi
 
   # Warn if it looks like they supplied a partition as the destination.
@@ -221,7 +225,7 @@ if [ -b "${FLAGS_to}" ]; then
     fi
   fi
 
-  echo "Attempting to unmount any mounts on the USB device..."
+  echo "Attempting to unmount any mounts on the USB/MMC device..."
   for i in $(mount | grep ^"${FLAGS_to}" | awk '{print $1}'); do
     if sudo umount "$i" 2>&1 >/dev/null | grep "not found"; then
       echo
@@ -260,7 +264,7 @@ else
   echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
   ${COMMON_PV_CAT} "${SRC_IMAGE}" >"${FLAGS_to}"
 
-  echo "Done.  To copy to a USB drive, do something like:"
+  echo "Done.  To copy to a USB/MMC drive, do something like:"
   echo "   sudo dd if=${FLAGS_to} of=/dev/sdX bs=4M oflag=sync"
   echo "where /dev/sdX is the entire drive."
 fi
