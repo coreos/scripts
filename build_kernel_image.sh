@@ -100,11 +100,11 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
   info "Generating root fs hash tree."
   # Runs as sudo in case the image is a block device.
   # First argument to verity is reserved/unused and MUST be 0
-  table=$(sudo verity create 0 \
-                        ${FLAGS_verity_hash_alg} \
-                        ${FLAGS_rootfs_image} \
-                        ${root_fs_blocks} \
-                        ${FLAGS_rootfs_hash})
+  table=$(sudo verity mode=create \
+                      alg=${FLAGS_verity_hash_alg} \
+                      payload=${FLAGS_rootfs_image} \
+                      payload_blocks=${root_fs_blocks} \
+                      hashtree=${FLAGS_rootfs_hash})
   if [[ -f "${FLAGS_rootfs_hash}" ]]; then
     sudo chmod a+r "${FLAGS_rootfs_hash}"
   fi
