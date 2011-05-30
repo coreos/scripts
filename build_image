@@ -225,8 +225,10 @@ if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
   if [ "${ARCH}" = "x86" ] ; then
     export USE="${USE} initramfs"
   fi
+  # CONFIG_BLK_DEV_RAM is disabled by default.
+  # But tftp install needs it to mount rootfs in ram
   if [ "${ARCH}" = "arm" ] ; then
-    export USE="${USE} fbconsole"
+    export USE="${USE} fbconsole blkdevram"
   fi
 fi
 
