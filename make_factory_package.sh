@@ -50,6 +50,8 @@ DEFINE_string factory "" \
   "Directory and file containing factory image: /path/chromiumos_test_image.bin"
 DEFINE_string firmware_updater "" \
   "If set, include the firmware shellball into the server configuration"
+DEFINE_string hwid_updater "" \
+  "If set, include the component list updater for HWID validation"
 DEFINE_string release "" \
   "Directory and file containing release image: /path/chromiumos_image.bin"
 DEFINE_string subfolder "" \
@@ -77,6 +79,12 @@ fi
 if [ -n "${FLAGS_firmware_updater}" ] &&
    [ ! -f "${FLAGS_firmware_updater}" ]; then
   echo "Cannot find firmware file ${FLAGS_firmware_updater}"
+  exit 1
+fi
+
+if [ -n "${FLAGS_hwid_updater}" ] &&
+   [ ! -f "${FLAGS_hwid_updater}" ]; then
+  echo "Cannot find HWID component list updater ${FLAGS_hwid_updater}"
   exit 1
 fi
 
@@ -340,15 +348,16 @@ generate_omaha() {
   popd >/dev/null
 
   if [ -n "${FLAGS_firmware_updater}" ]; then
-    SHELLBALL="${FLAGS_firmware_updater}"
-    if [ ! -f  "$SHELLBALL" ]; then
-      echo "Failed to find firmware updater: $SHELLBALL."
-      exit 1
-    fi
-
-    firmware_hash="$(compress_and_hash_file "$SHELLBALL" "firmware.gz")"
+    firmware_hash="$(compress_and_hash_file "${FLAGS_firmware_updater}" \
+                     "firmware.gz")"
     mv firmware.gz "${OMAHA_DATA_DIR}"
     echo "firmware: ${firmware_hash}"
+  fi
+
+  if [ -n "${FLAGS_hwid_updater}" ]; then
+    hwid_hash="$(compress_and_hash_file "${FLAGS_hwid_updater}" "hwid.gz")"
+    mv hwid.gz "${OMAHA_DATA_DIR}"
+    echo "hwid: ${hwid_hash}"
   fi
 
   # If the file does exist and we are using the subfolder flag we are going to
@@ -402,6 +411,12 @@ generate_omaha() {
     echo -n "
    'firmware_image': '${subfolder}firmware.gz',
    'firmware_checksum': '${firmware_hash}'," >>"${OMAHA_CONF}"
+  fi
+
+  if [ -n "${FLAGS_hwid_updater}" ]  ; then
+    echo -n "
+   'hwid_image': '${subfolder}hwid.gz',
+   'hwid_checksum': '${hwid_hash}'," >>"${OMAHA_CONF}"
   fi
 
   echo -n "
