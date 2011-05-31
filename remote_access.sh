@@ -66,7 +66,7 @@ function learn_board() {
 function learn_arch() {
   [ -n "${FLAGS_arch}" ] && return
   remote_sh uname -m
-  FLAGS_arch=$(echo "${REMOTE_OUT}" | sed s/armv7l/arm/g)
+  FLAGS_arch=$(echo "${REMOTE_OUT}" | sed -e s/armv7l/arm/ -e s/i686/x86/ )
   if [ -z "${FLAGS_arch}" ]; then
     error "Arch required"
     exit 1
