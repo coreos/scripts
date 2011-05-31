@@ -28,6 +28,11 @@ TMP_CERT=$(mktemp -p /tmp "${CERT_NAME}.pem.XXXXX")
 mv -f "${TMP_KEY}" "${ROOT_FS_DIR}/${TMP_KEY}"
 mv -f "${TMP_CERT}" "${ROOT_FS_DIR}/${TMP_CERT}"
 
+# We need access to /dev/random and /dev/self/fd (which is /proc/self/fd)
+# within the chrooted image
+sudo mount --bind /dev "${ROOT_FS_DIR}"/dev
+sudo mount --bind /proc "${ROOT_FS_DIR}"/proc
+
 # Generate testing root cert on the fly.
 sudo chroot "${ROOT_FS_DIR}" ${QEMU} /usr/bin/openssl req -x509 -days 21 \
   -subj "/CN=www.google.com" \
@@ -53,3 +58,6 @@ if [ -n "${QEMU}" ] ; then
 fi
 rm -f "${ROOT_FS_DIR}/${TMP_KEY}"
 rm -f "${ROOT_FS_DIR}/${TMP_CERT}"
+
+sudo umount "${ROOT_FS_DIR}"/dev
+sudo umount "${ROOT_FS_DIR}"/proc
