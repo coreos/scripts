@@ -353,7 +353,11 @@ https://sandbox.google.com/storage/${RELATIVE_ARCHIVE_URL_PATH}"
 fi
 
 if [ -n "${FLAGS_test_tarball}" ]; then
-  gsutil_archive "${FLAGS_test_tarball}" "test_results.tgz"
+  # Copy to local outdir first.
+  TEST_TARBALL_OUT="${OUTDIR}/$(basename "${FLAGS_test_tarball}")"
+  cp "${FLAGS_test_tarball}" "${TEST_TARBALL_OUT}"
+  chmod 644 "${TEST_TARBALL_OUT}"
+  gsutil_archive "${TEST_TARBALL_OUT}" "test_results.tgz"
 fi
 
 # Purge old builds if necessary
