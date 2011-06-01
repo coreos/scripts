@@ -67,6 +67,12 @@ DEFINE_boolean statefuldev ${FLAGS_TRUE} \
   "Install development packages on stateful partition rather than the rootfs"
 DEFINE_string to "" \
   "The target image file or device"
+DEFINE_boolean test ${FLAGS_FALSE} \
+  "Modify the imnage for automated testing"
+DEFINE_boolean factory ${FLAGS_FALSE} \
+  "Modify the image for manufacturing testing"
+DEFINE_string qualdb "" \
+  "Location of qualified component file"
 DEFINE_boolean factory_install ${FLAGS_FALSE} \
   "Build a smaller image to overlay the factory install shim on; this argument \
 is also required in image_to_usb."
@@ -141,16 +147,18 @@ check_blacklist() {
 
 check_blacklist
 
-# TODO(vlaviano): Validate command line flags. Check for conflicting flags and
-# reconcile them if possible. Exit with an error message otherwise.
-
-export INSTALL_MASK=""
-if [ ${FLAGS_installmask} -eq ${FLAGS_TRUE} ] ; then
-  INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
-fi
-
-# Reduce the size of factory install shim.
+# Look at flags to determine which image types we should build
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
+  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+    info "Incompatible flags: --factory and --factory_install cannot both be \
+set to True. Resetting --factory to False."
+    FLAGS_factory=${FLAGS_FALSE}
+  fi
+  if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
+    info "Incompatible flags: --test and --factory_install cannot both be \
+set to True. Resetting --test to False."
+    FLAGS_test=${FLAGS_FALSE}
+  fi
   # Disable --withdev flag when --factory_install is set to True. Otherwise, the
   # dev image produced will be based on install shim, rather than a pristine
   # image
@@ -159,7 +167,29 @@ if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
 set to True. Resetting --withdev to False."
     FLAGS_withdev=${FLAGS_FALSE}
   fi
+fi
+if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+  if [ ${FLAGS_test} -eq ${FLAGS_FALSE} ]; then
+    info "Incompatible flags: --factory implies --test. Resetting --test to \
+True."
+    FLAGS_test=${FLAGS_TRUE}
+  fi
+fi
+if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
+  if [ ${FLAGS_withdev} -eq ${FLAGS_FALSE} ]; then
+    info "Incompatible flags: --test implies --withdev. Resetting --withdev \
+to True."
+    FLAGS_withdev=${FLAGS_TRUE}
+  fi
+fi
 
+export INSTALL_MASK=""
+if [ ${FLAGS_installmask} -eq ${FLAGS_TRUE} ] ; then
+  INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
+fi
+
+# Reduce the size of factory install shim.
+if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   # TODO: Build a separated ebuild for the install shim to reduce size.
   INSTALL_MASK="${INSTALL_MASK} ${FACTORY_INSTALL_MASK}"
 
@@ -256,6 +286,7 @@ OUTSIDE_OUTPUT_DIR="../build/images/${FLAGS_board}/${IMAGE_SUBDIR}"
 
 # If we are creating a developer image, also create a pristine image with a
 # different name.
+# TODO(vlaviano): fix all image names to match those in uploaded archive
 DEVELOPER_IMAGE_NAME=
 PRISTINE_IMAGE_NAME=chromiumos_image.bin
 if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
@@ -268,6 +299,8 @@ fi
 
 PRISTINE_IMG="${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}"
 DEVELOPER_IMG="${OUTPUT_DIR}/${DEVELOPER_IMAGE_NAME}"
+TEST_IMG="${OUTPUT_DIR}/${CHROMEOS_TEST_IMAGE_NAME}"
+FACTORY_IMG="${OUTPUT_DIR}/${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
 
 ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
 ROOT_FS_DIR="${OUTPUT_DIR}/rootfs"
@@ -727,6 +760,112 @@ generate_au_zip () {
   $lgenerateauzip $largs
 }
 
+mod_image_for_test_cleanup() {
+  "${SCRIPTS_DIR}/mount_gpt_image.sh" -u -r "${ROOT_FS_DIR}" \
+    -s "${STATEFUL_FS_DIR}"
+}
+
+# Emerges chromeos-test onto the image.
+emerge_chromeos_test() {
+  # Determine the root dir for test packages.
+  local root_dev_dir="${ROOT_FS_DIR}/usr/local"
+
+  emerge_to_image --root="${root_dev_dir}" chromeos-test
+}
+
+install_autotest_for_factory() {
+  local autotest_src="${FLAGS_build_root}/${FLAGS_board}/usr/local/autotest"
+  local stateful_root="${ROOT_FS_DIR}/usr/local"
+  local autotest_client="${stateful_root}/autotest"
+
+  echo "Install autotest into stateful partition from ${autotest_src}"
+
+  sudo mkdir -p "${autotest_client}"
+
+  # Remove excess files from stateful partition.
+  sudo rm -rf "${autotest_client}/"*
+  sudo rm -rf "${stateful_root}/autotest-pkgs"
+  sudo rm -rf "${stateful_root}/lib/icedtea6"
+
+  sudo rsync --delete --delete-excluded -auv \
+    --exclude=deps/realtimecomm_playground \
+    --exclude=tests/ltp \
+    --exclude=site_tests/graphics_O3DSelenium \
+    --exclude=site_tests/realtimecomm_GTalk\* \
+    --exclude=site_tests/platform_StackProtector \
+    --exclude=deps/chrome_test \
+    --exclude=site_tests/desktopui_BrowserTest \
+    --exclude=site_tests/desktopui_PageCyclerTests \
+    --exclude=site_tests/desktopui_UITest \
+    --exclude=.svn \
+    "${autotest_src}/client/"* "${autotest_client}"
+
+  sudo chmod 755 "${autotest_client}"
+  sudo chown -R 1000:1000 "${autotest_client}"
+}
+
+# convert a dev image into a test or factory test image
+mod_image_for_test () {
+  local image_to_mod=$1
+
+  # Copy the image to a test location before modifying it
+  local test_pathname="${TEST_IMG}"
+  local typename="test"
+  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+    test_pathname="${FACTORY_IMG}"
+    typename="factory"
+  fi
+  echo "Creating ${typename} image from original..."
+  ${COMMON_PV_CAT} ${image_to_mod} > ${test_pathname} ||
+    die "Cannot copy ${image_to_mod} to ${typename} image"
+  # Abort early if we can't find the image
+  if [ ! -f ${test_pathname} ] ; then
+    die "No image found at ${test_pathname} to modify"
+  fi
+  echo "Modifying image ${test_pathname} for ${typename}..."
+
+  local image_dir=$(dirname ${test_pathname})
+  local image_name=$(basename ${test_pathname})
+
+  trap mod_image_for_test_cleanup EXIT
+
+  # Mounts gpt image and sets up var, /usr/local and symlinks.
+  "${SCRIPTS_DIR}/mount_gpt_image.sh" -i "${image_name}" -f "${image_dir}" \
+    -r "${ROOT_FS_DIR}" -s "${STATEFUL_FS_DIR}"
+
+  emerge_chromeos_test
+
+  local mod_test_script="${SCRIPTS_DIR}/mod_for_test_scripts/test_setup.sh"
+  # Run test setup script to modify the image
+  sudo -E GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
+    STATEFUL_DIR="${STATEFUL_FS_DIR}" ARCH="${ARCH}" "${mod_test_script}"
+
+  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+    emerge_to_image --root="${ROOT_FS_DIR}" factorytest-init
+
+    install_autotest_for_factory
+
+    local mod_factory_script
+    mod_factory_script="${SCRIPTS_DIR}/mod_for_factory_scripts/factory_setup.sh"
+    # Run factory setup script to modify the image
+    sudo -E GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
+      QUALDB="${FLAGS_qualdb}" BOARD="${FLAGS_board}" "${mod_factory_script}"
+  fi
+
+  # Re-run ldconfig to fix /etc/ldconfig.so.cache.
+  sudo ldconfig -r "${ROOT_FS_DIR}"
+
+  mod_image_for_test_cleanup
+
+  # Now make it bootable with the flags from build_image
+  "${SCRIPTS_DIR}/bin/cros_make_image_bootable" "${image_dir}" "${image_name}" \
+                                              ${crosbug12352_flag}
+
+  print_time_elapsed
+
+  trap - EXIT
+}
+
 # Create the output directory.
 mkdir -p "${OUTPUT_DIR}"
 mkdir -p "${ROOT_FS_DIR}"
@@ -734,7 +873,8 @@ mkdir -p "${STATEFUL_FS_DIR}"
 mkdir -p "${ESP_FS_DIR}"
 
 # Preserve old images by copying them forward for --preserve.
-if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
+# TODO(vlaviano): Do we want --preserve to copy other image types also?
+if [[ ${FLAGS_preserve} -eq ${FLAGS_TRUE} ]] ; then
   if [[ -f ${PREVIOUS_DIR}/${PRISTINE_IMAGE_NAME} ]] ; then
     # Copy forward pristine image, and associated files
     cp ${PREVIOUS_DIR}/*.sh ${PREVIOUS_DIR}/config.txt ${OUTPUT_DIR}
@@ -800,6 +940,11 @@ if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ] ; then
                                               ${crosbug12352_flag}
 fi
 
+# Create a test or factory test image if desired
+if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ] ; then
+  mod_image_for_test ${DEVELOPER_IMG}
+fi
+
 # Clean up temporary files.
 rm -f "${ROOT_FS_IMG}" "${STATEFUL_FS_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \
   "${ESP_FS_IMG}" "${OUTPUT_DIR}/vmlinuz_hd.vblock"
@@ -815,6 +960,11 @@ echo "Done.  Image created in ${OUTPUT_DIR}"
 echo "Chromium OS image created as ${PRISTINE_IMAGE_NAME}"
 if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
   echo "Developer image created as ${DEVELOPER_IMAGE_NAME}"
+fi
+if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+  echo "Factory test image created as ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
+elif [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
+  echo "Test image created as ${CHROMEOS_TEST_IMAGE_NAME}"
 fi
 
 print_time_elapsed

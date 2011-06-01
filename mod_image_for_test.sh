@@ -6,6 +6,19 @@
 
 # Script to modify a keyfob-based chromeos system image for testability.
 
+# =============================================================================
+#                                   WARNING
+#
+# This script is deprecated and will be deleted soon.  Its functionality has
+# been incorporated into build_image (see the --test and --factory flags).  See
+# chromium-os issue 12899 for details.
+#
+# Until the deletion happens, if you are changing this file, please also update
+# the corresponding code in build_image (see the mod_image_for_test function).
+#
+# TODO(vlaviano): delete this script.
+# =============================================================================
+
 # --- BEGIN COMMON.SH BOILERPLATE ---
 # Load common CrOS utilities.  Inside the chroot this file is installed in
 # /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
