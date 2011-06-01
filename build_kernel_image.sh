@@ -182,19 +182,11 @@ kern_guid=%U
 EOF
   WORK="${WORK} ${FLAGS_working_dir}/config.txt"
 
-  kernel_script="${FLAGS_working_dir}/kernel.scr"
-  kernel_script_img="${FLAGS_working_dir}/kernel.scr.uimg"
+  # arm does not need/have a bootloader in kernel partition
+  dd if="/dev/zero" of="${FLAGS_working_dir}/bootloader.bin" bs=512 count=1
+  WORK="${WORK} ${FLAGS_working_dir}/bootloader.bin"
 
-  echo -n 'setenv bootargs ${bootargs} ' > "${kernel_script}"
-  tr '\n' ' ' < "${FLAGS_working_dir}/boot.config" >> "${kernel_script}"
-  echo >> "${kernel_script}"
-
-  mkimage -A arm -O linux -T script -C none -a 0 -e 0 \
-    -n kernel_script -d "${kernel_script}" "${kernel_script_img}"
-
-  WORK="${WORK} ${kernel_script} ${kernel_script_img}"
-
-  bootloader_path="${kernel_script_img}"
+  bootloader_path="${FLAGS_working_dir}/bootloader.bin"
   kernel_image="${FLAGS_vmlinuz/vmlinuz/vmlinux.uimg}"
 
   sign_the_kernel=${FLAGS_crosbug12352_arm_kernel_signing}
