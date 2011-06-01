@@ -87,7 +87,7 @@ function make_kernelimage() {
   local bootloader_path
   local kernel_image
   if [[ "${FLAGS_arch}" == "arm" ]]; then
-    bootloader_path="../build/images/${FLAGS_board}/latest/kernel.scr.uimg"
+    bootloader_path="${SRC_ROOT}/build/images/${FLAGS_board}/latest/kernel.scr.uimg"
     kernel_image="/build/${FLAGS_board}/boot/vmlinux.uimg"
   else
     bootloader_path="/lib64/bootstub/bootstub.efi"
@@ -97,7 +97,7 @@ function make_kernelimage() {
     --keyblock /usr/share/vboot/devkeys/kernel.keyblock \
     --signprivate /usr/share/vboot/devkeys/kernel_data_key.vbprivk \
     --version 1 \
-    --config ../build/images/${FLAGS_board}/latest/config.txt \
+    --config "${SRC_ROOT}/build/images/${FLAGS_board}/latest/config.txt" \
     --bootloader "${bootloader_path}" \
     --vmlinuz "${kernel_image}" \
     --arch "${FLAGS_arch}"
