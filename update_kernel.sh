@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2009-2010 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2009-2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -87,7 +87,8 @@ function make_kernelimage() {
   local bootloader_path
   local kernel_image
   if [[ "${FLAGS_arch}" == "arm" ]]; then
-    bootloader_path="${SRC_ROOT}/build/images/${FLAGS_board}/latest/kernel.scr.uimg"
+    name="bootloader.bin"
+    bootloader_path="${SRC_ROOT}/build/images/${FLAGS_board}/latest/${name}"
     kernel_image="/build/${FLAGS_board}/boot/vmlinux.uimg"
   else
     bootloader_path="/lib64/bootstub/bootstub.efi"
