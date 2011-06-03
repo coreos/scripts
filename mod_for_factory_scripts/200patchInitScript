@@ -13,7 +13,7 @@ patch -d "${ROOT_FS_DIR}" -Np1 <<EOF
 --- old/etc/init/ui.conf	2010-04-28 21:28:38.886069000 -0700
 +++ new/etc/init/ui.conf	2010-04-28 21:29:42.676163000 -0700
 @@ -11 +11 @@
--start on stopping startup
+-start on starting boot-services
 +start on never
 EOF
 
