@@ -52,6 +52,8 @@ DEFINE_string firmware_updater "" \
   "If set, include the firmware shellball into the server configuration"
 DEFINE_string hwid_updater "" \
   "If set, include the component list updater for HWID validation"
+DEFINE_string complete_script "" \
+  "If set, include the script for the last-step execution of factory install"
 DEFINE_string release "" \
   "Directory and file containing release image: /path/chromiumos_image.bin"
 DEFINE_string subfolder "" \
@@ -85,6 +87,12 @@ fi
 if [ -n "${FLAGS_hwid_updater}" ] &&
    [ ! -f "${FLAGS_hwid_updater}" ]; then
   echo "Cannot find HWID component list updater ${FLAGS_hwid_updater}"
+  exit 1
+fi
+
+if [ -n "${FLAGS_complete_script}" ] &&
+   [ ! -f "${FLAGS_complete_script}" ]; then
+  echo "Cannot find complete script ${FLAGS_complete_script}"
   exit 1
 fi
 
@@ -360,6 +368,13 @@ generate_omaha() {
     echo "hwid: ${hwid_hash}"
   fi
 
+  if [ -n "${FLAGS_complete_script}" ]; then
+    complete_hash="$(compress_and_hash_file "${FLAGS_complete_script}" \
+                     "complete.gz")"
+    mv complete.gz "${OMAHA_DATA_DIR}"
+    echo "complete: ${complete_hash}"
+  fi
+
   # If the file does exist and we are using the subfolder flag we are going to
   # append another config.
   if [ -n "${FLAGS_subfolder}" ] &&
@@ -417,6 +432,12 @@ generate_omaha() {
     echo -n "
    'hwid_image': '${subfolder}hwid.gz',
    'hwid_checksum': '${hwid_hash}'," >>"${OMAHA_CONF}"
+  fi
+
+  if [ -n "${FLAGS_complete_script}" ]  ; then
+    echo -n "
+   'complete_image': '${subfolder}complete.gz',
+   'complete_checksum': '${complete_hash}'," >>"${OMAHA_CONF}"
   fi
 
   echo -n "
