@@ -91,6 +91,8 @@ if [ "$FLAGS_from" = "$DEFAULT_FROM" ]; then
   DEFAULT_USED=1
 fi
 
+SYSROOT="${GCLIENT_ROOT}/chroot/build/${FLAGS_board}"
+
 # Die on any errors.
 set -e
 
@@ -218,13 +220,21 @@ if [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]; then
   # release images will remain in IMG_DIR, defined previously.
   SHIM_DIR="$(readlink ${IMAGES_DIR}/${FLAGS_board}/latest)"
 
+  # For ARM we should creat a netboot image.
+  # Only ARM has "uimg" uboot format kernels.
+  # TODO(anush): We should have build infrastructure that can directly
+  # query architecture.
+  if [ -f "${SYSROOT}/boot/vmlinux.uimg" ]; then
+    ./enter_chroot.sh $CHROOT_ENV -- ./make_netboot.sh --board $FLAGS_board
+  fi
+
   echo "Factory install shim dir: ${SHIM_DIR}"
 fi
 
 # Zip the build
 echo "Compressing and archiving build..."
 cd "$FLAGS_from"
-MANIFEST=`ls | grep -v factory`
+MANIFEST=`ls | grep -v factory | grep -v netboot`
 zip -r "${ZIPFILE}" ${MANIFEST}
 
 if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
@@ -244,7 +254,7 @@ if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
   touch "${IMG_DIR}"
   [ -n "${IMG_DIR}" ] && rm -f latest && ln -s "${IMG_DIR}" latest
   FACTORY_MANIFEST=`find factory_shim factory_test -follow \
-      -type f  | grep -E "(factory_image|factory_install|partition)"`
+      -type f  | grep -E "(factory_image|factory_install|partition|netboot)"`
   zip "${FACTORY_ZIPFILE}" ${FACTORY_MANIFEST}
   echo "Zipped"
   popd
