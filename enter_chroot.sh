@@ -336,37 +336,6 @@ function teardown_env {
   ) 200>>"$LOCKFILE" || die "teardown_env failed"
 }
 
-# This function does extra "fixups" of the chroot.  It's a lot like
-# chroot_hacks_from_outside() in common.sh, except that it is only called
-# from enter_chroot.sh (chroot_hacks_from_outside is also called from
-# make_chroot.sh).  This function was created because common.sh is on lockdown
-# and can't be changed.
-#
-# NOTE: the need for this type of "fixup" should be going away.  If everything
-# in the chroot is versioned and nothing is generated, there is no need to
-# handle partly fixing up generated files.
-#
-# Please put date information so it's easy to keep track of when
-# old hacks can be retired and so that people can detect when a
-# hack triggered when it shouldn't have.
-function chroot_hacks_too() {
-  local chroot_home="${FLAGS_chroot}/home/${USER}"
-
-  # Add chromite stuff if not already done.
-  if ! grep -q "^PATH=.*/trunk/chromite/bin" "${chroot_home}/.bashrc"; then
-    info "Upgrading old chroot (pre 2011-02-09) - adding chromite to path"
-    echo "PATH=\$PATH:/home/${USER}/trunk/chromite/bin" >> \
-      "${chroot_home}/.bashrc"
-  fi
-  if ! [ -L "${chroot_home}/.local/lib/python2.6/site-packages/chromite" ]; then
-    info "Upgrading old chroot (pre 2011-02-09) - add chromite to site-packages"
-    mkdir -p "${chroot_home}/.local/lib/python2.6/site-packages"
-    ln -s ../../../../trunk/chromite \
-      "${chroot_home}/.local/lib/python2.6/site-packages/"
-  fi
-}
-
-
 if [ $FLAGS_mount -eq $FLAGS_TRUE ]; then
   setup_env
   info "Make sure you run"
@@ -380,11 +349,6 @@ if [ $FLAGS_unmount -eq $FLAGS_TRUE ]; then
   teardown_env
   exit 0
 fi
-
-# Apply any hacks needed to update the chroot.
-chroot_hacks_from_outside "${FLAGS_chroot}"
-chroot_hacks_too
-
 
 # Make sure we unmount before exiting
 trap teardown_env EXIT

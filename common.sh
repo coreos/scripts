@@ -564,26 +564,6 @@ print_time_elapsed() {
   echo "Elapsed time: ${minutes}m${seconds}s"
 }
 
-# This function is a place to put code to incrementally update the
-# chroot so that users don't need to fully re-make it.  It should
-# be called from scripts that are run _outside_ the chroot.
-#
-# Please put date information so it's easy to keep track of when
-# old hacks can be retired and so that people can detect when a
-# hack triggered when it shouldn't have.
-#
-# ${1} specifies the location of the chroot.
-chroot_hacks_from_outside() {
-  # Give args better names.
-  local chroot_dir=$1
-
-  # Add root as a sudoer if not already done.
-  if ! sudo grep -q '^root ALL=(ALL) ALL$' "${chroot_dir}/etc/sudoers" ; then
-    info "Upgrading old chroot (pre 2010-10-19) - adding root to sudoers"
-    sudo bash -c "echo root ALL=\(ALL\) ALL >> \"${chroot_dir}/etc/sudoers\""
-  fi
-}
-
 # The board and variant command line options can be used in a number of ways
 # to specify the board and variant.  The board can encode both pieces of
 # information separated by underscores.  Or the variant can be passed using
