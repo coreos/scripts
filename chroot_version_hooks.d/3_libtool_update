@@ -1,0 +1,53 @@
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+update_pkgconfig_wrapper() {
+  local board="$1"
+  local board_root="/build/${board}"
+  local target="/usr/local/bin/pkg-config-${board}"
+  sudo_clobber "${target}" <<EOF
+#!/bin/bash
+
+PKG_CONFIG_LIBDIR="${board_root}/usr/lib/pkgconfig"
+PKG_CONFIG_LIBDIR="\${PKG_CONFIG_LIBDIR}:${board_root}/usr/share/pkgconfig"
+export PKG_CONFIG_LIBDIR
+
+export PKG_CONFIG_SYSROOT_DIR="${board_root}"
+
+exec pkg-config "\$@"
+EOF
+  sudo chmod a+rx ${target}
+  sudo chown root:root ${target}
+  info "Created wrapper pkg-config for ${board}"
+
+  local board_setup="${board_root}/etc/make.conf.board_setup"
+  if ! grep -q PKG_CONFIG "${board_setup}"; then
+    info "Added PKG_CONFIG to ${board_setup}"
+    sudo_append "${board_setup}" <<EOF
+PKG_CONFIG="pkg-config-${board}"
+EOF
+  fi
+}
+
+info "Deleting masked *.la files for in /usr/lib64"
+sudo find /usr/lib64 -maxdepth 1 \
+  '(' -name 'lib*.la' -not -name 'libltdl.la' ')' -delete
+
+for board_root in /build/*; do
+  if [ -d "${board_root}" ]; then
+    board=$(basename "${board_root}")
+    update_pkgconfig_wrapper "${board}"
+
+    info "Deleting masked *.la files for ${board}"
+    sudo find "${board_root}/usr/lib" -maxdepth 1 \
+      '(' -name 'lib*.la' -not -name 'libltdl.la' ')' -delete
+
+    info "Removing hard-coded paths to ${board_root} in *.pc files"
+    sudo find "${board_root}" -type f -name '*.pc' | xargs sudo \
+      sed -i -e "s|${board_root}/|/|g"
+  fi
+done
+
+info "Chroot upgraded to version 3: libtool upgrade"
+exit 0
