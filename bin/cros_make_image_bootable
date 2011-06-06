@@ -115,6 +115,9 @@ DEFINE_string espfs_mountpoint "/tmp/espfs" \
 DEFINE_boolean use_dev_keys ${FLAGS_FALSE} \
   "Use developer keys for signing. (Default: false)"
 
+DEFINE_boolean fsck_rootfs ${FLAGS_FALSE} \
+  "Check integrity of the rootfs on the modified image."
+
 # TODO(clchiou): Remove this flag after arm verified boot is stable
 DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
   "Sign kernel partition for ARM images (temporary hack)."
@@ -308,7 +311,9 @@ mkdir -p ${FLAGS_statefulfs_mountpoint}
 mkdir -p ${FLAGS_espfs_mountpoint}
 
 make_image_bootable "${IMAGE}"
-verify_image_rootfs "${IMAGE}"
+if [ ${FLAGS_fsck_rootfs} -eq ${FLAGS_TRUE} ]; then
+  verify_image_rootfs "${IMAGE}"
+fi
 
 if [ ${FLAGS_cleanup_dirs} -eq ${FLAGS_TRUE} ]; then
   rmdir ${FLAGS_rootfs_mountpoint}
