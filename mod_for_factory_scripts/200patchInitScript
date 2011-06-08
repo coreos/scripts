@@ -32,7 +32,7 @@ diff -Na -U 0 old/etc/init/update-engine.conf new/etc/init/
 --- old/etc/init/update-engine.conf	2010-08-05 16:32:55.000000000 -0700
 +++ new/etc/init/update-engine.conf	2010-08-05 16:32:45.000000000 -0700
 @@ -8 +8 @@
--start on starting system-services and started dbus
+-start on starting system-services
 +start on never
 EOF
 fi
