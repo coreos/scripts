@@ -23,7 +23,7 @@ diff -Naur old/etc/init/boot-complete.conf new/etc/init/boot-complete.conf
 +++ new/etc/init/boot-complete.conf	2010-07-21 22:13:36.000000000 +0800
 @@ -15 +15 @@
 -start on login-prompt-visible
-+start on started udev
++start on started boot-services
 EOF
 
 if [ -r "${ROOT_FS_DIR}/etc/init/update-engine.conf" ]; then
