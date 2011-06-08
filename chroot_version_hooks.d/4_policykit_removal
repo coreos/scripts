@@ -1,0 +1,18 @@
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# 1. Unmerge sys-auth/policykit because it's replaced by polkit.
+# 2. Unmerge sys-boot/chromeos-u-boot-next and friends because it's replaced
+#    by sys-boot/chromeos-u-boot.
+for board_root in /build/*; do
+  if [ -d "${board_root}" ]; then
+    board=$(basename "${board_root}")
+    CLEAN_DELAY=0 emerge-${board} --unmerge sys-auth/policykit \
+      sys-boot/chromeos-u-boot-next-build-env sys-boot/chromeos-u-boot-next \
+      chromeos-base/vboot_reference-firmware || true
+  fi
+done
+
+info "Chroot upgraded to version 4: policykit -> polkit"
+exit 0
