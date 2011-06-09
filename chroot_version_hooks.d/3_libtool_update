@@ -44,7 +44,7 @@ for board_root in /build/*; do
       '(' -name 'lib*.la' -not -name 'libltdl.la' ')' -delete
 
     info "Removing hard-coded paths to ${board_root} in *.pc files"
-    sudo find "${board_root}" -type f -name '*.pc' | xargs sudo \
+    sudo find "${board_root}/usr" -type f -name '*.pc' | xargs sudo \
       sed -i -e "s|${board_root}/|/|g"
   fi
 done
