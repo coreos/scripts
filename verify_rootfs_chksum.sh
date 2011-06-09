@@ -48,7 +48,7 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 if [ -z $FLAGS_image ] ; then
-  die "Use --from to specify a device or an image file."
+  die "Use --image to specify a device or an image file."
 fi
 
 # Turn path into an absolute path.
