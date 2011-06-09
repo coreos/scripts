@@ -40,6 +40,13 @@ info "Updating chroot"
 EMERGE_FLAGS="-uDNv --with-bdeps=y"
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   EMERGE_FLAGS="${EMERGE_FLAGS} --getbinpkg"
+
+  # Only update toolchain when binpkgs are available. Toolchain rollout
+  # process only takes place when the chromiumos sdk builder finishes
+  # a successful build.
+  EMERGE_FLAGS+=" --useoldpkg-atoms=sys-devel/binutils"
+  EMERGE_FLAGS+=" --useoldpkg-atoms=sys-devel/gcc"
+  EMERGE_FLAGS+=" --useoldpkg-atoms=sys-libs/glibc"
 fi
 
 # Perform an update of hard-host-depends and world in the chroot.
