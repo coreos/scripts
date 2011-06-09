@@ -43,7 +43,7 @@ diff -Nau old/etc/init/chrontel.conf new/etc/init/
 --- old/etc/init/chrontel.conf	2010-08-05 16:32:55.000000000 -0700
 +++ new/etc/init/chrontel.conf	2010-08-05 16:32:45.000000000 -0700
 @@ -7 +7 @@
--start on started udev
+-start on starting boot-services
 +start on never
 EOF
 fi
