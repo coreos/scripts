@@ -179,6 +179,38 @@ function env_sync_proc {
   done
 }
 
+function copy_ssh_config {
+  # Copy user .ssh/config into the chroot filtering out strings not supported
+  # by the chroot ssh. The chroot .ssh directory is passed in as the first
+  # parameter.
+
+  # ssh options to filter out. The entire strings containing these substrings
+  # will be deleted before copying.
+  local bad_options=(
+    'UseProxyIf='
+    'GSSAPIAuthentication no'
+  )
+  local sshc="${HOME}/.ssh/config"
+  local chroot_ssh_dir="${1}"
+  local filter
+  local option
+
+  if [ ! -f "${sshc}" ]; then
+    return # Nothing to copy.
+  fi
+
+  for option in "${bad_options[@]}"
+  do
+    if [ -z "${filter}" ]; then
+      filter="${option}"
+    else
+      filter+="\\|${option}"
+    fi
+  done
+
+  sed "/^.*\(${filter}\).*$/d" "${sshc}" > "${chroot_ssh_dir}/config"
+}
+
 function setup_env {
   # Validate sudo timestamp before entering the critical section so that we
   # don't stall for a password while we have the lockfile.
@@ -210,7 +242,7 @@ function setup_env {
       if [ -n "${SSH_AUTH_SOCK}" -a -d "${HOME}/.ssh" ]; then
         mkdir -p "${TARGET_DIR}"
         cp -r "${HOME}/.ssh/known_hosts" "${TARGET_DIR}"
-        cp -r "${HOME}/.ssh/config" "${TARGET_DIR}"
+        copy_ssh_config "${TARGET_DIR}"
         ASOCK="$(dirname "${SSH_AUTH_SOCK}")"
         ensure_mounted "${ASOCK}" "--bind" "${ASOCK}"
       fi
