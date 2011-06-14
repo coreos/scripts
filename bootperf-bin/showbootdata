@@ -36,80 +36,104 @@ for one boot cycle.
 import sys
 import optparse
 
+import resultsdir
 import perfprinter
 
 
-_usage = "%prog [options] [results-directory ...]"
-_description = """\
+_USAGE = "%prog [options] [results-directory ...]"
+_DESCRIPTION = """\
 Summarize boot time performance results.  The result directory
 arguments are directories previously specified as output for the
 'bootperf' script.
 """
-optparser = optparse.OptionParser(usage=_usage, description=_description)
 
-optgroup = optparse.OptionGroup(
-    optparser, "Selecting boot time or disk statistics (choose one)")
-optgroup.add_option(
-    "-d", "--diskstats", action="store_true",
-    dest="use_diskstats",
-    help="use statistics for bytes read since kernel startup")
-optgroup.add_option(
-    "-t", "--timestats", action="store_true",
-    dest="use_timestats",
-    help="use statistics for time since kernel startup (default)")
-optparser.add_option_group(optgroup)
-optparser.set_defaults(use_diskstats=False)
-optparser.set_defaults(use_timestats=False)
 
-optgroup = optparse.OptionGroup(optparser, "Event selection")
-optgroup.add_option(
-    "-e", "--event", action="append",
-    dest="eventnames",
-    help="restrict statistics to the comma-separated list of events")
-optparser.add_option_group(optgroup)
+def _SetupOptions():
+  optparser = optparse.OptionParser(usage=_USAGE, description=_DESCRIPTION)
 
-optgroup = optparse.OptionGroup(
-    optparser, "Display mode selection (choose one)")
-optgroup.add_option(
-    "-a", "--averages", action="store_true",
-    dest="print_averages",
-    help="display a summary of the averages of chosen statistics (default)")
-optgroup.add_option(
-    "-r", "--rawdata", action="store_true",
-    dest="print_raw",
-    help="display raw data from all boot iterations")
-optparser.add_option_group(optgroup)
-optparser.set_defaults(print_averages=False)
-optparser.set_defaults(print_raw=False)
+  optgroup = optparse.OptionGroup(
+      optparser, "Selecting boot time or disk statistics (choose one)")
+  optgroup.add_option(
+      "-t", "--timestats", action="store_true",
+      dest="use_timestats",
+      help="use statistics for time since kernel startup (default)")
+  optgroup.add_option(
+      "-d", "--diskstats", action="store_true",
+      dest="use_diskstats",
+      help="use statistics for bytes read since kernel startup")
+  optparser.add_option_group(optgroup)
+  optparser.set_defaults(use_diskstats=False)
+  optparser.set_defaults(use_timestats=False)
+
+  optgroup = optparse.OptionGroup(optparser, "Event selection")
+  optgroup.add_option(
+      "-e", "--event", action="append",
+      dest="eventnames",
+      help="restrict statistics to the comma-separated list of events")
+  optparser.add_option_group(optgroup)
+
+  optgroup = optparse.OptionGroup(
+      optparser, "Display mode selection (choose one)")
+  optgroup.add_option(
+      "-a", "--averages", action="store_true",
+      dest="print_averages",
+      help="display a summary of the averages of chosen statistics (default)")
+  optgroup.add_option(
+      "-r", "--rawdata", action="store_true",
+      dest="print_raw",
+      help="display raw data from all boot iterations")
+  optparser.add_option_group(optgroup)
+  optparser.set_defaults(print_averages=False)
+  optparser.set_defaults(print_raw=False)
+  return optparser
+
+
+def _ProcessDisplayOptions(options):
+  display_count = 0
+  if options.print_averages:
+    display_count += 1
+    printfunc = perfprinter.PrintStatisticsSummary
+  if options.print_raw:
+    display_count += 1
+    printfunc = perfprinter.PrintRawData
+  if display_count == 0:
+    printfunc = perfprinter.PrintStatisticsSummary
+  elif display_count > 1:
+    print >>sys.stderr, "Can't use -a and -r together.\n"
+    return None
+  return printfunc
+
+
+def _ProcessStatsOptions(options):
+  if options.use_timestats and options.use_diskstats:
+    print >>sys.stderr, "Can't use -t and -d together.\n"
+    return None
+  return not options.use_diskstats
+
+
+def _ProcessKeylistOptions(options):
+  if not options.eventnames:
+    return None
+  keylist = []
+  for kl in options.eventnames:
+    keylist.extend(kl.split(','))
+  return keylist
 
 
 def main(argv):
+  optparser = _SetupOptions()
   (options, args) = optparser.parse_args(argv)
-  if options.print_averages and options.print_raw:
-    print >>sys.stderr, "Can't use -a and -r together.\n"
+  printfunc = _ProcessDisplayOptions(options)
+  use_timestats = _ProcessStatsOptions(options)
+  keylist = _ProcessKeylistOptions(options)
+  if printfunc is None or use_timestats is None:
     optparser.print_help()
     sys.exit(1)
-  elif options.print_raw:
-    printfunc = perfprinter.PrintRawData
-  else:
-    printfunc = perfprinter.PrintStatisticsSummary
-  if options.use_timestats and options.use_diskstats:
-    print >>sys.stderr, "Can't use -t and -d together.\n"
-    optparser.print_help()
-    sys.exit(1)
-  elif options.use_diskstats:
-    use_timestats = False
-  else:
-    use_timestats = True
-  if options.eventnames:
-    keylist = []
-    for kl in options.eventnames:
-      keylist.extend(kl.split(','))
-  else:
-    keylist = None
   if not args:
     args = ["."]
-  printfunc(args, use_timestats, keylist)
+  printfunc(resultsdir.ReadResultsDirectory,
+            args, use_timestats, keylist)
+
 
 if __name__ == "__main__":
   main(sys.argv[1:])
