@@ -93,10 +93,6 @@ DEFINE_string boot_args "noinitrd" \
 DEFINE_string usb_disk /dev/sdb3 \
   "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
 
-# TODO(clchiou): Remove this flag after arm verified boot is stable
-DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
-  "Sign kernel partition for ARM images (temporary hack)."
-
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
 DEFINE_integer verity_error_behavior 3 \
@@ -326,11 +322,6 @@ if [ ${FLAGS_jobs} -ne -1 ]; then
   EMERGE_JOBS="--jobs=${FLAGS_jobs}"
 fi
 
-if [[ ${FLAGS_crosbug12352_arm_kernel_signing} -eq ${FLAGS_TRUE} ]]; then
-  crosbug12352_flag="--crosbug12352_arm_kernel_signing"
-else
-  crosbug12352_flag="--nocrosbug12352_arm_kernel_signing"
-fi
 if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
   enable_rootfs_verification_flag="--enable_rootfs_verification"
 fi
@@ -444,7 +435,6 @@ create_boot_desc() {
   --keys_dir="${DEVKEYSDIR}"
   --usb_disk="${FLAGS_usb_disk}"
   --nocleanup_dirs
-  ${crosbug12352_flag}
   ${enable_rootfs_verification_flag}
 EOF
 }
@@ -869,7 +859,6 @@ mod_image_for_test () {
 
   # Now make it bootable with the flags from build_image
   "${SCRIPTS_DIR}/bin/cros_make_image_bootable" "${image_dir}" "${image_name}" \
-                                              ${crosbug12352_flag} \
                                               --force_developer_mode
 
   print_time_elapsed
@@ -918,25 +907,18 @@ fi
 # Place flags before positional args
 ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
                                             "${PRISTINE_IMAGE_NAME}" \
-                                            ${USE_DEV_KEYS} \
-                                            ${crosbug12352_flag}
+                                            ${USE_DEV_KEYS}
 
-# FIXME Test x86 image, and test arm image if enabled;
-# should unconditionally test an image after crosbug12352 is fixed
-if [[ "${ARCH}" = "x86" ]] ||
-   [[ "${ARCH}" = "arm" &&
-      ${FLAGS_crosbug12352_arm_kernel_signing} -eq ${FLAGS_TRUE} ]]; then
-  BOOT_FLAG=
-  if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
-    BOOT_FLAG="-b 1"  # BOOT_FLAG_DEVELOPER value defined in load_kernel_fw.h
-    info "--factory_install set, pass BOOT_FLAG_DEVELOPER flag to \
+BOOT_FLAG=
+if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
+  BOOT_FLAG="-b 1"  # BOOT_FLAG_DEVELOPER value defined in load_kernel_fw.h
+  info "--factory_install set, pass BOOT_FLAG_DEVELOPER flag to \
 load_kernel_test"
-  fi
-
-  # Verify the final image.
-  load_kernel_test "${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}" \
-    "${DEVKEYSDIR}/recovery_key.vbpubk" ${BOOT_FLAG}
 fi
+
+# Verify the final image.
+load_kernel_test "${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}" \
+  "${DEVKEYSDIR}/recovery_key.vbpubk" ${BOOT_FLAG}
 
 # Create a developer image based on the chromium os base image.
 if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ] ; then
@@ -948,7 +930,6 @@ if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ] ; then
   update_dev_packages ${DEVELOPER_IMAGE_NAME}
   ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
                                               "${DEVELOPER_IMAGE_NAME}" \
-                                              ${crosbug12352_flag} \
                                               --force_developer_mode
 fi
 
