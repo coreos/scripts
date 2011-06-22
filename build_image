@@ -1,4 +1,3 @@
-#!/bin/bash
 
 # Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
@@ -574,8 +573,9 @@ zero_free_space() {
   info "Zeroing freespace in ${fs_mount_point}"
   # dd is a silly thing and will produce a "No space left on device" message
   # that cannot be turned off and is confusing to unsuspecting victims.
-  ( sudo dd if=/dev/zero of="${fs_mount_point}/filler" oflag=sync bs=4096 \
+  ( sudo dd if=/dev/zero of="${fs_mount_point}/filler" bs=4096 \
     || true ) 2>&1 |grep -v "No space left on device"
+  sudo sync
   sudo rm -f "${fs_mount_point}/filler"
   sudo sync
 }
@@ -709,7 +709,6 @@ create_base_image() {
     --arch=${ARCH} \
     --to="${ROOT_FS_DIR}"/boot \
     --boot_args="${FLAGS_boot_args}" \
-    --install \
     ${enable_rootfs_verification}
 
   # Don't test the factory install shim
