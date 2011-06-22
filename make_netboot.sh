@@ -71,10 +71,16 @@ echo "Generating netboot kernel vmlinux.uimg"
 cp "${SYSROOT}/boot/vmlinux.uimg" "netboot"
 
 # Get netboot firmware.
-echo "Generating netboot firmware"
 # TODO(nsanders): Set default IP here when userspace
 # env modification is available.
-cp "${SYSROOT}/u-boot/legacy_image.bin" "netboot"
+# TODO(nsanders): ARM generic doesn't build chromeos-u-boot package.
+# When ARM generic goes away, delete the test.
+if [ -r "${SYSROOT}/u-boot/legacy_image.bin" ]
+    echo "Copying netboot firmware legacy_image.bin"
+    cp "${SYSROOT}/u-boot/legacy_image.bin" "netboot"
+else
+    echo "Skipping: ${SYSROOT}/u-boot/legacy_image.bin firmware not present?"
+fi
 
 # Prepare to mount rootfs.
 umount_loop() {
