@@ -75,7 +75,7 @@ cp "${SYSROOT}/boot/vmlinux.uimg" "netboot"
 # env modification is available.
 # TODO(nsanders): ARM generic doesn't build chromeos-u-boot package.
 # When ARM generic goes away, delete the test.
-if [ -r "${SYSROOT}/u-boot/legacy_image.bin" ]
+if [ -r "${SYSROOT}/u-boot/legacy_image.bin" ]; then
     echo "Copying netboot firmware legacy_image.bin"
     cp "${SYSROOT}/u-boot/legacy_image.bin" "netboot"
 else
