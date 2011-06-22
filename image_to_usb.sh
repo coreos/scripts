@@ -261,8 +261,10 @@ if [ -b "${FLAGS_to}" ]; then
   echo "Done."
 else
   # Output to a file, so just make a copy.
-  echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
-  ${COMMON_PV_CAT} "${SRC_IMAGE}" >"${FLAGS_to}"
+  if [ "${SRC_IMAGE}" != "${FLAGS_to}" ]; then
+    echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
+    ${COMMON_PV_CAT} "${SRC_IMAGE}" >"${FLAGS_to}"
+  fi
 
   echo "Done.  To copy to a USB/MMC drive, do something like:"
   echo "   sudo dd if=${FLAGS_to} of=/dev/sdX bs=4M oflag=sync"
