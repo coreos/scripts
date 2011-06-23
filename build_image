@@ -640,28 +640,6 @@ create_base_image() {
 
   # -- Install packages into the root file system --
 
-  # We need to install libc manually from the cross toolchain.
-  # TODO: Improve this? We only want libc and not the whole toolchain.
-  # TODO(raymes): Remove this check after some time which ensures
-  # backward compatibility with the crossdev location change.
-  PKGDIR="/var/lib/portage/pkgs"
-  LIBC_TAR="glibc-${LIBC_VERSION}.tbz2"
-  NEW_LIBC_PATH="${PKGDIR}/cross-${CHOST}/${LIBC_TAR}"
-  OLD_LIBC_PATH="${PKGDIR}/cross/${CHOST}/cross-${CHOST}/${LIBC_TAR}"
-  if [ -e "${NEW_LIBC_PATH}" ] ; then
-    LIBC_PATH="${NEW_LIBC_PATH}"
-  else
-    LIBC_PATH="${OLD_LIBC_PATH}"
-  fi
-
-  sudo tar jxvpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}" --strip-components=3 \
-    --exclude=usr/include --exclude=sys-include --exclude=*.a --exclude=*.o
-
-  # We need to install libstdc++ manually from the cross toolchain.
-  # TODO: Figure out a better way of doing this?
-  sudo cp -a "${BOARD_ROOT}"/lib/libgcc_s.so* "${ROOT_FS_DIR}/lib"
-  sudo cp -a "${BOARD_ROOT}"/usr/lib/libstdc++.so* "${ROOT_FS_DIR}/usr/lib"
-
   # Prepare stateful partition with some pre-created directories.
   sudo mkdir -p "${DEV_IMAGE_ROOT}"
   sudo mkdir -p "${STATEFUL_FS_DIR}/var"
@@ -679,6 +657,29 @@ create_base_image() {
   sudo mkdir -p "${ROOT_FS_DIR}/var"
   sudo mount --bind "${STATEFUL_FS_DIR}/var" "${ROOT_FS_DIR}/var"
   sudo mkdir -p "${ROOT_FS_DIR}/dev"
+
+  # We need to install libc manually from the cross toolchain.
+  # TODO: Improve this? It would be ideal to use emerge to do this.
+  PKGDIR="/var/lib/portage/pkgs"
+  LIBC_TAR="glibc-${LIBC_VERSION}.tbz2"
+  LIBC_PATH="${PKGDIR}/cross-${CHOST}/${LIBC_TAR}"
+
+  sudo tar jxvpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}" ./usr/${CHOST} \
+    --strip-components=3 --exclude=usr/include --exclude=sys-include \
+    --exclude=*.a --exclude=*.o
+
+  # If it's a developer image, also copy over the libc debug info so that gdb
+  # works with threads and also for a better debugging experience.
+  if [[ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]] ; then
+    sudo mkdir -p "${ROOT_FS_DIR}/usr/local/lib/debug"
+    sudo tar jxvpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}/usr/local/lib/debug" \
+    ./usr/lib/debug/usr/${CHOST} --strip-components=6
+  fi
+
+  # We need to install libstdc++ manually from the cross toolchain.
+  # TODO: Figure out a better way of doing this?
+  sudo cp -a "${BOARD_ROOT}"/lib/libgcc_s.so* "${ROOT_FS_DIR}/lib"
+  sudo cp -a "${BOARD_ROOT}"/usr/lib/libstdc++.so* "${ROOT_FS_DIR}/usr/lib"
 
   # We "emerge --root=${ROOT_FS_DIR} --root-deps=rdeps --usepkgonly" all of the
   # runtime packages for chrome os. This builds up a chrome os image from
