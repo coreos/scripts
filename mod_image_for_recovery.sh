@@ -171,16 +171,33 @@ get_install_vblock() {
   echo "$out"
 }
 
+failboat() {
+# http://www.chris.com/ascii/index.php?art=transportation/nautical
+  echo -e "${V_BOLD_RED}"
+  cat <<BOAT
+             .  o ..
+     o . o o.o
+          ...oo
+            __[]__
+         __|_o_o_o\__
+         \""""""""""/
+          \   FAIL /
+     ^^^^^^^^^^^^^^^^^^^^
+BOAT
+  echo -e "${V_VIDOFF}"
+  die "$* failed"
+}
+
 emerge_recovery_kernel() {
   echo "Emerging custom recovery initramfs and kernel"
   local emerge_flags="-uDNv1 --usepkg=n --selective=n"
 
   $EMERGE_BOARD_CMD \
     $emerge_flags --binpkg-respect-use=y \
-    chromeos-initramfs || die "no initramfs"
+    chromeos-initramfs || failboat "emerge initramfs"
   USE="fbconsole initramfs" $EMERGE_BOARD_CMD \
                     $emerge_flags --binpkg-respect-use=y \
-                    virtual/kernel
+                    virtual/kernel || failboat "emerge kernel"
 }
 
 create_recovery_kernel_image() {
@@ -252,7 +269,7 @@ create_recovery_kernel_image() {
     --keys_dir="${FLAGS_keys_dir}" \
     --nouse_dev_keys \
     ${crosbug12352_flag} \
-    ${verity_args} 1>&2
+    ${verity_args} 1>&2 || failboat "build_kernel_image"
   sudo rm "$FLAGS_rootfs_hash"
   sudo losetup -d "$root_dev"
   trap - RETURN
