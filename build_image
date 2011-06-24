@@ -679,10 +679,11 @@ create_base_image() {
     ./usr/lib/debug/usr/${CHOST} --strip-components=6
   fi
 
-  # We need to install libstdc++ manually from the cross toolchain.
-  # TODO: Figure out a better way of doing this?
-  sudo cp -a "${BOARD_ROOT}"/lib/libgcc_s.so* "${ROOT_FS_DIR}/lib"
-  sudo cp -a "${BOARD_ROOT}"/usr/lib/libstdc++.so* "${ROOT_FS_DIR}/usr/lib"
+  . "${SRC_ROOT}/platform/dev/toolchain_utils.sh"
+  board_ctarget=$(get_ctarget_from_board "${BOARD}")
+  for atom in $(portageq match / cross-$board_ctarget/gcc); do
+    copy_gcc_libs "${ROOT_FS_DIR}" $atom
+  done
 
   # We "emerge --root=${ROOT_FS_DIR} --root-deps=rdeps --usepkgonly" all of the
   # runtime packages for chrome os. This builds up a chrome os image from
