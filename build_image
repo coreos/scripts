@@ -487,6 +487,9 @@ update_dev_packages() {
   sudo /sbin/ldconfig -r "${ROOT_FS_DIR}"
 
   # Mark the image as a developer image (input to chromeos_startup).
+  # TODO(arkaitzr): Remove this file when applications no longer rely on it
+  # (crosbug.com/16648). The preferred way of determining developer mode status
+  # is via crossystem cros_debug?1 (checks boot args for "cros_debug").
   sudo mkdir -p "${ROOT_FS_DIR}/root"
   sudo touch "${ROOT_FS_DIR}/root/.dev_mode"
 
@@ -938,7 +941,8 @@ if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ] ; then
   update_dev_packages ${DEVELOPER_IMAGE_NAME}
   ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
                                               "${DEVELOPER_IMAGE_NAME}" \
-                                              ${crosbug12352_flag}
+                                              ${crosbug12352_flag} \
+                                              --force_developer_mode
 fi
 
 # Create a test or factory test image if desired

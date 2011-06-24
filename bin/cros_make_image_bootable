@@ -125,6 +125,9 @@ DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
 # TODO(sosa):  Remove once known images no longer use this in their config.
 DEFINE_string arm_extra_bootargs "" "DEPRECATED FLAG.  Do not use."
 
+DEFINE_boolean force_developer_mode ${FLAGS_FALSE} \
+  "Add cros_debug to boot args."
+
 # Parse the boot.desc and any overrides
 eval set -- "${BOOT_DESC} ${FLAG_OVERRIDES}"
 FLAGS "${@}" || exit 1
@@ -186,6 +189,10 @@ make_image_bootable() {
 
   if [ ${FLAGS_use_dev_keys} -eq ${FLAGS_TRUE} ]; then
     use_dev_keys="--use_dev_keys"
+  fi
+
+  if [ ${FLAGS_force_developer_mode} -eq ${FLAGS_TRUE} ]; then
+    FLAGS_boot_args="${FLAGS_boot_args} cros_debug"
   fi
 
   # Builds the kernel partition image.  The temporary files are kept around
