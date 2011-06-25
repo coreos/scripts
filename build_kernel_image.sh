@@ -112,11 +112,7 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
   # the verified boot device.  Doing so will claim /dev/sdDP out from
   # under the system.
   if [[ ${FLAGS_root} = "/dev/dm-0" ]]; then
-    if [[ "${FLAGS_arch}" = "x86" ]]; then
-      base_root='%U+1'  # kern_guid + 1
-    elif [[ "${FLAGS_arch}" = "arm" ]]; then
-      base_root='/dev/${devname}${rootpart}'
-    fi
+    base_root='%U+1'  # kern_guid + 1
     table=${table//HASH_DEV/${base_root}}
     table=${table//ROOT_DEV/${base_root}}
   fi
