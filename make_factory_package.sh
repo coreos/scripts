@@ -245,6 +245,11 @@ umount_esp() {
 generate_img() {
   local outdev="$(readlink -f "$FLAGS_diskimg")"
   local sectors="$FLAGS_sectors"
+  local hwid_updater="${FLAGS_hwid_updater}"
+
+  if [ -n "${FLAGS_hwid_updater}" ]; then
+    hwid_updater="$(readlink -f "$FLAGS_hwid_updater")"
+  fi
 
   prepare_img
 
@@ -271,6 +276,14 @@ generate_img() {
   image_partition_copy "${FACTORY_IMAGE}" 1 "${outdev}" 1
   echo "EFI Partition"
   image_partition_copy "${FACTORY_IMAGE}" 12 "${outdev}" 12
+
+  if [ -n "${hwid_updater}" ]; then
+    local state_dev="$(image_map_partition "${outdev}" 1)"
+    local hwid_result="0"
+    sudo sh "$hwid_updater" "$state_dev" || hwid_result="$?"
+    image_unmap_partition "$state_dev" || true
+    [ $hwid_result = "0" ] || die "Failed to update HWID ($hwid_result). abort."
+  fi
 
   # TODO(nsanders, wad): consolidate this code into some common code
   # when cleaning up kernel commandlines. There is code that touches

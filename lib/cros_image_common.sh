@@ -129,7 +129,7 @@ image_map_partition() {
   local size="$(image_part_size "$file" "$part_num")" ||
     image_die "failed to find partition #$part_num from: $file"
 
-  losetup --offset $((offset * 512)) --sizelimit=$((size * 512)) \
+  sudo losetup --offset $((offset * 512)) --sizelimit=$((size * 512)) \
     -f --show "$file"
 }
 
@@ -137,7 +137,7 @@ image_map_partition() {
 image_unmap_partition() {
   local map_point="$1"
 
-  losetup -d "$map_point"
+  sudo losetup -d "$map_point"
 }
 
 # Mounts a specific partition inside a given image file
@@ -156,7 +156,7 @@ image_mount_partition() {
     mount_opt=",ro"
   fi
 
-  mount \
+  sudo mount \
     -o "loop,offset=$((offset * 512)),sizelimit=$((size * 512)),$mount_opt" \
     "$file" \
     "$mount_point"
@@ -166,7 +166,7 @@ image_mount_partition() {
 image_umount_partition() {
   local mount_point="$1"
 
-  umount -d "$mount_point"
+  sudo umount -d "$mount_point"
 }
 
 # Copy a partition from one image to another.
