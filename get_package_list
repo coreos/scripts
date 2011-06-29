@@ -49,4 +49,4 @@ if [[ -z "${FLAGS_ARGV}" ]]; then
 fi
 
 emerge-$FLAGS_board --emptytree --usepkgonly -p -v --columns \
-  $1 2> /dev/null | cut -d ' ' -f 8 | grep '/'
+  $1 2> /dev/null | sed -n -E -e 's/^\[binary[^]]*\] ([^ ]*) .*$/\1/p'
