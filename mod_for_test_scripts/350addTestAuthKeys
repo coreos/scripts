@@ -9,7 +9,12 @@
 
 echo "Copying public keys and changing PATH for ssh clients"
 
-KEYS_DIR=${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts/ssh_keys
+if [ "$BACKDOOR" -eq 1 ]; then
+  KEYS_DIR=${GCLIENT_ROOT}/src/scripts/mod_for_test_scripts/ssh_keys
+else
+  KEYS_DIR=${GCLIENT_ROOT}/../.ssh
+fi
+
 mkdir -p ${ROOT_FS_DIR}/root/.ssh
 ROOT_AUTHKEYS=${ROOT_FS_DIR}/root/.ssh/authorized_keys
 cat ${KEYS_DIR}/*.pub >> ${ROOT_AUTHKEYS}

@@ -72,6 +72,8 @@ DEFINE_boolean force_copy $FLAGS_FALSE \
 # TODO(clchiou): Remove this flag after arm verified boot is stable
 DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
   "Sign kernel partition for ARM images (temporary hack)."
+DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
+  "Install standard backdoor credentials for testing"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -251,9 +253,14 @@ trap cleanup EXIT
 emerge_chromeos_test
 
 MOD_TEST_SCRIPT="$SCRIPTS_DIR/mod_for_test_scripts/test_setup.sh"
+BACKDOOR=0
+if [ $FLAGS_standard_backdoor -eq $FLAGS_TRUE ]; then
+  BACKDOOR=1
+fi
 # Run test setup script to modify the image
 sudo GCLIENT_ROOT="$GCLIENT_ROOT" ROOT_FS_DIR="$ROOT_FS_DIR" \
-    STATEFUL_DIR="$STATEFUL_DIR" ARCH="$ARCH" "$MOD_TEST_SCRIPT"
+    STATEFUL_DIR="$STATEFUL_DIR" ARCH="$ARCH" BACKDOOR="${BACKDOOR}" \
+    "$MOD_TEST_SCRIPT"
 
 if [ $FLAGS_factory -eq $FLAGS_TRUE ]; then
   sudo INSTALL_MASK="$INSTALL_MASK" $EMERGE_BOARD_CMD \

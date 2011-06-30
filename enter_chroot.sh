@@ -242,6 +242,7 @@ function setup_env {
       if [ -n "${SSH_AUTH_SOCK}" -a -d "${HOME}/.ssh" ]; then
         mkdir -p "${TARGET_DIR}"
         cp -r "${HOME}/.ssh/known_hosts" "${TARGET_DIR}"
+        cp -r ${HOME}/.ssh/*.pub "${TARGET_DIR}"
         copy_ssh_config "${TARGET_DIR}"
         ASOCK="$(dirname "${SSH_AUTH_SOCK}")"
         ensure_mounted "${ASOCK}" "--bind" "${ASOCK}"
