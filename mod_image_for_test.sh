@@ -57,7 +57,6 @@ DEFINE_boolean installmask $FLAGS_TRUE \
     "Use INSTALL_MASK to shrink the resulting image." m
 DEFINE_integer jobs -1 \
     "How many packages to build in parallel at maximum." j
-DEFINE_string qualdb "" "Location of qualified component file" d
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" y
 DEFINE_string build_root "/build" \
     "The root location for board sysroots."
@@ -272,7 +271,7 @@ if [ $FLAGS_factory -eq $FLAGS_TRUE ]; then
   MOD_FACTORY_SCRIPT="$SCRIPTS_DIR/mod_for_factory_scripts/factory_setup.sh"
   # Run factory setup script to modify the image
   sudo GCLIENT_ROOT="$GCLIENT_ROOT" ROOT_FS_DIR="$ROOT_FS_DIR" \
-      QUALDB="$FLAGS_qualdb" BOARD=$FLAGS_board "$MOD_FACTORY_SCRIPT"
+       BOARD=$FLAGS_board "$MOD_FACTORY_SCRIPT"
 fi
 
 # Re-run ldconfig to fix /etc/ldconfig.so.cache.

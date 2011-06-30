@@ -68,11 +68,9 @@ DEFINE_boolean statefuldev ${FLAGS_TRUE} \
 DEFINE_string to "" \
   "The target image file or device"
 DEFINE_boolean test ${FLAGS_FALSE} \
-  "Modify the imnage for automated testing"
+  "Modify the image for automated testing"
 DEFINE_boolean factory ${FLAGS_FALSE} \
   "Modify the image for manufacturing testing"
-DEFINE_string qualdb "" \
-  "Location of qualified component file"
 DEFINE_boolean factory_install ${FLAGS_FALSE} \
   "Build a smaller image to overlay the factory install shim on; this argument \
 is also required in image_to_usb."
@@ -853,7 +851,7 @@ mod_image_for_test () {
     mod_factory_script="${SCRIPTS_DIR}/mod_for_factory_scripts/factory_setup.sh"
     # Run factory setup script to modify the image
     sudo -E GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-      QUALDB="${FLAGS_qualdb}" BOARD="${FLAGS_board}" "${mod_factory_script}"
+            BOARD="${FLAGS_board}" "${mod_factory_script}"
   fi
 
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
