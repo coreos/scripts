@@ -62,8 +62,6 @@ function main() {
   local script_dir=${SCRIPTS_DIR}
 
   script_dir=$(readlink -f "${script_dir}")
-  docgen_dir="autotest/utils/docgen"
-  html_target="${TMP}/autotest/client/site_tests/suite_HWQual/html"
 
   trap cleanup EXIT
 
@@ -77,25 +75,6 @@ function main() {
   echo "Extracting autotest from build artifacts..."
   tar --bzip2 -xf autotest.tar.bz2
 
-  # Create HTML and PDF test documentation for HWQual Tests.
-  # We need doxygen 1.6.1 or later to run CreateDocs.py
-  doxygen_version=$(doxygen --version)
-  if [[ $? -eq 0 ]]; then
-    if [[ "$doxygen_version" > "1.6.0" ]]; then
-      echo "Generating test documentation..."
-      cd "${docgen_dir}"
-      ./CreateDocs.py --docversion ${FLAGS_output_tag} --html ${html_target}
-      make -C latex pdf
-      mv latex/refman.pdf "${html_target}/HWQual.pdf"
-      # Clean up the generated files.
-      rm -rf testsource latex *.log
-    else
-      warn "doxygen is $doxygen_version, should be 1.6.1 or later."
-    fi
-  else
-    warn "doxygen is not installed. Install version 1.6.1 or later."
-  fi
-
   cd "${TMP}"
 
   mv chromiumos_test_image.bin image/chromiumos_image.bin
@@ -108,8 +87,6 @@ function main() {
   ln -s \
     "${FLAGS_output_tag}/autotest/client/site_tests/suite_HWQual/README.txt" \
     tarball
-  ln -s \
-    "${FLAGS_output_tag}/autotest/client/site_tests/suite_HWQual/html" tarball
   ln -s autotest/client/site_tests/suite_HWQual/manual \
     "tarball/${FLAGS_output_tag}"
   cp "${script_dir}/mod_for_test_scripts/ssh_keys/testing_rsa" \
