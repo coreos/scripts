@@ -289,7 +289,8 @@ cleanup
 # Now make it bootable with the flags from build_image
 "$SCRIPTS_DIR/bin/cros_make_image_bootable" "$(dirname "$FLAGS_image")" \
                                             "$(basename "$FLAGS_image")" \
-                                            ${crosbug12352_flag}
+                                            ${crosbug12352_flag} \
+                                            --force_developer_mode
 
 
 print_time_elapsed
