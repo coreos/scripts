@@ -869,7 +869,8 @@ mod_image_for_test () {
 
   # Now make it bootable with the flags from build_image
   "${SCRIPTS_DIR}/bin/cros_make_image_bootable" "${image_dir}" "${image_name}" \
-                                              ${crosbug12352_flag}
+                                              ${crosbug12352_flag} \
+                                              --force_developer_mode
 
   print_time_elapsed
 
