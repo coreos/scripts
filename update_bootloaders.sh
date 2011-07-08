@@ -88,27 +88,37 @@ if ! type -p update_x86_bootloaders; then
       dm_table=$(echo "$kernel_cmdline" | sed -s 's/.*dm="\([^"]*\)".*/\1/')
     fi
 
+    # Maintain cros_debug flag in developer and test images.
+    cros_flags="cros_legacy"
+    if echo "$kernel_cmdline" | grep -q 'cros_debug'; then
+      cros_flags="cros_legacy cros_debug"
+    fi
+
     # Rewrite grub table
     grub_dm_table_a=${dm_table//${old_root}/\/dev\/\$linuxpartA}
     grub_dm_table_b=${dm_table//${old_root}/\/dev\/\$linuxpartB}
     sed -e "s|DMTABLEA|${grub_dm_table_a}|g" \
         -e "s|DMTABLEB|${grub_dm_table_b}|g" \
+        -e "s|cros_legacy|${cros_flags}|g" \
         "${template_dir}"/efi/boot/grub.cfg |
         sudo dd of="${esp_fs_dir}"/efi/boot/grub.cfg
 
     # Rewrite syslinux DM_TABLE
     syslinux_dm_table_usb=${dm_table//${old_root}/${FLAGS_usb_disk}}
     sed -e "s|DMTABLEA|${syslinux_dm_table_usb}|g" \
+        -e "s|cros_legacy|${cros_flags}|g" \
         "${template_dir}"/syslinux/usb.A.cfg |
         sudo dd of="${esp_fs_dir}"/syslinux/usb.A.cfg
 
     syslinux_dm_table_a=${dm_table//${old_root}/HDROOTA}
     sed -e "s|DMTABLEA|${syslinux_dm_table_a}|g" \
+        -e "s|cros_legacy|${cros_flags}|g" \
         "${template_dir}"/syslinux/root.A.cfg |
         sudo dd of="${esp_fs_dir}"/syslinux/root.A.cfg
 
     syslinux_dm_table_b=${dm_table//${old_root}/HDROOTB}
     sed -e "s|DMTABLEB|${syslinux_dm_table_b}|g" \
+        -e "s|cros_legacy|${cros_flags}|g" \
         "${template_dir}"/syslinux/root.B.cfg |
         sudo dd of="${esp_fs_dir}"/syslinux/root.B.cfg
 
