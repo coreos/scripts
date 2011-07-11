@@ -24,7 +24,7 @@ find_common_sh() {
 }
 
 find_common_sh
-. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
 # --- END COMMON.SH BOILERPLATE ---
 
 get_default_board
