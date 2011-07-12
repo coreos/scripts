@@ -75,37 +75,6 @@ function debug {
   fi
 }
 
-# Double up on the first '--' argument.  Why?  For enter_chroot, we want to
-# emulate the behavior of sudo for setting environment vars.  That is, we want:
-#   ./enter_chroot [flags] [VAR=val] [-- command]
-# ...but shflags ends up eating the '--' out of the command line and gives
-# us back "VAR=val" and "command" together in one chunk.  By doubling up, we
-# end up getting what we want back from shflags.
-#
-# Examples of how people might be using enter_chroot:
-#  1. ./enter_chroot [chroot_flags]   VAR1=val1 VAR2=val2 -- cmd arg1 arg2
-#     Set env vars and run cmd w/ args
-#  2. ./enter_chroot [chroot_flags]   VAR1=val1 VAR2=val2
-#     Set env vars and run shell
-#  3. ./enter_chroot [chroot_flags]   -- cmd arg1 arg2
-#     Run cmd w/ args
-#  4. ./enter_chroot [chroot_flags]   VAR1=val1 VAR2=val2 cmd arg1 arg2
-#     Like #1 _if_ args aren't flags (if they are, enter_chroot will claim them)
-#  5. ./enter_chroot [chroot_flags]   cmd arg1 arg2
-#     Like #3 _if_ args aren't flags (if they are, enter_chroot will claim them)
-_FLAGS_FIXED=''
-_SAW_DASHDASH=0
-while [ $# -gt 0 ]; do
-  _FLAGS_FIXED="${_FLAGS_FIXED:+${_FLAGS_FIXED} }'$1'"
-  if [ $_SAW_DASHDASH -eq 0 ] && [[ "$1" == "--" ]]; then
-    _FLAGS_FIXED="${_FLAGS_FIXED:+${_FLAGS_FIXED} }'--'"
-    _SAW_DASHDASH=1
-  fi
-  shift
-done
-eval set -- "${_FLAGS_FIXED}"
-
-
 # Parse command line flags
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
