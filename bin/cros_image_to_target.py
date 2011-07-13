@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -267,7 +267,7 @@ class CrosEnv(object):
       return None
     return self.ParseShVars(lsb_release)
 
-  def CreateServer(self, port, update_file, stateful_file):
+  def CreateServer(self, ports, update_file, stateful_file):
     """Start the devserver clone."""
 
     PingUpdateResponse.Setup(self.GetHash(update_file),
@@ -283,8 +283,15 @@ class CrosEnv(object):
                            FileUpdateResponse(stateful_file,
                                               verbose=self.verbose,
                                               have_pv=self.have_pv))
-
-    self.http_server = BaseHTTPServer.HTTPServer(('', port), UpdateHandler)
+    for port in ports:
+      try:
+        self.http_server = BaseHTTPServer.HTTPServer(('', port),
+                                                     UpdateHandler)
+        return port
+      except :
+        # NOP.  Select next port.
+        continue
+      return None
 
   def StartServer(self):
     self.Info('Starting http server')
@@ -564,6 +571,14 @@ class ChildFinished(Exception):
           self.status = 255
         raise self
 
+def MakePortList(user_supplied_port):
+  range_start = 8081
+  port_list = []
+  if user_supplied_port is not None:
+    range_length = 1
+  else:
+    range_length = 10
+  return range(range_start, range_start + range_length, 1)
 
 def main(argv):
   usage = 'usage: %prog [options]'
@@ -577,7 +592,7 @@ def main(argv):
                     help='Source image to install')
   parser.add_option('--image-name', dest='image_name',
                     help='Filename within image directory to load')
-  parser.add_option('--port', dest='port', default=8081, type='int',
+  parser.add_option('--port', dest='port', type='int',
                     help='TCP port to serve from and tunnel through')
   parser.add_option('--remote', dest='remote', default=None,
                     help='Remote device-under-test IP address')
@@ -677,7 +692,10 @@ def main(argv):
       not cros_env.BuildStateful(image_file, image_directory, stateful_file)):
     cros_env.Fatal()
 
-  cros_env.CreateServer(options.port, update_file, stateful_file)
+  port = cros_env.CreateServer(MakePortList(options.port),
+                               update_file, stateful_file)
+  if port is None:
+    cros_env.Fatal('Unable to find a port for CreateServer.')
 
   exit_status = 1
   if options.server_only:
@@ -690,7 +708,7 @@ def main(argv):
     else:
       try:
         time.sleep(SERVER_STARTUP_WAIT)
-        if cros_env.StartClient(options.port):
+        if cros_env.StartClient(port):
           exit_status = 0
       except KeyboardInterrupt:
         cros_env.Error('Client Exiting on Control-C')
