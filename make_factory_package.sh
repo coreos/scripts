@@ -42,6 +42,7 @@ find_common_sh
 . "${SCRIPT_ROOT}/lib/cros_image_common.sh" ||
   die "Cannot load required library: lib/cros_image_common.sh; Abort."
 
+SCRIPT="$0"
 get_default_board
 
 # Flags
@@ -58,6 +59,10 @@ DEFINE_string release "" \
   "Directory and file containing release image: /path/chromiumos_image.bin"
 DEFINE_string subfolder "" \
   "If set, the name of the subfolder to put the payload items inside"
+DEFINE_string usbimg "" \
+  "If set, the name of the USB installation disk image file to output"
+DEFINE_string install_shim "" \
+  "Directory and file containing factory install shim for --usbimg"
 DEFINE_string diskimg "" \
   "If set, the name of the diskimage file to output"
 DEFINE_boolean preserve ${FLAGS_FALSE} \
@@ -68,58 +73,97 @@ DEFINE_integer sectors 31277232  "Size of image in sectors"
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
-if [ ! -f "${FLAGS_release}" ]; then
-  echo "Cannot find image file ${FLAGS_release}"
-  exit 1
-fi
+IMAGE_MOUNT_STACK=""
 
-if [ ! -f "${FLAGS_factory}" ]; then
-  echo "Cannot find image file ${FLAGS_factory}"
-  exit 1
-fi
+image_push_mounts() {
+  IMAGE_MOUNT_STACK="$* $IMAGE_MOUNT_STACK"
+}
 
-if [ -n "${FLAGS_firmware_updater}" ] &&
-   [ ! -f "${FLAGS_firmware_updater}" ]; then
-  echo "Cannot find firmware file ${FLAGS_firmware_updater}"
-  exit 1
-fi
+image_pop_mounts() {
+  local dir=""
+  for dir in $IMAGE_MOUNT_STACK; do
+    sudo umount "$dir" || true
+    sudo rmdir "$dir" || true
+  done
+  IMAGE_MOUNT_STACK=""
+}
 
-if [ -n "${FLAGS_hwid_updater}" ] &&
-   [ ! -f "${FLAGS_hwid_updater}" ]; then
-  echo "Cannot find HWID component list updater ${FLAGS_hwid_updater}"
-  exit 1
-fi
+check_optional_file() {
+  local file="$1"
+  local description="$2"
+  [ -n "$file" ] || return 0
+  [ -f "$file" ] || die "Cannot find $description: $file"
+}
 
-if [ -n "${FLAGS_complete_script}" ] &&
-   [ ! -f "${FLAGS_complete_script}" ]; then
-  echo "Cannot find complete script ${FLAGS_complete_script}"
-  exit 1
-fi
+check_required_file() {
+  local file="$1"
+  local description="$2"
+  [ -n "$file" ] || die "You must assign a file for $description."
+  [ -f "$file" ] || die "Cannot find $description: $file"
+}
 
-# Convert args to paths.  Need eval to un-quote the string so that shell
-# chars like ~ are processed; just doing FOO=`readlink -f ${FOO}` won't work.
-OMAHA_DIR="${SRC_ROOT}/platform/dev"
-OMAHA_CONF="${OMAHA_DIR}/miniomaha.conf"
-OMAHA_DATA_DIR="${OMAHA_DIR}/static/"
+check_parameters() {
+  check_required_file "${FLAGS_release}" "release image (--release)"
+  check_required_file "${FLAGS_factory}" "factory test image (--factory)"
 
-# Note: The subfolder flag can only append configs.  That means you will need
-# to have unique board IDs for every time you run.  If you delete miniomaha.conf
-# you can still use this flag and it will start fresh.
-if [ -n "${FLAGS_subfolder}" ]; then
-  OMAHA_DATA_DIR="${OMAHA_DIR}/static/${FLAGS_subfolder}/"
-fi
+  if [ -n "${FLAGS_usbimg}" ]; then
+    [ -z "${FLAGS_diskimg}" ] ||
+      die "--usbimg and --diskimg cannot be used at the same time."
+    [ -f "${FLAGS_install_shim}" ] ||
+      die "Cannot find install shim image ${FLAGS_install_shim}."
+    local arg=""
+    local value=""
+    for arg in firmware_updater hwid_updater complete_script; do
+      value='$FLAGS_'$arg
+      value="$(eval "echo $value")"
+      [ -z "$value" ] || die "--$arg is not supported yet in --usbimg mode."
+    done
+  else
+    [ -z "${FLAGS_install_shim}" ] || die "--install_shim is only for --usbimg."
+    check_optional_file "${FLAGS_firmware_updater}" "firmware file"
+    check_optional_file "${FLAGS_hwid_updater}" "HWID component list updater"
+    check_optional_file "${FLAGS_complete_script}" "completion script"
+  fi
+}
 
-if [ ${INSIDE_CHROOT} -eq 0 ]; then
-  echo "Caching sudo authentication"
-  sudo -v
-  echo "Done"
-fi
+setup_environment() {
+  # Convert args to paths.  Need eval to un-quote the string so that shell
+  # chars like ~ are processed; just doing FOO=`readlink -f ${FOO}` won't work.
+  OMAHA_DIR="${SRC_ROOT}/platform/dev"
+  OMAHA_CONF="${OMAHA_DIR}/miniomaha.conf"
+  OMAHA_DATA_DIR="${OMAHA_DIR}/static/"
 
-# Use this image as the source image to copy
-RELEASE_DIR="$(dirname "${FLAGS_release}")"
-FACTORY_DIR="$(dirname "${FLAGS_factory}")"
-RELEASE_IMAGE="$(basename "${FLAGS_release}")"
-FACTORY_IMAGE="$(basename "${FLAGS_factory}")"
+  # Note: The subfolder flag can only append configs.  That means you will need
+  # to have unique board IDs for every time you run.  If you delete
+  # miniomaha.conf you can still use this flag and it will start fresh.
+  if [ -n "${FLAGS_subfolder}" ]; then
+    OMAHA_DATA_DIR="${OMAHA_DIR}/static/${FLAGS_subfolder}/"
+  fi
+
+  if [ ${INSIDE_CHROOT} -eq 0 ]; then
+    echo "Caching sudo authentication"
+    sudo -v
+    echo "Done"
+  fi
+
+  # Use this image as the source image to copy
+  RELEASE_DIR="$(dirname "${FLAGS_release}")"
+  FACTORY_DIR="$(dirname "${FLAGS_factory}")"
+  RELEASE_IMAGE="$(basename "${FLAGS_release}")"
+  FACTORY_IMAGE="$(basename "${FLAGS_factory}")"
+
+  # Decide if we should unpack partition
+  if image_has_part_tools; then
+    IMAGE_IS_UNPACKED=
+  else
+    #TODO(hungte) Currently we run unpack_partitions.sh if part_tools are not
+    # found. If the format of unpack_partitions.sh is reliable, we can prevent
+    # creating temporary files. See image_part_offset for more information.
+    echo "WARNING: cannot find partition tools. Using unpack_partitions.sh." >&2
+    IMAGE_IS_UNPACKED=1
+  fi
+}
+
 
 prepare_img() {
   local outdev="$(readlink -f "$FLAGS_diskimg")"
@@ -216,30 +260,42 @@ compress_and_hash_partition() {
   fi
 }
 
-# Decide if we should unpack partition
-if image_has_part_tools; then
-  IMAGE_IS_UNPACKED=
-else
-  #TODO(hungte) Currently we run unpack_partitions.sh if part_tools are not
-  # found. If the format of unpack_partitions.sh is reliable, we can prevent
-  # creating temporary files. See image_part_offset for more information.
-  echo "WARNING: cannot find partition tools. Using unpack_partitions.sh." >&2
-  IMAGE_IS_UNPACKED=1
-fi
-
-mount_esp() {
-  local image="$1"
-  local esp_mountpoint="$2"
-  offset=$(partoffset "${image}" 12)
-  sudo mount -o loop,offset=$(( offset * 512 )) \
-      "${image}" "${esp_mountpoint}"
-  ESP_MOUNT="${esp_mountpoint}"
-}
-
-umount_esp() {
-  if [ -n "${ESP_MOUNT}" ]; then
-    sudo umount "${ESP_MOUNT}"
+generate_usbimg() {
+  if ! type cgpt >/dev/null 2>&1; then
+    die "Missing 'cgpt'. Please install cgpt, or run inside chroot."
   fi
+  local builder="$(dirname "$SCRIPT")/make_universal_factory_shim.sh"
+
+  "$builder" -m "${FLAGS_factory}" -f "${FLAGS_usbimg}" \
+    "${FLAGS_install_shim}" "${FLAGS_factory}" "${FLAGS_release}"
+
+  # Extract and modify lsb-factory from original install shim
+  local lsb_path="/dev_image/etc/lsb-factory"
+  local src_dir="$(mktemp -d --tmpdir)"
+  local src_lsb="${src_dir}${lsb_path}"
+  local new_dir="$(mktemp -d --tmpdir)"
+  local new_lsb="${new_dir}${lsb_path}"
+  image_push_mounts "$src_dir"
+  image_push_mounts "$new_dir"
+  image_mount_partition "${FLAGS_install_shim}" 1 "${src_dir}" ""
+  image_mount_partition "${FLAGS_usbimg}" 1 "${new_dir}" "rw"
+  # We put the install shim kernel and rootfs into partition #2 and #3, so
+  # the factory and release image partitions must be moved to +2 location.
+  # USB_OFFSET=2 tells factory_installer/factory_install.sh this information.
+  (cat "$src_lsb" &&
+    echo "FACTORY_INSTALL_FROM_USB=1" &&
+    echo "FACTORY_INSTALL_USB_OFFSET=2") |
+    sudo dd of="${new_lsb}"
+  image_pop_mounts
+
+  # Deactivate all kernel partitions except installer slot
+  local i=""
+  for i in 4 5 6 7; do
+    cgpt add -P 0 -T 0 -S 0 -t data -i "$i" "${FLAGS_usbimg}"
+  done
+
+  info "Generated Image at ${FLAGS_usbimg}."
+  info "Done"
 }
 
 generate_img() {
@@ -290,9 +346,8 @@ generate_img() {
   # this in postint/chromeos-setimage and build_image. However none
   # of the preexisting code actually does what we want here.
   local tmpesp="$(mktemp -d)"
-  mount_esp "${outdev}" "${tmpesp}"
-
-  trap "umount_esp" EXIT
+  image_push_mounts "$tmpesp"
+  image_mount_partition "${image}" 12 "$tmpesp" "rw"
 
   # Edit boot device default for legacy.
   # Support both vboot and regular boot.
@@ -305,10 +360,7 @@ generate_img() {
   # Somewhat safe as ARM does not support syslinux, I believe.
   sudo sed -i "s'HDROOTA'/dev/sda3'g" "${tmpesp}"/syslinux/root.A.cfg
 
-  trap - EXIT
-
-  umount_esp
-
+  image_pop_mounts
   echo "Generated Image at $outdev."
   echo "Done"
 }
@@ -458,7 +510,7 @@ generate_omaha() {
 ]
 " >>"${OMAHA_CONF}"
 
-  echo "The miniomaha server lives in src/platform/dev.
+  info "The miniomaha server lives in src/platform/dev.
 To validate the configutarion, run:
   python2.6 devserver.py --factory_config miniomaha.conf \
   --validate_factory_config
@@ -466,9 +518,20 @@ To run the server:
   python2.6 devserver.py --factory_config miniomaha.conf"
 }
 
-# Main
-if [ -n "$FLAGS_diskimg" ]; then
-  generate_img
-else
-  generate_omaha
-fi
+main() {
+  set -e
+  trap image_pop_mounts EXIT
+
+  check_parameters
+  setup_environment
+
+  if [ -n "$FLAGS_usbimg" ]; then
+    generate_usbimg
+  elif [ -n "$FLAGS_diskimg" ]; then
+    generate_img
+  else
+    generate_omaha
+  fi
+}
+
+main "$@"
