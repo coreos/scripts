@@ -277,6 +277,20 @@ function setup_env {
       fi
     fi
 
+    if [ -d "$HOME/.subversion" ]; then
+      TARGET="/home/${USER}/.subversion"
+      mkdir -p "${FLAGS_chroot}${TARGET}"
+      ensure_mounted "${HOME}/.subversion" "--bind" "${TARGET}"
+    fi
+
+    # Configure committer username and email in chroot .gitconfig
+    git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all \
+      user.name "$(cd /tmp; git var GIT_COMMITTER_IDENT | \
+      sed -e 's/ *<.*//')" || true
+    git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all \
+      user.email "$(cd /tmp; git var GIT_COMMITTER_IDENT | \
+        sed -e 's/.*<\([^>]*\)>.*/\1/')" || true
+
     # Fix permissions on shared memory to allow non-root users access to POSIX
     # semaphores.
     sudo chmod -R 777 "${FLAGS_chroot}/dev/shm"
@@ -376,21 +390,6 @@ for type in http_proxy ftp_proxy all_proxy GIT_PROXY_COMMAND GIT_SSH; do
       CHROOT_PASSTHRU="${CHROOT_PASSTHRU} ${type}=${value}"
    fi
 done
-
-if [ -d "$HOME/.subversion" ]; then
-  TARGET="/home/${USER}/.subversion"
-  mkdir -p "${FLAGS_chroot}${TARGET}"
-  ensure_mounted "${HOME}/.subversion" "--bind" "${TARGET}"
-fi
-
-# Configure committer username and email in chroot .gitconfig
-git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all \
-  user.name "$(cd /tmp; git var GIT_COMMITTER_IDENT | sed -e 's/ *<.*//')" ||
-    true
-git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all \
-  user.email "$(cd /tmp; git var GIT_COMMITTER_IDENT | \
-    sed -e 's/.*<\([^>]*\)>.*/\1/')" ||
-      true
 
 # Run command or interactive shell.  Also include the non-chrooted path to
 # the source trunk for scripts that may need to print it (e.g.
