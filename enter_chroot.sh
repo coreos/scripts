@@ -136,6 +136,10 @@ function env_sync_proc {
     sudo chown ${USER} ${FLAGS_chroot}/${file} 1>&2
   done
 
+  # Drop stdin, stderr, stdout, and chroot lock.
+  # This is needed for properly daemonizing the process.
+  exec 0>&- 1>&- 2>&- 200>&-
+
   while true; do
     # Sync files
     for file in ${sync_files}; do
@@ -186,18 +190,19 @@ function setup_env {
   # Don't use sudo -v since that has issues on machines w/ no password.
   sudo echo "" > /dev/null
 
-  # Syncer proc, but only the first time
-  if ! [ -f "${SYNCERPIDFILE}" ] || \
-     ! [ -d /proc/$(cat "${SYNCERPIDFILE}") ]; then
-    debug "Starting sync process"
-    env_sync_proc &
-    echo $! > "${SYNCERPIDFILE}"
-    disown $!
-  fi
-
   (
     flock 200
     echo $$ >> "$LOCKFILE"
+
+    # If there isn't a syncer daemon started already, start one. This daemon
+    # is killed by the enter_chroot that exits last.
+    if ! [ -f "${SYNCERPIDFILE}" ] || \
+       ! [ -d /proc/$(cat "${SYNCERPIDFILE}") ]; then
+      debug "Starting sync process"
+      env_sync_proc &
+      echo $! > "${SYNCERPIDFILE}"
+      disown $!
+    fi
 
     debug "Mounting chroot environment."
     ensure_mounted none "-t proc" /proc
