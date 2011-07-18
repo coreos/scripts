@@ -64,7 +64,7 @@ DEFINE_string acl "private" \
 DEFINE_string gsutil_archive "" \
     "Optional datastore archive location"
 DEFINE_boolean gsutil_append_last_change $FLAGS_TRUE \
-    "Optional Whether to append build # and chrome os hash to GS uploads"
+    "Optional whether to append build # and chrome os hash to GS uploads"
 DEFINE_integer keep_max 0 "Maximum builds to keep in archive (0=all)"
 DEFINE_boolean official_build $FLAGS_FALSE \
     "Set CHROMEOS_OFFICIAL=1 for release builds."
@@ -271,30 +271,36 @@ chmod 755 "$OUTDIR"
 cp -f  "${FLAGS_from}/au-generator.zip" "${OUTDIR}/"
 
 
-function gsutil_archive() {
-  IN_PATH="$1"
-  OUT_PATH="$2"
-  if [ ${FLAGS_gsutil_append_last_change} -eq ${FLAGS_TRUE} ]; then
-     OUT_PATH="${LAST_CHANGE}/${OUT_PATH}"
-  fi
-
-  echo "Using gsutil to archive to ${OUT_PATH}..."
+function gsutil_archive_noappend() {
+  local in_path="$1"
+  local out_path="$2"
+  echo "Using gsutil to archive to ${out_path}..."
   if [ -z "$FLAGS_gsutil_archive" -o ${FLAGS_debug} -eq ${FLAGS_TRUE} ]; then
     echo -n "In debug mode.  Would have run: "
-    echo "gsutil cp ${IN_PATH} <gsutil_archive>/${OUT_PATH}"
+    echo "gsutil cp ${in_path} <gsutil_archive>/${out_path}"
     return
   fi
 
-  FULL_OUT_PATH="${FLAGS_gsutil_archive}/${OUT_PATH}"
-  ${FLAGS_gsutil} cp ${IN_PATH} ${FULL_OUT_PATH}
-  ${FLAGS_gsutil} setacl ${FLAGS_acl} ${FULL_OUT_PATH}
+  local full_out_path="${FLAGS_gsutil_archive}/${out_path}"
+  ${FLAGS_gsutil} cp ${in_path} ${full_out_path}
+  ${FLAGS_gsutil} setacl ${FLAGS_acl} ${full_out_path}
   if [ -n "$FLAGS_gsd_gen_index" ]; then
     echo "Updating indexes..."
     ${FLAGS_gsd_gen_index} \
       --gsutil=${FLAGS_gsutil} \
       -a ${FLAGS_acl} \
-      -p ${FULL_OUT_PATH} ${FLAGS_gsutil_archive}
+      -p ${full_out_path} ${FLAGS_gsutil_archive}
   fi
+}
+
+
+function gsutil_archive() {
+  local in_path="$1"
+  local out_path="$2"
+  if [ ${FLAGS_gsutil_append_last_change} -eq ${FLAGS_TRUE} ]; then
+     out_path="${LAST_CHANGE}/${out_path}"
+  fi
+  gsutil_archive_noappend "${in_path}" "${out_path}"
 }
 
 if [ $FLAGS_test_mod -eq $FLAGS_TRUE -a $FLAGS_official_build -eq $FLAGS_TRUE ]
@@ -349,7 +355,7 @@ if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
     "factory_${FLAGS_zipname}"
 fi
 
-gsutil_archive "${FLAGS_to}/LATEST" "LATEST"
+gsutil_archive_noappend "${FLAGS_to}/LATEST" "LATEST"
 
 if [ -n "${FLAGS_gsutil_archive}" ]; then
   if [ ${FLAGS_gsutil_append_last_change} -eq ${FLAGS_TRUE} ]; then
