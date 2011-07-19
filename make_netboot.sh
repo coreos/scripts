@@ -78,6 +78,7 @@ cp "${SYSROOT}/boot/vmlinux.uimg" "netboot"
 if [ -r "${SYSROOT}/u-boot/legacy_image.bin" ]; then
     echo "Copying netboot firmware legacy_image.bin"
     cp "${SYSROOT}/u-boot/legacy_image.bin" "netboot"
+    cp "${GCLIENT_ROOT}/chroot/usr/bin/update_firmware_vars.py" "netboot"
 else
     echo "Skipping: ${SYSROOT}/u-boot/legacy_image.bin firmware not present?"
 fi
