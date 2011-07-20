@@ -72,6 +72,7 @@ DEFINE_string test_tarball "" "Optional path to test tarball to archive"
 DEFINE_boolean test_mod $FLAGS_TRUE "Modify image for testing purposes"
 DEFINE_boolean prebuilt_upload $FLAGS_FALSE "Upload prebuilt binary packages."
 DEFINE_boolean remove_dev $FLAGS_TRUE "Remove the de image during archive."
+DEFINE_string set_version "" "Set version/change identifier."
 DEFINE_string to "$DEFAULT_TO" "Directory of build archive"
 DEFINE_string zipname "image.zip" "Name of zip file to create."
 DEFINE_string useflags "" "USE flags to pass into mod_image_* and build_image."
@@ -132,7 +133,9 @@ REVISION=${REVISION:0:8}
 # Use the version number plus revision as the last change.  (Need both, since
 # trunk builds multiple times with the same version string.)
 LAST_CHANGE="${CHROMEOS_VERSION_STRING}-r${REVISION}"
-if [ -n "$FLAGS_build_number" ]; then
+if [ -n "$FLAGS_set_version" ]; then
+   LAST_CHANGE="$FLAGS_set_version"
+elif [ -n "$FLAGS_build_number" ]; then
    LAST_CHANGE="$LAST_CHANGE-b${FLAGS_build_number}"
 fi
 
