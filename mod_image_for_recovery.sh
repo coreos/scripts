@@ -81,6 +81,10 @@ DEFINE_boolean verbose $FLAGS_FALSE \
 DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
   "Directory containing the signing keys."
 
+# TODO(clchiou): Remove this flag after arm verified boot is stable
+DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
+  "Sign kernel partition for ARM images (temporary hack)."
+
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -141,6 +145,12 @@ case "${TC_ARCH}" in
     error "Unable to determine ARCH from toolchain: ${CHOST}"
     exit 1
 esac
+
+if [[ ${FLAGS_crosbug12352_arm_kernel_signing} -eq ${FLAGS_TRUE} ]]; then
+  crosbug12352_flag="--crosbug12352_arm_kernel_signing"
+else
+  crosbug12352_flag="--nocrosbug12352_arm_kernel_signing"
+fi
 
 get_install_vblock() {
   # If it exists, we need to copy the vblock over to stateful
@@ -255,6 +265,7 @@ create_recovery_kernel_image() {
     --root=${cros_root} \
     --keys_dir="${FLAGS_keys_dir}" \
     --nouse_dev_keys \
+    ${crosbug12352_flag} \
     ${verity_args} 1>&2 || failboat "build_kernel_image"
   sudo rm "$FLAGS_rootfs_hash"
   sudo losetup -d "$root_dev"
