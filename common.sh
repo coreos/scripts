@@ -218,26 +218,11 @@ FACTORY_INSTALL_MASK="
   /usr/share/zoneinfo
   "
 
-# Check to ensure not running old scripts
-V_REVERSE='[7m'
-V_VIDOFF='[m'
-case "$(basename $0)" in
-  build_image.sh|build_platform_packages.sh|customize_rootfs.sh|make_chroot.sh)
-  echo
-  echo "$V_REVERSE============================================================"
-  echo "===========================  WARNING  ======================"
-  echo "============================================================$V_VIDOFF"
-  echo
-  echo "RUNNING OLD BUILD SYSTEM SCRIPTS. RUN THE PORTAGE-BASED BUILD HERE:"
-  echo "http://www.chromium.org/chromium-os/building-chromium-os/portage-based-build"
-  echo
-  if [ "$USER" != "chrome-bot" ]; then
-    read -n1 -p "Press any key to continue using the OLD build system..."
-    echo
-    echo
-  fi
-  ;;
-esac
+V_REVERSE="$(tput rev)"
+V_VIDOFF="$(tput sgr0)"
+V_BOLD_RED="$(tput bold; tput setaf 1)"
+V_BOLD_GREEN="$(tput bold; tput setaf 2)"
+V_BOLD_YELLOW="$(tput bold; tput setaf 3)"
 
 # -----------------------------------------------------------------------------
 # Functions
@@ -263,43 +248,6 @@ function get_default_board {
   fi
 }
 
-
-# Make a package
-function make_pkg_common {
-  # Positional parameters from calling script.  :? means "fail if unset".
-  set -e
-  PKG_BASE=${1:?}
-  shift
-  set +e
-
-  # All packages are built in the chroot
-  assert_inside_chroot
-
-  # Command line options
-  DEFINE_string build_root "$DEFAULT_BUILD_ROOT" "Root of build output"
-
-  # Parse command line and update positional args
-  FLAGS "$@" || exit 1
-  eval set -- "${FLAGS_ARGV}"
-
-  # Die on any errors
-  set -e
-
-  # Make output dir
-  local out_dir="$FLAGS_build_root/x86/local_packages"
-  mkdir -p "$out_dir"
-
-  # Remove previous package from output dir
-  rm -f "$out_dir"/${PKG_BASE}_*.deb
-
-  # Rebuild the package
-  pushd "$SCRIPT_LOCATION"
-  rm -f ../${PKG_BASE}_*.deb
-  dpkg-buildpackage -b -tc -us -uc -j$NUM_JOBS
-  mv ../${PKG_BASE}_*.deb "$out_dir"
-  rm ../${PKG_BASE}_*.changes
-  popd
-}
 
 # Enter a chroot and restart the current script if needed
 function restart_in_chroot_if_needed {
@@ -338,20 +286,6 @@ function assert_not_root_user {
   fi
 }
 
-# Returns true if the input file is whitelisted.
-#
-# $1 - The file to check
-is_whitelisted() {
-  local file=$1
-  local whitelist="$FLAGS_whitelist"
-  test -f "$whitelist" || (echo "Whitelist file missing ($whitelist)" && exit 1)
-
-  local checksum=$(md5sum "$file" | awk '{ print $1 }')
-  local count=$(sed -e "s/#.*$//" "${whitelist}" | grep -c "$checksum" \
-                || /bin/true)
-  test $count -ne 0
-}
-
 # Check that all arguments are flags; that is, there are no remaining arguments
 # after parsing from shflags.  Allow (with a warning) a single empty-string
 # argument.
@@ -374,12 +308,6 @@ function check_flags_only_and_allow_null_arg {
   fi
   return $do_shift
 }
-
-V_RED="\e[31m"
-V_YELLOW="\e[33m"
-V_BOLD_GREEN="\e[1;32m"
-V_BOLD_RED="\e[1;31m"
-V_BOLD_YELLOW="\e[1;33m"
 
 function info {
   echo -e >&2  "${V_BOLD_GREEN}INFO    ${CROS_LOG_PREFIX:-""}: $1${V_VIDOFF}"
