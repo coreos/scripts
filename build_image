@@ -587,13 +587,6 @@ create_base_image() {
 
   # Create and format the root file system.
 
-  # Check for loop device before creating image.
-  LOOP_DEV=$(sudo losetup -f)
-  if [ -z "${LOOP_DEV}" ] ; then
-    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
-    exit 1
-  fi
-
   # Create root file system disk image.
   ROOT_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_rootfs_size}))
 
@@ -603,7 +596,13 @@ create_base_image() {
 
   dd if=/dev/zero of="${ROOT_FS_IMG}" bs=1 count=1 \
      seek=$((ROOT_SIZE_BYTES + ROOT_HASH_PAD - 1))
-  sudo losetup "${LOOP_DEV}" "${ROOT_FS_IMG}"
+
+  LOOP_DEV=$(sudo losetup --show -f "${ROOT_FS_IMG}")
+  if [ -z "${LOOP_DEV}" ] ; then
+    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
+    exit 1
+  fi
+
   # Specify a block size and block count to avoid using the hash pad.
   sudo mkfs.ext2 -b 4096 "${LOOP_DEV}" "$((ROOT_SIZE_BYTES / 4096))"
 
@@ -624,11 +623,6 @@ create_base_image() {
   sudo mount -t ext2 "${LOOP_DEV}" "${ROOT_FS_DIR}"
 
   # Create stateful partition of the same size as the rootfs.
-  STATEFUL_LOOP_DEV=$(sudo losetup -f)
-  if [ -z "${STATEFUL_LOOP_DEV}" ] ; then
-    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
-    exit 1
-  fi
   STATEFUL_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_statefulfs_size}))
   dd if=/dev/zero of="${STATEFUL_FS_IMG}" bs=1 count=1 \
       seek=$((STATEFUL_SIZE_BYTES - 1))
@@ -636,7 +630,11 @@ create_base_image() {
   # Tune and mount the stateful partition.
   UUID=$(uuidgen)
   DISK_LABEL="C-STATE"
-  sudo losetup "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_IMG}"
+  STATEFUL_LOOP_DEV=$(sudo losetup --show -f "${STATEFUL_FS_IMG}")
+  if [ -z "${STATEFUL_LOOP_DEV}" ] ; then
+    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
+    exit 1
+  fi
   sudo mkfs.ext3 "${STATEFUL_LOOP_DEV}"
   sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${STATEFUL_LOOP_DEV}"
   sudo mount -t ext3 "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"

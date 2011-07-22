@@ -142,24 +142,21 @@ if [[ ! -e "${FLAGS_to}" ]]; then
   # We'll hard-code it to 16M for now.
   ESP_BLOCKS=16384
   /usr/sbin/mkfs.vfat -C "${FLAGS_to}" ${ESP_BLOCKS}
-  ESP_DEV=$(sudo losetup -f)
+  ESP_DEV=$(sudo losetup --show -f "${FLAGS_to}")
   if [ -z "${ESP_DEV}" ]; then
     die "No free loop devices."
   fi
-  sudo losetup "${ESP_DEV}" "${FLAGS_to}"
 else
   if [[ -f "${FLAGS_to}" ]]; then
-    ESP_DEV=$(sudo losetup -f)
-    if [ -z "${ESP_DEV}" ]; then
-      die "No free loop devices."
-    fi
-
     esp_offset="--offset ${FLAGS_to_offset}"
     esp_size="--sizelimit ${FLAGS_to_size}"
     if [ ${FLAGS_to_size} -lt 0 ]; then
       esp_size=
     fi
-    sudo losetup ${esp_offset} ${esp_size} "${ESP_DEV}" "${FLAGS_to}"
+    ESP_DEV=$(sudo losetup --show -f ${esp_offset} ${esp_size} "${FLAGS_to}")
+    if [ -z "${ESP_DEV}" ]; then
+      die "No free loop devices."
+    fi
   else
     # If it is a block device or something else, try to mount it anyway.
     ESP_DEV="${FLAGS_to}"

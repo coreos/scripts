@@ -46,14 +46,6 @@ cleanup_loop_dev() {
   sudo losetup -d ${1} || /bin/true
 }
 
-get_loop_dev() {
-  local loop_dev=$(sudo losetup -f)
-  if [ -z "${loop_dev}" ]; then
-    die "No free loop device. Free up a loop device or reboot. Exiting."
-  fi
-  echo ${loop_dev}
-}
-
 # Resize stateful partition of install shim to hold payload content
 # Due to this resize, we need to create a new partition table and a new image.
 # (see update_partition_table() for details)
@@ -66,15 +58,16 @@ enlarge_partition_image() {
   local resized_sectors=$(roundup $(expr $source_sectors + $add_num_sectors))
   info "resized partition has ${resized_sectors} 512-byte sectors."
 
-  local loop_dev=$(get_loop_dev)
-  trap "cleanup_loop_dev ${loop_dev}" EXIT
-
   # Extend the source file size to the new size.
   dd if=/dev/zero of="${source_part}" bs=1 count=1 \
       seek=$((512 * ${resized_sectors} - 1)) &>/dev/null
 
   # Resize the partition.
-  sudo losetup "${loop_dev}" "${source_part}"
+  local loop_dev=$(losetup --show -f "${source_part}")
+  if [ -z "${loop_dev}" ]; then
+    die "No free loop device. Free up a loop device or reboot. Exiting."
+  fi
+  trap "cleanup_loop_dev ${loop_dev}" EXIT
   sudo e2fsck -fp "${loop_dev}" &> /dev/null
   sudo resize2fs "${loop_dev}" &> /dev/null
   # trap handler will clean up the loop device

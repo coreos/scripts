@@ -203,16 +203,13 @@ emerge_recovery_kernel() {
 create_recovery_kernel_image() {
   local sysroot="${FLAGS_build_root}/${FLAGS_board}"
   local vmlinuz="$sysroot/boot/vmlinuz"
-  local root_dev=$(sudo losetup -f)
   local root_offset=$(partoffset "$FLAGS_image" 3)
   local root_size=$(partsize "$FLAGS_image" 3)
 
-  sudo losetup \
-       -o $((root_offset * 512)) \
-       --sizelimit $((root_size * 512)) \
-       "$root_dev" \
-       "$FLAGS_image"
-
+  local root_dev=$(sudo losetup --show -f \
+                   -o $((root_offset * 512)) \
+                   --sizelimit $((root_size * 512)) \
+                   "$FLAGS_image")
   trap "sudo losetup -d $root_dev" EXIT
 
   cros_root="PARTUUID=%U/PARTNROFF=1"  # only used for non-verified images
@@ -273,15 +270,13 @@ create_recovery_kernel_image() {
 
   # Update the EFI System Partition configuration so that the kern_hash check
   # passes.
-  local efi_dev=$(sudo losetup -f)
   local efi_offset=$(partoffset "$FLAGS_image" 12)
   local efi_size=$(partsize "$FLAGS_image" 12)
 
-  sudo losetup \
-       -o $((efi_offset * 512)) \
-       --sizelimit $((efi_size * 512)) \
-       "$efi_dev" \
-       "$FLAGS_image"
+  local efi_dev=$(sudo losetup --show -f \
+                  -o $((efi_offset * 512)) \
+                  --sizelimit $((efi_size * 512)) \
+                  "$FLAGS_image")
   local efi_dir=$(mktemp -d)
   trap "sudo losetup -d $efi_dev && rmdir \"$efi_dir\"" EXIT
   sudo mount "$efi_dev" "$efi_dir"

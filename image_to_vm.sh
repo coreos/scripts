@@ -156,16 +156,14 @@ else
     fi
 
     echo "Resizing stateful partition to ${FLAGS_statefulfs_size}MB"
-    STATEFUL_LOOP_DEV=$(sudo losetup -f)
-    if [ -z "${STATEFUL_LOOP_DEV}" ]; then
-      die "No free loop device. Free up a loop device or reboot. Exiting."
-    fi
-
     # Extend the original file size to the new size.
     dd if=/dev/zero of="${TEMP_STATE}" bs=1 count=1 \
         seek=$((STATEFUL_SIZE_BYTES - 1))
     # Resize the partition.
-    sudo losetup "${STATEFUL_LOOP_DEV}" "${TEMP_STATE}"
+    STATEFUL_LOOP_DEV=$(sudo losetup --show -f "${TEMP_STATE}")
+    if [ -z "${STATEFUL_LOOP_DEV}" ]; then
+      die "No free loop device. Free up a loop device or reboot. Exiting."
+    fi
     sudo e2fsck -pf "${STATEFUL_LOOP_DEV}"
     sudo resize2fs "${STATEFUL_LOOP_DEV}"
     sync
