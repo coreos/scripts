@@ -102,27 +102,34 @@ check_required_file() {
   [ -f "$file" ] || die "Cannot find $description: $file"
 }
 
+check_empty_param() {
+  [ -z "$1" ] || die "Parameter is not supported $2"
+}
+
 check_parameters() {
   check_required_file "${FLAGS_release}" "release image (--release)"
   check_required_file "${FLAGS_factory}" "factory test image (--factory)"
 
+  # All remaining parameters must be checked:
+  # install_shim, firmware, hwid_updater, complete_script.
+
   if [ -n "${FLAGS_usbimg}" ]; then
     [ -z "${FLAGS_diskimg}" ] ||
       die "--usbimg and --diskimg cannot be used at the same time."
-    [ -f "${FLAGS_install_shim}" ] ||
-      die "Cannot find install shim image ${FLAGS_install_shim}."
-    local arg=""
-    local value=""
-    for arg in firmware_updater hwid_updater complete_script; do
-      value='$FLAGS_'$arg
-      value="$(eval "echo $value")"
-      [ -z "$value" ] || die "--$arg is not supported yet in --usbimg mode."
-    done
+    check_optional_file "${FLAGS_firmware_updater}" "firmware file (--firmware)"
+    check_optional_file "${FLAGS_hwid_updater}" "HWID component list updater"
+    check_empty_param "${FLAGS_complete_script}" "in usbimg: --complete_script"
+    check_required_file "${FLAGS_install_shim}" "install shim (--install_shim)"
+  elif [ -n "${FLAGS_diskimg}" ]; then
+    check_empty_param "${FLAGS_firmware_updater}" "in diskimg: --firmware"
+    check_optional_file "${FLAGS_hwid_updater}" "HWID component list updater"
+    check_empty_param "${FLAGS_complete_script}" "in diskimg: --complete_script"
+    check_empty_param "${FLAGS_install_shim}" "in diskimg: --install_shim"
   else
-    [ -z "${FLAGS_install_shim}" ] || die "--install_shim is only for --usbimg."
-    check_optional_file "${FLAGS_firmware_updater}" "firmware file"
+    check_optional_file "${FLAGS_firmware_updater}" "firmware file (--firmware)"
     check_optional_file "${FLAGS_hwid_updater}" "HWID component list updater"
     check_optional_file "${FLAGS_complete_script}" "completion script"
+    check_empty_param "${FLAGS_install_shim}" "in omaha: --install_shim"
   fi
 }
 
@@ -260,6 +267,20 @@ compress_and_hash_partition() {
   fi
 }
 
+# Applies HWID component list files updater into stateful partition
+apply_hwid_updater() {
+  local hwid_updater="$1"
+  local outdev="$2"
+  local hwid_result="0"
+
+  if [ -n "$hwid_updater" ]; then
+    local state_dev="$(image_map_partition "${outdev}" 1)"
+    sudo sh "$hwid_updater" "$state_dev" || hwid_result="$?"
+    image_unmap_partition "$state_dev" || true
+    [ $hwid_result = "0" ] || die "Failed to update HWID ($hwid_result). abort."
+  fi
+}
+
 generate_usbimg() {
   if ! type cgpt >/dev/null 2>&1; then
     die "Missing 'cgpt'. Please install cgpt, or run inside chroot."
@@ -275,16 +296,27 @@ generate_usbimg() {
   local src_lsb="${src_dir}${lsb_path}"
   local new_dir="$(mktemp -d --tmpdir)"
   local new_lsb="${new_dir}${lsb_path}"
+  apply_hwid_updater "${FLAGS_hwid_updater}" "${FLAGS_usbimg}"
   image_push_mounts "$src_dir"
   image_push_mounts "$new_dir"
   image_mount_partition "${FLAGS_install_shim}" 1 "${src_dir}" ""
   image_mount_partition "${FLAGS_usbimg}" 1 "${new_dir}" "rw"
+  # Copy firmware updater, if available
+  local updater_settings=""
+  if [ -n "${FLAGS_firmware_updater}" ]; then
+    local updater_new_path="${new_dir}/chromeos-firmwareupdate"
+    sudo cp -f "${FLAGS_firmware_updater}" "${updater_new_path}"
+    sudo chmod a+rx "${updater_new_path}"
+    updater_settings="FACTORY_INSTALL_FIRMWARE=/mnt/stateful_partition"
+    updater_settings="$updater_settings/$(basename $updater_new_path)"
+  fi
   # We put the install shim kernel and rootfs into partition #2 and #3, so
   # the factory and release image partitions must be moved to +2 location.
   # USB_OFFSET=2 tells factory_installer/factory_install.sh this information.
   (cat "$src_lsb" &&
     echo "FACTORY_INSTALL_FROM_USB=1" &&
-    echo "FACTORY_INSTALL_USB_OFFSET=2") |
+    echo "FACTORY_INSTALL_USB_OFFSET=2" &&
+    echo "$updater_settings") |
     sudo dd of="${new_lsb}"
   image_pop_mounts
 
@@ -332,14 +364,7 @@ generate_img() {
   image_partition_copy "${FACTORY_IMAGE}" 1 "${outdev}" 1
   echo "EFI Partition"
   image_partition_copy "${FACTORY_IMAGE}" 12 "${outdev}" 12
-
-  if [ -n "${hwid_updater}" ]; then
-    local state_dev="$(image_map_partition "${outdev}" 1)"
-    local hwid_result="0"
-    sudo sh "$hwid_updater" "$state_dev" || hwid_result="$?"
-    image_unmap_partition "$state_dev" || true
-    [ $hwid_result = "0" ] || die "Failed to update HWID ($hwid_result). abort."
-  fi
+  apply_hwid_updater "${hwid_updater}" "${outdev}"
 
   # TODO(nsanders, wad): consolidate this code into some common code
   # when cleaning up kernel commandlines. There is code that touches
@@ -347,7 +372,7 @@ generate_img() {
   # of the preexisting code actually does what we want here.
   local tmpesp="$(mktemp -d)"
   image_push_mounts "$tmpesp"
-  image_mount_partition "${image}" 12 "$tmpesp" "rw"
+  image_mount_partition "${outdev}" 12 "$tmpesp" "rw"
 
   # Edit boot device default for legacy.
   # Support both vboot and regular boot.
