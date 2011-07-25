@@ -37,9 +37,7 @@ assert_inside_chroot
 . "/usr/lib/installer/chromeos-common.sh" || \
   die "Unable to load /usr/lib/installer/chromeos-common.sh"
 
-# For update_partition_table
-. "${SCRIPT_ROOT}/resize_stateful_partition.sh" || \
-  die "Unable to load ${SCRIPT_ROOT}/resize_stateful_partition.sh"
+locate_gpt
 
 get_default_board
 
@@ -351,6 +349,48 @@ install_recovery_kernel() {
     return 1
   fi
   return 0
+}
+
+update_partition_table() {
+  local src_img=$1          # source image
+  local temp_state=$2       # stateful partition image
+  local resized_sectors=$3  # number of sectors in resized stateful partition
+  local temp_img=$4
+
+  local kern_a_offset=$(partoffset ${src_img} 2)
+  local kern_a_count=$(partsize ${src_img} 2)
+  local kern_b_offset=$(partoffset ${src_img} 4)
+  local kern_b_count=$(partsize ${src_img} 4)
+  local rootfs_offset=$(partoffset ${src_img} 3)
+  local rootfs_count=$(partsize ${src_img} 3)
+  local oem_offset=$(partoffset ${src_img} 8)
+  local oem_count=$(partsize ${src_img} 8)
+  local esp_offset=$(partoffset ${src_img} 12)
+  local esp_count=$(partsize ${src_img} 12)
+
+  local temp_pmbr=$(mktemp "/tmp/pmbr.XXXXXX")
+  dd if="${src_img}" of="${temp_pmbr}" bs=512 count=1 &>/dev/null
+
+  trap "rm -rf \"${temp_pmbr}\"" EXIT
+  # Set up a new partition table
+  install_gpt "${temp_img}" "${rootfs_count}" "${resized_sectors}" \
+    "${temp_pmbr}" "${esp_count}" false \
+    $(((rootfs_count * 512)/(1024 * 1024)))
+
+  # Copy into the partition parts of the file
+  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
+    seek="${START_ROOTFS_A}" skip=${rootfs_offset} count=${rootfs_count}
+  dd if="${temp_state}" of="${temp_img}" conv=notrunc bs=512 \
+    seek="${START_STATEFUL}"
+  # Copy the full kernel (i.e. with vboot sections)
+  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
+    seek="${START_KERN_A}" skip=${kern_a_offset} count=${kern_a_count}
+  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
+    seek="${START_KERN_B}" skip=${kern_b_offset} count=${kern_b_count}
+  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
+    seek="${START_OEM}" skip=${oem_offset} count=${oem_count}
+  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
+    seek="${START_ESP}" skip=${esp_offset} count=${esp_count}
 }
 
 maybe_resize_stateful() {
