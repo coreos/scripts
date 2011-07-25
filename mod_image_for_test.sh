@@ -19,35 +19,9 @@
 # TODO(vlaviano): delete this script.
 # =============================================================================
 
-# --- BEGIN COMMON.SH BOILERPLATE ---
-# Load common CrOS utilities.  Inside the chroot this file is installed in
-# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
-# location.
-find_common_sh() {
-  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
-  local path
+SCRIPT_ROOT=$(dirname "$0")
+. "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
 
-  SCRIPT_ROOT=
-  for path in "${common_paths[@]}"; do
-    if [ -r "${path}/common.sh" ]; then
-      SCRIPT_ROOT=${path}
-      break
-    fi
-  done
-}
-
-find_common_sh
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
-# --- END COMMON.SH BOILERPLATE ---
-
-# Need to be inside the chroot to load chromeos-common.sh
-assert_inside_chroot
-
-# Load functions and constants for chromeos-install
-. "/usr/lib/installer/chromeos-common.sh" || \
-  die "Unable to load /usr/lib/installer/chromeos-common.sh"
-
-get_default_board
 
 DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built" b
 DEFINE_boolean factory $FLAGS_FALSE \
