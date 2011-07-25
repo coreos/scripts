@@ -95,7 +95,7 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
            (GetCallerName(), cmd, cwd))
 
     proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
-                            stdout=stdout, stderr=stderr)
+                            stdout=stdout, stderr=stderr, close_fds=True)
     (output, error) = proc.communicate(input)
 
     # if the command worked, don't retry any more.
@@ -163,7 +163,7 @@ def RunCommandCaptureOutput(cmd, print_cmd=True, cwd=None, input=None,
          (GetCallerName(), cmd, cwd))
 
   proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
-                          stdout=stdout, stderr=stderr)
+                          stdout=stdout, stderr=stderr, close_fds=True)
   output, error = proc.communicate(input)
 
   if verbose:
