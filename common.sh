@@ -190,6 +190,7 @@ DEFAULT_INSTALL_MASK="
   /usr/share/openrc
   /usr/share/pkgconfig
   /usr/share/readline
+  /usr/src
   "
 
 FACTORY_INSTALL_MASK="
