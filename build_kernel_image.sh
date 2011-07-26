@@ -69,10 +69,6 @@ DEFINE_integer verity_max_ios -1 \
 DEFINE_string verity_hash_alg "sha1" \
   "Cryptographic hash algorithm used for dm-verity. (Default: sha1)"
 
-# TODO(clchiou): Remove this flag after arm verified boot is stable
-DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
-  "Sign kernel partition for ARM images (temporary hack)."
-
 # Parse flags
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -168,8 +164,6 @@ EOF
 
   bootloader_path="/lib64/bootstub/bootstub.efi"
   kernel_image="${FLAGS_vmlinuz}"
-
-  sign_the_kernel=${FLAGS_TRUE}
 elif [[ "${FLAGS_arch}" = "arm" ]]; then
   cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
     > "${FLAGS_working_dir}/config.txt"
@@ -184,97 +178,63 @@ EOF
 
   bootloader_path="${FLAGS_working_dir}/bootloader.bin"
   kernel_image="${FLAGS_vmlinuz/vmlinuz/vmlinux.uimg}"
-
-  sign_the_kernel=${FLAGS_crosbug12352_arm_kernel_signing}
 else
   error "Unknown arch: ${FLAGS_arch}"
 fi
 
-if [[ "${sign_the_kernel}" -eq "${FLAGS_TRUE}" ]]; then
-  # We sign the image with the recovery_key, because this is what goes onto the
-  # USB key. We can only boot from the USB drive in recovery mode.
-  # For dev install shim, we need to use the installer keyblock instead of
-  # the recovery keyblock because of the difference in flags.
-  if [ ${FLAGS_use_dev_keys} -eq ${FLAGS_TRUE} ]; then
-    USB_KEYBLOCK=installer_kernel.keyblock
-    info "DEBUG: use dev install signing key"
-  else
-    USB_KEYBLOCK=recovery_kernel.keyblock
-    info "DEBUG: use recovery signing key"
-  fi
-
-  # Create and sign the kernel blob
-  vbutil_kernel \
-    --pack "${FLAGS_to}" \
-    --keyblock "${FLAGS_keys_dir}/${USB_KEYBLOCK}" \
-    --signprivate "${FLAGS_keys_dir}/recovery_kernel_data_key.vbprivk" \
-    --version 1 \
-    --config "${FLAGS_working_dir}/config.txt" \
-    --bootloader "${bootloader_path}" \
-    --vmlinuz "${kernel_image}" \
-    --arch "${FLAGS_arch}"
-
-  # And verify it.
-  vbutil_kernel \
-    --verify "${FLAGS_to}" \
-    --signpubkey "${FLAGS_keys_dir}/recovery_key.vbpubk"
-
-
-  # Now we re-sign the same image using the normal keys. This is the kernel
-  # image that is put on the hard disk by the installer. Note: To save space on
-  # the USB image, we're only emitting the new verfication block, and the
-  # installer just replaces that part of the hard disk's kernel partition.
-  vbutil_kernel \
-    --repack "${FLAGS_hd_vblock}" \
-    --vblockonly \
-    --keyblock "${FLAGS_keys_dir}/kernel.keyblock" \
-    --signprivate "${FLAGS_keys_dir}/kernel_data_key.vbprivk" \
-    --oldblob "${FLAGS_to}"
-
-
-  # To verify it, we have to replace the vblock from the original image.
-  tempfile=$(mktemp)
-  trap "rm -f $tempfile" EXIT
-  cat "${FLAGS_hd_vblock}" > $tempfile
-  dd if="${FLAGS_to}" bs=65536 skip=1 >> $tempfile
-
-  vbutil_kernel \
-    --verify $tempfile \
-    --signpubkey "${FLAGS_keys_dir}/kernel_subkey.vbpubk"
-
-  rm -f $tempfile
-  trap - EXIT
-
+# We sign the image with the recovery_key, because this is what goes onto the
+# USB key. We can only boot from the USB drive in recovery mode.
+# For dev install shim, we need to use the installer keyblock instead of
+# the recovery keyblock because of the difference in flags.
+if [ ${FLAGS_use_dev_keys} -eq ${FLAGS_TRUE} ]; then
+  USB_KEYBLOCK=installer_kernel.keyblock
+  info "DEBUG: use dev install signing key"
 else
-  # FIXME: This stuff is unsigned. This part should be removed or made
-  # non-default after ARM verified boot is stable.
-
-  kernel_size=$((($(stat -c %s "${kernel_image}") + 511) / 512))
-  script_size=16
-
-  # Add more scripts to boot script image for loading kernel image
-  printf 'read ${devtype} ${devnum}:${kernelpart} ${loadaddr} %x %x\n' \
-    ${script_size} ${kernel_size} >> "${kernel_script}"
-  echo 'bootm ${loadaddr}' >> ${kernel_script}
-  mkimage -A arm -O linux -T script -C none -a 0 -e 0 \
-    -n kernel_script -d "${kernel_script}" "${kernel_script_img}"
-
-  if [ $(stat -c %s "${kernel_script_img}") -gt $((512 * ${script_size})) ]
-  then
-    echo 'Kernel script too large for reserved space.'
-    exit 1
-  fi
-
-  # Assemble image
-  rm -f "${FLAGS_to}"
-  dd if="${kernel_script_img}" of="${FLAGS_to}" bs=512 count="${script_size}"
-  dd if="${kernel_image}" of="${FLAGS_to}" bs=512 seek="${script_size}"
-
-  # TODO: HACK: Until the kernel partition contains a signed image, create a
-  # phony hd.vblock to keep chromeos-install and cros_generate_update_payload
-  # working.
-  dd if="${FLAGS_to}" of="${FLAGS_hd_vblock}" bs=64K count=1
+  USB_KEYBLOCK=recovery_kernel.keyblock
+  info "DEBUG: use recovery signing key"
 fi
+
+# Create and sign the kernel blob
+vbutil_kernel \
+  --pack "${FLAGS_to}" \
+  --keyblock "${FLAGS_keys_dir}/${USB_KEYBLOCK}" \
+  --signprivate "${FLAGS_keys_dir}/recovery_kernel_data_key.vbprivk" \
+  --version 1 \
+  --config "${FLAGS_working_dir}/config.txt" \
+  --bootloader "${bootloader_path}" \
+  --vmlinuz "${kernel_image}" \
+  --arch "${FLAGS_arch}"
+
+# And verify it.
+vbutil_kernel \
+  --verify "${FLAGS_to}" \
+  --signpubkey "${FLAGS_keys_dir}/recovery_key.vbpubk"
+
+
+# Now we re-sign the same image using the normal keys. This is the kernel
+# image that is put on the hard disk by the installer. Note: To save space on
+# the USB image, we're only emitting the new verfication block, and the
+# installer just replaces that part of the hard disk's kernel partition.
+vbutil_kernel \
+  --repack "${FLAGS_hd_vblock}" \
+  --vblockonly \
+  --keyblock "${FLAGS_keys_dir}/kernel.keyblock" \
+  --signprivate "${FLAGS_keys_dir}/kernel_data_key.vbprivk" \
+  --oldblob "${FLAGS_to}"
+
+
+# To verify it, we have to replace the vblock from the original image.
+tempfile=$(mktemp)
+trap "rm -f $tempfile" EXIT
+cat "${FLAGS_hd_vblock}" > $tempfile
+dd if="${FLAGS_to}" bs=65536 skip=1 >> $tempfile
+
+vbutil_kernel \
+  --verify $tempfile \
+  --signpubkey "${FLAGS_keys_dir}/kernel_subkey.vbpubk"
+
+rm -f $tempfile
+trap - EXIT
 
 set +e  # cleanup failure is a-ok
 
