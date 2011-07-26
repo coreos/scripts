@@ -1,37 +1,21 @@
 #!/bin/bash
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 #
 # Emit scripts to pack and unpack the partitions from a GPT disk image.
 
-# --- BEGIN COMMON.SH BOILERPLATE ---
-# Load common CrOS utilities.  Inside the chroot this file is installed in
-# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
-# location.
-find_common_sh() {
-  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
-  local path
+SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
-  SCRIPT_ROOT=
-  for path in "${common_paths[@]}"; do
-    if [ -r "${path}/common.sh" ]; then
-      SCRIPT_ROOT=${path}
-      break
-    fi
-  done
-}
-
-find_common_sh
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
-# --- END COMMON.SH BOILERPLATE ---
-
-# Need to be inside the chroot to load chromeos-common.sh
+# We're invoked only by build_image, which runs in the chroot
 assert_inside_chroot
 
-# Load functions and constants for chromeos-install
-. "/usr/lib/installer/chromeos-common.sh" || \
-  die "Unable to load /usr/lib/installer/chromeos-common.sh"
+INSTALLER_ROOT=/usr/lib/installer
+. "${INSTALLER_ROOT}/chromeos-common.sh" || exit 1
+
+locate_gpt
 
 set -e
 
@@ -45,8 +29,6 @@ fi
 
 PACK="${DIR}/pack_partitions.sh"
 UNPACK="${DIR}/unpack_partitions.sh"
-
-locate_gpt
 
 TMP=$(mktemp)
 $GPT show "$IMAGE" > $TMP

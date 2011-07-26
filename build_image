@@ -99,7 +99,7 @@ fi
 check_blacklist() {
   info "Verifying that the base image does not contain a blacklisted package."
   info "Generating list of packages for chromeos-base/chromeos."
-  local package_blacklist_file="${SCRIPTS_DIR}/chromeos_blacklist"
+  local package_blacklist_file="${BUILD_LIBRARY_DIR}/chromeos_blacklist"
   if [ ! -e "${package_blacklist_file}" ]; then
     warn "Missing blacklist file."
     return
@@ -236,7 +236,7 @@ emerge_to_image() {
 }
 
 # Check that the build root is sane.
-"${SCRIPTS_DIR}/test_build_root" --root="${BOARD_ROOT}"
+"${BUILD_LIBRARY_DIR}/test_build_root" --root="${BOARD_ROOT}"
 
 # Freshen kernel with correct USE flags. This is a noop if we have
 # the right kernel prebuilt. Factory install uses USE="initramfs".
@@ -496,7 +496,7 @@ update_dev_packages() {
   # building a factory install shim, as the INSTALL_MASK for it will make
   # test_image fail.
   if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]; then
-    "${SCRIPTS_DIR}/test_image" \
+    "${BUILD_LIBRARY_DIR}/test_image" \
       --root="${ROOT_FS_DIR}" \
       --target="${ARCH}"
   fi
@@ -667,7 +667,7 @@ create_base_image() {
     enable_rootfs_verification="--enable_rootfs_verification"
   fi
 
-  ${SCRIPTS_DIR}/create_legacy_bootloader_templates.sh \
+  ${BUILD_LIBRARY_DIR}/create_legacy_bootloader_templates.sh \
     --arch=${ARCH} \
     --to="${ROOT_FS_DIR}"/boot \
     --boot_args="${FLAGS_boot_args}" \
@@ -676,7 +676,7 @@ create_base_image() {
   # Don't test the factory install shim
   if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]; then
     # Check that the image has been correctly created.
-    "${SCRIPTS_DIR}/test_image" \
+    "${BUILD_LIBRARY_DIR}/test_image" \
       --root="${ROOT_FS_DIR}" \
       --target="${ARCH}"
   fi
@@ -706,7 +706,7 @@ create_base_image() {
   trap delete_prompt EXIT
 
   # Create the GPT-formatted image.
-  ${SCRIPTS_DIR}/build_gpt.sh \
+  ${BUILD_LIBRARY_DIR}/build_gpt.sh \
     --arch=${ARCH} \
     --board=${FLAGS_board} \
     --rootfs_partition_size=${FLAGS_rootfs_partition_size} \
@@ -721,7 +721,7 @@ create_base_image() {
 }
 
 generate_au_zip () {
-  local lgenerateauzip="${SCRIPTS_DIR}/generate_au_zip.py"
+  local lgenerateauzip="${BUILD_LIBRARY_DIR}/generate_au_zip.py"
   local largs="-o ${OUTPUT_DIR}"
   test ! -d "${OUTPUT_DIR}" && mkdir -p "${OUTPUT_DIR}"
   info "Running ${lgenerateauzip} ${largs} for generating AU updater zip file"

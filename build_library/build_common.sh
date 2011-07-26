@@ -17,5 +17,6 @@ restart_in_chroot_if_needed "$@"
 INSTALLER_ROOT=/usr/lib/installer
 . "${INSTALLER_ROOT}/chromeos-common.sh" || exit 1
 
+BUILD_LIBRARY_DIR=${SCRIPTS_DIR}/build_library
 locate_gpt
 get_default_board
