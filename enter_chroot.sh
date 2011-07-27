@@ -194,9 +194,38 @@ function setup_env {
     flock 200
     echo $$ >> "$LOCKFILE"
 
-    # If there isn't a syncer daemon started already, start one. This daemon
-    # is killed by the enter_chroot that exits last.
+    # If there isn't a syncer daemon started already, start one.  The
+    # daemon is considered to not be started under the following
+    # conditions:
+    #
+    #   o There is no PID file
+    #
+    #   o The PID file is 0 bytes in size, which might be a partial
+    #     manifestation of chromium-os:17680.  This situation will not
+    #     occur anymore, but you might have a chroot which was already
+    #     affected.
+    #
+    #   o The /proc node for the process named by the PID file does
+    #     not exist.
+    #
+    #     Note: This does not address PID recycling.  While
+    #           increasingly unlikely, it is possible for the PID in
+    #           the PID file to refer to a running process that is not
+    #           the syncer process.  Since the PID file is now
+    #           removed, I think it is only possible for this to occur
+    #           if your system crashes and the PID file exists after
+    #           restart.
+    #
+    # The daemon is killed by the enter_chroot that exits last.
+    if [ -f "${SYNCERPIDFILE}" ] && [ -s "${SYNCERPIDFILE}" ] ; then
+        info "You may have suffered from chromium-os:17680 and";
+        info "could have stray 'enter_chroot.sh' processes running.";
+        info "You must manually kill any such stray processes.";
+        info "Exit all chroot shells; remaining 'enter_chroot.sh'";
+        info "processes are probably stray.";
+    fi;
     if ! [ -f "${SYNCERPIDFILE}" ] || \
+         [ -s "${SYNCERPIDFILE}" ] || \
        ! [ -d /proc/$(cat "${SYNCERPIDFILE}") ]; then
       debug "Starting sync process"
       env_sync_proc &
@@ -343,7 +372,23 @@ function teardown_env {
       debug "tearing down env."
     else
       debug "Stopping syncer process"
-      kill $(cat "${SYNCERPIDFILE}")
+      # If another process entering the chroot is blocked on this
+      # flock in setup_env(), it can be a race condition.
+      #
+      # When this locked region is exited, the setup_env() flock can
+      # be entered before the script can exit and the /proc entry for
+      # the PID is removed.  The newly-created chroot will not end up
+      # with a syncer process.  To avoid that situation, remove the
+      # syncer PID file.
+      #
+      # The syncer PID file should also be removed because the kernel
+      # will reuse PIDs.  It's possible that the PID in the syncer PID
+      # has been reused by another process; make sure we don't skip
+      # starting the syncer process when this occurs by deleting the
+      # PID file.
+      kill $(cat "${SYNCERPIDFILE}") && \
+          rm -f "${SYNCERPIDFILE}"   || \
+          debug "Unable to clean up syncer process.";
 
       MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
       debug "Unmounting chroot environment."
