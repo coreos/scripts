@@ -74,6 +74,10 @@ DEFINE_string verity_algorithm "sha1" \
 DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
   "Install standard backdoor credentials for testing"
 
+# TODO(clchiou): Remove this flag after buildbot is fixed
+DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
+  "A dummy this flag for preventing buildbot fail"
+
 # Parse command line.
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
