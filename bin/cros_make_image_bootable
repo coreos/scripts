@@ -118,6 +118,10 @@ DEFINE_boolean use_dev_keys ${FLAGS_FALSE} \
 DEFINE_boolean fsck_rootfs ${FLAGS_FALSE} \
   "Check integrity of the rootfs on the modified image."
 
+# TODO(pkumar): Remove once known that no images are using this flag
+DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_FALSE} \
+  "This flag is deprecated but the bots still need parse old images."
+
 # TODO(sosa):  Remove once known images no longer use this in their config.
 DEFINE_string arm_extra_bootargs "" "DEPRECATED FLAG.  Do not use."
 
