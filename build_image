@@ -12,6 +12,8 @@
 SCRIPT_ROOT=$(dirname "$0")
 . "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
 
+. "${SCRIPT_ROOT}/build_library/build_gpt.sh" || exit 1
+
 
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
@@ -706,16 +708,14 @@ create_base_image() {
   trap delete_prompt EXIT
 
   # Create the GPT-formatted image.
-  ${BUILD_LIBRARY_DIR}/build_gpt.sh \
-    --arch=${ARCH} \
-    --board=${FLAGS_board} \
-    --rootfs_partition_size=${FLAGS_rootfs_partition_size} \
-    "${OUTPUT_DIR}" \
-    "${OUTPUT_DIR}/${image_name}"
+  build_gpt "${OUTPUT_DIR}/${image_name}" \
+            "${ROOT_FS_IMG}" \
+            "${OUTPUT_DIR}/vmlinuz.image" \
+            "${STATEFUL_FS_IMG}" \
+            "${ESP_FS_IMG}"
 
-  # Pre-set "sucessful" bit in gpt, so we will never mark-for-death
-  # a partition on an SDCard/USB stick.
-  ${GPT} add -i 2 -S 1 "${OUTPUT_DIR}/${image_name}"
+  # Emit helpful scripts for testers, etc.
+  emit_gpt_scripts "${OUTPUT_DIR}/${image_name}" "${OUTPUT_DIR}"
 
   trap - EXIT
 }

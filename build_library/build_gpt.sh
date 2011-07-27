@@ -1,147 +1,90 @@
-#!/bin/bash
-
 # Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
-. "${SCRIPT_ROOT}/common.sh" || exit 1
+emit_gpt_scripts() {
+  local image="$1"
+  local dir="$2"
 
-# We're invoked only by build_image, which runs in the chroot
-assert_inside_chroot
+  local pack="$dir/pack_partitions.sh"
+  local unpack="$dir/unpack_partitions.sh"
 
-INSTALLER_ROOT=/usr/lib/installer
-. "${INSTALLER_ROOT}/chromeos-common.sh" || exit 1
-
-BUILD_LIBRARY_DIR=${SCRIPTS_DIR}/build_library
-
-get_default_board
-
-# Flags.
-DEFINE_string arch "" \
-  "The target architecture (\"arm\" or \"x86\")."
-DEFINE_string board "$DEFAULT_BOARD" \
-  "The board to build an image for."
-DEFINE_integer rootfs_partition_size 1024 \
-  "rootfs parition size in MBs."
-
-# Usage.
-FLAGS_HELP=$(cat <<EOF
-
-Usage: $(basename $0) [flags] IMAGEDIR OUTDEV
-
-This takes the image components in IMAGEDIR and creates a bootable,
-GPT-formatted image in OUTDEV. OUTDEV can be a file or block device.
-
-EOF
-)
-
-# Parse command line.
-FLAGS "$@" || exit 1
-eval set -- "${FLAGS_ARGV}"
-
-if [[ -z "$FLAGS_board" ]] ; then
-  error "--board is required."
+  cat >"$unpack" <<HEADER
+#!/bin/bash -eu
+# File automatically generated. Do not edit.
+TARGET=\${1:-}
+if [[ -z "\$TARGET" ]]; then
+  echo "Usage: \$0 DEVICE" 1>&2
   exit 1
 fi
+set -x
+HEADER
 
-if [[ -z "$1" || -z "$2" ]] ; then
-  flags_help
-  exit 1
-fi
-IMAGEDIR="$1"
-OUTDEV="$2"
+  $GPT show "$image" | sed -e 's/^/# /' >>"$unpack"
+  cp "$unpack" "$pack"
 
-if [[ -n "$FLAGS_arch" ]]; then
-  ARCH=${FLAGS_arch}
-else
-  # Figure out ARCH from the given toolchain.
-  # TODO: Move to common.sh as a function after scripts are switched over.
-  TC_ARCH=$(echo "$CHOST" | awk -F'-' '{ print $1 }')
-  case "$TC_ARCH" in
-    arm*)
-      ARCH="arm"
-      ;;
-    *86)
-      ARCH="x86"
-      ;;
-    *x86_64)
-      ARCH="amd64"
-      ;;
-    *)
-      error "Unable to determine ARCH from toolchain: $CHOST"
-      exit 1
-  esac
-fi
+  $GPT show -q "$image" |
+    while read start size part x; do
+      local file="part_$part"
+      local target="\"\$TARGET\""
+      local dd_args="bs=512 count=$size"
+      echo "dd if=$target of=$file $dd_args skip=$start" >>"$unpack"
+      echo "dd if=$file of=$target $dd_args seek=$start conv=notrunc" \
+        >>"$pack"
+    done
 
-# Only now can we die on error.  shflags functions leak non-zero error codes,
-# so will die prematurely if 'set -e' is specified before now.
-set -e
-# Die on uninitialized variables.
-set -u
+  chmod +x "$unpack" "$pack"
+}
 
-# Check for missing parts.
-ROOTFS_IMG="${IMAGEDIR}/rootfs.image"
-if [[ ! -s ${ROOTFS_IMG} ]]; then
-  error "Can't find ${ROOTFS_IMG}"
-  exit 1
-fi
 
-KERNEL_IMG="${IMAGEDIR}/vmlinuz.image"
-if [[ ! -s ${KERNEL_IMG} ]]; then
-  error "Can't find ${KERNEL_IMG}"
-  exit 1
-fi
+build_gpt() {
+  local outdev="$1"
+  local rootfs_img="$2"
+  local kernel_img="$3"
+  local stateful_img="$4"
+  local esp_img="$5"
 
-STATEFUL_IMG="${IMAGEDIR}/stateful_partition.image"
-if [ ! -s ${STATEFUL_IMG} ]; then
-  error "Can't find ${STATEFUL_IMG}"
-  exit 1
-fi
+  # We'll need some code to put in the PMBR, for booting on legacy BIOS.
+  local pmbr_img
+  if [ "$ARCH" = "arm" ]; then
+    pmbr_img=/dev/zero
+  elif [ "$ARCH" = "x86" ]; then
+    pmbr_img=$(readlink -f /usr/share/syslinux/gptmbr.bin)
+  else
+    error "Unknown architecture: $ARCH"
+    return 1
+  fi
 
-ESP_IMG="${IMAGEDIR}/esp.image"
-if [ ! -s ${ESP_IMG} ]; then
-  error "Can't find ${ESP_IMG}"
-  exit 1
-fi
+  # Create the GPT. This has the side-effect of setting some global vars
+  # describing the partition table entries (see the comments in the source).
+  install_gpt "$outdev" $(numsectors "$rootfs_img") \
+    $(numsectors "$stateful_img") $pmbr_img $(numsectors "$esp_img") \
+    false $FLAGS_rootfs_partition_size
 
-# We'll need some code to put in the PMBR, for booting on legacy BIOS.
-if [[ "$ARCH" = "arm" ]]; then
-  PMBRCODE=/dev/zero
-else
-  PMBRCODE=$(readlink -f /usr/share/syslinux/gptmbr.bin)
-fi
+  local sudo=
+  if [ ! -w "$outdev" ] ; then
+    # use sudo when writing to a block device.
+    sudo=sudo
+  fi
 
-# Create the GPT. This has the side-effect of setting some global vars
-# describing the partition table entries (see the comments in the source).
-install_gpt $OUTDEV $(numsectors $ROOTFS_IMG) $(numsectors $STATEFUL_IMG) \
-    $PMBRCODE $(numsectors $ESP_IMG) false $FLAGS_rootfs_partition_size
+  # Now populate the partitions.
+  echo "Copying stateful partition..."
+  $sudo dd if="$stateful_img" of="$outdev" conv=notrunc bs=512 \
+      seek=$START_STATEFUL
 
-# Emit helpful scripts for testers, etc.
-${BUILD_LIBRARY_DIR}/emit_gpt_scripts.sh "${OUTDEV}" "${IMAGEDIR}"
+  echo "Copying kernel..."
+  $sudo dd if="$kernel_img" of="$outdev" conv=notrunc bs=512 \
+      seek=$START_KERN_A
 
-sudo=
-if [ ! -w "$OUTDEV" ] ; then
-  # use sudo when writing to a block device.
-  sudo=sudo
-fi
+  echo "Copying rootfs..."
+  $sudo dd if="$rootfs_img" of="$outdev" conv=notrunc bs=512 \
+      seek=$START_ROOTFS_A
 
-# Now populate the partitions.
-echo "Copying stateful partition..."
-$sudo dd if=${STATEFUL_IMG} of=${OUTDEV} conv=notrunc bs=512 \
-    seek=${START_STATEFUL}
+  echo "Copying EFI system partition..."
+  $sudo dd if="$esp_img" of="$outdev" conv=notrunc bs=512 \
+      seek=$START_ESP
 
-echo "Copying kernel..."
-$sudo dd if=${KERNEL_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_KERN_A}
-
-echo "Copying rootfs..."
-$sudo dd if=${ROOTFS_IMG} of=${OUTDEV} conv=notrunc bs=512 \
-    seek=${START_ROOTFS_A}
-
-echo "Copying EFI system partition..."
-$sudo dd if=${ESP_IMG} of=${OUTDEV} conv=notrunc bs=512 seek=${START_ESP}
-
-# Clean up temporary files.
-if [[ -n "${MBR_IMG:-}" ]]; then
-  rm "${MBR_IMG}"
-fi
+  # Pre-set "sucessful" bit in gpt, so we will never mark-for-death
+  # a partition on an SDCard/USB stick.
+  $GPT add -i 2 -S 1 "$outdev"
+}
