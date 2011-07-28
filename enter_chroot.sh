@@ -217,15 +217,15 @@ function setup_env {
     #           restart.
     #
     # The daemon is killed by the enter_chroot that exits last.
-    if [ -f "${SYNCERPIDFILE}" ] && [ -s "${SYNCERPIDFILE}" ] ; then
+    if [ -f "${SYNCERPIDFILE}" ] && [ ! -s "${SYNCERPIDFILE}" ] ; then
         info "You may have suffered from chromium-os:17680 and";
         info "could have stray 'enter_chroot.sh' processes running.";
         info "You must manually kill any such stray processes.";
         info "Exit all chroot shells; remaining 'enter_chroot.sh'";
         info "processes are probably stray.";
+        sudo rm -f "${SYNCERPIDFILE}";
     fi;
     if ! [ -f "${SYNCERPIDFILE}" ] || \
-         [ -s "${SYNCERPIDFILE}" ] || \
        ! [ -d /proc/$(cat "${SYNCERPIDFILE}") ]; then
       debug "Starting sync process"
       env_sync_proc &
@@ -387,7 +387,7 @@ function teardown_env {
       # starting the syncer process when this occurs by deleting the
       # PID file.
       kill $(cat "${SYNCERPIDFILE}") && \
-          rm -f "${SYNCERPIDFILE}"   || \
+          sudo rm -f "${SYNCERPIDFILE}" || \
           debug "Unable to clean up syncer process.";
 
       MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
