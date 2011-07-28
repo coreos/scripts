@@ -151,7 +151,6 @@ FACTORY_ZIPFILE="${OUTDIR}/factory_${FLAGS_zipname}"
 echo "archive to dir: $OUTDIR"
 echo "archive to file: $ZIPFILE"
 
-rm -rf "$OUTDIR"
 mkdir -p "$OUTDIR"
 
 # Modify image for test if flag set.
@@ -238,6 +237,7 @@ fi
 echo "Compressing and archiving build..."
 cd "$FLAGS_from"
 MANIFEST=`ls | grep -v factory | grep -v netboot`
+rm -f "${ZIPFILE}"
 zip -r "${ZIPFILE}" ${MANIFEST}
 
 if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
@@ -258,6 +258,7 @@ if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
   [ -n "${IMG_DIR}" ] && rm -f latest && ln -s "${IMG_DIR}" latest
   FACTORY_MANIFEST=`find factory_shim factory_test -follow \
       -type f  | grep -E "(factory_image|factory_install|partition|netboot)"`
+  rm -f "${FACTORY_ZIPFILE}"
   zip "${FACTORY_ZIPFILE}" ${FACTORY_MANIFEST}
   echo "Zipped"
   popd
