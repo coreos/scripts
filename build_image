@@ -678,11 +678,6 @@ create_base_image() {
   # create /usr/local or /var on host (already exist on target).
   setup_symlinks_on_root "/usr/local" "/var" "${STATEFUL_FS_DIR}"
 
-  # cros_make_image_bootable will clobber vmlinuz.image for x86.
-  # Until then, just copy the kernel to vmlinuz.image. It is
-  # expected in build_gpt.sh.
-  cp "${ROOT_FS_DIR}/boot/vmlinuz" "${OUTPUT_DIR}/vmlinuz.image"
-
   # Create EFI System Partition to boot stock EFI BIOS (but not
   # ChromeOS EFI BIOS).  ARM uses this space to determine which
   # partition is bootable.  NOTE: The size argument for mkfs.vfat is
@@ -700,7 +695,6 @@ create_base_image() {
   # Create the GPT-formatted image.
   build_gpt "${OUTPUT_DIR}/${image_name}" \
             "${ROOT_FS_IMG}" \
-            "${OUTPUT_DIR}/vmlinuz.image" \
             "${STATEFUL_FS_IMG}" \
             "${ESP_FS_IMG}"
 
@@ -903,8 +897,7 @@ if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ] ; then
 fi
 
 # Clean up temporary files.
-rm -f "${ROOT_FS_IMG}" "${STATEFUL_FS_IMG}" "${OUTPUT_DIR}/vmlinuz.image" \
-  "${ESP_FS_IMG}" "${OUTPUT_DIR}/vmlinuz_hd.vblock"
+rm -f "${ROOT_FS_IMG}" "${STATEFUL_FS_IMG}" "${ESP_FS_IMG}"
 rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 
 # Generating AU generator zip file to run outside chroot
