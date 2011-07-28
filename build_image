@@ -286,7 +286,6 @@ DEVKEYSDIR="/usr/share/vboot/devkeys"
 
 LOOP_DEV=
 STATEFUL_LOOP_DEV=
-ESP_LOOP_DEV=
 
 # ${DEV_IMAGE_ROOT} specifies the location of where developer packages will
 # be installed on the stateful dir.  On a Chromium OS system, this will
@@ -331,10 +330,6 @@ cleanup_stateful_fs_loop() {
   sudo umount -d "${STATEFUL_FS_DIR}"
 }
 
-cleanup_esp_loop() {
-  sudo umount -d "${ESP_FS_DIR}"
-}
-
 cleanup() {
   # Disable die on error.
   set +e
@@ -347,11 +342,6 @@ cleanup() {
   if [[ -n "${LOOP_DEV}" ]]; then
     cleanup_rootfs_loop
     LOOP_DEV=
-  fi
-
-  if [[ -n "${ESP_LOOP_DEV}" ]]; then
-    cleanup_esp_loop
-    ESP_LOOP_DEV=
   fi
 
   # Turn die on error back on.
