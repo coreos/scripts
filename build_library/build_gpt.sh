@@ -40,9 +40,8 @@ HEADER
 build_gpt() {
   local outdev="$1"
   local rootfs_img="$2"
-  local kernel_img="$3"
-  local stateful_img="$4"
-  local esp_img="$5"
+  local stateful_img="$3"
+  local esp_img="$4"
 
   # We'll need some code to put in the PMBR, for booting on legacy BIOS.
   local pmbr_img
@@ -71,10 +70,6 @@ build_gpt() {
   echo "Copying stateful partition..."
   $sudo dd if="$stateful_img" of="$outdev" conv=notrunc bs=512 \
       seek=$START_STATEFUL
-
-  echo "Copying kernel..."
-  $sudo dd if="$kernel_img" of="$outdev" conv=notrunc bs=512 \
-      seek=$START_KERN_A
 
   echo "Copying rootfs..."
   $sudo dd if="$rootfs_img" of="$outdev" conv=notrunc bs=512 \
