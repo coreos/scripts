@@ -80,14 +80,21 @@ verity_args=
 # Even with a rootfs_image, root= is not changed unless specified.
 if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
   # Gets the number of blocks. 4096 byte blocks _are_ expected.
-  root_fs_blocks=$(sudo dumpe2fs "${FLAGS_rootfs_image}" 2> /dev/null |
+  if [ -f "${FLAGS_rootfs_image}" ]; then
+    root_fs_block_sz=4096
+    root_fs_sz=$(stat -c '%s' ${FLAGS_rootfs_image})
+    root_fs_blocks=$((root_fs_sz / ${root_fs_block_sz}))
+  else
+    root_fs_blocks=$(sudo dumpe2fs "${FLAGS_rootfs_image}" 2> /dev/null |
                    grep "Block count" |
                    tr -d ' ' |
                    cut -f2 -d:)
-  root_fs_block_sz=$(sudo dumpe2fs "${FLAGS_rootfs_image}" 2> /dev/null |
+    root_fs_block_sz=$(sudo dumpe2fs "${FLAGS_rootfs_image}" 2> /dev/null |
                      grep "Block size" |
                      tr -d ' ' |
                      cut -f2 -d:)
+  fi
+
   info "rootfs is ${root_fs_blocks} blocks of ${root_fs_block_sz} bytes"
   if [[ ${root_fs_block_sz} -ne 4096 ]]; then
     error "Root file system blocks are not 4k!"

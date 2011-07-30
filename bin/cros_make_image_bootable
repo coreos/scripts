@@ -128,6 +128,11 @@ DEFINE_string arm_extra_bootargs "" "DEPRECATED FLAG.  Do not use."
 DEFINE_boolean force_developer_mode ${FLAGS_FALSE} \
   "Add cros_debug to boot args."
 
+DEFINE_boolean enable_squashfs ${FLAGS_FALSE} \
+  "Make the rootfs of the image squashfs."
+DEFINE_string squash_sort_file "" \
+  "Specify the priority of files when squashing the rootfs."
+
 # Parse the boot.desc and any overrides
 eval set -- "${BOOT_DESC} ${FLAG_OVERRIDES}"
 FLAGS "${@}" || exit 1
@@ -185,6 +190,17 @@ make_image_bootable() {
     FLAGS_boot_args="${FLAGS_boot_args} cros_debug"
   fi
 
+  local squash_sort_flag=
+  if [ -n "${FLAGS_squash_sort_file}" ]; then
+    squash_sort_flag="-sort ${FLAGS_squash_sort_file}"
+  fi
+
+  if [ $FLAGS_enable_squashfs -eq $FLAGS_TRUE ]; then
+    local squashfs_img="${FLAGS_output_dir}/squashfs.image"
+    sudo mksquashfs "${FLAGS_rootfs_mountpoint}" ${squashfs_img} -comp lzo \
+      -noI -noF -ef ${SCRIPTS_DIR}/exclude-list -wildcards ${squash_sort_flag}
+    root_dev=$squashfs_img
+  fi
   # Builds the kernel partition image.  The temporary files are kept around
   # so that we can perform a load_kernel_test later on the final image.
   ${SCRIPTS_DIR}/build_kernel_image.sh \
@@ -214,7 +230,12 @@ make_image_bootable() {
   # loop devices.  This means that they are not the correct size.  We have to
   # write directly to the image to append the hash tree data.
   local hash_offset="$(partoffset ${image} 3)"
-  hash_offset=$((hash_offset + ((1024 * 1024 * ${FLAGS_rootfs_size}) / 512)))
+  if [ $FLAGS_enable_squashfs -eq $FLAGS_TRUE ]; then
+    rootfs_file_size=$(stat -c '%s' ${root_dev})
+    hash_offset=$((hash_offset + (${rootfs_file_size} / 512)))
+  else
+    hash_offset=$((hash_offset + ((1024 * 1024 * ${FLAGS_rootfs_size}) / 512)))
+  fi
   sudo dd bs=512 \
           seek=${hash_offset} \
           if="${FLAGS_rootfs_hash}" \
@@ -273,6 +294,16 @@ make_image_bootable() {
   trap - EXIT
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${FLAGS_rootfs_mountpoint}" \
     -s "${FLAGS_statefulfs_mountpoint}"
+
+  # I can only copy the squashfs image to the image only when it is umounted.
+  if [ $FLAGS_enable_squashfs -eq $FLAGS_TRUE ]; then
+    # copy the squashfs image to the partition
+    info "copy the squashfs to the partition"
+    local part_offset="$(partoffset ${image} 3)"
+    sudo dd bs=512 if="${squashfs_img}" of="${image}" \
+            seek=${part_offset} conv=notrunc
+    sudo rm "${squashfs_img}"
+  fi
 }
 
 verify_image_rootfs() {
@@ -309,7 +340,10 @@ mkdir -p ${FLAGS_statefulfs_mountpoint}
 mkdir -p ${FLAGS_espfs_mountpoint}
 
 make_image_bootable "${IMAGE}"
-if [ ${FLAGS_fsck_rootfs} -eq ${FLAGS_TRUE} ]; then
+# We can't verify the image if squashfs is enabled because the kernel
+# on the host does not support squashfs with LZO
+if [ ${FLAGS_fsck_rootfs} -eq ${FLAGS_TRUE} \
+    -a ${FLAGS_enable_squashfs} -eq ${FLAGS_FALSE} ]; then
   verify_image_rootfs "${IMAGE}"
 fi
 
