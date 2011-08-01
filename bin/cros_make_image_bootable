@@ -220,6 +220,8 @@ make_image_bootable() {
           if="${FLAGS_rootfs_hash}" \
           of="${image}" \
           conv=notrunc
+  # We don't need to keep the file around anymore.
+  sudo rm "${FLAGS_rootfs_hash}"
 
   # Move the verification block needed for the hard disk install to the
   # stateful partition. Mount stateful fs, copy file, and umount fs.
@@ -265,10 +267,6 @@ make_image_bootable() {
     --usb_disk="${usb_disk}" \
     ${bootloader_to_flags} \
     $kernel_part
-
-  # We don't need to keep these files around anymore.
-  sudo rm "${FLAGS_rootfs_hash}" "${FLAGS_output_dir}/vmlinuz.image" \
-          "${FLAGS_output_dir}/vmlinuz_hd.vblock"
 
   trap - EXIT
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${FLAGS_rootfs_mountpoint}" \
