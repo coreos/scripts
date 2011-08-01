@@ -35,8 +35,6 @@ DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean statefuldev ${FLAGS_TRUE} \
   "Install development packages on stateful partition rather than the rootfs"
-DEFINE_string to "" \
-  "The target image file or device"
 DEFINE_boolean test ${FLAGS_FALSE} \
   "Modify the image for automated testing"
 DEFINE_boolean factory ${FLAGS_FALSE} \
@@ -53,9 +51,6 @@ DEFINE_integer rootfs_hash_pad 8 \
   "MiBs reserved at the end of the rootfs image."
 DEFINE_integer statefulfs_size 1024 \
   "stateful filesystem size in MiBs."
-DEFINE_boolean preserve ${FLAGS_FALSE} \
-  "Attempt to preserve the previous build image if one can be found (unstable, \
-kernel/firmware not updated)"
 DEFINE_boolean fast ${DEFAULT_FAST} \
   "Call many emerges in parallel"
 DEFINE_string boot_args "noinitrd" \
@@ -310,9 +305,6 @@ if [[ -e "${OUTPUT_DIR}" ]]; then
   fi
 fi
 
-# Find previous build, if any...
-PREVIOUS_DIR=$($SCRIPTS_DIR/get_latest_image.sh --board="$BOARD")
-
 cleanup_rootfs_loop() {
   sudo umount -d "${ROOT_FS_DIR}"
 }
@@ -411,16 +403,11 @@ update_dev_packages() {
 
   # Determine the root dir for developer packages.
   local root_dev_dir="${ROOT_FS_DIR}"
-  [ ${FLAGS_statefuldev} -eq ${FLAGS_TRUE} ] && \
+  [ ${FLAGS_statefuldev} -eq ${FLAGS_TRUE} ] &&
     root_dev_dir="${ROOT_FS_DIR}/usr/local"
 
   # Install developer packages described in chromeos-dev.
   emerge_to_image --root="${root_dev_dir}" -uDNv chromeos-dev
-
-  if [[ $FLAGS_preserve -eq ${FLAGS_TRUE} ]] ; then
-    # Clean out unused packages
-    emerge_to_image --root="${ROOT_FS_DIR}" --depclean
-  fi
 
   # Install the bare necessary files so that the "emerge" command works
   if [ ${FLAGS_statefuldev} -eq ${FLAGS_TRUE} ]; then
@@ -486,30 +473,6 @@ update_dev_packages() {
       --target="${ARCH}"
   fi
   echo "Developer image built and stored at ${image_name}"
-
-  trap - EXIT
-  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
-}
-
-# Update the base package on an existing image.
-update_base_packages() {
-  local image_name=$1
-
-  echo "Updating base packages on ${image_name}"
-
-  # Create stateful partition of the same size as the rootfs.
-  trap "mount_gpt_cleanup" EXIT
-
-  ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
-    --image "${image_name}" -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
-
-  # Emerge updated packages, exactly like when creating base image
-  emerge_to_image --root="${ROOT_FS_DIR}" -uDNv chromeos ${EXTRA_PACKAGES}
-
-  # Clean out unused packages
-  emerge_to_image --root="${ROOT_FS_DIR}" --depclean
 
   trap - EXIT
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
@@ -829,32 +792,12 @@ mkdir -p "${ROOT_FS_DIR}"
 mkdir -p "${STATEFUL_FS_DIR}"
 mkdir -p "${ESP_FS_DIR}"
 
-# Preserve old images by copying them forward for --preserve.
-# TODO(vlaviano): Do we want --preserve to copy other image types also?
-if [[ ${FLAGS_preserve} -eq ${FLAGS_TRUE} ]] ; then
-  if [[ -f ${PREVIOUS_DIR}/${PRISTINE_IMAGE_NAME} ]] ; then
-    # Copy forward pristine image, and associated files
-    cp ${PREVIOUS_DIR}/*.sh ${PREVIOUS_DIR}/config.txt ${OUTPUT_DIR}
-    cp ${PREVIOUS_DIR}/${PRISTINE_IMAGE_NAME} ${OUTPUT_DIR}
-
-    # Copy forward the developer image, if we already copied forward the base.
-    if [[ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]] && \
-       [[ -f ${PREVIOUS_DIR}/${DEVELOPER_IMAGE_NAME} ]] ; then
-      cp ${PREVIOUS_DIR}/${DEVELOPER_IMAGE_NAME} ${OUTPUT_DIR}
-    fi
-  fi
-fi
-
 # Create the boot.desc file which stores the build-time configuration
 # information needed for making the image bootable after creation with
 # cros_make_image_bootable.
 create_boot_desc
 
-if [[ -f ${PRISTINE_IMG} ]] ; then
-  update_base_packages ${PRISTINE_IMAGE_NAME}
-else
-  create_base_image ${PRISTINE_IMAGE_NAME}
-fi
+create_base_image ${PRISTINE_IMAGE_NAME}
 
 USE_DEV_KEYS=
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
@@ -879,11 +822,7 @@ load_kernel_test "${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}" \
 
 # Create a developer image based on the chromium os base image.
 if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ] ; then
-  if [[ ! -f ${DEVELOPER_IMG} ]] ; then
-    echo "Creating developer image from base image ${PRISTINE_IMAGE_NAME}"
-    cp ${PRISTINE_IMG} ${DEVELOPER_IMG}
-  fi
-
+  cp ${PRISTINE_IMG} ${DEVELOPER_IMG}
   update_dev_packages ${DEVELOPER_IMAGE_NAME}
   ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
                                               "${DEVELOPER_IMAGE_NAME}" \
