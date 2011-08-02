@@ -80,8 +80,23 @@ if [ -r "${SYSROOT}/u-boot/legacy_image.bin" ]; then
     cp "${SYSROOT}/u-boot/legacy_image.bin" "netboot"
     cp "${GCLIENT_ROOT}/chroot/usr/bin/update_firmware_vars.py" "netboot"
 else
-    echo "Skipping: ${SYSROOT}/u-boot/legacy_image.bin firmware not present?"
+    echo "Skipping legacy fw: ${SYSROOT}/u-boot/legacy_image.bin not present?"
 fi
+
+# Get HWID bundle if available.
+hwid_dir="usr/share/chromeos-hwid"
+sudo rm -rf hwid
+mkdir -p hwid
+if updater_files=$(ls "${SYSROOT}/${hwid_dir}/" | grep updater_); then
+    echo "Copying HWID bundles: $updater_files"
+    for file in $updater_files; do
+        cp "${SYSROOT}/${hwid_dir}/${file}" "hwid/"
+    done
+else
+    echo "Skipping HWID: ${SYSROOT}/${hwid_dir}/" \
+         "does not contain updater"
+fi
+
 
 # Prepare to mount rootfs.
 umount_loop() {

@@ -236,7 +236,7 @@ fi
 # Zip the build
 echo "Compressing and archiving build..."
 cd "$FLAGS_from"
-MANIFEST=`ls | grep -v factory | grep -v netboot`
+MANIFEST=`ls | grep -v factory | grep -v netboot | grep -v hwid`
 rm -f "${ZIPFILE}"
 zip -r "${ZIPFILE}" ${MANIFEST}
 
@@ -256,8 +256,8 @@ if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
   # throughout the build scripts rather than explicitly specifying an image.
   touch "${IMG_DIR}"
   [ -n "${IMG_DIR}" ] && rm -f latest && ln -s "${IMG_DIR}" latest
-  FACTORY_MANIFEST=`find factory_shim factory_test -follow \
-      -type f  | grep -E "(factory_image|factory_install|partition|netboot)"`
+  FACTORY_MANIFEST=$(find factory_shim factory_test -follow -type f  |
+      grep -E "(factory_image|factory_install|partition|netboot|hwid)")
   rm -f "${FACTORY_ZIPFILE}"
   zip "${FACTORY_ZIPFILE}" ${FACTORY_MANIFEST}
   echo "Zipped"
