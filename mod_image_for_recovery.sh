@@ -148,20 +148,8 @@ BOAT
   die "$* failed"
 }
 
-emerge_recovery_kernel() {
-  echo "Emerging custom recovery initramfs and kernel"
-  local emerge_flags="-uDNv1 --usepkg=n --selective=n"
-
-  $EMERGE_BOARD_CMD \
-    $emerge_flags --binpkg-respect-use=y \
-    chromeos-initramfs || failboat "emerge initramfs"
-  USE="fbconsole initramfs" $EMERGE_BOARD_CMD \
-                    $emerge_flags --binpkg-respect-use=y \
-                    virtual/kernel || failboat "emerge kernel"
-}
-
 create_recovery_kernel_image() {
-  local sysroot="${FLAGS_build_root}/${FLAGS_board}"
+  local sysroot="$FACTORY_ROOT"
   local vmlinuz="$sysroot/boot/vmlinuz"
   local root_offset=$(partoffset "$FLAGS_image" 3)
   local root_size=$(partsize "$FLAGS_image" 3)
@@ -288,8 +276,9 @@ install_recovery_kernel() {
   sudo $GPT add -i 2 -S 1 "$RECOVERY_IMAGE"
 
   # Repeat for the legacy bioses.
-  # Replace vmlinuz.A with the recovery version
-  local sysroot="${FLAGS_build_root}/${FLAGS_board}"
+  # Replace vmlinuz.A with the recovery version we built.
+  # TODO(wad): Extract the $RECOVERY_KERNEL_IMAGE and grab vmlinuz from there.
+  local sysroot="$FACTORY_ROOT"
   local vmlinuz="$sysroot/boot/vmlinuz"
   local failed=0
 
@@ -441,8 +430,12 @@ if [ -z "$INSTALL_VBLOCK" ]; then
   die "Could not copy the vblock from stateful."
 fi
 
+# Build the recovery kernel.
+FACTORY_ROOT="${FLAGS_build_root}/${FLAGS_board}/factory-root"
+USE="fbconsole initramfs" emerge_custom_kernel "$FACTORY_ROOT" \
+  || failboat "Cannot emerge custom kernel"
+
 if [ -z "$FLAGS_kernel_image" ]; then
-  emerge_recovery_kernel
   create_recovery_kernel_image
   echo "Recovery kernel created at $RECOVERY_KERNEL_IMAGE"
 else

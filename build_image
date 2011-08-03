@@ -240,13 +240,6 @@ emerge_to_image() {
 # Check that the build root is sane.
 "${BUILD_LIBRARY_DIR}/test_build_root" --root="${BOARD_ROOT}"
 
-# Freshen kernel with correct USE flags. This is a noop if we have
-# the right kernel prebuilt. Factory install uses USE="initramfs".
-# We don't allow building from source with the image as a target,
-# and it's not possible to store prebuilts for the same package
-# with different use flags.
-sudo -E ${EMERGE_BOARD_CMD} -uDNv -g virtual/kernel
-
 # Use canonical path since some tools (e.g. mount) do not like symlinks.
 # Append build attempt to output directory.
 IMAGE_SUBDIR="${CHROMEOS_VERSION_STRING}-a${FLAGS_build_attempt}"
@@ -637,6 +630,12 @@ create_base_image() {
   for atom in $(portageq match / cross-$board_ctarget/gcc); do
     copy_gcc_libs "${ROOT_FS_DIR}" $atom
   done
+
+  if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
+    # Install our custom factory install kernel with the appropriate use flags
+    # to the image.
+    emerge_custom_kernel "${ROOT_FS_DIR}"
+  fi
 
   # We "emerge --root=${ROOT_FS_DIR} --root-deps=rdeps --usepkgonly" all of the
   # runtime packages for chrome os. This builds up a chrome os image from
