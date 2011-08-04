@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+echo "Configuring for virtual WiFi devices"
+
+# Prevent flimflam from taking control of AP interfaces
+sed -i "s/flimflamd/flimflamd -I wlan1 -I wlan2 -I managed0 -I managed1/" \
+  ${ROOT_FS_DIR}/etc/init/flimflam.conf
