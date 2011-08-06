@@ -161,7 +161,12 @@ if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]; then
 
   pushd "${FLAGS_chroot}/build/${FLAGS_board}/usr/local"
   echo "Archiving autotest build artifacts"
-  tar cjf "${FLAGS_from}/autotest.tar.bz2" --checkpoint=1000 autotest
+  if which pbzip2 >/dev/null 2>/dev/null; then
+    TAR_BZIP2="tar --use-compress-program=pbzip2"
+  else
+    TAR_BZIP2="tar --bzip2"
+  fi
+  ${TAR_BZIP2} -cf "${FLAGS_from}/autotest.tar.bz2" --checkpoint=10000 autotest
   popd
 fi
 

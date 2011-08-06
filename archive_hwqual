@@ -72,8 +72,14 @@ function main() {
   mkdir -p image
   mkdir -p "tarball/${FLAGS_output_tag}"
 
+  if which pbzip2 >/dev/null 2>/dev/null; then
+    TAR_BZIP2="tar --use-compress-program=pbzip2"
+  else
+    TAR_BZIP2="tar --bzip2"
+  fi
+
   echo "Extracting autotest from build artifacts..."
-  tar --bzip2 -xf autotest.tar.bz2
+  ${TAR_BZIP2} -xf autotest.tar.bz2
 
   cd "${TMP}"
 
@@ -104,7 +110,7 @@ function main() {
   echo "Creating ${FLAGS_to}/${FLAGS_output_tag}.tar.bz2..."
   mkdir -p "${FLAGS_to}"
   cd tarball
-  tar --bzip2 -cf "${FLAGS_to}/${FLAGS_output_tag}.tar.bz2" .
+  ${TAR_BZIP2} -cf "${FLAGS_to}/${FLAGS_output_tag}.tar.bz2" .
 
   trap - EXIT
   cleanup
