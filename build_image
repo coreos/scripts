@@ -701,7 +701,7 @@ install_autotest_for_factory() {
   sudo rm -rf "${stateful_root}/autotest-pkgs"
   sudo rm -rf "${stateful_root}/lib/icedtea6"
 
-  sudo rsync --delete --delete-excluded -auv \
+  sudo rsync --delete --delete-excluded -au \
     --exclude=deps/realtimecomm_playground \
     --exclude=tests/ltp \
     --exclude=site_tests/graphics_O3DSelenium \
