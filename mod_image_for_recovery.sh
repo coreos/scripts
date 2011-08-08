@@ -55,6 +55,10 @@ DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
+# Only now can we die on error.  shflags functions leak non-zero error codes,
+# so will die prematurely if 'set -e' is specified before now.
+set -e
+
 if [ $FLAGS_verbose -eq $FLAGS_FALSE ]; then
   exec 2>/dev/null
   # Redirecting to stdout instead of stderr since
@@ -66,51 +70,27 @@ if [ $FLAGS_verbose -eq $FLAGS_FALSE ]; then
 fi
 set -x  # Make debugging with -v easy.
 
-EMERGE_CMD="emerge"
-EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
 
-# No board, no default and no image set then we can't find the image
-if [ -z $FLAGS_image ] && [ -z $FLAGS_board ] ; then
-  setup_board_warning
-  die "mod_image_for_recovery failed.  No board set and no image set"
-fi
+. "${SCRIPT_ROOT}/build_library/board_options.sh" || exit 1
+
+
+EMERGE_BOARD_CMD="emerge-$BOARD"
 
 # We have a board name but no image set.  Use image at default location
-if [ -z $FLAGS_image ] ; then
-  IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
-  FILENAME="chromiumos_image.bin"
-  FLAGS_image="${IMAGES_DIR}/$(ls -t $IMAGES_DIR 2>&-| head -1)/${FILENAME}"
+if [ -z "$FLAGS_image" ]; then
+  IMAGES_DIR="$DEFAULT_BUILD_ROOT/images/$BOARD"
+  FILENAME="$CHROMEOS_IMAGE_NAME"
+  FLAGS_image="$IMAGES_DIR/$(ls -t $IMAGES_DIR 2>&-| head -1)/$FILENAME"
 fi
 
 # Turn path into an absolute path.
-FLAGS_image=`eval readlink -f ${FLAGS_image}`
+FLAGS_image=$(eval readlink -f "$FLAGS_image")
 
 # Abort early if we can't find the image
-if [ ! -f $FLAGS_image ] ; then
+if [ ! -f "$FLAGS_image" ]; then
   echo "No image found at $FLAGS_image"
   exit 1
 fi
-
-# What cross-build are we targeting?
-. "${FLAGS_build_root}/${FLAGS_board}/etc/make.conf.board_setup"
-# Figure out ARCH from the given toolchain.
-# TODO: Move to common.sh as a function after scripts are switched over.
-TC_ARCH=$(echo "${CHOST}" | awk -F'-' '{ print $1 }')
-case "${TC_ARCH}" in
-  arm*)
-    ARCH="arm"
-    error "ARM recovery mode is still in the works. Use a normal image for now."
-    ;;
-  *86)
-    ARCH="x86"
-    ;;
-  *x86_64)
-    ARCH="amd64"
-    ;;
-  *)
-    error "Unable to determine ARCH from toolchain: ${CHOST}"
-    exit 1
-esac
 
 get_install_vblock() {
   # If it exists, we need to copy the vblock over to stateful
@@ -390,8 +370,6 @@ cleanup() {
 }
 
 # main process begins here.
-
-set -e
 set -u
 
 IMAGE_DIR="$(dirname "$FLAGS_image")"
@@ -431,9 +409,9 @@ if [ -z "$INSTALL_VBLOCK" ]; then
 fi
 
 # Build the recovery kernel.
-FACTORY_ROOT="${FLAGS_build_root}/${FLAGS_board}/factory-root"
-USE="fbconsole initramfs" emerge_custom_kernel "$FACTORY_ROOT" \
-  || failboat "Cannot emerge custom kernel"
+FACTORY_ROOT="${BOARD_ROOT}/factory-root"
+USE="fbconsole initramfs" emerge_custom_kernel "$FACTORY_ROOT" ||
+  failboat "Cannot emerge custom kernel"
 
 if [ -z "$FLAGS_kernel_image" ]; then
   create_recovery_kernel_image

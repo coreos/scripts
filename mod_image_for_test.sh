@@ -49,49 +49,38 @@ DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
 FLAGS "$@" || exit 1
 eval set -- "$FLAGS_ARGV"
 
-EMERGE_CMD="emerge"
-EMERGE_BOARD_CMD="emerge-$FLAGS_board"
+# Only now can we die on error.  shflags functions leak non-zero error codes,
+# so will die prematurely if 'set -e' is specified before now.
+set -e
+
+. "${SCRIPT_ROOT}/build_library/board_options.sh" || exit 1
+
+
+EMERGE_BOARD_CMD="emerge-$BOARD"
 if [ $FLAGS_fast -eq $FLAGS_TRUE ]; then
   echo "Using alternate emerge"
-  EMERGE_CMD="$GCLIENT_ROOT/chromite/bin/parallel_emerge"
-  EMERGE_BOARD_CMD="$EMERGE_CMD --board=$FLAGS_board"
+  EMERGE_BOARD_CMD="$GCLIENT_ROOT/chromite/bin/parallel_emerge"
+  EMERGE_BOARD_CMD="$EMERGE_BOARD_CMD --board=$BOARD"
 fi
-
-# No board, no default and no image set then we can't find the image
-if [ -z "$FLAGS_image" -a -z "$FLAGS_board" ] ; then
-  setup_board_warning
-  die "mod_image_for_test failed.  No board set and no image set"
+if [ $FLAGS_jobs -ne -1 ]; then
+  EMERGE_JOBS="--jobs=$FLAGS_jobs"
 fi
 
 # We have a board name but no image set.  Use image at default location
-if [ -z "$FLAGS_image" ] ; then
-  IMAGES_DIR="$DEFAULT_BUILD_ROOT/images/$FLAGS_board"
+if [ -z "$FLAGS_image" ]; then
+  IMAGES_DIR="$DEFAULT_BUILD_ROOT/images/$BOARD"
   FILENAME="$CHROMEOS_IMAGE_NAME"
   FLAGS_image="$IMAGES_DIR/$(ls -t $IMAGES_DIR 2>&-| head -1)/$FILENAME"
 fi
 
 # Turn path into an absolute path.
-FLAGS_image=$(eval readlink -f $FLAGS_image)
+FLAGS_image=$(eval readlink -f "$FLAGS_image")
 
-# What cross-build are we targeting?
-. "$FLAGS_build_root/$FLAGS_board/etc/make.conf.board_setup"
-# Figure out ARCH from the given toolchain.
-# TODO: Move to common.sh as a function after scripts are switched over.
-TC_ARCH=$(echo "$CHOST" | awk -F'-' '{ print $1 }')
-case "$TC_ARCH" in
-  arm*)
-    ARCH="arm"
-    ;;
-  *86)
-    ARCH="x86"
-    ;;
-  *x86_64)
-    ARCH="amd64"
-    ;;
-  *)
-    error "Unable to determine ARCH from toolchain: $CHOST"
-    exit 1
-esac
+# Abort early if we can't find the image
+if [ ! -f "$FLAGS_image" ]; then
+  echo "No image found at $FLAGS_image"
+  exit 1
+fi
 
 # Make sure anything mounted in the rootfs/stateful is cleaned up ok on exit.
 cleanup_mounts() {
@@ -127,7 +116,7 @@ emerge_chromeos_test() {
 
 
 install_autotest() {
-    local autotest_src="$FLAGS_build_root/$FLAGS_board/usr/local/autotest"
+    local autotest_src="${BOARD_ROOT}/usr/local/autotest"
     local stateful_root="$ROOT_FS_DIR/usr/local"
     local autotest_client="$stateful_root/autotest"
 
@@ -196,13 +185,6 @@ else
   echo "Modifying image $FLAGS_image for test..."
 fi
 
-# Abort early if we can't find the image
-if [ ! -f $FLAGS_image -a $FLAGS_inplace -eq $FLAGS_TRUE ] ; then
-  die "No image found at $FLAGS_image to modify"
-fi
-
-set -e
-
 IMAGE_DIR=$(dirname "$FLAGS_image")
 IMAGE_NAME=$(basename "$FLAGS_image")
 ROOT_FS_DIR="$IMAGE_DIR/rootfs"
@@ -236,7 +218,7 @@ if [ $FLAGS_factory -eq $FLAGS_TRUE ]; then
   MOD_FACTORY_SCRIPT="$SCRIPTS_DIR/mod_for_factory_scripts/factory_setup.sh"
   # Run factory setup script to modify the image
   sudo GCLIENT_ROOT="$GCLIENT_ROOT" ROOT_FS_DIR="$ROOT_FS_DIR" \
-       BOARD=$FLAGS_board "$MOD_FACTORY_SCRIPT"
+       BOARD="$BOARD" "$MOD_FACTORY_SCRIPT"
 fi
 
 # Re-run ldconfig to fix /etc/ldconfig.so.cache.

@@ -12,8 +12,6 @@
 SCRIPT_ROOT=$(dirname "$0")
 . "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
 
-. "${SCRIPT_ROOT}/build_library/build_gpt.sh" || exit 1
-
 
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
@@ -83,14 +81,28 @@ eval set -- "${FLAGS_ARGV}"
 # so will die prematurely if 'set -e' is specified before now.
 set -e
 
-if [ -z "${FLAGS_board}" ] ; then
-  error "--board is required."
-  exit 1
+. "${SCRIPT_ROOT}/build_library/board_options.sh" || exit 1
+
+# Determine build version.
+OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos"
+. "${OVERLAY_CHROMEOS_DIR}/config/chromeos_version.sh" || exit 1
+
+. "${SCRIPT_ROOT}/build_library/build_gpt.sh" || exit 1
+
+
+EMERGE_BOARD_CMD="emerge-$BOARD"
+if [ $FLAGS_fast -eq $FLAGS_TRUE ]; then
+  echo "Using alternate emerge"
+  EMERGE_BOARD_CMD="$GCLIENT_ROOT/chromite/bin/parallel_emerge"
+  EMERGE_BOARD_CMD="$EMERGE_BOARD_CMD --board=$BOARD"
+fi
+if [ $FLAGS_jobs -ne -1 ]; then
+  EMERGE_JOBS="--jobs=$FLAGS_jobs"
 fi
 
 # Perform an eclean to remove packages which are not installed
-if [[ ${FLAGS_eclean} -eq ${FLAGS_TRUE} ]]; then
-  eclean-${FLAGS_board} -d packages
+if [ $FLAGS_eclean -eq $FLAGS_TRUE ]; then
+  eclean-$BOARD -d packages
 fi
 
 check_blacklist() {
@@ -102,7 +114,7 @@ check_blacklist() {
     return
   fi
   local blacklisted_packages=$(${SCRIPTS_DIR}/get_package_list \
-      --board="${FLAGS_board}" chromeos-base/chromeos \
+      --board="${BOARD}" chromeos-base/chromeos \
       | grep -x -f "${package_blacklist_file}")
   if [ -n "${blacklisted_packages}" ]; then
     die "Blacklisted packages found: ${blacklisted_packages}."
@@ -171,43 +183,6 @@ if [ $((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) -gt \
 bigger than partition (${FLAGS_rootfs_partition_size} MiB)."
 fi
 
-EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
-if [ ${FLAGS_fast} -eq ${FLAGS_TRUE} ]; then
-  echo "Using alternate emerge"
-  EMERGE_CMD="${GCLIENT_ROOT}/chromite/bin/parallel_emerge"
-  EMERGE_BOARD_CMD="${EMERGE_CMD} --board=${FLAGS_board}"
-fi
-
-OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos/"
-
-# Determine build version.
-. "${OVERLAY_CHROMEOS_DIR}/config/chromeos_version.sh"
-
-BOARD="${FLAGS_board}"
-BOARD_ROOT="${FLAGS_build_root}/${BOARD}"
-
-# What cross-build are we targeting?
-. "${BOARD_ROOT}/etc/make.conf.board_setup"
-LIBC_VERSION=${LIBC_VERSION}
-
-# Figure out ARCH from the given toolchain.
-# TODO: Move to common.sh as a function after scripts are switched over.
-TC_ARCH=$(echo "${CHOST}" | awk -F'-' '{ print $1 }')
-case "${TC_ARCH}" in
-  arm*)
-    ARCH="arm"
-    ;;
-  *86)
-    ARCH="x86"
-    ;;
-  *x86_64)
-    ARCH="amd64"
-    ;;
-  *)
-    error "Unable to determine ARCH from toolchain: ${CHOST}"
-    exit 1
-esac
-
 # Configure extra USE or packages for this type of build.
 EXTRA_PACKAGES=""
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
@@ -238,9 +213,9 @@ emerge_to_image() {
 # Use canonical path since some tools (e.g. mount) do not like symlinks.
 # Append build attempt to output directory.
 IMAGE_SUBDIR="${CHROMEOS_VERSION_STRING}-a${FLAGS_build_attempt}"
-OUTPUT_DIR="${FLAGS_output_root}/${FLAGS_board}/${IMAGE_SUBDIR}"
+OUTPUT_DIR="${FLAGS_output_root}/${BOARD}/${IMAGE_SUBDIR}"
 
-OUTSIDE_OUTPUT_DIR="../build/images/${FLAGS_board}/${IMAGE_SUBDIR}"
+OUTSIDE_OUTPUT_DIR="../build/images/${BOARD}/${IMAGE_SUBDIR}"
 
 # If we are creating a developer image, also create a pristine image with a
 # different name.
@@ -279,10 +254,6 @@ STATEFUL_LOOP_DEV=
 # be installed on the stateful dir.  On a Chromium OS system, this will
 # translate to /usr/local.
 DEV_IMAGE_ROOT="${STATEFUL_FS_DIR}/dev_image"
-
-if [ ${FLAGS_jobs} -ne -1 ]; then
-  EMERGE_JOBS="--jobs=${FLAGS_jobs}"
-fi
 
 if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
   enable_rootfs_verification_flag="--enable_rootfs_verification"
@@ -688,7 +659,7 @@ emerge_chromeos_test() {
 }
 
 install_autotest_for_factory() {
-  local autotest_src="${FLAGS_build_root}/${FLAGS_board}/usr/local/autotest"
+  local autotest_src="${BOARD_ROOT}/usr/local/autotest"
   local stateful_root="${ROOT_FS_DIR}/usr/local"
   local autotest_client="${stateful_root}/autotest"
 
@@ -769,7 +740,7 @@ mod_image_for_test () {
     mod_factory_script="${SCRIPTS_DIR}/mod_for_factory_scripts/factory_setup.sh"
     # Run factory setup script to modify the image
     sudo -E GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-            BOARD="${FLAGS_board}" "${mod_factory_script}"
+            BOARD="${BOARD}" "${mod_factory_script}"
   fi
 
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
@@ -841,8 +812,8 @@ rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 # Generating AU generator zip file to run outside chroot
 generate_au_zip || echo "Failed generating AU zip file - ignoring Error..."
 # Create a 'latest' link
-rm -f ${FLAGS_output_root}/${FLAGS_board}/latest
-ln -s $(basename ${OUTPUT_DIR}) ${FLAGS_output_root}/${FLAGS_board}/latest
+rm -f ${FLAGS_output_root}/${BOARD}/latest
+ln -s $(basename ${OUTPUT_DIR}) ${FLAGS_output_root}/${BOARD}/latest
 
 echo "Done.  Image created in ${OUTPUT_DIR}"
 echo "Chromium OS image created as ${PRISTINE_IMAGE_NAME}"
