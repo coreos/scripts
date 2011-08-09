@@ -39,7 +39,9 @@ sudo chroot "${ROOT_FS_DIR}" ${QEMU} /usr/bin/openssl req -x509 -days 21 \
   -newkey rsa:1024 -nodes -keyout "${TMP_KEY}" -out "${TMP_CERT}"
 
 mkdir -m 0755 -p "${ROOT_FS_DIR}/${FAKE_NSSDB}"
-sudo chroot "${ROOT_FS_DIR}" bash -c "${QEMU} \
+
+# Both bash and nsscertutil must be run under qemu-arm
+sudo chroot "${ROOT_FS_DIR}" ${QEMU} /bin/bash -c "${QEMU} \
   /usr/local/bin/nsscertutil -d sql:${FAKE_NSSDB} -N -f <(echo '')"
 cp "${ROOT_FS_DIR}/${TMP_KEY}" "${ROOT_FS_DIR}/${FAKE_CA_DIR}/${CERT_NAME}.key"
 cp "${ROOT_FS_DIR}/${TMP_CERT}" "${ROOT_FS_DIR}/${FAKE_CA_DIR}/${CERT_NAME}.pem"
