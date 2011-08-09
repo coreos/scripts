@@ -66,10 +66,6 @@ fi
 sudo rm -rf netboot
 mkdir -p netboot
 
-# Get netboot kernel.
-echo "Generating netboot kernel vmlinux.uimg"
-cp "${SYSROOT}/boot/vmlinux.uimg" "netboot"
-
 # Get netboot firmware.
 # TODO(nsanders): Set default IP here when userspace
 # env modification is available.
@@ -119,6 +115,11 @@ sudo mount -o loop part_3 r
 sudo mount -o loop part_1 s
 echo "Mount install shim rootfs (partition 3)"
 
+# Get netboot kernel.
+echo "Generating netboot kernel vmlinux.uimg"
+cp "r/boot/vmlinux.uimg" "netboot"
+
+echo "Add lsb-factory"
 # Copy factory config file.
 # TODO(nsanders): switch this to u-boot env var config.
 LSB_FACTORY_DIR="mnt/stateful_partition/dev_image/etc"
