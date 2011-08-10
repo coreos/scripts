@@ -71,6 +71,12 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 set -e
 
+part_index_to_uuid() {
+  local image="$1"
+  local index="$2"
+  cgpt show -i "$index" -u "$image"
+}
+
 # If not provided by chromeos-common.sh, this will update all of the
 # boot loader files (both A and B) with the data pulled
 # from the kernel_partition.  The default boot target should
@@ -81,6 +87,7 @@ if ! type -p update_x86_bootloaders; then
     local kernel_cmdline="$2"
     local esp_fs_dir="$3"
     local template_dir="$4"
+    local to="$5"
 
     # Pull out the dm="" values
     dm_table=
@@ -94,17 +101,24 @@ if ! type -p update_x86_bootloaders; then
       cros_flags="cros_legacy cros_debug"
     fi
 
+    root_a_uuid="PARTUUID=$(part_index_to_uuid "$to" 3)"
+    root_b_uuid="PARTUUID=$(part_index_to_uuid "$to" 5)"
+
     # Rewrite grub table
-    grub_dm_table_a=${dm_table//${old_root}/\/dev\/\$linuxpartA}
-    grub_dm_table_b=${dm_table//${old_root}/\/dev\/\$linuxpartB}
+    grub_dm_table_a=${dm_table//${old_root}/${root_a_uuid}}
+    grub_dm_table_b=${dm_table//${old_root}/${root_b_uuid}}
     sed -e "s|DMTABLEA|${grub_dm_table_a}|g" \
         -e "s|DMTABLEB|${grub_dm_table_b}|g" \
         -e "s|cros_legacy|${cros_flags}|g" \
         "${template_dir}"/efi/boot/grub.cfg |
         sudo dd of="${esp_fs_dir}"/efi/boot/grub.cfg
+    sed -e "s|/dev/\\\$linuxpartA|${root_a_uuid}|g" \
+        -e "s|/dev/\\\$linuxpartB|${root_b_uuid}|g" \
+        "${template_dir}"/efi/boot/grub.cfg |
+        sudo dd of="${esp_fs_dir}"/efi/boot/grub.cfg
 
     # Rewrite syslinux DM_TABLE
-    syslinux_dm_table_usb=${dm_table//${old_root}/${FLAGS_usb_disk}}
+    syslinux_dm_table_usb=${dm_table//${old_root}/${root_a_uuid}}
     sed -e "s|DMTABLEA|${syslinux_dm_table_usb}|g" \
         -e "s|cros_legacy|${cros_flags}|g" \
         "${template_dir}"/syslinux/usb.A.cfg |
@@ -205,7 +219,8 @@ if [[ "${FLAGS_arch}" = "x86" ]]; then
   update_x86_bootloaders "${old_root}" \
                          "${kernel_cfg}" \
                          "${ESP_FS_DIR}" \
-                         "${FLAGS_from}"
+                         "${FLAGS_from}" \
+                         "${FLAGS_to}"
 
   # Install the syslinux loader on the ESP image (part 12) so it is ready when
   # we cut over from rootfs booting (extlinux).
