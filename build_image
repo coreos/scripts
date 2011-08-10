@@ -68,6 +68,8 @@ DEFINE_string verity_algorithm "sha1" \
   "Cryptographic hash algorithm used for kernel vboot. Default : sha1"
 DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
   "Install standard backdoor credentials for testing"
+DEFINE_string symlink "latest" \
+  "Symlink name to use for this image."
 
 # TODO(clchiou): Remove this flag after buildbot is fixed
 DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
@@ -811,9 +813,10 @@ rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 
 # Generating AU generator zip file to run outside chroot
 generate_au_zip || echo "Failed generating AU zip file - ignoring Error..."
-# Create a 'latest' link
-rm -f ${FLAGS_output_root}/${BOARD}/latest
-ln -s $(basename ${OUTPUT_DIR}) ${FLAGS_output_root}/${BOARD}/latest
+
+# Create a named symlink.
+LINK_NAME="${FLAGS_output_root}/${BOARD}/${FLAGS_symlink}"
+ln -sfT $(basename ${OUTPUT_DIR}) ${LINK_NAME}
 
 echo "Done.  Image created in ${OUTPUT_DIR}"
 echo "Chromium OS image created as ${PRISTINE_IMAGE_NAME}"

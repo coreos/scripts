@@ -42,6 +42,7 @@ get_default_board
 
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
+DEFINE_string image "" "Path to the image to use"
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -52,10 +53,15 @@ set -e
 SYSROOT="${GCLIENT_ROOT}/chroot/build/${FLAGS_board}"
 # build_image artifact output.
 IMAGES_DIR="${CHROOT_TRUNK_DIR}/src/build/images"
-# Canonical install shim name.
-INSTALL_SHIM="factory_install_shim.bin"
 
-cd ${IMAGES_DIR}/${FLAGS_board}/latest
+if [ -n "${FLAGS_image}" ]; then
+  cd $(dirname "${FLAGS_image}")
+  INSTALL_SHIM=$(basename "${FLAGS_image}")
+else
+  cd ${IMAGES_DIR}/${FLAGS_board}/latest
+  # Canonical install shim name.
+  INSTALL_SHIM="factory_install_shim.bin"
+fi
 
 if [ ! -f "${INSTALL_SHIM}" ]; then
   echo "Cannot locate ${INSTALL_SHIM}, nothing to netbootify!"

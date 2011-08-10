@@ -154,10 +154,12 @@ echo "archive to file: $ZIPFILE"
 mkdir -p "$OUTDIR"
 
 # Modify image for test if flag set.
+CHROOT_IMAGE_DIR=$(reinterpret_path_for_chroot "$FLAGS_from")
 if [ $FLAGS_test_mod -eq $FLAGS_TRUE ]; then
   echo "Modifying image for test"
   ./enter_chroot.sh $CHROOT_ENV -- ./mod_image_for_test.sh \
-    --board $FLAGS_board --noinplace --yes
+    --board $FLAGS_board --noinplace --yes \
+    --image $CHROOT_IMAGE_DIR/$CHROMEOS_IMAGE_NAME
 
   pushd "${FLAGS_chroot}/build/${FLAGS_board}/usr/local"
   echo "Archiving autotest build artifacts"
@@ -172,8 +174,6 @@ fi
 
 # Modify for recovery
 if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
-  BUILDVER="$(readlink ${IMAGES_DIR}/${FLAGS_board}/latest)"
-  CHROOT_IMAGE_DIR=/home/$USER/trunk/src/build/images/$FLAGS_board/$BUILDVER
   ./enter_chroot.sh $CHROOT_ENV -- ./mod_image_for_recovery.sh \
     --board $FLAGS_board --image $CHROOT_IMAGE_DIR/chromiumos_base_image.bin
 fi
@@ -194,17 +194,8 @@ if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ]; then
   # fail. You must explictly call replace and specify a unique name numerically
   # using build_attempt.
   ./enter_chroot.sh $CHROOT_ENV -- ./build_image --board $FLAGS_board \
-      --replace --noenable_rootfs_verification --build_attempt 4
-
-  ./enter_chroot.sh $CHROOT_ENV -- ./mod_image_for_test.sh \
-      --board $FLAGS_board --yes --noinplace --factory
-
-  # Get the factory test dir: It is the newest build.
-  # This is the output dir for the factory shim, the factory test and
-  # release images will remain in IMG_DIR, defined previously.
-  FACTORY_DIR="$(readlink ${IMAGES_DIR}/${FLAGS_board}/latest)"
-
-  echo "Factory image dir: ${FACTORY_DIR}"
+      --replace --noenable_rootfs_verification --build_attempt 4 \
+      --symlink factory_test --factory --test
 fi
 
 # Build differently sized shims. Currently only factory install shim is
@@ -220,22 +211,20 @@ if [ $FLAGS_factory_install_mod -eq $FLAGS_TRUE ]; then
   # fail. You must explictly call replace and specify a unique name numerically
   # using build_attempt.
   ./enter_chroot.sh $CHROOT_ENV -- ./build_image --board $FLAGS_board \
-    --factory_install --replace --build_attempt 7
+    --factory_install --replace --build_attempt 7 --symlink factory_shim
 
-  # Get the install shim dir: It is the newest build.
-  # This is the output dir for the factory shim, the factory test and
-  # release images will remain in IMG_DIR, defined previously.
-  SHIM_DIR="$(readlink ${IMAGES_DIR}/${FLAGS_board}/latest)"
+  # Get the install shim dir: It is the newest factory_shim build.
+  SHIM_DIR="${IMAGES_DIR}/${FLAGS_board}/factory_shim"
+  CHROOT_SHIM_DIR=$(reinterpret_path_for_chroot "${SHIM_DIR}")
 
   # For ARM we should creat a netboot image.
   # Only ARM has "uimg" uboot format kernels.
   # TODO(anush): We should have build infrastructure that can directly
   # query architecture.
   if [ -f "${SYSROOT}/boot/vmlinux.uimg" ]; then
-    ./enter_chroot.sh $CHROOT_ENV -- ./make_netboot.sh --board $FLAGS_board
+    ./enter_chroot.sh $CHROOT_ENV -- ./make_netboot.sh --board $FLAGS_board \
+        --image "$CHROOT_SHIM_DIR/factory_install_shim.bin"
   fi
-
-  echo "Factory install shim dir: ${SHIM_DIR}"
 fi
 
 # Zip the build
@@ -251,16 +240,7 @@ if [ $FLAGS_factory_test_mod -eq $FLAGS_TRUE ] || \
   # signing and packaging utilities need unpack_partitions.sh.
   echo "Compressing factory software"
   pushd ..
-  [ -n "${SHIM_DIR}" ] && rm -f factory_shim && \
-      ln -s "${SHIM_DIR}" factory_shim
-  [ -n "${FACTORY_DIR}" ] && rm -f factory_test && \
-      ln -s "${FACTORY_DIR}" factory_test
 
-  # Restore "latest" status to the original image.
-  # The "latest" symlink and latest timestamp are used extensively
-  # throughout the build scripts rather than explicitly specifying an image.
-  touch "${IMG_DIR}"
-  [ -n "${IMG_DIR}" ] && rm -f latest && ln -s "${IMG_DIR}" latest
   FACTORY_MANIFEST=$(find factory_shim factory_test -follow -type f  |
       grep -E "(factory_image|factory_install|partition|netboot|hwid)")
   rm -f "${FACTORY_ZIPFILE}"
