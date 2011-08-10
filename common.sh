@@ -87,8 +87,8 @@ get_gclient_root
 #     FOO = "$(cd $FOO ; pwd)"
 # since that leaves symbolic links intact.
 # Note that 'realpath' is equivalent to 'readlink -f'.
-SCRIPT_LOCATION=$(readlink -f $SCRIPT_LOCATION)
-GCLIENT_ROOT=$(readlink -f $GCLIENT_ROOT)
+SCRIPT_LOCATION=$(readlink -f "$SCRIPT_LOCATION")
+GCLIENT_ROOT=$(readlink -f "$GCLIENT_ROOT")
 
 # Other directories should always be pathed down from GCLIENT_ROOT.
 SRC_ROOT="$GCLIENT_ROOT/src"
@@ -99,13 +99,13 @@ SCRIPTS_DIR="$SRC_ROOT/scripts"
 # since that's available both inside and outside the chroot.  By convention,
 # settings from this file are variables starting with 'CHROMEOS_'
 CHROMEOS_DEV_SETTINGS="${CHROMEOS_DEV_SETTINGS:-$SCRIPTS_DIR/.chromeos_dev}"
-if [ -f $CHROMEOS_DEV_SETTINGS ]; then
+if [ -f "$CHROMEOS_DEV_SETTINGS" ]; then
   # Turn on exit-on-error during custom settings processing
   SAVE_OPTS=$(set +o)
   set -e
 
   # Read settings
-  . $CHROMEOS_DEV_SETTINGS
+  . "$CHROMEOS_DEV_SETTINGS"
 
   # Restore previous state of exit-on-error
   eval "$SAVE_OPTS"
@@ -141,8 +141,9 @@ DEFAULT_CHROOT_DIR=${CHROMEOS_CHROOT_DIR:-"$GCLIENT_ROOT/chroot"}
 DEFAULT_BUILD_ROOT=${CHROMEOS_BUILD_ROOT:-"$SRC_ROOT/build"}
 
 # Set up a global ALL_BOARDS value
-if [ -d $SRC_ROOT/overlays ]; then
-  ALL_BOARDS=$(cd $SRC_ROOT/overlays;ls -1d overlay-* 2>&-|sed 's,overlay-,,g')
+if [ -d "$SRC_ROOT/overlays" ]; then
+  ALL_BOARDS=$(cd "$SRC_ROOT/overlays"; \
+    ls -1d overlay-* 2>&- | sed 's,overlay-,,g')
 fi
 # Strip CR
 ALL_BOARDS=$(echo $ALL_BOARDS)
@@ -438,7 +439,7 @@ setup_symlinks_on_root() {
     elif [ -e "${dev_image_root}/${path}" ]; then
       die "${dev_image_root}/${path} should be a symlink if exists"
     fi
-    sudo ln -s ${dev_image_target} "${dev_image_root}/${path}"
+    sudo ln -s "${dev_image_target}" "${dev_image_root}/${path}"
   done
 
   # Setup var symlink.
@@ -629,7 +630,7 @@ function reinterpret_path_for_chroot() {
 
       # Strip the repository root from the path.
       local relative_path=$(echo ${path_abs_path} \
-          | sed s:${gclient_root_abs_path}/::)
+          | sed "s:${gclient_root_abs_path}/::")
 
       if [ "${relative_path}" = "${path_abs_path}" ]; then
         die "Error reinterpreting path.  Path ${1} is not within source tree."
@@ -696,7 +697,7 @@ function emerge_custom_kernel() {
   local tmp_pkgdir=${root}/custom-packages
 
   # Clean up any leftover state in custom directories.
-  sudo rm -rf ${tmp_pkgdir}
+  sudo rm -rf "${tmp_pkgdir}"
 
   # Update chromeos-initramfs to contain the latest binaries from the build
   # tree. This is basically just packaging up already-built binaries from
@@ -704,24 +705,24 @@ function emerge_custom_kernel() {
   # prebuilts can be uploaded in parallel.
   # TODO(davidjames): Implement ABI deps so that chromeos-initramfs will be
   # rebuilt automatically when its dependencies change.
-  sudo -E PKGDIR=${tmp_pkgdir} $EMERGE_BOARD_CMD -1 \
+  sudo -E PKGDIR="${tmp_pkgdir}" $EMERGE_BOARD_CMD -1 \
     chromeos-base/chromeos-initramfs || die "Cannot emerge chromeos-initramfs"
 
   # Verify all dependencies of the kernel are installed. This should be a
   # no-op, but it's good to check in case a developer didn't run
   # build_packages.
   local kernel=$(portageq-${FLAGS_board} expand_virtual ${root} virtual/kernel)
-  sudo -E PKGDIR=${tmp_pkgdir} $EMERGE_BOARD_CMD --onlydeps \
+  sudo -E PKGDIR="${tmp_pkgdir}" $EMERGE_BOARD_CMD --onlydeps \
     ${kernel} || die "Cannot emerge kernel dependencies"
 
   # Build the kernel. This uses the standard root so that we can pick up the
   # initramfs from there. But we don't actually install the kernel to the
   # standard root, because that'll muck up the kernel debug symbols there,
   # which we want to upload in parallel.
-  sudo -E PKGDIR=${tmp_pkgdir} $EMERGE_BOARD_CMD --buildpkgonly \
+  sudo -E PKGDIR="${tmp_pkgdir}" $EMERGE_BOARD_CMD --buildpkgonly \
     ${kernel} || die "Cannot emerge kernel"
 
   # Install the custom kernel to the provided install root.
-  sudo -E PKGDIR=${tmp_pkgdir} $EMERGE_BOARD_CMD --usepkgonly \
+  sudo -E PKGDIR="${tmp_pkgdir}" $EMERGE_BOARD_CMD --usepkgonly \
     --root=${install_root} ${kernel} || die "Cannot emerge kernel to root"
 }
