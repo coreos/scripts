@@ -445,7 +445,7 @@ done
 # the source trunk for scripts that may need to print it (e.g.
 # build_image.sh).
 sudo -- chroot "$FLAGS_chroot" sudo -i -u $USER $CHROOT_PASSTHRU \
-  EXTERNAL_TRUNK_PATH="${FLAGS_trunk}" LANG=C SSH_AGENT_PID="${SSH_AGENT_PID}" \
+  EXTERNAL_TRUNK_PATH="${FLAGS_trunk}" SSH_AGENT_PID="${SSH_AGENT_PID}" \
   SSH_AUTH_SOCK="${SSH_AUTH_SOCK}" "$@"
 
 # Remove trap and explicitly unmount
