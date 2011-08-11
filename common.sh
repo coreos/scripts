@@ -220,18 +220,20 @@ FACTORY_INSTALL_MASK="
   "
 
 # Determine and set up variables needed for fancy color output (if supported).
-V_REVERSE=
-V_VIDOFF=
 V_BOLD_RED=
 V_BOLD_GREEN=
 V_BOLD_YELLOW=
+V_REVERSE=
+V_VIDOFF=
 
 if tput colors >/dev/null 2>&1; then
-  V_REVERSE="$(tput rev)"
-  V_VIDOFF="$(tput sgr0)"
+  # order matters: we want VIDOFF last so that when we trace with `set -x`,
+  # our terminal doesn't bleed colors as bash dumps the values of vars.
   V_BOLD_RED="$(tput bold; tput setaf 1)"
   V_BOLD_GREEN="$(tput bold; tput setaf 2)"
   V_BOLD_YELLOW="$(tput bold; tput setaf 3)"
+  V_REVERSE="$(tput rev)"
+  V_VIDOFF="$(tput sgr0)"
 fi
 
 # -----------------------------------------------------------------------------
