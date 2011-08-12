@@ -8,9 +8,9 @@ This script runs inside chroot environment. It signs and build factory packages.
 Then serves them using devserver. All paths should be specified relative to the
 chroot environment.
 
-E.g.: ./enter_chroot.sh -- serve_factory_packages.py --board <board>
+E.g.: cros_sdk -- serve_factory_packages.py --board <board>
 
-Always precede the call to the script with './enter_chroot.sh -- ".
+Always precede the call to the script with 'cros_sdk -- ".
 """
 
 import gflags

@@ -669,7 +669,7 @@ def main(argv):
         # try to build it if we can
         cros_env.Info('Creating test image')
         test_output = cros_env.cmd.Output(
-                cros_env.CrosUtilsPath('enter_chroot.sh'),
+                'cros_sdk',
                 '--', './mod_image_for_test.sh',
                 '--board=%s' % options.board, '-y')
         if not os.path.exists(image_file):

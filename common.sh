@@ -268,8 +268,7 @@ function restart_in_chroot_if_needed {
   if [ $INSIDE_CHROOT -ne 1 ]; then
     # Get inside_chroot path for script.
     local chroot_path="$(reinterpret_path_for_chroot "$0")"
-    exec $SCRIPTS_DIR/enter_chroot.sh -- \
-      "$chroot_path" "$@"
+    exec $GCLIENT_ROOT/chromite/bin/cros_sdk -- "$chroot_path" "$@"
   fi
 }
 
@@ -278,7 +277,7 @@ function restart_in_chroot_if_needed {
 function assert_inside_chroot {
   if [ $INSIDE_CHROOT -ne 1 ]; then
     echo "This script must be run inside the chroot.  Run this first:"
-    echo "    $SCRIPTS_DIR/enter_chroot.sh"
+    echo "    cros_sdk"
     exit 1
   fi
 }

@@ -76,7 +76,7 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
     if combine_stdout_stderr: stderr = subprocess.STDOUT
 
   if input:  stdin = subprocess.PIPE
-  if enter_chroot:  cmd = ['./enter_chroot.sh', '--'] + cmd
+  if enter_chroot:  cmd = ['cros_sdk', '--'] + cmd
 
   # Print out the command before running.
   cmd_string = 'PROGRAM(%s) -> RunCommand: %r in dir %s' % (GetCallerName(),
@@ -155,7 +155,7 @@ def RunCommandCaptureOutput(cmd, print_cmd=True, cwd=None, input=None,
   if input:  stdin = subprocess.PIPE
   if combine_stdout_stderr: stderr = subprocess.STDOUT
 
-  if enter_chroot:  cmd = ['./enter_chroot.sh', '--'] + cmd
+  if enter_chroot:  cmd = ['cros_sdk', '--'] + cmd
 
   # Print out the command before running.
   if print_cmd:
