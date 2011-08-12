@@ -76,12 +76,6 @@ fi
 # Turn path into an absolute path.
 FLAGS_image=$(eval readlink -f "$FLAGS_image")
 
-# Abort early if we can't find the image
-if [ ! -f "$FLAGS_image" ]; then
-  echo "No image found at $FLAGS_image"
-  exit 1
-fi
-
 # Make sure anything mounted in the rootfs/stateful is cleaned up ok on exit.
 cleanup_mounts() {
   # Occasionally there are some daemons left hanging around that have our
@@ -171,6 +165,12 @@ if [ $FLAGS_inplace -eq $FLAGS_FALSE ]; then
 
   # No need to confirm now, since we are not overwriting the main image
   FLAGS_yes="$FLAGS_TRUE"
+fi
+
+# Abort early if we can't find the image
+if [ ! -f "$FLAGS_image" ]; then
+  echo "No image found at $FLAGS_image"
+  exit 1
 fi
 
 # Make sure this is really what the user wants, before nuking the device
