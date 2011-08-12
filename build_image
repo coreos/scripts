@@ -83,13 +83,13 @@ eval set -- "${FLAGS_ARGV}"
 # so will die prematurely if 'set -e' is specified before now.
 set -e
 
-. "${SCRIPT_ROOT}/build_library/board_options.sh" || exit 1
-
 # Determine build version.
 OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos"
 . "${OVERLAY_CHROMEOS_DIR}/config/chromeos_version.sh" || exit 1
 
-. "${SCRIPT_ROOT}/build_library/build_gpt.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/build_gpt.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
 
 
 EMERGE_BOARD_CMD="emerge-$BOARD"
@@ -441,9 +441,7 @@ install_dev_packages() {
   # building a factory install shim, as the INSTALL_MASK for it will make
   # test_image fail.
   if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]; then
-    "${BUILD_LIBRARY_DIR}/test_image" \
-      --root="${ROOT_FS_DIR}" \
-      --target="${ARCH}"
+    test_image_content "$ROOT_FS_DIR"
   fi
   echo "Developer image built and stored at ${image_name}"
 
@@ -600,9 +598,7 @@ create_base_image() {
   # Don't test the factory install shim
   if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]; then
     # Check that the image has been correctly created.
-    "${BUILD_LIBRARY_DIR}/test_image" \
-      --root="${ROOT_FS_DIR}" \
-      --target="${ARCH}"
+    test_image_content "$ROOT_FS_DIR"
   fi
 
   # Clean up symlinks so they work on a running target rooted at "/".
