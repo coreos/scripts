@@ -37,9 +37,22 @@ if ! . "${SCRIPT_ROOT}/lib/cros_image_common.sh"; then
   exit 1
 fi
 
-if [ -z "$2" -o -z "$1" ] || [ "${#@}" -ne 2 -a "${#@}" -ne 3 ]; then
-  echo "usage: $0 path/to/kernel_partition_img path/to/rootfs_partition_img"
-  echo "    or $0 path/to/chromiumos_img kern_part_no rootfs_part_no"
+# We need 2-3 non-zero parameters.
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ] || [ -z "$1" ] || [ -z "$2" ]; then
+  echo "
+Usage: $0 kernel_partition_img[:index] rootfs_partition_img[:index] [output_dir]
+
+          Input parameters may be either a simple partition image file, or a
+          disk image file name followed by ':' and target partition index number
+
+          If output_dir is omitted, the folder of kernel_partition_img will be
+          use.
+
+Examples:
+       $0 part_2 part_3
+       $0 chromiumos_image.bin:2 part3
+       $0 chromiumos_image.bin:2 otherimage.bin:3 /tmp/myoutput
+  "
   exit 1
 fi
 
@@ -64,31 +77,46 @@ if [ $(whoami) = "root" ]; then
   echo "running $0 as root which is unneccessary"
 fi
 
-# Determine the offset size, and file name of parameters
-if [ -z "$3" ]; then
-  # kernnel_img rootfs_img
-  KPART="$1"
-  ROOT_PART="$2"
-  KPART_SIZE=$(stat -c%s "$KPART")
-  ROOT_PART_SIZE=$(stat -c%s "$ROOT_PART")
-  KPART_OFFSET=0
-  KPART_SECTORS=$((KPART_SIZE / 512))
-  ROOT_OFFSET=0
-  ROOT_SECTORS=$((ROOT_PART_SIZE / 512))
-else
-  # chromiumos_img kern_part_no rootfs_part_no
-  KPART="$1"
-  ROOT_PART="$1"
-  KPART_OFFSET="$(image_part_offset "$KPART" "$2")" ||
-    image_die "cannot retieve kernel partition offset"
-  KPART_SECTORS="$(image_part_size "$KPART" "$2")" ||
-    image_die "cannot retieve kernel partition size"
-  ROOT_OFFSET="$(image_part_offset "$ROOT_PART" "$3")" ||
-    image_die "cannot retieve root partition offset"
-  ROOT_SECTORS="$(image_part_size "$ROOT_PART" "$3")" ||
-    image_die "cannot retieve root partition size"
-  KPART_SIZE=$((KPART_SECTORS * 512))
-fi
+# Usage: load_partition_file VARIABLE_NAME_PREFIX partition_file
+# Writes VARIABLE_NAME_PREFIX[, _OFFSE, _SIZE, _SECTORS] by parsing
+# partition_file, which can be a simple file or image:partno.
+load_partition_file() {
+  local var_prefix="$1"
+  local var="$2"
+  local var_offset=""
+  local var_size=""
+  local var_sectors=""
+  local part_no="${var##*:}"
+
+  # test if var is in image:partno format.
+  if [ "$part_no" != "$var" ]; then
+    var="${var%:*}"
+  else
+    part_no=""
+  fi
+
+  if [ -z "$part_no" ]; then
+    var_offset=0
+    var_size="$(stat -c"%s" "$var")" ||
+      image_die "Invalid file: $var"
+    var_sectors="$((var_size / 512))"
+  else
+    var_offset="$(image_part_offset "$var" "$part_no")" ||
+      image_die "Cannot retieve offset for partition $var:$part_no"
+    var_sectors="$(image_part_size "$var" "$part_no")" ||
+      image_die "Cannot retieve size for partition $var:$part_no"
+    var_size=$((var_sectors * 512))
+  fi
+
+  # publish the values
+  eval "${var_prefix}"="$var"
+  eval "${var_prefix}_OFFSET"="$var_offset"
+  eval "${var_prefix}_SIZE"="$var_size"
+  eval "${var_prefix}_SECTORS"="$var_sectors"
+}
+
+load_partition_file KPART "$1"
+load_partition_file ROOTFS "$2"
 
 # Sanity check size.
 if [ "$KPART_SIZE" -gt $((16 * 1024 * 1024)) ]; then
@@ -97,7 +125,13 @@ if [ "$KPART_SIZE" -gt $((16 * 1024 * 1024)) ]; then
   exit 1
 fi
 
-FINAL_OUT_FILE=$(dirname "$1")/update.gz
+if [ "$#" = "3" ]; then
+  FINAL_OUT_DIR="$(readlink -f $3)"
+else
+  FINAL_OUT_DIR="$(dirname "$(readlink -f $1)")"
+fi
+FINAL_OUT_FILE="$FINAL_OUT_DIR/update.gz"
+echo "Output: $FINAL_OUT_FILE"
 
 # Update payload format:
 #  [kernel_size: big-endian uint64][kernel_blob][rootfs_blob]
@@ -114,7 +148,7 @@ CS_AND_RET_CODES="$(
     echo "Compressing kernel..." >&2
     image_dump_partial_file "$KPART" "$KPART_OFFSET" "$KPART_SECTORS"
     echo "Compressing rootfs..." >&2
-    image_dump_partial_file "$ROOT_PART" "$ROOT_OFFSET" "$ROOT_SECTORS") |
+    image_dump_partial_file "$ROOTFS" "$ROOTFS_OFFSET" "$ROOTFS_SECTORS") |
   image_gzip_compress -c -9 |
   tee "$FINAL_OUT_FILE" |
   openssl sha1 -binary |

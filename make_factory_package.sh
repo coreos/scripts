@@ -230,7 +230,7 @@ compress_and_hash_memento_image() {
       grep hash |
       awk '{print $4}'
   else
-    sudo "${SCRIPTS_DIR}/mk_memento_images.sh" "$input_file" 2 3 |
+    sudo "${SCRIPTS_DIR}/mk_memento_images.sh" "$input_file:2" "$input_file:3" |
       grep hash |
       awk '{print $4}'
   fi

@@ -55,6 +55,8 @@ image_part_offset() {
   if image_has_command cgpt; then
     cgpt show -b -i "$partno" "$file"
   elif image_has_command parted; then
+    # First trial-run to make sure image is valid (because awk always return 0)
+    parted -m "$file" unit s print | grep -qs "^$partno:" || exit 1
     parted -m "$file" unit s print | awk -F ':' "/^$partno:/ { print int(\$2) }"
   elif [ -f "$unpack_file" ]; then
     awk "/ $partno  *Label:/ { print \$2 }" "$unpack_file"
@@ -73,6 +75,8 @@ image_part_size() {
   if image_has_command cgpt; then
     cgpt show -s -i "$partno" "$file"
   elif image_has_command parted; then
+    # First trial-run to make sure image is valid (because awk always return 0)
+    parted -m "$file" unit s print | grep -qs "^$partno:" || exit 1
     parted -m "$file" unit s print | awk -F ':' "/^$partno:/ { print int(\$4) }"
   elif [ -s "$unpack_file" ]; then
     awk "/ $partno  *Label:/ { print \$3 }" "$unpack_file"
