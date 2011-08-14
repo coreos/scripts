@@ -197,29 +197,26 @@ prepare_img() {
   sudo "${GPT}" add -i 2 -S 1 -P 1 "${outdev}"
 }
 
-prepare_omaha() {
-  sudo rm -rf "${OMAHA_DATA_DIR}/rootfs-test.gz"
-  sudo rm -rf "${OMAHA_DATA_DIR}/rootfs-release.gz"
-  rm -rf "${OMAHA_DATA_DIR}/efi.gz"
-  rm -rf "${OMAHA_DATA_DIR}/oem.gz"
-  rm -rf "${OMAHA_DATA_DIR}/state.gz"
-  if [ ! -d "${OMAHA_DATA_DIR}" ]; then
-    mkdir -p "${OMAHA_DATA_DIR}"
-  fi
-}
-
 prepare_dir() {
-  sudo rm -rf rootfs-test.gz
-  sudo rm -rf rootfs-release.gz
-  rm -rf efi.gz
-  rm -rf oem.gz
-  rm -rf state.gz
+  local dir="$1"
+
+  # TODO(hungte) the three files were created as root by old mk_memento_images;
+  #  we can prevent the sudo in future.
+  sudo rm -f "${dir}/rootfs-test.gz"
+  sudo rm -f "${dir}/rootfs-release.gz"
+  sudo rm -f "${dir}/update.gz"
+  for filename in efi oem state hwid firmware; do
+    rm -f "${dir}/${filename}.gz"
+  done
+  if [ ! -d "${dir}" ]; then
+    mkdir -p "${dir}"
+  fi
 }
 
 compress_and_hash_memento_image() {
   local input_file="$1"
 
-  sudo "${SCRIPTS_DIR}/mk_memento_images.sh" "$input_file:2" "$input_file:3" |
+  "${SCRIPTS_DIR}/mk_memento_images.sh" "$input_file:2" "$input_file:3" |
     grep hash |
     awk '{print $4}'
 }
@@ -248,7 +245,7 @@ compress_and_hash_partition() {
   local output_file="$3"
 
   image_dump_partition "$input_file" "$part_num" |
-  compress_and_hash_file "" "$output_file"
+    compress_and_hash_file "" "$output_file"
 }
 
 # Applies HWID component list files updater into stateful partition
@@ -326,28 +323,24 @@ generate_img() {
   prepare_img
 
   # Get the release image.
-  pushd "${RELEASE_DIR}" >/dev/null
-
+  local release_image="${RELEASE_DIR}/${RELEASE_IMAGE}"
   echo "Release Kernel"
-  image_partition_copy "${RELEASE_IMAGE}" 2 "${outdev}" 4
+  image_partition_copy "${release_image}" 2 "${outdev}" 4
   echo "Release Rootfs"
-  image_partition_copy "${RELEASE_IMAGE}" 3 "${outdev}" 5
+  image_partition_copy "${release_image}" 3 "${outdev}" 5
   echo "OEM parition"
-  image_partition_copy "${RELEASE_IMAGE}" 8 "${outdev}" 8
-
-  popd >/dev/null
+  image_partition_copy "${release_image}" 8 "${outdev}" 8
 
   # Go to retrieve the factory test image.
-  pushd "${FACTORY_DIR}" >/dev/null
-
+  local factory_image="${FACTORY_DIR}/${FACTORY_IMAGE}"
   echo "Factory Kernel"
-  image_partition_copy "${FACTORY_IMAGE}" 2 "${outdev}" 2
+  image_partition_copy "${factory_image}" 2 "${outdev}" 2
   echo "Factory Rootfs"
-  image_partition_copy "${FACTORY_IMAGE}" 3 "${outdev}" 3
+  image_partition_copy "${factory_image}" 3 "${outdev}" 3
   echo "Factory Stateful"
-  image_partition_copy "${FACTORY_IMAGE}" 1 "${outdev}" 1
+  image_partition_copy "${factory_image}" 1 "${outdev}" 1
   echo "EFI Partition"
-  image_partition_copy "${FACTORY_IMAGE}" 12 "${outdev}" 12
+  image_partition_copy "${factory_image}" 12 "${outdev}" 12
   apply_hwid_updater "${hwid_updater}" "${outdev}"
 
   # TODO(nsanders, wad): consolidate this code into some common code
@@ -376,21 +369,20 @@ generate_img() {
 
 generate_omaha() {
   # Clean up stale config and data files.
-  prepare_omaha
+  prepare_dir "${OMAHA_DATA_DIR}"
 
-  # Get the release image.
-  pushd "${RELEASE_DIR}" >/dev/null
   echo "Generating omaha release image from ${FLAGS_release}"
   echo "Generating omaha factory image from ${FLAGS_factory}"
   echo "Output omaha image to ${OMAHA_DATA_DIR}"
   echo "Output omaha config to ${OMAHA_CONF}"
 
-  prepare_dir
+  # Get the release image.
+  # TODO(hungte) deprecate pushd and use temporary folders
+  pushd "${RELEASE_DIR}" >/dev/null
+  prepare_dir "."
 
   release_hash="$(compress_and_hash_memento_image "${RELEASE_IMAGE}")"
-  sudo chmod a+rw update.gz
-  mv update.gz rootfs-release.gz
-  mv rootfs-release.gz "${OMAHA_DATA_DIR}"
+  mv ./update.gz "${OMAHA_DATA_DIR}/rootfs-release.gz"
   echo "release: ${release_hash}"
 
   oem_hash="$(compress_and_hash_partition "${RELEASE_IMAGE}" 8 "oem.gz")"
@@ -401,12 +393,10 @@ generate_omaha() {
 
   # Go to retrieve the factory test image.
   pushd "${FACTORY_DIR}" >/dev/null
-  prepare_dir
+  prepare_dir "."
 
   test_hash="$(compress_and_hash_memento_image "${FACTORY_IMAGE}")"
-  sudo chmod a+rw update.gz
-  mv update.gz rootfs-test.gz
-  mv rootfs-test.gz "${OMAHA_DATA_DIR}"
+  mv ./update.gz "${OMAHA_DATA_DIR}/rootfs-test.gz"
   echo "test: ${test_hash}"
 
   state_hash="$(compress_and_hash_partition "${FACTORY_IMAGE}" 1 "state.gz")"
