@@ -159,15 +159,9 @@ setup_environment() {
   RELEASE_IMAGE="$(basename "${FLAGS_release}")"
   FACTORY_IMAGE="$(basename "${FLAGS_factory}")"
 
-  # Decide if we should unpack partition
-  if image_has_part_tools; then
-    IMAGE_IS_UNPACKED=
-  else
-    #TODO(hungte) Currently we run unpack_partitions.sh if part_tools are not
-    # found. If the format of unpack_partitions.sh is reliable, we can prevent
-    # creating temporary files. See image_part_offset for more information.
-    echo "WARNING: cannot find partition tools. Using unpack_partitions.sh." >&2
-    IMAGE_IS_UNPACKED=1
+  # Check required tools.
+  if ! image_has_part_tools; then
+    die "Missing partition tools. Please install cgpt/parted, or run in chroot."
   fi
 }
 
@@ -225,15 +219,9 @@ prepare_dir() {
 compress_and_hash_memento_image() {
   local input_file="$1"
 
-  if [ -n "${IMAGE_IS_UNPACKED}" ]; then
-    sudo "${SCRIPTS_DIR}/mk_memento_images.sh" part_2 part_3 |
-      grep hash |
-      awk '{print $4}'
-  else
-    sudo "${SCRIPTS_DIR}/mk_memento_images.sh" "$input_file:2" "$input_file:3" |
-      grep hash |
-      awk '{print $4}'
-  fi
+  sudo "${SCRIPTS_DIR}/mk_memento_images.sh" "$input_file:2" "$input_file:3" |
+    grep hash |
+    awk '{print $4}'
 }
 
 compress_and_hash_file() {
@@ -259,12 +247,8 @@ compress_and_hash_partition() {
   local part_num="$2"
   local output_file="$3"
 
-  if [ -n "${IMAGE_IS_UNPACKED}" ]; then
-    compress_and_hash_file "part_$part_num" "$output_file"
-  else
-    image_dump_partition "$input_file" "$part_num" |
-    compress_and_hash_file "" "$output_file"
-  fi
+  image_dump_partition "$input_file" "$part_num" |
+  compress_and_hash_file "" "$output_file"
 }
 
 # Applies HWID component list files updater into stateful partition
@@ -403,11 +387,6 @@ generate_omaha() {
 
   prepare_dir
 
-  if [ -n "${IMAGE_IS_UNPACKED}" ]; then
-    echo "Unpacking image ${RELEASE_IMAGE} ..." >&2
-    sudo ./unpack_partitions.sh "${RELEASE_IMAGE}" 2>/dev/null
-  fi
-
   release_hash="$(compress_and_hash_memento_image "${RELEASE_IMAGE}")"
   sudo chmod a+rw update.gz
   mv update.gz rootfs-release.gz
@@ -423,11 +402,6 @@ generate_omaha() {
   # Go to retrieve the factory test image.
   pushd "${FACTORY_DIR}" >/dev/null
   prepare_dir
-
-  if [ -n "${IMAGE_IS_UNPACKED}" ]; then
-    echo "Unpacking image ${FACTORY_IMAGE} ..." >&2
-    sudo ./unpack_partitions.sh "${FACTORY_IMAGE}" 2>/dev/null
-  fi
 
   test_hash="$(compress_and_hash_memento_image "${FACTORY_IMAGE}")"
   sudo chmod a+rw update.gz
