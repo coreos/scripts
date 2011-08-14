@@ -202,3 +202,79 @@ image_partition_copy() {
   image_dump_partition "${src}" "${srcpart}" |
       dd of="${dst}" bs="${bs}" seek="${dstoffset}" conv=notrunc oflag=dsync
 }
+
+# Temporary object management
+_IMAGE_TEMP_OBJECTS=""
+
+# Add a temporary object (by mktemp) into list for image_clean_temp to clean
+image_add_temp() {
+  _IMAGE_TEMP_OBJECTS="$_IMAGE_TEMP_OBJECTS $*"
+}
+
+# Cleans objects tracked by image_add_temp.
+image_clean_temp() {
+  local temp_list="$_IMAGE_TEMP_OBJECTS"
+  local object
+  _IMAGE_TEMP_OBJECTS=""
+
+  for object in $temp_list; do
+    if [ -d "$object" ]; then
+      sudo umount -d "$object" >/dev/null 2>&1 || true
+      sudo rmdir "$object" >/dev/null 2>&1 || true
+    else
+      rm -f "$object" >/dev/null 2>&1 || true
+    fi
+  done
+}
+
+# Determines the boot type of a ChromeOS kernel partition.
+# Prints "recovery", "ssd", "usb", "factory_install", "invalid", or "unknown".
+image_cros_kernel_boot_type() {
+  local keyblock="$1"
+  local magic flag skip kernel_config
+
+  # TODO(hungte) use vbutil_keyblock if available
+
+  # Reference: firmware/include/vboot_struct.h
+  local KEY_BLOCK_FLAG_DEVELOPER_0=1  # Developer switch off
+  local KEY_BLOCK_FLAG_DEVELOPER_1=2  # Developer switch on
+  local KEY_BLOCK_FLAG_RECOVERY_0=4  # Not recovery mode
+  local KEY_BLOCK_FLAG_RECOVERY_1=8  # Recovery mode
+  local KEY_BLOCK_MAGIC="CHROMEOS"
+  local KEY_BLOCK_MAGIC_SIZE=8
+  local KEY_BLOCK_FLAG_OFFSET=72  # magic:8 major:4 minor:4 size:8 2*(sig:8*3)
+
+  magic="$(dd if="$keyblock" bs=$KEY_BLOCK_MAGIC_SIZE count=1 2>/dev/null)"
+  if [ "$magic" != "$KEY_BLOCK_MAGIC" ]; then
+    echo "invalid"
+    return
+  fi
+  skip="$KEY_BLOCK_FLAG_OFFSET"
+  flag="$(dd if="$keyblock" bs=1 count=1 skip="$skip" 2>/dev/null |
+          od -t u1 -A n)"
+  if [ "$((flag & KEY_BLOCK_FLAG_RECOVERY_0))" != 0 ]; then
+    echo "ssd"
+  elif [ "$((flag & KEY_BLOCK_FLAG_RECOVERY_1))" != 0 ]; then
+    if [ "$((flag & KEY_BLOCK_FLAG_DEVELOPER_0))" = 0 ]; then
+      echo "factory_install"
+    else
+      # Recovery or USB. Check "cros_recovery" in kernel config.
+      if image_has_command dump_kernel_config; then
+        kernel_config="$(dump_kernel_config "$keyblock")"
+      else
+        # strings is less secure than dump_kernel_config, so let's try more
+        # keywords
+        kernel_config="$(strings "$keyblock" |
+                         grep -w "root=" | grep -w "cros_recovery")"
+      fi
+      if (echo "$kernel_config" | grep -qw "cros_recovery") &&
+         (echo "$kernel_config" | grep -qw "kern_b_hash"); then
+        echo "recovery"
+      else
+        echo "usb"
+      fi
+    fi
+  else
+    echo "unknown"
+  fi
+}

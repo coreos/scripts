@@ -68,24 +68,15 @@ DEFINE_string diskimg "" \
 DEFINE_boolean preserve ${FLAGS_FALSE} \
   "If set, reuse the diskimage file, if available"
 DEFINE_integer sectors 31277232  "Size of image in sectors"
+DEFINE_boolean detect_release_image ${FLAGS_TRUE} \
+  "If set, try to auto-detect the type of release image and convert if required"
 
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
-IMAGE_MOUNT_STACK=""
-
-image_push_mounts() {
-  IMAGE_MOUNT_STACK="$* $IMAGE_MOUNT_STACK"
-}
-
-image_pop_mounts() {
-  local dir=""
-  for dir in $IMAGE_MOUNT_STACK; do
-    sudo umount "$dir" || true
-    sudo rmdir "$dir" || true
-  done
-  IMAGE_MOUNT_STACK=""
+on_exit() {
+  image_clean_temp
 }
 
 check_optional_file() {
@@ -159,12 +150,66 @@ setup_environment() {
   RELEASE_IMAGE="$(basename "${FLAGS_release}")"
   FACTORY_IMAGE="$(basename "${FLAGS_factory}")"
 
+  # Override this with path to modified kernel (for non-SSD images)
+  RELEASE_KERNEL=""
+
   # Check required tools.
   if ! image_has_part_tools; then
     die "Missing partition tools. Please install cgpt/parted, or run in chroot."
   fi
 }
 
+# Prepares release image source by checking image type, and creates modified
+# partition blob in RELEASE_KERNEL if required.
+prepare_release_image() {
+  local image="$(readlink -f "$1")"
+  local kernel="$(mktemp --tmpdir)"
+  image_add_temp "$kernel"
+
+  # Image Types:
+  # - recovery: kernel in #4 and vmlinuz_hd.vblock in #1
+  # - usb: kernel in #2 and vmlinuz_hd.vblock in #1
+  # - ssd: kernel in #2, no need to change
+  image_dump_partition "$image" "2" >"$kernel" 2>/dev/null ||
+    die "Cannot extract kernel partition from image: $image"
+
+  local image_type="$(image_cros_kernel_boot_type "$kernel")"
+  local need_vmlinuz_hd=""
+  info "Image type is [$image_type]: $image"
+
+  case "$image_type" in
+    "ssd" )
+      true
+      ;;
+    "usb" )
+      RELEASE_KERNEL="$kernel"
+      need_vmlinuz_hd="TRUE"
+      ;;
+    "recovery" )
+      RELEASE_KERNEL="$kernel"
+      image_dump_partition "$image" "4" >"$kernel" 2>/dev/null ||
+        die "Cannot extract real kernel for recovery image: $image"
+      need_vmlinuz_hd="TRUE"
+      ;;
+    * )
+      die "Unexpected release image type: $image_type."
+      ;;
+  esac
+
+  if [ -n "$need_vmlinuz_hd" ]; then
+    local temp_mount="$(mktemp -d --tmpdir)"
+    local vmlinuz_hd_file="vmlinuz_hd.vblock"
+    image_add_temp "$temp_mount"
+    image_mount_partition "$image" "1" "$temp_mount" "ro" ||
+      die "No stateful partition in $image."
+    [ -s "$temp_mount/$vmlinuz_hd_file" ] ||
+      die "Missing $vmlinuz_hd_file in stateful partition: $image"
+    sudo dd if="$temp_mount/$vmlinuz_hd_file" of="$kernel" \
+      bs=512 conv=notrunc >/dev/null 2>&1 ||
+      die "Cannot update kernel with $vmlinuz_hd_file"
+    image_umount_partition "$temp_mount"
+  fi
+}
 
 prepare_img() {
   local outdev="$(readlink -f "$FLAGS_diskimg")"
@@ -173,7 +218,8 @@ prepare_img() {
 
   # We'll need some code to put in the PMBR, for booting on legacy BIOS.
   echo "Fetch PMBR"
-  local pmbrcode="$(mktemp -d)/gptmbr.bin"
+  local pmbrcode="$(mktemp --tmpdir)"
+  image_add_temp "$pmbrcode"
   sudo dd bs=512 count=1 if="${FLAGS_release}" of="${pmbrcode}" status=noxfer
 
   echo "Prepare base disk image"
@@ -213,10 +259,15 @@ prepare_dir() {
   fi
 }
 
+# Compresses kernel and rootfs of an imge file, and output its hash.
+# Usage:compress_and_hash_memento_image kernel rootfs
+# Please see "mk_memento_images --help" for detail of parameter syntax
 compress_and_hash_memento_image() {
-  local input_file="$1"
+  local kern="$1"
+  local rootfs="$2"
+  [ "$#" = "2" ] || die "Internal error: compress_and_hash_memento_image $*"
 
-  "${SCRIPTS_DIR}/mk_memento_images.sh" "$input_file:2" "$input_file:3" |
+  "${SCRIPTS_DIR}/mk_memento_images.sh" "$kern" "$rootfs" "." |
     grep hash |
     awk '{print $4}'
 }
@@ -268,8 +319,13 @@ generate_usbimg() {
   fi
   local builder="$(dirname "$SCRIPT")/make_universal_factory_shim.sh"
 
+  # TODO(hungte) Support non-SSD images
+  [ -z "$RELEASE_KERNEL" ] ||
+    die "Non-SSD image is not supported for --usbimg mode yet."
+
   "$builder" -m "${FLAGS_factory}" -f "${FLAGS_usbimg}" \
     "${FLAGS_install_shim}" "${FLAGS_factory}" "${FLAGS_release}"
+  apply_hwid_updater "${FLAGS_hwid_updater}" "${FLAGS_usbimg}"
 
   # Extract and modify lsb-factory from original install shim
   local lsb_path="/dev_image/etc/lsb-factory"
@@ -277,9 +333,7 @@ generate_usbimg() {
   local src_lsb="${src_dir}${lsb_path}"
   local new_dir="$(mktemp -d --tmpdir)"
   local new_lsb="${new_dir}${lsb_path}"
-  apply_hwid_updater "${FLAGS_hwid_updater}" "${FLAGS_usbimg}"
-  image_push_mounts "$src_dir"
-  image_push_mounts "$new_dir"
+  image_add_temp "$src_dir" "$new_dir"
   image_mount_partition "${FLAGS_install_shim}" 1 "${src_dir}" ""
   image_mount_partition "${FLAGS_usbimg}" 1 "${new_dir}" "rw"
   # Copy firmware updater, if available
@@ -299,7 +353,8 @@ generate_usbimg() {
     echo "FACTORY_INSTALL_USB_OFFSET=2" &&
     echo "$updater_settings") |
     sudo dd of="${new_lsb}"
-  image_pop_mounts
+  image_umount_partition "$new_dir"
+  image_umount_partition "$src_dir"
 
   # Deactivate all kernel partitions except installer slot
   local i=""
@@ -325,7 +380,16 @@ generate_img() {
   # Get the release image.
   local release_image="${RELEASE_DIR}/${RELEASE_IMAGE}"
   echo "Release Kernel"
-  image_partition_copy "${release_image}" 2 "${outdev}" 4
+  if [ -n "$RELEASE_KERNEL" ]; then
+    local newkernel="$(image_map_partition "${outdev}" "4")"
+    local failed=""
+    sudo dd if="$RELEASE_KERNEL" of="$newkernel" bs=512 ||
+      failed="TRUE"
+    image_unmap_partition "$newkernel"
+    [ -z "$failed" ] || die "Failed to build release kernel."
+  else
+    image_partition_copy "${release_image}" 2 "${outdev}" 4
+  fi
   echo "Release Rootfs"
   image_partition_copy "${release_image}" 3 "${outdev}" 5
   echo "OEM parition"
@@ -347,8 +411,8 @@ generate_img() {
   # when cleaning up kernel commandlines. There is code that touches
   # this in postint/chromeos-setimage and build_image. However none
   # of the preexisting code actually does what we want here.
-  local tmpesp="$(mktemp -d)"
-  image_push_mounts "$tmpesp"
+  local tmpesp="$(mktemp -d --tmpdir)"
+  image_add_temp "$tmpesp"
   image_mount_partition "${outdev}" 12 "$tmpesp" "rw"
 
   # Edit boot device default for legacy.
@@ -362,12 +426,13 @@ generate_img() {
   # Somewhat safe as ARM does not support syslinux, I believe.
   sudo sed -i "s'HDROOTA'/dev/sda3'g" "${tmpesp}"/syslinux/root.A.cfg
 
-  image_pop_mounts
+  image_umount_partition "$tmpesp"
   echo "Generated Image at $outdev."
   echo "Done"
 }
 
 generate_omaha() {
+  local kernel rootfs
   # Clean up stale config and data files.
   prepare_dir "${OMAHA_DATA_DIR}"
 
@@ -381,7 +446,9 @@ generate_omaha() {
   pushd "${RELEASE_DIR}" >/dev/null
   prepare_dir "."
 
-  release_hash="$(compress_and_hash_memento_image "${RELEASE_IMAGE}")"
+  kernel="${RELEASE_KERNEL:-${RELEASE_IMAGE}:2}"
+  rootfs="${RELEASE_IMAGE}:3"
+  release_hash="$(compress_and_hash_memento_image "$kernel" "$rootfs")"
   mv ./update.gz "${OMAHA_DATA_DIR}/rootfs-release.gz"
   echo "release: ${release_hash}"
 
@@ -395,7 +462,9 @@ generate_omaha() {
   pushd "${FACTORY_DIR}" >/dev/null
   prepare_dir "."
 
-  test_hash="$(compress_and_hash_memento_image "${FACTORY_IMAGE}")"
+  kernel="${FACTORY_IMAGE}:2"
+  rootfs="${FACTORY_IMAGE}:3"
+  test_hash="$(compress_and_hash_memento_image "$kernel" "$rootfs")"
   mv ./update.gz "${OMAHA_DATA_DIR}/rootfs-test.gz"
   echo "test: ${test_hash}"
 
@@ -509,10 +578,13 @@ To run the server:
 
 main() {
   set -e
-  trap image_pop_mounts EXIT
+  trap on_exit EXIT
 
   check_parameters
   setup_environment
+  if [ "$FLAGS_detect_release_image" = "$FLAGS_TRUE" ]; then
+    prepare_release_image "$FLAGS_release"
+  fi
 
   if [ -n "$FLAGS_usbimg" ]; then
     generate_usbimg
