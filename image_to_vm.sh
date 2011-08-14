@@ -166,7 +166,6 @@ else
     fi
     sudo e2fsck -pf "${STATEFUL_LOOP_DEV}"
     sudo resize2fs "${STATEFUL_LOOP_DEV}"
-    sync
     sudo losetup -d "${STATEFUL_LOOP_DEV}"
   fi
 fi
@@ -194,7 +193,6 @@ sudo python "${SCRIPTS_DIR}/fixup_image_for_qemu.py" \
 sudo sed -i -e 's/sdb3/sda3/g' "${TEMP_MNT}/boot/syslinux/usb.A.cfg"
 
 # Unmount everything prior to building a final image
-sync
 trap - INT TERM EXIT
 cleanup
 
