@@ -230,8 +230,8 @@ prepare_img() {
         "$(stat -c %s ${outdev})" != "$(( ${sectors} * 512 ))"  -o \
         "$FLAGS_preserve" = "$FLAGS_FALSE" ]; then
     echo "Generating empty image file"
-    image_dump_partial_file /dev/zero 0 "${sectors}" |
-        dd of="${outdev}" bs=8M
+    truncate -s "0" "$outdev"
+    truncate -s "$((sectors * 512))" "$outdev"
   else
     echo "Reusing $outdev"
   fi
@@ -381,28 +381,23 @@ generate_img() {
   local release_image="${RELEASE_DIR}/${RELEASE_IMAGE}"
   echo "Release Kernel"
   if [ -n "$RELEASE_KERNEL" ]; then
-    local newkernel="$(image_map_partition "${outdev}" "4")"
-    local failed=""
-    sudo dd if="$RELEASE_KERNEL" of="$newkernel" bs=512 ||
-      failed="TRUE"
-    image_unmap_partition "$newkernel"
-    [ -z "$failed" ] || die "Failed to build release kernel."
+    image_partition_copy_from_file "${RELEASE_KERNEL}" "${outdev}" 4
   else
     image_partition_copy "${release_image}" 2 "${outdev}" 4
   fi
   echo "Release Rootfs"
-  image_partition_copy "${release_image}" 3 "${outdev}" 5
+  image_partition_overwrite "${release_image}" 3 "${outdev}" 5
   echo "OEM parition"
-  image_partition_copy "${release_image}" 8 "${outdev}" 8
+  image_partition_overwrite "${release_image}" 8 "${outdev}" 8
 
   # Go to retrieve the factory test image.
   local factory_image="${FACTORY_DIR}/${FACTORY_IMAGE}"
   echo "Factory Kernel"
   image_partition_copy "${factory_image}" 2 "${outdev}" 2
   echo "Factory Rootfs"
-  image_partition_copy "${factory_image}" 3 "${outdev}" 3
+  image_partition_overwrite "${factory_image}" 3 "${outdev}" 3
   echo "Factory Stateful"
-  image_partition_copy "${factory_image}" 1 "${outdev}" 1
+  image_partition_overwrite "${factory_image}" 1 "${outdev}" 1
   echo "EFI Partition"
   image_partition_copy "${factory_image}" 12 "${outdev}" 12
   apply_hwid_updater "${hwid_updater}" "${outdev}"

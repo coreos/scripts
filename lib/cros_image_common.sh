@@ -92,15 +92,13 @@ image_dump_partial_file() {
   local sectors="$3"
   local bs=512
 
-  # Try to use larger buffer if offset/size can be re-aligned.
-  # 2M / 512 = 4096
-  local buffer_ratio=4096
-  if [ $((offset % buffer_ratio)) -eq 0 -a \
-       $((sectors % buffer_ratio)) -eq 0 ]; then
-    offset=$((offset / buffer_ratio))
-    sectors=$((sectors / buffer_ratio))
-    bs=$((bs * buffer_ratio))
-  fi
+  # Increase buffer size as much as possible until 8M
+  while [ $((bs < (8 * 1024 * 1024) && sectors > 0 &&
+             offset % 2 == 0 && sectors % 2 == 0)) = "1" ]; do
+    bs=$((bs * 2))
+    offset=$((offset / 2))
+    sectors=$((sectors / 2))
+  done
 
   if image_has_command pv; then
     dd if="$file" bs=$bs skip="$offset" count="$sectors" \
@@ -122,6 +120,43 @@ image_dump_partition() {
     image_die "failed to find partition #$part_num from: $file"
 
   image_dump_partial_file "$file" "$offset" "$size"
+}
+
+# Updates a file (from stdin) by given offset and size (in sectors)
+image_update_partial_file() {
+  local file="$1"
+  local offset="$2"
+  local sectors="$3"
+  local bs=512
+
+  # Increase buffer size as much as possible until 8M
+  while [ $((bs < (8 * 1024 * 1024) && sectors > 0 &&
+             offset % 2 == 0 && sectors % 2 == 0)) = "1" ]; do
+    bs=$((bs * 2))
+    offset=$((offset / 2))
+    sectors=$((sectors / 2))
+  done
+
+  if image_has_command pv; then
+    pv -ptreb -B $bs -s $((sectors * bs)) |
+      dd of="$file" bs=$bs seek="$offset" count="$sectors" \
+        iflag=fullblock oflag=dsync conv=notrunc status=noxfer 2>/dev/null
+  else
+    dd of="$file" bs=$bs seek="$offset" count="$sectors" \
+      iflag=fullblock oflag=dsync conv=notrunc status=noxfer 2>/dev/null
+  fi
+}
+
+# Updates a specific partition in given image file (from stdin)
+image_update_partition() {
+  local file="$1"
+  local part_num="$2"
+  local offset="$(image_part_offset "$file" "$part_num")" ||
+    image_die "failed to find partition #$part_num from: $file"
+  local size="$(image_part_size "$file" "$part_num")" ||
+    image_die "failed to find partition #$part_num from: $file"
+
+  image_update_partial_file "$file" "$offset" "$size"
 }
 
 # Maps a specific partition from given image file to a loop device
@@ -173,34 +208,39 @@ image_umount_partition() {
   sudo umount -d "$mount_point"
 }
 
-# Copy a partition from one image to another.
+# Copy a partition from one image to another (size must be equal)
 image_partition_copy() {
-  local src="$1"
-  local srcpart="$2"
-  local dst="$3"
-  local dstpart="$4"
-
-  local srcoffset=$(image_part_offset "${src}" "${srcpart}")
-  local dstoffset=$(image_part_offset "${dst}" "${dstpart}")
-  local length=$(image_part_size "${src}" "${srcpart}")
-  local dstlength=$(image_part_size "${dst}" "${dstpart}")
-
-  if [ "${length}" -gt  "${dstlength}" ]; then
-    exit 1
+  local src="$1" src_part="$2" dst="$3" dst_part="$4"
+  local size1="$(image_part_size "$src" "$src_part")"
+  local size2="$(image_part_size "$dst" "$dst_part")"
+  if [ "$size1" != "$size2" ]; then
+    die "Partition size different: ($size1 != $size2)"
   fi
+  image_dump_partition "$src" "$src_part" 2>/dev/null |
+    image_update_partition "$dst" "$dst_part"
+}
 
-  # Try to use larger buffer if offset/size can be re-aligned.
-  # 2M / 512 = 4096
-  local buffer_ratio=4096
-  local bs=512
-  if [ $((dstoffset % buffer_ratio)) -eq 0 -a \
-       $((length % buffer_ratio)) -eq 0 ]; then
-    dstoffset=$((dstoffset / buffer_ratio))
-    bs=$((bs * buffer_ratio))
+# Copy a partition from one image to another (source <= dest)
+image_partition_overwrite() {
+  local src="$1" src_part="$2" dst="$3" dst_part="$4"
+  local size1="$(image_part_size "$src" "$src_part")"
+  local size2="$(image_part_size "$dst" "$dst_part")"
+  if [ "$size1" -gt "$size2" ]; then
+    die "Destination is too small: ($size1 > $size2)"
   fi
+  image_dump_partition "$src" "$src_part" 2>/dev/null |
+    image_update_partition "$dst" "$dst_part"
+}
 
-  image_dump_partition "${src}" "${srcpart}" |
-      dd of="${dst}" bs="${bs}" seek="${dstoffset}" conv=notrunc oflag=dsync
+# Copy a partition image from file to a full disk image.
+image_partition_copy_from_file() {
+  local src="$1" dst="$2" dst_part="$3"
+  local size1="$(($(stat -c"%s" "$src") / 512))"
+  local size2="$(image_part_size "$dst" "$dst_part")"
+  if [ "$size1" != "$size2" ]; then
+    die "Partition size different: ($size1 != $size2)"
+  fi
+  cat "$src" | image_update_partition "$dst" "$dst_part"
 }
 
 # Temporary object management
