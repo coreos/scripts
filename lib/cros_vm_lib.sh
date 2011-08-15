@@ -128,7 +128,7 @@ function stop_kvm() {
     echo "Stopping the KVM instance" >&2
     local pid=$(get_pid)
     if [ -n "${pid}" ]; then
-      blocking_kill ${pid} 1 16 || blocking_kill 9 1
+      blocking_kill ${pid} 1 16 || blocking_kill ${pid} 9 1
       sudo rm "${KVM_PID_FILE}"
     else
       echo "No kvm pid found to stop." >&2
