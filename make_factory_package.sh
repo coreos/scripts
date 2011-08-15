@@ -318,13 +318,24 @@ generate_usbimg() {
     die "Missing 'cgpt'. Please install cgpt, or run inside chroot."
   fi
   local builder="$(dirname "$SCRIPT")/make_universal_factory_shim.sh"
+  local release_file="$FLAGS_release"
 
-  # TODO(hungte) Support non-SSD images
-  [ -z "$RELEASE_KERNEL" ] ||
-    die "Non-SSD image is not supported for --usbimg mode yet."
+  if [ -n "$RELEASE_KERNEL" ]; then
+    # TODO(hungte) Improve make_universal_factory_shim to support assigning
+    # a modified kernel to prevent creating temporary image here
+    info "Creating temporary SSD-type release image, please wait..."
+    release_file="$(mktemp --tmpdir)"
+    image_add_temp "${release_file}"
+    if image_has_part_tools pv; then
+      pv -B 16M "${FLAGS_release}" >"${release_file}"
+    else
+      cp -f "${FLAGS_release}" "${release_file}"
+    fi
+    image_partition_copy_from_file "${RELEASE_KERNEL}" "${release_file}" 2
+  fi
 
   "$builder" -m "${FLAGS_factory}" -f "${FLAGS_usbimg}" \
-    "${FLAGS_install_shim}" "${FLAGS_factory}" "${FLAGS_release}"
+    "${FLAGS_install_shim}" "${FLAGS_factory}" "${release_file}"
   apply_hwid_updater "${FLAGS_hwid_updater}" "${FLAGS_usbimg}"
 
   # Extract and modify lsb-factory from original install shim
