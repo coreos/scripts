@@ -314,6 +314,29 @@ function setup_env {
       user.email "$(cd /tmp; git var GIT_COMMITTER_IDENT | \
         sed -e 's/.*<\([^>]*\)>.*/\1/')" || true
 
+    # Make sure user's requested locales are available
+    # http://crosbug.com/19139
+    locales=$(printf '%s\n' ${LANG} \
+      $LC_{ADDRESS,ALL,COLLATE,CTYPE,IDENTIFICATION,MEASUREMENT,MESSAGES} \
+      $LC_{MONETARY,NAME,NUMERIC,PAPER,TELEPHONE,TIME} | \
+      sort -u | sed '/^C$/d')
+    gen_locales=()
+    for l in ${locales}; do
+      if [[ ${l} == *.* ]]; then
+        enc=${l#*.}
+      else
+        enc="ISO-8859-1"
+      fi
+      case $(echo ${enc//-} | tr '[:upper:]' '[:lower:]') in
+        utf8) enc="UTF-8";;
+      esac
+      gen_locales=("${gen_locales[@]}" "${l} ${enc}")
+    done
+    if [[ ${#gen_locales[@]} -gt 0 ]] ; then
+      sudo -- chroot "$FLAGS_chroot" locale-gen -q -u \
+        -G "$(printf '%s\n' "${gen_locales[@]}")"
+    fi
+
     # Fix permissions on shared memory to allow non-root users access to POSIX
     # semaphores.
     sudo chmod -R 777 "${FLAGS_chroot}/dev/shm"
