@@ -70,9 +70,11 @@ fi
 WORKON_DIR=${CHROOT_TRUNK_DIR}/.config/cros_workon
 KEYWORDS_DIR=${BOARD_DIR}/etc/portage/package.keywords
 UNMASK_DIR=${BOARD_DIR}/etc/portage/package.unmask
+PACKAGE_ENV_DIR=${BOARD_DIR}/etc/portage/env
 WORKON_FILE=${WORKON_DIR}/${FLAGS_board:-host}
 KEYWORDS_FILE=${KEYWORDS_DIR}/cros-workon
 UNMASK_FILE=${UNMASK_DIR}/cros-workon
+CHROME_ATOM=chromeos-base/chromeos-chrome
 
 # TODO(msb): remove the backward compatibility after 10/01/2010
 if [ -d "${WORKON_DIR}" ]; then
@@ -171,7 +173,10 @@ canonicalize_name () {
   pkgname=$(\
     echo "${pkgfile}" |awk -F '/' '{ print $(NF-2) "/" $(NF-1) }')
 
-  if ! grep -q "cros-workon" ${pkgfile}; then
+  # TODO(rcui): remove special casing of chromeos-chrome here when we make it
+  # inherit from cros-workon class.  Tracked in chromium-os:19259.
+  if [ "${pkgname}" != "${CHROME_ATOM}" ] && \
+     ! grep -q "cros-workon" ${pkgfile}; then
     warn "${pkgname} is not a cros-workon package" 1>&2
     return 1
   fi
@@ -235,6 +240,25 @@ regen_manifest_and_sync() {
   echo "Please run \"repo sync\" now."
 }
 
+chrome_to_live () {
+  # Switch to using repo manifest checkout of chromium src.
+  # TODO(rcui): Remove this when CHROME_ORIGIN defaults to GERRIT_SOURCE.
+  # Tracked in chromium-os:19259.
+  env_dir=${PACKAGE_ENV_DIR}/chromeos-base
+  sudo mkdir -p ${env_dir}
+  sudo_clobber "${env_dir}/chromeos-chrome" <<EOF
+CHROME_ORIGIN=GERRIT_SOURCE
+EOF
+  # Run chrome_set_ver to set DEPS
+  info "Setting Chrome dependencies to the correct revision."
+  chrome_set_ver
+}
+
+chrome_to_stable () {
+  env_file=${PACKAGE_ENV_DIR}/${CHROME_ATOM}
+  sudo rm ${env_file}
+}
+
 # Move a stable ebuild to the live development catgeory.  The ebuild
 # src_unpack step fetches the package source for local development.
 ebuild_to_live () {
@@ -246,6 +270,9 @@ ebuild_to_live () {
     if ! grep -qx "=${atom}-9999" "${WORKON_FILE}" ; then
       if sudo bash -c "echo \"=${atom}-9999\" >> \"${WORKON_FILE}\""; then
         atoms_success="${atoms_success} ${atom}"
+        if [ "${atom}" = "${CHROME_ATOM}" ]; then
+          chrome_to_live
+        fi
       fi
     else
       warn "Already working on ${atom}"
@@ -265,6 +292,11 @@ ebuild_to_stable () {
     if grep -qx "=${atom}-9999" "${WORKON_FILE}" ; then
       if sudo sed -e "/^=${atom/\//\\/}-9999\$/d" -i "${WORKON_FILE}"; then
         atoms_success="${atoms_success} ${atom}"
+        # TODO(rcui): Remove special case when CHROME_ORIGIN defaults to
+        # GERRIT_SOURCE. Tracked in chromium-os:19259.
+        if [ "${atom}" = "${CHROME_ATOM}" ]; then
+          chrome_to_stable
+        fi
       fi
     else
       warn "Not working on ${atom}"
