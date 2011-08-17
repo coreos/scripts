@@ -58,3 +58,9 @@ fi
 eretry sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
     chromeos-base/hard-host-depends world
 
+# If the user still has old perl modules installed, update them.
+PERL_VERSIONS=$(find /usr/lib*/perl5/vendor_perl/ -maxdepth 1 -mindepth 1 \
+  -type d -printf '%P\n' | sort -u | wc -w)
+if [ "$PERL_VERSIONS" -gt 1 ] ; then
+  sudo /usr/sbin/perl-cleaner --all
+fi
