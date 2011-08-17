@@ -316,7 +316,9 @@ function setup_env {
 
     # Make sure user's requested locales are available
     # http://crosbug.com/19139
-    locales=$(printf '%s\n' ${LANG} \
+    # And make sure en_US{,.UTF-8} are always available as
+    # that what buildbot forces internally
+    locales=$(printf '%s\n' en_US en_US.UTF-8 ${LANG} \
       $LC_{ADDRESS,ALL,COLLATE,CTYPE,IDENTIFICATION,MEASUREMENT,MESSAGES} \
       $LC_{MONETARY,NAME,NUMERIC,PAPER,TELEPHONE,TIME} | \
       sort -u | sed '/^C$/d')
