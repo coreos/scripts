@@ -71,10 +71,12 @@ WORKON_DIR=${CHROOT_TRUNK_DIR}/.config/cros_workon
 KEYWORDS_DIR=${BOARD_DIR}/etc/portage/package.keywords
 UNMASK_DIR=${BOARD_DIR}/etc/portage/package.unmask
 PACKAGE_ENV_DIR=${BOARD_DIR}/etc/portage/env
+CHROMITE_DIR=${CHROOT_TRUNK_DIR}/chromite
 WORKON_FILE=${WORKON_DIR}/${FLAGS_board:-host}
 KEYWORDS_FILE=${KEYWORDS_DIR}/cros-workon
 UNMASK_FILE=${UNMASK_DIR}/cros-workon
 CHROME_ATOM=chromeos-base/chromeos-chrome
+CHROME_SET_VER=${CHROMITE_DIR}/bin/chrome_set_ver.py
 
 # TODO(msb): remove the backward compatibility after 10/01/2010
 if [ -d "${WORKON_DIR}" ]; then
@@ -251,7 +253,7 @@ CHROME_ORIGIN=GERRIT_SOURCE
 EOF
   # Run chrome_set_ver to set DEPS
   info "Setting Chrome dependencies to the correct revision."
-  chrome_set_ver
+  ${CHROME_SET_VER}
 }
 
 chrome_to_stable () {
