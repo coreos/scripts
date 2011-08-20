@@ -19,8 +19,6 @@ DEFINE_integer statefulfs_sectors 4096 \
 # Skips the build steps and just does the kernel swap.
 DEFINE_string kernel_image "" \
     "Path to a pre-built recovery kernel"
-DEFINE_string recovery_image_with_kernel "" \
-    "Optional path to a recovery image with a pre-built kernel."
 DEFINE_string kernel_outfile "" \
     "Filename and path to emit the kernel outfile to. \
 If empty, emits to IMAGE_DIR."
@@ -283,21 +281,6 @@ install_recovery_kernel() {
   return 0
 }
 
-# Extracts a kernel from an existing recovery image.
-# $1 path to new kernel image.
-# $2 path to recovery image.
-extract_kernel_image() {
-  local kernel_path="$1"
-  local recovery_image="$2"
-
-  local kern_a_offset=$(partoffset ${recovery_image} 2)
-  local kern_a_count=$(partsize ${recovery_image} 2)
-
-  info "Extracing kernel image from $2"
-  dd if="$recovery_image" of="$kernel_path" bs=512 \
-    skip=$kern_a_offset count=$kern_a_count
-}
-
 update_partition_table() {
   local src_img=$1          # source image
   local temp_state=$2       # stateful partition image
@@ -430,11 +413,7 @@ FACTORY_ROOT="${BOARD_ROOT}/factory-root"
 USE="fbconsole initramfs" emerge_custom_kernel "$FACTORY_ROOT" ||
   failboat "Cannot emerge custom kernel"
 
-if [ -n "FLAGS_recovery_image_with_kernel" ]; then
-  RECOVERY_KERNEL_IMAGE="$(tempfile -p "extracted_kernel")"
-  extract_kernel_image "$RECOVERY_KERNEL_IMAGE" \
-    "$FLAGS_recovery_image_with_kernel"
-elif [ -z "$FLAGS_kernel_image" ]; then
+if [ -z "$FLAGS_kernel_image" ]; then
   create_recovery_kernel_image
   echo "Recovery kernel created at $RECOVERY_KERNEL_IMAGE"
 else
