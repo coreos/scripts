@@ -16,8 +16,8 @@ DEFINE_integer ssh_port 22 \
 # Copies $1 to $2 on remote host
 function remote_cp_to() {
   REMOTE_OUT=$(scp -P ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY $1 \
-    root@$FLAGS_remote:$2)
+    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -o ConnectTimeout=120 \
+    -i $TMP_PRIVATE_KEY $1 root@$FLAGS_remote:$2)
   return ${PIPESTATUS[0]}
 }
 
@@ -25,14 +25,15 @@ function remote_cp_to() {
 # $2.  Directory paths in $1 are collapsed into $2.
 function remote_rsync_from() {
   rsync -e "ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
-             -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY" \
+             -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -o ConnectTimeout=120 \
+             -i $TMP_PRIVATE_KEY" \
     --no-R --files-from=$1 root@${FLAGS_remote}:/ $2
 }
 
 function remote_sh() {
   REMOTE_OUT=$(ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY \
-    root@$FLAGS_remote "$@")
+    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -o ConnectTimeout=120 \
+    -i $TMP_PRIVATE_KEY root@$FLAGS_remote "$@")
   return ${PIPESTATUS[0]}
 }
 
