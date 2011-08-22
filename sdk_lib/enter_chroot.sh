@@ -6,15 +6,8 @@
 
 # Script to enter the chroot environment
 
-# The script lives in scripts/ or scripts/sdk_lib/
-for path in "$(dirname $0)" "$(dirname $0)/../"; do
-  if [ -r "${path}/common.sh" ]; then
-    SCRIPT_ROOT=${path}
-    break
-  fi
-done
-
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
 # Script must be run outside the chroot and as a regular user.
 assert_outside_chroot
