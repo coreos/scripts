@@ -89,6 +89,7 @@ OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos"
 
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_gpt.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/mount_gpt_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
 
 
@@ -288,7 +289,7 @@ cleanup_stateful_fs_loop() {
   sudo umount -d "${STATEFUL_FS_DIR}"
 }
 
-cleanup() {
+loopback_cleanup() {
   # Disable die on error.
   set +e
 
@@ -327,18 +328,6 @@ delete_prompt() {
   fi
 }
 
-# $1 - Directory where developer rootfs is mounted.
-# $2 - Directory where developer stateful_partition is mounted.
-# $3 - Directory where the ESP partition is mounted.
-mount_gpt_cleanup() {
-  local rootfs="${1-$ROOT_FS_DIR}"
-  local statefs="${2-$STATEFUL_FS_DIR}"
-  local espfs="${3-$ESP_FS_DIR}"
-  "${SCRIPTS_DIR}/mount_gpt_image.sh" \
-    -u -r "${rootfs}" -s "${statefs}" -e "${espfs}"
-  delete_prompt
-}
-
 # Takes no arguments and populates the configuration for
 # cros_make_image_bootable.
 create_boot_desc() {
@@ -368,11 +357,10 @@ install_dev_packages() {
 
   echo "Adding developer packages to ${image_name}"
 
-  trap "mount_gpt_cleanup" EXIT
+  trap "unmount_image ; delete_prompt" EXIT
 
-  ${SCRIPTS_DIR}/mount_gpt_image.sh --from "${OUTPUT_DIR}" \
-    --image "${image_name}" -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
+  mount_image "${OUTPUT_DIR}/${image_name}" "${ROOT_FS_DIR}" \
+    "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 
   # Determine the root dir for developer packages.
   local root_dev_dir="${ROOT_FS_DIR}"
@@ -445,9 +433,8 @@ install_dev_packages() {
   fi
   echo "Developer image built and stored at ${image_name}"
 
+  unmount_image
   trap - EXIT
-  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}" -e "${ESP_FS_DIR}"
 }
 
 zero_free_space() {
@@ -462,7 +449,7 @@ zero_free_space() {
 create_base_image() {
   local image_name=$1
 
-  trap "cleanup && delete_prompt" EXIT
+  trap "loopback_cleanup && delete_prompt" EXIT
 
   # Create and format the root file system.
 
@@ -616,8 +603,7 @@ create_base_image() {
   # payloads become smaller
   zero_free_space "${ROOT_FS_DIR}"
 
-  cleanup
-
+  loopback_cleanup
   trap delete_prompt EXIT
 
   # Now that the filler file has been sync'd to disk and has filled up all free
@@ -645,11 +631,6 @@ generate_au_zip () {
   test ! -d "${OUTPUT_DIR}" && mkdir -p "${OUTPUT_DIR}"
   info "Running ${lgenerateauzip} ${largs} for generating AU updater zip file"
   $lgenerateauzip $largs
-}
-
-mod_image_for_test_cleanup() {
-  "${SCRIPTS_DIR}/mount_gpt_image.sh" -u -r "${ROOT_FS_DIR}" \
-    -s "${STATEFUL_FS_DIR}"
 }
 
 # Emerges chromeos-test onto the image.
@@ -714,11 +695,10 @@ mod_image_for_test () {
   local image_dir=$(dirname ${test_pathname})
   local image_name=$(basename ${test_pathname})
 
-  trap mod_image_for_test_cleanup EXIT
+  trap unmount_image EXIT
 
-  # Mounts gpt image and sets up var, /usr/local and symlinks.
-  "${SCRIPTS_DIR}/mount_gpt_image.sh" -i "${image_name}" -f "${image_dir}" \
-    -r "${ROOT_FS_DIR}" -s "${STATEFUL_FS_DIR}"
+  mount_image "${image_dir}/${image_name}" \
+    "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}"
 
   emerge_chromeos_test
 
@@ -748,15 +728,13 @@ mod_image_for_test () {
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
   sudo ldconfig -r "${ROOT_FS_DIR}"
 
-  mod_image_for_test_cleanup
+  unmount_image
+  trap - EXIT
 
   # Now make it bootable with the flags from build_image
-  "${SCRIPTS_DIR}/bin/cros_make_image_bootable" "${image_dir}" "${image_name}" \
-                                              --force_developer_mode
-
-  print_time_elapsed
-
-  trap - EXIT
+  "${SCRIPTS_DIR}/bin/cros_make_image_bootable" "${image_dir}" \
+                                                "${image_name}" \
+                                                --force_developer_mode
 }
 
 # Create the output directory.

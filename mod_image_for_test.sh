@@ -53,7 +53,8 @@ eval set -- "$FLAGS_ARGV"
 # so will die prematurely if 'set -e' is specified before now.
 set -e
 
-. "${SCRIPT_ROOT}/build_library/board_options.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/mount_gpt_util.sh" || exit 1
 
 
 EMERGE_BOARD_CMD="emerge-$BOARD"
@@ -75,23 +76,6 @@ fi
 
 # Turn path into an absolute path.
 FLAGS_image=$(eval readlink -f "$FLAGS_image")
-
-# Make sure anything mounted in the rootfs/stateful is cleaned up ok on exit.
-cleanup_mounts() {
-  # Occasionally there are some daemons left hanging around that have our
-  # root/stateful image file system open. We do a best effort attempt to kill
-  # them.
-  PIDS=$(sudo lsof -t "$1" | sort | uniq)
-  for pid in $PIDS; do
-    local cmdline=$(cat /proc/$pid/cmdline)
-    echo "Killing process that has open file on the mounted directory: $cmdline"
-    sudo kill $pid || true
-  done
-}
-
-cleanup() {
-  "$SCRIPTS_DIR/mount_gpt_image.sh" -u -r "$ROOT_FS_DIR" -s "$STATEFUL_DIR"
-}
 
 # Emerges chromeos-test onto the image.
 emerge_chromeos_test() {
@@ -190,11 +174,10 @@ IMAGE_NAME=$(basename "$FLAGS_image")
 ROOT_FS_DIR="$IMAGE_DIR/rootfs"
 STATEFUL_DIR="$IMAGE_DIR/stateful_partition"
 
-trap cleanup EXIT
+trap unmount_image EXIT
 
 # Mounts gpt image and sets up var, /usr/local and symlinks.
-"$SCRIPTS_DIR/mount_gpt_image.sh" -i "$IMAGE_NAME" -f "$IMAGE_DIR" \
-  -r "$ROOT_FS_DIR" -s "$STATEFUL_DIR"
+mount_image "$FLAGS_image" "$ROOT_FS_DIR" "$STATEFUL_DIR"
 
 emerge_chromeos_test
 
@@ -231,14 +214,11 @@ if [ "$VERIFY" = "true" ]; then
   popd
 fi
 
-cleanup
+unmount_image
+trap - EXIT
 
 # Now make it bootable with the flags from build_image
 "$SCRIPTS_DIR/bin/cros_make_image_bootable" "$(dirname "$FLAGS_image")" \
                                             "$(basename "$FLAGS_image")" \
                                             --force_developer_mode
-
-
 print_time_elapsed
-
-trap - EXIT
