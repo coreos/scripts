@@ -5,4 +5,6 @@
 # found in the LICENSE file.
 
 echo "This command is deprecated, please run cros_sdk --download"
+# Run 'gclient' to sync depot_tools. Just in case.
+gclient &> /dev/null
 exit 1
