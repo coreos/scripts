@@ -45,14 +45,18 @@ find_common_sh
 SCRIPT="$0"
 get_default_board
 
+FLAGS_NONE='none'
+
 # Flags
 DEFINE_string board "${DEFAULT_BOARD}" "Board for which the image was built"
 DEFINE_string factory "" \
   "Directory and file containing factory image: /path/chromiumos_test_image.bin"
 DEFINE_string firmware_updater "" \
-  "If set, include the firmware shellball into the server configuration"
+  "Firmware updater (shellball) into the server configuration,"\
+" or '$FLAGS_NONE' to prevent running firmware updater."
 DEFINE_string hwid_updater "" \
-  "If set, include the component list updater for HWID validation"
+  "The component list updater for HWID validation,"\
+" or '$FLAGS_NONE' to prevent updating the component list files."
 DEFINE_string complete_script "" \
   "If set, include the script for the last-step execution of factory install"
 DEFINE_string release "" \
@@ -79,27 +83,58 @@ on_exit() {
   image_clean_temp
 }
 
-check_optional_file() {
-  local file="$1"
-  local description="$2"
-  [ -n "$file" ] || return 0
-  [ -f "$file" ] || die "Cannot find $description: $file"
+# Param checking and validation
+check_file_param() {
+  local param="$1"
+  local msg="$2"
+  local param_name="${param#FLAGS_}"
+  local param_value="$(eval echo \$$1)"
+
+  [ -n "$param_value" ] ||
+    die "You must assign a file for --$param_name $msg"
+  [ -f "$param_value" ] ||
+    die "Cannot find file: $param_value"
 }
 
-check_required_file() {
-  local file="$1"
-  local description="$2"
-  [ -n "$file" ] || die "You must assign a file for $description."
-  [ -f "$file" ] || die "Cannot find $description: $file"
+check_file_param_or_none() {
+  local param="$1"
+  local msg="$2"
+  local param_name="${param#FLAGS_}"
+  local param_value="$(eval echo \$$1)"
+
+  if [ "$param_value" = "$FLAGS_NONE" ]; then
+    eval "$param=''"
+    return
+  fi
+  [ -n "$param_value" ] ||
+    die "You must assign either a file or 'none' for --$param_name $msg"
+  [ -f "$param_value" ] ||
+    die "Cannot find file: $param_value"
+}
+
+check_optional_file_param() {
+  local param="$1"
+  local msg="$2"
+  local param_name="${param#FLAGS_}"
+  local param_value="$(eval echo \$$1)"
+
+  if [ -n "$param_value" ] && [ ! -f "$param_value" ]; then
+    die "Cannot find file: $param_value"
+  fi
 }
 
 check_empty_param() {
-  [ -z "$1" ] || die "Parameter is not supported $2"
+  local param="$1"
+  local msg="$2"
+  local param_name="${param#FLAGS_}"
+  local param_value="$(eval echo \$$1)"
+
+  [ -z "$param_value" ] || die "Parameter --$param_name is not supported $msg"
 }
 
 check_parameters() {
-  check_required_file "${FLAGS_release}" "release image (--release)"
-  check_required_file "${FLAGS_factory}" "factory test image (--factory)"
+  check_file_param FLAGS_release ""
+  check_file_param FLAGS_factory ""
 
   # All remaining parameters must be checked:
   # install_shim, firmware, hwid_updater, complete_script.
@@ -107,20 +142,20 @@ check_parameters() {
   if [ -n "${FLAGS_usbimg}" ]; then
     [ -z "${FLAGS_diskimg}" ] ||
       die "--usbimg and --diskimg cannot be used at the same time."
-    check_optional_file "${FLAGS_firmware_updater}" "firmware file (--firmware)"
-    check_optional_file "${FLAGS_hwid_updater}" "HWID component list updater"
-    check_empty_param "${FLAGS_complete_script}" "in usbimg: --complete_script"
-    check_required_file "${FLAGS_install_shim}" "install shim (--install_shim)"
+    check_file_param_or_none FLAGS_firmware_updater "in --usbimg mode"
+    check_file_param_or_none FLAGS_hwid_updater "in --usbimg mode"
+    check_empty_param FLAGS_complete_script "in --usbimg mode"
+    check_file_param FLAGS_install_shim "in --usbimg mode"
   elif [ -n "${FLAGS_diskimg}" ]; then
-    check_empty_param "${FLAGS_firmware_updater}" "in diskimg: --firmware"
-    check_optional_file "${FLAGS_hwid_updater}" "HWID component list updater"
-    check_empty_param "${FLAGS_complete_script}" "in diskimg: --complete_script"
-    check_empty_param "${FLAGS_install_shim}" "in diskimg: --install_shim"
+    check_empty_param FLAGS_firmware_updater "in --diskimg mode"
+    check_file_param_or_none FLAGS_hwid_updater "in --diskimg mode"
+    check_empty_param FLAGS_complete_script "in --diskimg mode"
+    check_empty_param FLAGS_install_shim "in --diskimg mode"
   else
-    check_optional_file "${FLAGS_firmware_updater}" "firmware file (--firmware)"
-    check_optional_file "${FLAGS_hwid_updater}" "HWID component list updater"
-    check_optional_file "${FLAGS_complete_script}" "completion script"
-    check_empty_param "${FLAGS_install_shim}" "in omaha: --install_shim"
+    check_file_param_or_none FLAGS_firmware_updater "in mini-omaha mode"
+    check_file_param_or_none FLAGS_hwid_updater "in mini-omaha mode"
+    check_optional_file_param FLAGS_complete_script "in mini-omaha mode"
+    check_empty_param FLAGS_install_shim "in mini-omaha mode"
   fi
 }
 
