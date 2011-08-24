@@ -185,8 +185,11 @@ class CrosEnv(object):
     return os.path.join(self.cros_root, filename)
 
   def ChrootPath(self, filename):
-    return self.CrosUtilsPath(os.path.join('..', '..', 'chroot',
-                                           filename.strip(os.path.sep)))
+    if os.path.exists('/etc/debian_chroot'):
+      return filename
+    else:
+      return self.CrosUtilsPath(os.path.join('..', '..', 'chroot',
+                                             filename.strip(os.path.sep)))
 
   def FileOneLine(self, filename):
     return file(filename).read().rstrip('\r\n')
