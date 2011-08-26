@@ -99,6 +99,8 @@ if [ $FLAGS_scrub -eq $FLAGS_TRUE ]; then
   sudo mkdir \
     "${ROOT_FS_AUTOTEST_DIR}/deps/chrome_test/test_src/chrome/test/data/" \
     "${ROOT_FS_AUTOTEST_DIR}/deps/chrome_test/test_src/chrome/test/functional/"
+  sudo cp "${CHROME_DEP}/test_src/chrome/test/functional/pyauto_functional.py" \
+    "${ROOT_FS_AUTOTEST_DIR}/deps/chrome_test/test_src/chrome/test/functional/"
   # Create an example pyauto test.
   echo -e "#!/usr/bin/python\n\
 # Copyright (c) 2011 The Chromium Authors. All rights reserved.\n\
