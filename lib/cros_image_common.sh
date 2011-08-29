@@ -128,6 +128,10 @@ image_update_partial_file() {
   local offset="$2"
   local sectors="$3"
   local bs=512
+  local oflag="oflag=dsync"
+
+  # Improve performance if we're not updating block (Ex, USB) devices
+  [ -b "$file" ] || oflag=""
 
   # Increase buffer size as much as possible until 8M
   while [ $((bs < (8 * 1024 * 1024) && sectors > 0 &&
@@ -140,10 +144,10 @@ image_update_partial_file() {
   if image_has_command pv; then
     pv -ptreb -B $bs -s $((sectors * bs)) |
       dd of="$file" bs=$bs seek="$offset" count="$sectors" \
-        iflag=fullblock oflag=dsync conv=notrunc status=noxfer 2>/dev/null
+        iflag=fullblock $oflag conv=notrunc status=noxfer 2>/dev/null
   else
     dd of="$file" bs=$bs seek="$offset" count="$sectors" \
-      iflag=fullblock oflag=dsync conv=notrunc status=noxfer 2>/dev/null
+      iflag=fullblock $oflag conv=notrunc status=noxfer 2>/dev/null
   fi
 }
 
@@ -240,7 +244,7 @@ image_partition_copy_from_file() {
   if [ "$size1" != "$size2" ]; then
     die "Partition size different: ($size1 != $size2)"
   fi
-  cat "$src" | image_update_partition "$dst" "$dst_part"
+  image_update_partition "$dst" "$dst_part" <"$src"
 }
 
 # Temporary object management

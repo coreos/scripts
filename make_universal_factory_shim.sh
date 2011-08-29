@@ -10,131 +10,226 @@
 # kernel partitions to be laid out in a special way
 
 SCRIPT="$0"
-set -e
+SCRIPT_ROOT=$(dirname "$SCRIPT")
+
+# Load functions designed for image processing
+. "${SCRIPT_ROOT}/lib/cros_image_common.sh" || exit 1
 
 # CGPT Header: PMBR, header, table; sec_table, sec_header
 CGPT_START_SIZE=$((1 + 1 + 32))
 CGPT_END_SIZE=$((32 + 1))
 CGPT_BS="512"
 
-STATE_PARTITION="1"
-LEGACY_PARTITIONS="8 9 10 11 12"
-RESERVED_PARTITION="9"
+# Alignment of partition sectors
+PARTITION_SECTOR_ALIGNMENT=256
+
+LAYOUT_FILE="$(mktemp --tmpdir)"
+
+RESERVED_PARTITION="10"
+LEGACY_PARTITIONS="10 11 12"  # RESERVED, RWFW, EFI
+MAX_INPUT_SOURCES=4  # (2~9) / 2
+
+alert() {
+  echo "$*" >&2
+}
 
 die() {
-  echo "ERROR: $*" >&2
+  alert "ERROR: $*"
   exit 1
 }
 
-# TODO(hungte) support parted if cgpt is not available
-image_get_partition_offset() {
-  cgpt show -n -i "$2" -b "$1"
+on_exit() {
+  rm -f "$LAYOUT_FILE"
 }
 
-image_get_partition_size() {
-  cgpt show -n -i "$2" -s "$1"
-}
+# Returns offset aligned to alignment.
+# If size is given, only align if size >= alignment.
+image_alignment() {
+  local offset="$1"
+  local alignment="$2"
+  local size="$3"
 
-image_get_partition_type() {
-  cgpt show -n -i "$2" -t "$1"
-}
-
-image_get_partition_label() {
-  cgpt show -n -i "$2" -l "$1"
-}
-
-image_enable_kernel() {
-  cgpt add -P 1 -S 1 -i "$2" "$1"
-}
-
-image_copy_partition() {
-  local from_image="$1"
-  local from_part="$2"
-  local to_image="$3"
-  local to_part="$4"
-  local bs="$CGPT_BS"
-
-  local from_offset="$(image_get_partition_offset "$from_image" "$from_part")"
-  local from_size="$(image_get_partition_size "$from_image" "$from_part")"
-  local to_offset="$(image_get_partition_offset "$to_image" "$to_part")"
-  local to_size="$(image_get_partition_size "$to_image" "$to_part")"
-
-  if [ "$from_size" -ne "$to_size" ]; then
-    die "Failed to copy partition: $from_image#$from_part -> $to_image#$to_part"
-  fi
-
-  # Seed up by increasing block size
-  # TODO(hungte) improve obs calculation or change offsets
-  while [ "$((from_size > 0 &&
-              from_size % 2 == 0 &&
-              from_offset % 2 == 0 &&
-              to_offset % 2 == 0))" = "1" ]; do
-    bs=$((bs * 2))
-    from_size=$((from_size / 2))
-    from_offset=$((from_offset / 2))
-    to_offset=$((to_offset / 2))
-  done
-
-  # Display progress if the partition is larger than 32M.
-  if [ "$((from_size * bs > 32 * 1048576))" = "1" ] && type pv >/dev/null 2>&1
-  then
-    dd if="$from_image" bs="$bs" count=$from_size skip="$from_offset" |
-    pv -B "$bs" -s "$((bs * from_size))" |
-    dd of="$to_image" bs="$bs" count="$from_size" seek="$to_offset" \
-      conv=notrunc iflag=fullblock
-  else
-    dd if="$from_image" of="$to_image" bs="$bs" conv=notrunc \
-      count=$from_size skip="$from_offset" seek="$to_offset"
-  fi
-}
-
-images_get_total_size() {
-  local image=""
-  local total="0"
-  local index
-
-  # reference, slot_a, slot_b, slot_c.
-  [ "$#" = 4 ] || die "incorrect call to images_get_total_size"
-
-  # copy most partitions from first image
-  total="$((total + CGPT_START_SIZE + CGPT_END_SIZE))"
-  for index in $STATE_PARTITION $LEGACY_PARTITIONS; do
-    total="$((total + $(image_get_partition_size "$1" $index) ))"
-  done
-
-  for image in "$2" "$3" "$4"; do
-    if [ -z "$image" ]; then
-      total="$((total + $(image_get_partition_size "$1" $RESERVED_PARTITION)))"
-      total="$((total + $(image_get_partition_size "$1" $RESERVED_PARTITION)))"
-      continue
+  # If size is assigned, align only if the new size is larger then alignment.
+  if [ "$((offset % alignment))" != "0" ]; then
+    if [ -z "$size" -o "$size" -ge "$alignment" ]; then
+      offset=$((offset + alignment - (offset % alignment)))
     fi
-    total="$((total + $(image_get_partition_size "$image" 2)))"
-    total="$((total + $(image_get_partition_size "$image" 3)))"
-  done
-  echo "$total"
+  fi
+  echo "$((offset))"
 }
 
-image_append_partition() {
-  local from_image="$1"
-  local to_image="$2"
-  local from_part="$3"
-  local last_part="$(cgpt show "$to_image" | grep Label | wc -l)"
-  local to_part="$((last_part + 1))"
-  echo "image_append_partition: $from_image#$from_part -> $to_image#$to_part"
+# Processes a logical disk image layout description file.
+# Each entry in layout is a "file:partnum" entry (:partnum is optional),
+# referring to the #partnum partition in file.
+# The index starts at one, referring to the first partition in layout.
+image_process_layout() {
+  local layout_file="$1"
+  local callback="$2"
+  shift
+  shift
+  local param="$@"
+  local index=0
 
-  local guid="$(image_get_partition_type "$from_image" "$from_part")"
-  local size="$(image_get_partition_size "$from_image" "$from_part")"
-  local label="$(image_get_partition_label "$from_image" "$from_part")"
-  local offset="$CGPT_START_SIZE"
+  while read layout; do
+    local image_file="${layout%:*}"
+    local part_num="${layout#*:}"
+    index="$((index + 1))"
+    [ "$image_file" != "$layout" ] || part_num=""
 
-  if [ "$last_part" -gt 0 ]; then
-    offset="$(( $(image_get_partition_offset "$to_image" "$last_part") +
-                $(image_get_partition_size "$to_image" "$last_part") ))"
+    "$callback" "$image_file" "$part_num" "$index" "$param"
+  done <"$layout_file"
+}
+
+# Processes a list of disk geometry sectors into aligned (offset, sectors) form.
+# The index starts at zero, referring to the partition table object itself.
+image_process_geometry() {
+  local sectors_list="$1"
+  local callback="$2"
+  shift
+  shift
+  local param="$@"
+  local offset=0 sectors
+  local index=0
+
+  for sectors in $sectors_list; do
+    offset="$(image_alignment $offset $PARTITION_SECTOR_ALIGNMENT $sectors)"
+    "$callback" "$offset" "$sectors" "$index" "$param"
+    offset="$((offset + sectors))"
+    index="$((index + 1))"
+  done
+}
+
+# Callback of image_process_layout. Returns the size (in sectors) of given
+# object (partition in image or file).
+layout_get_sectors() {
+  local image_file="$1"
+  local part_num="$2"
+
+  if [ -n "$part_num" ]; then
+    image_part_size "$image_file" "$part_num"
+  else
+    image_alignment "$(stat -c"%s" "$image_file")" $CGPT_BS ""
   fi
+}
 
-  echo cgpt add "$to_image" -t "$guid" -b "$offset" -s "$size" -l "$label"
-  cgpt add "$to_image" -t "$guid" -b "$offset" -s "$size" -l "$label"
-  image_copy_partition "$from_image" "$from_part" "$to_image" "$to_part"
+# Callback of image_process_layout. Copies an input source object (file or
+# partition) into specified partition on output file.
+layout_copy_partition() {
+  local input_file="$1"
+  local input_part="$2"
+  local output_part="$3"
+  local output_file="$4"
+  alert "$(basename "$input_file"):$input_part =>" \
+        "$(basename "$output_file"):$output_part"
+
+  if [ -n "$part_num" ]; then
+    # TODO(hungte) update partition type if available
+    image_partition_copy "$input_file" "$input_part" \
+                         "$output_file" "$output_part"
+    # Update partition type information
+    local partition_type="$(cgpt show -q -n -t -i "$input_part" "$input_file")"
+    local partition_attr="$(cgpt show -q -n -A -i "$input_part" "$input_file")"
+    local partition_label="$(cgpt show -q -n -l -i "$input_part" "$input_file")"
+    cgpt add -t "$partition_type" -l "$partition_label" -A "$partition_attr" \
+             -i "$output_part" "$output_file"
+  else
+    image_update_partition "$output_file" "$output_part" <"$input_file"
+  fi
+}
+
+
+# Callback of image_process_geometry. Creates a partition by give offset,
+# size(sectors), and index.
+geometry_create_partition() {
+  local offset="$1"
+  local sectors="$2"
+  local index="$3"
+  local output_file="$4"
+
+  if [ "$offset" = "0" ]; then
+    # first entry is CGPT; ignore.
+    return
+  fi
+  cgpt add -b $offset -s $sectors -i $index -t reserved "$output_file"
+}
+
+# Callback of image_process_geometry. Prints the proper offset of current
+# partition by give offset and size.
+geometry_get_partition_offset() {
+  local offset="$1"
+  local sectors="$2"
+  local index="$3"
+
+  image_alignment "$offset" "$PARTITION_SECTOR_ALIGNMENT" "$sectors"
+}
+
+build_image_file() {
+  local layout_file="$1"
+  local output_file="$2"
+  local output_file_size=0
+  local sectors_list partition_offsets
+
+  # Check and obtain size information from input sources
+  sectors_list="$(image_process_layout "$layout_file" layout_get_sectors)"
+
+  # Calculate output image file size
+  partition_offsets="$(image_process_geometry \
+                       "$CGPT_START_SIZE $sectors_list $CGPT_END_SIZE 1" \
+                       geometry_get_partition_offset)"
+  output_file_size="$(echo "$partition_offsets" | tail -n 1)"
+
+  # Create empty image file
+  truncate -s "0" "$output_file"  # starting with a new file is much faster.
+  truncate -s "$((output_file_size * CGPT_BS))" "$output_file"
+
+  # Initialize partition table (GPT)
+  cgpt create "$output_file"
+  cgpt boot -p "$output_file" >/dev/null
+
+  # Create partition tables
+  image_process_geometry "$CGPT_START_SIZE $sectors_list" \
+                         geometry_create_partition \
+                         "$output_file"
+  # Copy partitions content
+  image_process_layout "$layout_file" layout_copy_partition "$output_file"
+}
+
+# Creates standard multiple image layout
+create_standard_layout() {
+  local main_source="$1"
+  local layout_file="$2"
+  local image index
+  shift
+  shift
+
+  for image in "$main_source" "$@"; do
+    if [ ! -f "$image" ]; then
+      die "Cannot find input file $image."
+    fi
+  done
+
+  echo "$main_source:1" >>"$layout_file"  # stateful partition
+  for index in $(seq 1 $MAX_INPUT_SOURCES); do
+    local kernel_source="$main_source:$RESERVED_PARTITION"
+    local rootfs_source="$main_source:$RESERVED_PARTITION"
+    if [ "$#" -gt 0 ]; then
+      # TODO(hungte) detect if input source is a recovery/USB image
+      kernel_source="$1:2"
+      rootfs_source="$1:3"
+      shift
+    fi
+    echo "$kernel_source" >>"$layout_file"
+    echo "$rootfs_source" >>"$layout_file"
+  done
+  for index in $LEGACY_PARTITIONS; do
+    echo "$main_source:$index" >>"$LAYOUT_FILE"
+  done
+}
+
+usage_die() {
+  alert "Usage: $SCRIPT [-m master] [-f] output shim1 [shim2 ... shim4]"
+  alert "   or  $SCRIPT -l layout [-f] output"
+  exit 1
 }
 
 main() {
@@ -144,6 +239,7 @@ main() {
   local main_source=""
   local index=""
   local slots="0"
+  local layout_mode=""
 
   while [ "$#" -gt 1 ]; do
     case "$1" in
@@ -156,14 +252,22 @@ main() {
         shift
         shift
         ;;
+      "-l" )
+        cat "$2" >"$LAYOUT_FILE"
+        layout_mode="TRUE"
+        shift
+        shift
+        ;;
       * )
         break
     esac
   done
 
-  if [ "$#" -lt 2 -o "$#" -gt 4 ]; then
-    echo "Usage: $SCRIPT [-m master] [-f] output shim_image_1 [shim_2 [shim_3]]"
-    exit 1
+  if [ -n "$layout_mode" ]; then
+    [ "$#" = 1 ] || usage_die
+  elif [ "$#" -lt 2 -o "$#" -gt "$((MAX_INPUT_SOURCES + 1))" ]; then
+    alert "ERROR: invalid number of parameters ($#)."
+    usage_die
   fi
 
   if [ -z "$main_source" ]; then
@@ -175,38 +279,15 @@ main() {
   if [ -f "$output" -a -z "$force" ]; then
     die "Output file $output already exists. To overwrite the file, add -f."
   fi
-  for image in "$main_source" "$@"; do
-    if [ ! -f "$image" ]; then
-      die "Cannot find input file $image."
-    fi
-  done
 
-  # build output
-  local total_size="$(images_get_total_size "$main_source" "$@")"
-  # echo "Total size from [$@]: $total_size"
-  truncate -s "0" "$output"  # starting with a new file is much faster.
-  truncate -s "$((total_size * CGPT_BS))" "$output"
-  cgpt create "$output"
-  cgpt boot -p "$output"
-
-  # copy most partitions from first image
-  image_append_partition "$main_source" "$output" $STATE_PARTITION
-  local kpart=2
-  local rootfs_part=3
-  for image in "$1" "$2" "$3"; do
-    if [ -z "$image" ]; then
-      image="$main_source"
-      kpart="$RESERVED_PARTITION"
-      rootfs_part="$RESERVED_PARTITION"
-    fi
-    image_append_partition "$image" "$output" "$kpart"
-    image_append_partition "$image" "$output" "$rootfs_part"
-    slots="$((slots + 1))"
-    image_enable_kernel "$output" "$((slots * 2))"
-  done
-  for index in $LEGACY_PARTITIONS; do
-    image_append_partition "$main_source" "$output" "$index"
-  done
+  if [ -z "$layout_mode" ]; then
+    create_standard_layout "$main_source" "$LAYOUT_FILE" "$@"
+  fi
+  build_image_file "$LAYOUT_FILE" "$output"
+  echo ""
+  echo "Image created: $output"
 }
 
+set -e
+trap on_exit EXIT
 main "$@"
