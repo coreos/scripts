@@ -87,45 +87,16 @@ set -e
 OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos"
 . "${OVERLAY_CHROMEOS_DIR}/config/chromeos_version.sh" || exit 1
 
+# N.B.  Ordering matters for some of the libraries below, because
+# some of the files contain initialization used by later files.
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_gpt.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/mount_gpt_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/base_image_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/dev_image_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/test_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
-
-
-EMERGE_BOARD_CMD="emerge-$BOARD"
-if [ $FLAGS_fast -eq $FLAGS_TRUE ]; then
-  echo "Using alternate emerge"
-  EMERGE_BOARD_CMD="$GCLIENT_ROOT/chromite/bin/parallel_emerge"
-  EMERGE_BOARD_CMD="$EMERGE_BOARD_CMD --board=$BOARD"
-fi
-if [ $FLAGS_jobs -ne -1 ]; then
-  EMERGE_JOBS="--jobs=$FLAGS_jobs"
-fi
-
-# Perform an eclean to remove packages which are not installed
-if [ $FLAGS_eclean -eq $FLAGS_TRUE ]; then
-  eclean-$BOARD -d packages
-fi
-
-check_blacklist() {
-  info "Verifying that the base image does not contain a blacklisted package."
-  info "Generating list of packages for chromeos-base/chromeos."
-  local package_blacklist_file="${BUILD_LIBRARY_DIR}/chromeos_blacklist"
-  if [ ! -e "${package_blacklist_file}" ]; then
-    warn "Missing blacklist file."
-    return
-  fi
-  local blacklisted_packages=$(${SCRIPTS_DIR}/get_package_list \
-      --board="${BOARD}" chromeos-base/chromeos \
-      | grep -x -f "${package_blacklist_file}")
-  if [ -n "${blacklisted_packages}" ]; then
-    die "Blacklisted packages found: ${blacklisted_packages}."
-  fi
-  info "No blacklisted packages found."
-}
-
-check_blacklist
 
 # Look at flags to determine which image types we should build
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
@@ -163,11 +134,6 @@ to True."
   fi
 fi
 
-export INSTALL_MASK=""
-if [ ${FLAGS_installmask} -eq ${FLAGS_TRUE} ] ; then
-  INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
-fi
-
 # Reduce the size of factory install shim.
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   # TODO: Build a separated ebuild for the install shim to reduce size.
@@ -185,40 +151,6 @@ if [ $((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) -gt \
   die "rootfs ($((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) MiB) is \
 bigger than partition (${FLAGS_rootfs_partition_size} MiB)."
 fi
-
-# Configure extra USE or packages for this type of build.
-EXTRA_PACKAGES=""
-if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
-  # Factory install needs to have the factory installer added.
-  EXTRA_PACKAGES="${EXTRA_PACKAGES} chromeos-base/chromeos-factoryinstall"
-  # On x86, we boot the factory install shim from an SD card using
-  # initramfs for our root.  On ARM, we boot the factory install shim
-  # over the network, so we don't require initramfs, but we do require
-  # fbconsole to fix a display driver bug.
-  if [ "${ARCH}" = "x86" ] ; then
-    export USE="${USE} initramfs"
-  fi
-  # CONFIG_BLK_DEV_RAM is disabled by default.
-  # But tftp install needs it to mount rootfs in ram
-  if [ "${ARCH}" = "arm" ] ; then
-    export USE="${USE} fbconsole blkdevram"
-  fi
-fi
-
-emerge_to_image() {
-  sudo -E ${EMERGE_BOARD_CMD} --root-deps=rdeps --usepkgonly -v \
-    "$@" ${EMERGE_JOBS}
-}
-
-# Check that the build root is sane.
-"${BUILD_LIBRARY_DIR}/test_build_root" --root="${BOARD_ROOT}"
-
-# Use canonical path since some tools (e.g. mount) do not like symlinks.
-# Append build attempt to output directory.
-IMAGE_SUBDIR="${CHROMEOS_VERSION_STRING}-a${FLAGS_build_attempt}"
-OUTPUT_DIR="${FLAGS_output_root}/${BOARD}/${IMAGE_SUBDIR}"
-
-OUTSIDE_OUTPUT_DIR="../build/images/${BOARD}/${IMAGE_SUBDIR}"
 
 # If we are creating a developer image, also create a pristine image with a
 # different name.
@@ -238,29 +170,26 @@ DEVELOPER_IMG="${OUTPUT_DIR}/${DEVELOPER_IMAGE_NAME}"
 TEST_IMG="${OUTPUT_DIR}/${CHROMEOS_TEST_IMAGE_NAME}"
 FACTORY_IMG="${OUTPUT_DIR}/${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
 
-ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
 ROOT_FS_DIR="${OUTPUT_DIR}/rootfs"
-ROOT_FS_HASH="${OUTPUT_DIR}/rootfs.hash"
-
-STATEFUL_FS_IMG="${OUTPUT_DIR}/stateful_partition.image"
 STATEFUL_FS_DIR="${OUTPUT_DIR}/stateful_partition"
-
-ESP_FS_IMG=${OUTPUT_DIR}/esp.image
 ESP_FS_DIR=${OUTPUT_DIR}/esp
 
 DEVKEYSDIR="/usr/share/vboot/devkeys"
-
-LOOP_DEV=
-STATEFUL_LOOP_DEV=
 
 # ${DEV_IMAGE_ROOT} specifies the location of where developer packages will
 # be installed on the stateful dir.  On a Chromium OS system, this will
 # translate to /usr/local.
 DEV_IMAGE_ROOT="${STATEFUL_FS_DIR}/dev_image"
 
-if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-  enable_rootfs_verification_flag="--enable_rootfs_verification"
+# Perform an eclean to remove packages which are not installed
+if [ $FLAGS_eclean -eq $FLAGS_TRUE ]; then
+  eclean-$BOARD -d packages
 fi
+
+check_blacklist
+
+# Check that the build root is sane.
+"${BUILD_LIBRARY_DIR}/test_build_root" --root="${BOARD_ROOT}"
 
 # Hack to fix bug where x86_64 CHOST line gets incorrectly added.
 # ToDo(msb): remove this hack.
@@ -279,486 +208,17 @@ if [[ -e "${OUTPUT_DIR}" ]]; then
   fi
 fi
 
-cleanup_rootfs_loop() {
-  sudo umount -d "${ROOT_FS_DIR}"
-}
-
-cleanup_stateful_fs_loop() {
-  sudo umount "${ROOT_FS_DIR}/usr/local"
-  sudo umount "${ROOT_FS_DIR}/var"
-  sudo umount -d "${STATEFUL_FS_DIR}"
-}
-
-loopback_cleanup() {
-  # Disable die on error.
-  set +e
-
-  if [[ -n "${STATEFUL_LOOP_DEV}" ]]; then
-    cleanup_stateful_fs_loop
-    STATEFUL_LOOP_DEV=
-  fi
-
-  if [[ -n "${LOOP_DEV}" ]]; then
-    cleanup_rootfs_loop
-    LOOP_DEV=
-  fi
-
-  # Turn die on error back on.
-  set -e
-}
-
-delete_prompt() {
-  echo "An error occurred in your build so your latest output directory" \
-    "is invalid."
-
-  # Only prompt if both stdin and stdout are a tty. If either is not a tty,
-  # then the user may not be present, so we shouldn't bother prompting.
-  if tty -s && tty -s <&1 && [ "${USER}" != 'chrome-bot' ]; then
-    read -p "Would you like to delete the output directory (y/N)? " SURE
-    SURE="${SURE:0:1}" # Get just the first character.
-  else
-    SURE="y"
-    echo "Running in non-interactive mode so deleting output directory."
-  fi
-  if [ "${SURE}" == "y" ] ; then
-    sudo rm -rf "${OUTPUT_DIR}"
-    echo "Deleted ${OUTPUT_DIR}"
-  else
-    echo "Not deleting ${OUTPUT_DIR}."
-  fi
-}
-
-# Takes no arguments and populates the configuration for
-# cros_make_image_bootable.
-create_boot_desc() {
-  cat <<EOF > ${OUTPUT_DIR}/boot.desc
-  --arch="${ARCH}"
-  --output_dir="${OUTPUT_DIR}"
-  --boot_args="${FLAGS_boot_args}"
-  --rootfs_size="${FLAGS_rootfs_size}"
-  --rootfs_hash_pad="${FLAGS_rootfs_hash_pad}"
-  --rootfs_hash="${ROOT_FS_HASH}"
-  --rootfs_mountpoint="${ROOT_FS_DIR}"
-  --statefulfs_mountpoint="${STATEFUL_FS_DIR}"
-  --espfs_mountpoint="${ESP_FS_DIR}"
-  --verity_error_behavior="${FLAGS_verity_error_behavior}"
-  --verity_max_ios="${FLAGS_verity_max_ios}"
-  --verity_algorithm="${FLAGS_verity_algorithm}"
-  --keys_dir="${DEVKEYSDIR}"
-  --usb_disk="${FLAGS_usb_disk}"
-  --nocleanup_dirs
-  ${enable_rootfs_verification_flag}
-EOF
-}
-
-# Modifies an existing image to add development packages
-install_dev_packages() {
-  local image_name=$1
-
-  echo "Adding developer packages to ${image_name}"
-
-  trap "unmount_image ; delete_prompt" EXIT
-
-  mount_image "${OUTPUT_DIR}/${image_name}" "${ROOT_FS_DIR}" \
-    "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
-
-  # Determine the root dir for developer packages.
-  local root_dev_dir="${ROOT_FS_DIR}"
-  [ ${FLAGS_statefuldev} -eq ${FLAGS_TRUE} ] &&
-    root_dev_dir="${ROOT_FS_DIR}/usr/local"
-
-  # Install developer packages described in chromeos-dev.
-  emerge_to_image --root="${root_dev_dir}" chromeos-dev
-
-  # Install the bare necessary files so that the "emerge" command works
-  if [ ${FLAGS_statefuldev} -eq ${FLAGS_TRUE} ]; then
-    sudo cp -a ${root_dev_dir}/share/portage ${ROOT_FS_DIR}/usr/share
-    sudo sed -i s,/usr/bin/wget,wget, \
-      ${ROOT_FS_DIR}/usr/share/portage/config/make.globals
-  fi
-  sudo mkdir -p ${ROOT_FS_DIR}/etc/make.profile
-
-  # Re-run ldconfig to fix /etc/ldconfig.so.cache.
-  sudo /sbin/ldconfig -r "${ROOT_FS_DIR}"
-
-  # Mark the image as a developer image (input to chromeos_startup).
-  # TODO(arkaitzr): Remove this file when applications no longer rely on it
-  # (crosbug.com/16648). The preferred way of determining developer mode status
-  # is via crossystem cros_debug?1 (checks boot args for "cros_debug").
-  sudo mkdir -p "${ROOT_FS_DIR}/root"
-  sudo touch "${ROOT_FS_DIR}/root/.dev_mode"
-
-  # Additional changes to developer image.
-
-  # Leave core files for developers to inspect.
-  sudo touch "${ROOT_FS_DIR}/root/.leave_core"
-
-  # This hack is only needed for devs who have old versions of glibc, which
-  # filtered out ldd when cross-compiling.  TODO(davidjames): Remove this hack
-  # once everybody has upgraded to a new version of glibc.
-  if [[ ! -x "${ROOT_FS_DIR}/usr/bin/ldd" ]]; then
-    sudo cp -a "$(which ldd)" "${ROOT_FS_DIR}/usr/bin"
-  fi
-
-  # If vim is installed, then a vi symlink would probably help.
-  if [[ -x "${ROOT_FS_DIR}/usr/local/bin/vim" ]]; then
-    sudo ln -sf vim "${ROOT_FS_DIR}/usr/local/bin/vi"
-  fi
-
-  # If pygtk is installed in stateful-dev, then install a path.
-  if [[ -d \
-      "${ROOT_FS_DIR}/usr/local/lib/python2.6/site-packages/gtk-2.0" ]]; then
-    sudo bash -c "\
-        echo gtk-2.0 > \
-        ${ROOT_FS_DIR}/usr/local/lib/python2.6/site-packages/pygtk.pth"
-  fi
-
-  # If python is installed on stateful-dev, fix python symlinks.
-  local python_path="/usr/local/bin/python2.6"
-  if [ -e "${ROOT_FS_DIR}${python_path}" ]; then
-    info "Fixing python symlinks for developer and test images."
-    local python_paths="/usr/bin/python /usr/local/bin/python \
-        /usr/bin/python2 /usr/local/bin/python2"
-    for path in ${python_paths}; do
-      sudo rm -f "${ROOT_FS_DIR}${path}"
-      sudo ln -s  ${python_path} "${ROOT_FS_DIR}${path}"
-    done
-  fi
-
-  # Check that the image has been correctly created.  Only do it if not
-  # building a factory install shim, as the INSTALL_MASK for it will make
-  # test_image fail.
-  if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]; then
-    test_image_content "$ROOT_FS_DIR"
-  fi
-  echo "Developer image built and stored at ${image_name}"
-
-  unmount_image
-  trap - EXIT
-}
-
-zero_free_space() {
-  local fs_mount_point=$1
-  info "Zeroing freespace in ${fs_mount_point}"
-  # dd is a silly thing and will produce a "No space left on device" message
-  # that cannot be turned off and is confusing to unsuspecting victims.
-  ( sudo dd if=/dev/zero of="${fs_mount_point}/filler" bs=4096 \
-    || true ) 2>&1 | grep -v "No space left on device"
-}
-
-create_base_image() {
-  local image_name=$1
-
-  trap "loopback_cleanup && delete_prompt" EXIT
-
-  # Create and format the root file system.
-
-  # Create root file system disk image.
-  ROOT_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_rootfs_size}))
-
-  # Pad out for the hash tree.
-  ROOT_HASH_PAD=$((FLAGS_rootfs_hash_pad * 1024 * 1024))
-  info "Padding the rootfs image by ${ROOT_HASH_PAD} bytes for hash data"
-
-  dd if=/dev/zero of="${ROOT_FS_IMG}" bs=1 count=1 \
-     seek=$((ROOT_SIZE_BYTES + ROOT_HASH_PAD - 1))
-
-  LOOP_DEV=$(sudo losetup --show -f "${ROOT_FS_IMG}")
-  if [ -z "${LOOP_DEV}" ] ; then
-    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
-    exit 1
-  fi
-
-  # Specify a block size and block count to avoid using the hash pad.
-  sudo mkfs.ext2 -b 4096 "${LOOP_DEV}" "$((ROOT_SIZE_BYTES / 4096))"
-
-  # Tune and mount rootfs.
-  DISK_LABEL="C-ROOT"
-  # Disable checking and minimize metadata differences across builds
-  # and wasted reserved space.
-  sudo tune2fs -L "${DISK_LABEL}" \
-               -U clear \
-               -T 20091119110000 \
-               -c 0 \
-               -i 0 \
-               -m 0 \
-               -r 0 \
-               -e remount-ro \
-                "${LOOP_DEV}"
-  # TODO(wad) call tune2fs prior to finalization to set the mount count to 0.
-  sudo mount -t ext2 "${LOOP_DEV}" "${ROOT_FS_DIR}"
-
-  # Create stateful partition of the same size as the rootfs.
-  STATEFUL_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_statefulfs_size}))
-  dd if=/dev/zero of="${STATEFUL_FS_IMG}" bs=1 count=1 \
-      seek=$((STATEFUL_SIZE_BYTES - 1))
-
-  # Tune and mount the stateful partition.
-  UUID=$(uuidgen)
-  DISK_LABEL="C-STATE"
-  STATEFUL_LOOP_DEV=$(sudo losetup --show -f "${STATEFUL_FS_IMG}")
-  if [ -z "${STATEFUL_LOOP_DEV}" ] ; then
-    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
-    exit 1
-  fi
-  sudo mkfs.ext3 "${STATEFUL_LOOP_DEV}"
-  sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${STATEFUL_LOOP_DEV}"
-  sudo mount -t ext3 "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"
-
-  # -- Install packages into the root file system --
-
-  # Prepare stateful partition with some pre-created directories.
-  sudo mkdir -p "${DEV_IMAGE_ROOT}"
-  sudo mkdir -p "${STATEFUL_FS_DIR}/var"
-
-  # Create symlinks so that /usr/local/usr based directories are symlinked to
-  # /usr/local/ directories e.g. /usr/local/usr/bin -> /usr/local/bin, etc.
-  setup_symlinks_on_root "${DEV_IMAGE_ROOT}" "${STATEFUL_FS_DIR}/var" \
-    "${STATEFUL_FS_DIR}"
-
-  # Perform binding rather than symlinking because directories must exist
-  # on rootfs so that we can bind at run-time since rootfs is read-only.
-  echo "Binding directories from stateful partition onto the rootfs"
-  sudo mkdir -p "${ROOT_FS_DIR}/usr/local"
-  sudo mount --bind "${DEV_IMAGE_ROOT}" "${ROOT_FS_DIR}/usr/local"
-  sudo mkdir -p "${ROOT_FS_DIR}/var"
-  sudo mount --bind "${STATEFUL_FS_DIR}/var" "${ROOT_FS_DIR}/var"
-  sudo mkdir -p "${ROOT_FS_DIR}/dev"
-
-  # We need to install libc manually from the cross toolchain.
-  # TODO: Improve this? It would be ideal to use emerge to do this.
-  PKGDIR="/var/lib/portage/pkgs"
-  LIBC_TAR="glibc-${LIBC_VERSION}.tbz2"
-  LIBC_PATH="${PKGDIR}/cross-${CHOST}/${LIBC_TAR}"
-
-  sudo tar jxvpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}" ./usr/${CHOST} \
-    --strip-components=3 --exclude=usr/include --exclude=sys-include \
-    --exclude=*.a --exclude=*.o
-
-  # If it's a developer image, also copy over the libc debug info so that gdb
-  # works with threads and also for a better debugging experience.
-  if [[ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]] ; then
-    sudo mkdir -p "${ROOT_FS_DIR}/usr/local/lib/debug"
-    sudo tar jxvpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}/usr/local/lib/debug" \
-    ./usr/lib/debug/usr/${CHOST} --strip-components=6
-  fi
-
-  . "${SRC_ROOT}/platform/dev/toolchain_utils.sh"
-  board_ctarget=$(get_ctarget_from_board "${BOARD}")
-  for atom in $(portageq match / cross-$board_ctarget/gcc); do
-    copy_gcc_libs "${ROOT_FS_DIR}" $atom
-  done
-
-  if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
-    # Install our custom factory install kernel with the appropriate use flags
-    # to the image.
-    emerge_custom_kernel "${ROOT_FS_DIR}"
-  fi
-
-  # We "emerge --root=${ROOT_FS_DIR} --root-deps=rdeps --usepkgonly" all of the
-  # runtime packages for chrome os. This builds up a chrome os image from
-  # binary packages with runtime dependencies only.  We use INSTALL_MASK to
-  # trim the image size as much as possible.
-  emerge_to_image --root="${ROOT_FS_DIR}" chromeos ${EXTRA_PACKAGES}
-
-  # Set /etc/lsb-release on the image.
-  "${OVERLAY_CHROMEOS_DIR}/scripts/cros_set_lsb_release" \
-    --root="${ROOT_FS_DIR}" \
-    --board="${BOARD}"
-
-  # Populates the root filesystem with legacy bootloader templates
-  # appropriate for the platform.  The autoupdater and installer will
-  # use those templates to update the legacy boot partition (12/ESP)
-  # on update.
-  # (This script does not populate vmlinuz.A and .B needed by syslinux.)
-  enable_rootfs_verification=
-  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-    enable_rootfs_verification="--enable_rootfs_verification"
-  fi
-
-  ${BUILD_LIBRARY_DIR}/create_legacy_bootloader_templates.sh \
-    --arch=${ARCH} \
-    --to="${ROOT_FS_DIR}"/boot \
-    --boot_args="${FLAGS_boot_args}" \
-    ${enable_rootfs_verification}
-
-  # Don't test the factory install shim
-  if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]; then
-    # Check that the image has been correctly created.
-    test_image_content "$ROOT_FS_DIR"
-  fi
-
-  # Clean up symlinks so they work on a running target rooted at "/".
-  # Here development packages are rooted at /usr/local.  However, do not
-  # create /usr/local or /var on host (already exist on target).
-  setup_symlinks_on_root "/usr/local" "/var" "${STATEFUL_FS_DIR}"
-
-  # Create EFI System Partition to boot stock EFI BIOS (but not
-  # ChromeOS EFI BIOS).  ARM uses this space to determine which
-  # partition is bootable.  NOTE: The size argument for mkfs.vfat is
-  # in 1024-byte blocks.  We'll hard-code it to 16M for now.
-  /usr/sbin/mkfs.vfat -C "${ESP_FS_IMG}" 16384
-
-  # Zero rootfs free space to make it more compressible so auto-update
-  # payloads become smaller
-  zero_free_space "${ROOT_FS_DIR}"
-
-  loopback_cleanup
-  trap delete_prompt EXIT
-
-  # Now that the filler file has been sync'd to disk and has filled up all free
-  # space with zeros, re-mount the rootfs to delete the filler file.
-  LOOP_DEV=$(sudo losetup --show -f "${ROOT_FS_IMG}")
-  sudo mount -t ext2 "${LOOP_DEV}" "${ROOT_FS_DIR}"
-  sudo rm -f "${ROOT_FS_DIR}/filler"
-  sudo umount -d "${ROOT_FS_DIR}"
-
-  # Create the GPT-formatted image.
-  build_gpt "${OUTPUT_DIR}/${image_name}" \
-            "${ROOT_FS_IMG}" \
-            "${STATEFUL_FS_IMG}" \
-            "${ESP_FS_IMG}"
-
-  # Emit helpful scripts for testers, etc.
-  emit_gpt_scripts "${OUTPUT_DIR}/${image_name}" "${OUTPUT_DIR}"
-
-  trap - EXIT
-}
-
-generate_au_zip () {
-  local lgenerateauzip="${BUILD_LIBRARY_DIR}/generate_au_zip.py"
-  local largs="-o ${OUTPUT_DIR}"
-  test ! -d "${OUTPUT_DIR}" && mkdir -p "${OUTPUT_DIR}"
-  info "Running ${lgenerateauzip} ${largs} for generating AU updater zip file"
-  $lgenerateauzip $largs
-}
-
-# Emerges chromeos-test onto the image.
-emerge_chromeos_test() {
-  # Determine the root dir for test packages.
-  local root_dev_dir="${ROOT_FS_DIR}/usr/local"
-
-  emerge_to_image --root="${root_dev_dir}" chromeos-test
-}
-
-install_autotest_for_factory() {
-  local autotest_src="${BOARD_ROOT}/usr/local/autotest"
-  local stateful_root="${ROOT_FS_DIR}/usr/local"
-  local autotest_client="${stateful_root}/autotest"
-
-  echo "Install autotest into stateful partition from ${autotest_src}"
-
-  sudo mkdir -p "${autotest_client}"
-
-  # Remove excess files from stateful partition.
-  sudo rm -rf "${autotest_client}/"*
-  sudo rm -rf "${stateful_root}/autotest-pkgs"
-  sudo rm -rf "${stateful_root}/lib/icedtea6"
-
-  sudo rsync --delete --delete-excluded -au \
-    --exclude=deps/realtimecomm_playground \
-    --exclude=tests/ltp \
-    --exclude=site_tests/graphics_O3DSelenium \
-    --exclude=site_tests/realtimecomm_GTalk\* \
-    --exclude=site_tests/platform_StackProtector \
-    --exclude=deps/chrome_test \
-    --exclude=site_tests/desktopui_BrowserTest \
-    --exclude=site_tests/desktopui_PageCyclerTests \
-    --exclude=site_tests/desktopui_UITest \
-    --exclude=.svn \
-    "${autotest_src}/client/"* "${autotest_client}"
-
-  sudo chmod 755 "${autotest_client}"
-  sudo chown -R 1000:1000 "${autotest_client}"
-}
-
-# convert a dev image into a test or factory test image
-mod_image_for_test () {
-  local image_to_mod=$1
-
-  # Copy the image to a test location before modifying it
-  local test_pathname="${TEST_IMG}"
-  local typename="test"
-  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
-    test_pathname="${FACTORY_IMG}"
-    typename="factory"
-  fi
-  echo "Creating ${typename} image from original..."
-  ${COMMON_PV_CAT} ${image_to_mod} > ${test_pathname} ||
-    die "Cannot copy ${image_to_mod} to ${typename} image"
-  # Abort early if we can't find the image
-  if [ ! -f ${test_pathname} ] ; then
-    die "No image found at ${test_pathname} to modify"
-  fi
-  echo "Modifying image ${test_pathname} for ${typename}..."
-
-  local image_dir=$(dirname ${test_pathname})
-  local image_name=$(basename ${test_pathname})
-
-  trap unmount_image EXIT
-
-  mount_image "${image_dir}/${image_name}" \
-    "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}"
-
-  emerge_chromeos_test
-
-  BACKDOOR=0
-  if [ $FLAGS_standard_backdoor -eq $FLAGS_TRUE ]; then
-    BACKDOOR=1
-  fi
-
-  local mod_test_script="${SCRIPTS_DIR}/mod_for_test_scripts/test_setup.sh"
-  # Run test setup script to modify the image
-  sudo -E GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-    STATEFUL_DIR="${STATEFUL_FS_DIR}" ARCH="${ARCH}" BACKDOOR="${BACKDOOR}" \
-    "${mod_test_script}"
-
-  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
-    emerge_to_image --root="${ROOT_FS_DIR}" factorytest-init
-
-    install_autotest_for_factory
-
-    local mod_factory_script
-    mod_factory_script="${SCRIPTS_DIR}/mod_for_factory_scripts/factory_setup.sh"
-    # Run factory setup script to modify the image
-    sudo -E GCLIENT_ROOT="${GCLIENT_ROOT}" ROOT_FS_DIR="${ROOT_FS_DIR}" \
-            BOARD="${BOARD}" "${mod_factory_script}"
-  fi
-
-  # Re-run ldconfig to fix /etc/ldconfig.so.cache.
-  sudo ldconfig -r "${ROOT_FS_DIR}"
-
-  unmount_image
-  trap - EXIT
-
-  # Now make it bootable with the flags from build_image
-  "${SCRIPTS_DIR}/bin/cros_make_image_bootable" "${image_dir}" \
-                                                "${image_name}" \
-                                                --force_developer_mode
-}
-
-# Create the output directory.
+# Create the output directory and temporary mount points.
 mkdir -p "${OUTPUT_DIR}"
-mkdir -p "${ROOT_FS_DIR}"
-mkdir -p "${STATEFUL_FS_DIR}"
-mkdir -p "${ESP_FS_DIR}"
+mkdir -p "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 
 # Create the boot.desc file which stores the build-time configuration
 # information needed for making the image bootable after creation with
 # cros_make_image_bootable.
 create_boot_desc
 
-create_base_image ${PRISTINE_IMAGE_NAME}
+create_base_image "$PRISTINE_IMAGE_NAME"
 
-USE_DEV_KEYS=
-if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
-  USE_DEV_KEYS="--use_dev_keys"
-fi
-
-# Place flags before positional args
-${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
-                                            "${PRISTINE_IMAGE_NAME}" \
-                                            ${USE_DEV_KEYS}
 
 BOOT_FLAG=
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
@@ -772,21 +232,17 @@ load_kernel_test "${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}" \
   "${DEVKEYSDIR}/recovery_key.vbpubk" ${BOOT_FLAG}
 
 # Create a developer image based on the chromium os base image.
-if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ] ; then
-  cp ${PRISTINE_IMG} ${DEVELOPER_IMG}
-  install_dev_packages ${DEVELOPER_IMAGE_NAME}
-  ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
-                                              "${DEVELOPER_IMAGE_NAME}" \
-                                              --force_developer_mode
+if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
+  copy_image "$PRISTINE_IMG" "$DEVELOPER_IMG"
+  install_dev_packages "$DEVELOPER_IMAGE_NAME"
 fi
 
 # Create a test or factory test image if desired
-if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ] ; then
-  mod_image_for_test ${DEVELOPER_IMG}
+if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
+  copy_image "$DEVELOPER_IMG" "$TEST_IMG"
+  mod_image_for_test "${TEST_IMG}"
 fi
 
-# Clean up temporary files.
-rm -f "${ROOT_FS_IMG}" "${STATEFUL_FS_IMG}" "${ESP_FS_IMG}"
 rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 
 # Generating AU generator zip file to run outside chroot

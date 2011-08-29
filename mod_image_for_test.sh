@@ -5,19 +5,15 @@
 # found in the LICENSE file.
 
 # Script to modify a keyfob-based chromeos system image for testability.
-
-# =============================================================================
-#                                   WARNING
 #
-# This script is deprecated and will be deleted soon.  Its functionality has
-# been incorporated into build_image (see the --test and --factory flags).  See
-# chromium-os issue 12899 for details.
-#
-# Until the deletion happens, if you are changing this file, please also update
-# the corresponding code in build_image (see the mod_image_for_test function).
+# N.B.  This script duplicates function provided by
+# "build_image --test"; that command option is the preferred
+# command line interface for creating a test image.  Please don't
+# add features (options, command line syntax, whatever) to this
+# script, unless it's necessary to maintain compatibility with
+# "build_image".
 #
 # TODO(vlaviano): delete this script.
-# =============================================================================
 
 SCRIPT_ROOT=$(dirname "$0")
 . "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
@@ -55,17 +51,8 @@ set -e
 
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/mount_gpt_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/test_image_util.sh" || exit 1
 
-
-EMERGE_BOARD_CMD="emerge-$BOARD"
-if [ $FLAGS_fast -eq $FLAGS_TRUE ]; then
-  echo "Using alternate emerge"
-  EMERGE_BOARD_CMD="$GCLIENT_ROOT/chromite/bin/parallel_emerge"
-  EMERGE_BOARD_CMD="$EMERGE_BOARD_CMD --board=$BOARD"
-fi
-if [ $FLAGS_jobs -ne -1 ]; then
-  EMERGE_JOBS="--jobs=$FLAGS_jobs"
-fi
 
 # We have a board name but no image set.  Use image at default location
 if [ -z "$FLAGS_image" ]; then
@@ -77,78 +64,28 @@ fi
 # Turn path into an absolute path.
 FLAGS_image=$(eval readlink -f "$FLAGS_image")
 
-# Emerges chromeos-test onto the image.
-emerge_chromeos_test() {
-  INSTALL_MASK=""
-  if [[ $FLAGS_installmask -eq $FLAGS_TRUE ]]; then
-    INSTALL_MASK="$DEFAULT_INSTALL_MASK"
-  fi
-
-  # Determine the root dir for test packages.
-  ROOT_DEV_DIR="$ROOT_FS_DIR/usr/local"
-
-  sudo INSTALL_MASK="$INSTALL_MASK" $EMERGE_BOARD_CMD \
-    --root="$ROOT_DEV_DIR" --root-deps=rdeps \
-    --usepkgonly chromeos-test $EMERGE_JOBS
-}
-
-
-install_autotest() {
-    local autotest_src="${BOARD_ROOT}/usr/local/autotest"
-    local stateful_root="$ROOT_FS_DIR/usr/local"
-    local autotest_client="$stateful_root/autotest"
-
-    echo "Install autotest into stateful partition from $AUTOTEST_SRC"
-
-    sudo mkdir -p "$autotest_client"
-
-    # Remove excess files from stateful partition.
-    sudo rm -rf "$autotest_client/"*
-    sudo rm -rf "$stateful_root/autotest-pkgs"
-    sudo rm -rf "$stateful_root/lib/icedtea6"
-
-    sudo rsync --delete --delete-excluded -au \
-      --exclude=deps/realtimecomm_playground \
-      --exclude=tests/ltp \
-      --exclude=site_tests/graphics_O3DSelenium \
-      --exclude=site_tests/realtimecomm_GTalk\* \
-      --exclude=site_tests/platform_StackProtector \
-      --exclude=deps/chrome_test \
-      --exclude=site_tests/desktopui_BrowserTest \
-      --exclude=site_tests/desktopui_PageCyclerTests \
-      --exclude=site_tests/desktopui_UITest \
-      --exclude=.svn \
-      "$autotest_src/client/"* "$autotest_client"
-
-    sudo chmod 755 "$autotest_client"
-    sudo chown -R 1000:1000 "$autotest_client"
-}
-
-# main process begins here.
 
 IMAGE_DIR=$(dirname "$FLAGS_image")
+ROOT_FS_DIR="${IMAGE_DIR}/rootfs"
+STATEFUL_FS_DIR="${IMAGE_DIR}/stateful_partition"
 
 # Copy the image to a test location if required
 if [ $FLAGS_inplace -eq $FLAGS_FALSE ]; then
   if [ $FLAGS_factory -eq $FLAGS_TRUE ]; then
     TEST_PATHNAME="$IMAGE_DIR/$CHROMEOS_FACTORY_TEST_IMAGE_NAME"
-    typename="factory"
   else
     TEST_PATHNAME="$IMAGE_DIR/$CHROMEOS_TEST_IMAGE_NAME"
-    typename="test"
   fi
-  if [ ! -f "$TEST_PATHNAME" -o  $FLAGS_force_copy -eq $FLAGS_TRUE ] ; then
-    echo "Creating test image from original..."
-    $COMMON_PV_CAT "$FLAGS_image" >"$TEST_PATHNAME" ||
-      die "Cannot copy $FLAGS_image to test image"
+  if [ ! -f "$TEST_PATHNAME" -o $FLAGS_force_copy -eq $FLAGS_TRUE ]; then
+    copy_image "$FLAGS_image" "$TEST_PATHNAME"
     FLAGS_image="$TEST_PATHNAME"
   else
-    echo "Using cached $typename image"
+    echo "Using cached $(basename "$FLAGS_image")"
     exit
   fi
 
   # No need to confirm now, since we are not overwriting the main image
-  FLAGS_yes="$FLAGS_TRUE"
+  FLAGS_yes=$FLAGS_TRUE
 fi
 
 # Abort early if we can't find the image
@@ -169,56 +106,6 @@ else
   echo "Modifying image $FLAGS_image for test..."
 fi
 
-IMAGE_DIR=$(dirname "$FLAGS_image")
-IMAGE_NAME=$(basename "$FLAGS_image")
-ROOT_FS_DIR="$IMAGE_DIR/rootfs"
-STATEFUL_DIR="$IMAGE_DIR/stateful_partition"
+mod_image_for_test "$FLAGS_image"
 
-trap unmount_image EXIT
-
-# Mounts gpt image and sets up var, /usr/local and symlinks.
-mount_image "$FLAGS_image" "$ROOT_FS_DIR" "$STATEFUL_DIR"
-
-emerge_chromeos_test
-
-MOD_TEST_SCRIPT="$SCRIPTS_DIR/mod_for_test_scripts/test_setup.sh"
-BACKDOOR=0
-if [ $FLAGS_standard_backdoor -eq $FLAGS_TRUE ]; then
-  BACKDOOR=1
-fi
-# Run test setup script to modify the image
-sudo GCLIENT_ROOT="$GCLIENT_ROOT" ROOT_FS_DIR="$ROOT_FS_DIR" \
-    STATEFUL_DIR="$STATEFUL_DIR" ARCH="$ARCH" BACKDOOR="${BACKDOOR}" \
-    "$MOD_TEST_SCRIPT"
-
-if [ $FLAGS_factory -eq $FLAGS_TRUE ]; then
-  sudo INSTALL_MASK="$INSTALL_MASK" $EMERGE_BOARD_CMD \
-    --root="$ROOT_FS_DIR" --root-deps=rdeps \
-    factorytest-init $EMERGE_JOBS
-
-  install_autotest
-
-  MOD_FACTORY_SCRIPT="$SCRIPTS_DIR/mod_for_factory_scripts/factory_setup.sh"
-  # Run factory setup script to modify the image
-  sudo GCLIENT_ROOT="$GCLIENT_ROOT" ROOT_FS_DIR="$ROOT_FS_DIR" \
-       BOARD="$BOARD" "$MOD_FACTORY_SCRIPT"
-fi
-
-# Re-run ldconfig to fix /etc/ldconfig.so.cache.
-sudo ldconfig -r "$ROOT_FS_DIR"
-
-# Let's have a look at the image just in case..
-if [ "$VERIFY" = "true" ]; then
-  pushd "$ROOT_FS_DIR"
-  bash
-  popd
-fi
-
-unmount_image
-trap - EXIT
-
-# Now make it bootable with the flags from build_image
-"$SCRIPTS_DIR/bin/cros_make_image_bootable" "$(dirname "$FLAGS_image")" \
-                                            "$(basename "$FLAGS_image")" \
-                                            --force_developer_mode
 print_time_elapsed
