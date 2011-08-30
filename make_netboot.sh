@@ -86,17 +86,19 @@ else
 fi
 
 # Get HWID bundle if available.
+# TODO(hungte) Move this to chromite because HWID bundles should be archived for
+# every factory archive instead of builds with netboot.
 hwid_dir="usr/share/chromeos-hwid"
 sudo rm -rf hwid
 mkdir -p hwid
-if updater_files=$(ls "${SYSROOT}/${hwid_dir}/" | grep updater_); then
-    echo "Copying HWID bundles: $updater_files"
-    for file in $updater_files; do
+if hwid_files=$(ls "${SYSROOT}/${hwid_dir}/" | grep ^hwid_bundle); then
+    echo "Copying HWID bundles: $hwid_files"
+    for file in $hwid_files; do
         cp "${SYSROOT}/${hwid_dir}/${file}" "hwid/"
     done
 else
     echo "Skipping HWID: ${SYSROOT}/${hwid_dir}/" \
-         "does not contain updater"
+         "does not contain HWID bundle"
 fi
 
 
