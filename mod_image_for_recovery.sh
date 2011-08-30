@@ -59,16 +59,10 @@ eval set -- "${FLAGS_ARGV}"
 # so will die prematurely if 'set -e' is specified before now.
 set -e
 
-if [ $FLAGS_verbose -eq $FLAGS_FALSE ]; then
-  exec 2>/dev/null
-  # Redirecting to stdout instead of stderr since
-  # we silence  stderr above.
-  die() {
-    echo -e "${V_BOLD_RED}ERROR  : $1${V_VIDOFF}"
-    exit 1
-  }
+if [ $FLAGS_verbose -eq $FLAGS_TRUE ]; then
+  # Make debugging with -v easy.
+  set -x
 fi
-set -x  # Make debugging with -v easy.
 
 
 . "${SCRIPT_ROOT}/build_library/board_options.sh" || exit 1
