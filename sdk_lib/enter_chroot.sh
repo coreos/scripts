@@ -307,6 +307,12 @@ function setup_env {
       user.email "$(cd /tmp; git var GIT_COMMITTER_IDENT | \
         sed -e 's/.*<\([^>]*\)>.*/\1/')" || true
 
+    # Copy ~/.gdata_cred.txt to chroot if it exists.  This file contains
+    # credentials for reading/writing Google Docs on chromium.org.
+    if [ -f "$HOME/.gdata_cred.txt" ]; then
+      cp "$HOME/.gdata_cred.txt" "${FLAGS_chroot}/home/${USER}/.gdata_cred.txt"
+    fi
+
     # Make sure user's requested locales are available
     # http://crosbug.com/19139
     # And make sure en_US{,.UTF-8} are always available as
