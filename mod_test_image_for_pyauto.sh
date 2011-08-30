@@ -50,16 +50,17 @@ if [ "${FLAGS_build_root}" = "/build" ]; then
   FLAGS_build_root="/build/${FLAGS_board}/usr/local/autotest"
 fi
 
-IMAGE_DIR=$(dirname "$FLAGS_image")
-IMAGE_NAME=$(basename "$FLAGS_image")
+FLAGS_build_root=$(eval readlink -f "${FLAGS_build_root}")
+FLAGS_image=$(eval readlink -f "${FLAGS_image}")
+
+IMAGE_DIR=$(dirname "${FLAGS_image}")
+IMAGE_NAME=$(basename "${FLAGS_image}")
 ROOT_FS_DIR="${IMAGE_DIR}/rootfs"
 
 PYAUTO_DEP="${FLAGS_build_root}/client/deps/pyauto_dep"
 CHROME_DEP="${FLAGS_build_root}/client/deps/chrome_test"
 VBOOT_DIR="${CHROOT_TRUNK_DIR}/src/platform/vboot_reference/scripts/"\
 "image_signing"
-
-echo ${CHROOT_TRUNK_DIR}
 
 if [ ! -d $PYAUTO_DEP ]; then
   die "The required path: $PYAUTO_DEP does not exist.  Did you mean to pass \
