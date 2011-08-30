@@ -21,14 +21,10 @@ DEFINE_integer build_attempt 1 \
   "The build attempt for this image build."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
-DEFINE_boolean eclean ${FLAGS_TRUE} \
-  "Perform eclean-<board> -d as part of this script to remove obsolete packages"
 DEFINE_boolean replace ${FLAGS_FALSE} \
   "Overwrite existing output, if any."
 DEFINE_boolean withdev ${FLAGS_TRUE} \
   "Include useful developer friendly utilities in the image."
-DEFINE_boolean installmask ${FLAGS_TRUE} \
-  "Use INSTALL_MASK to shrink the resulting image."
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean statefuldev ${FLAGS_TRUE} \
@@ -181,10 +177,7 @@ DEVKEYSDIR="/usr/share/vboot/devkeys"
 # translate to /usr/local.
 DEV_IMAGE_ROOT="${STATEFUL_FS_DIR}/dev_image"
 
-# Perform an eclean to remove packages which are not installed
-if [ $FLAGS_eclean -eq $FLAGS_TRUE ]; then
-  eclean-$BOARD -d packages
-fi
+eclean-$BOARD -d packages
 
 check_blacklist
 

@@ -23,8 +23,6 @@ DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built" b
 DEFINE_boolean factory $FLAGS_FALSE \
     "Modify the image for manufacturing testing" f
 DEFINE_string image "" "Location of the rootfs raw image file" i
-DEFINE_boolean installmask $FLAGS_TRUE \
-    "Use INSTALL_MASK to shrink the resulting image." m
 DEFINE_integer jobs -1 \
     "How many packages to build in parallel at maximum." j
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" y

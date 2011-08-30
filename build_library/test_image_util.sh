@@ -27,10 +27,7 @@ if [ $FLAGS_jobs -ne -1 ]; then
   EMERGE_JOBS="--jobs=$FLAGS_jobs"
 fi
 
-export INSTALL_MASK=""
-if [ ${FLAGS_installmask} -eq ${FLAGS_TRUE} ] ; then
-  INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
-fi
+export INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
 
 
 # Utility function for creating a copy of an image prior to
