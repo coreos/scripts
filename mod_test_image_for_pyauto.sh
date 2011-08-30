@@ -73,7 +73,8 @@ fi
 
 if [ ! -d $VBOOT_DIR ]; then
   die "The required path: $VBOOT_DIR does not exist.  This directory needs to \
-be sync'd into your chroot."
+be sync'd into your chroot.\n $ cros_workon start vboot_reference --board \
+${FLAGS_board}"
 fi
 
 trap cleanup EXIT
