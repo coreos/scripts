@@ -238,7 +238,10 @@ if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
 fi
 
 # Create a test or factory test image if desired
-if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
+if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+  copy_image "$DEVELOPER_IMG" "$FACTORY_IMG"
+  mod_image_for_test "${FACTORY_IMG}"
+elif [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
   copy_image "$DEVELOPER_IMG" "$TEST_IMG"
   mod_image_for_test "${TEST_IMG}"
 fi
