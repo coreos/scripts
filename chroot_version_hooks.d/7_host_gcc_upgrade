@@ -14,10 +14,14 @@ CHOST="$(portageq envvar CHOST)"
 # This is the lowest we want to go in this particular case.
 MINIMUM_GCC="4.4.6"
 
-GCC_VERSIONS="$(gcc-config -l | grep "${CHOST}" | \
-                cut -f3 -d' ')"
-GCC_LATEST="$(gcc-config -l | grep "${CHOST}" | tail -n1 | \
-              cut -f3 -d' ')"
+function env_setup() {
+  GCC_VERSIONS="$(gcc-config -l | grep "${CHOST}" | \
+                  cut -f3 -d' ')"
+  GCC_LATEST="$(gcc-config -l | grep "${CHOST}" | tail -n1 | \
+                  cut -f3 -d' ')"
+}
+
+env_setup
 
 if ! [ "$(portageq match / ">=sys-devel/gcc-${MINIMUM_GCC}")" ];
 then
@@ -33,6 +37,8 @@ then
     exit 1
   fi
 fi
+
+env_setup
 
 info "Updating the host toolchain. crosbug.com/19613"
 info "Currently installed host gcc versions: $(echo -n ${GCC_VERSIONS})"
