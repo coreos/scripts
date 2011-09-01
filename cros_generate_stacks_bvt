@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Script to generate stackdumps from BVT failures.
+
+# This can only run inside the chroot since we need minidump_stackwalk.
+. "$(dirname $0)/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+assert_inside_chroot "$@"
+
+function usage() {
+    echo "Usage: $0 url_to_debug_tgz url_to_bvt_test_results"
+}
+
+if [ -z "$1" ] ; then
+  usage
+  die "The URL to symbols tarball (debug.tgz) is required"
+fi
+
+if [ -z "$2" ] ; then
+  usage
+  die "The URL to BVT test results is required"
+fi
+
+# Die on any errors.
+set -e
+
+BREAKPAD_DIR="debug/breakpad"
+DEBUG_TGZ=$(basename $1)
+STACKS_GENERATED=""
+OUTPUT_DIR=$(mktemp -d)
+
+function generate_stacktrace() {
+  echo "$1.txt"
+  minidump_stackwalk $1 ${OUTPUT_DIR}/${BREAKPAD_DIR} > $1.txt 2> /dev/null
+}
+
+function find_and_generate_stacktraces() {
+  find ${OUTPUT_DIR} -name *.dmp |
+    while read filename ; do
+      generate_stacktrace ${filename}
+    done
+}
+
+function cleanup() {
+  if [ -n "${OUTPUT_DIR}" -a -z "${STACKS_GENERATED}" ] ; then
+    rm -rf ${OUTPUT_DIR}
+  fi
+}
+
+trap cleanup INT TERM EXIT
+
+info "Downloading symbols tarball..."
+wget -P ${OUTPUT_DIR} $1
+info "Extracting breakpad symbols..."
+tar zxf ${OUTPUT_DIR}/${DEBUG_TGZ} -C ${OUTPUT_DIR} ${BREAKPAD_DIR}
+rm ${OUTPUT_DIR}/${DEBUG_TGZ}
+info "Downloading minidumps from test results..."
+wget -q -nv -r -np -A "*.dmp" -P ${OUTPUT_DIR} $2
+info "Generating stack traces..."
+STACKS_GENERATED=$(find_and_generate_stacktraces)
+echo $STACKS_GENERATED
+if [ -z "${STACKS_GENERATED}" ] ; then
+  warn "No minidumps found"
+fi
