@@ -76,14 +76,6 @@ eval set -- "${FLAGS_ARGV}"
 # Die on error
 set -e
 
-make_salt() {
-  # It is not important that the salt be cryptographically strong; it just needs
-  # to be different for each release. The purpose of the salt is just to ensure
-  # that if someone collides a block in one release, they can't reuse it in
-  # future releases.
-  xxd -l 32 -p -c 32 /dev/urandom
-}
-
 verity_args=
 # Even with a rootfs_image, root= is not changed unless specified.
 if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
@@ -108,16 +100,14 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
     error "Root file system blocks are not 4k!"
   fi
 
-  salt=$(make_salt)
-  info "Generating root fs hash tree (salt $salt)."
+  info "Generating root fs hash tree."
   # Runs as sudo in case the image is a block device.
   # First argument to verity is reserved/unused and MUST be 0
   table=$(sudo verity mode=create \
                       alg=${FLAGS_verity_hash_alg} \
                       payload=${FLAGS_rootfs_image} \
                       payload_blocks=${root_fs_blocks} \
-                      hashtree=${FLAGS_rootfs_hash} \
-                      salt=$salt)
+                      hashtree=${FLAGS_rootfs_hash})
   if [[ -f "${FLAGS_rootfs_hash}" ]]; then
     sudo chmod a+r "${FLAGS_rootfs_hash}"
   fi
