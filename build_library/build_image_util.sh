@@ -43,14 +43,9 @@ create_boot_desc() {
 
   cat <<EOF > ${OUTPUT_DIR}/boot.desc
   --arch="${ARCH}"
-  --output_dir="${OUTPUT_DIR}"
   --boot_args="${FLAGS_boot_args}"
   --rootfs_size="${FLAGS_rootfs_size}"
   --rootfs_hash_pad="${FLAGS_rootfs_hash_pad}"
-  --rootfs_hash="${OUTPUT_DIR}/rootfs.hash"
-  --rootfs_mountpoint="${ROOT_FS_DIR}"
-  --statefulfs_mountpoint="${STATEFUL_FS_DIR}"
-  --espfs_mountpoint="${ESP_FS_DIR}"
   --verity_error_behavior="${FLAGS_verity_error_behavior}"
   --verity_max_ios="${FLAGS_verity_max_ios}"
   --verity_algorithm="${FLAGS_verity_algorithm}"

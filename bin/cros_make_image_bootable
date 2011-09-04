@@ -324,15 +324,12 @@ verify_image_rootfs() {
 command line parameters are correct"
 }
 
-# Use default of current image location if the output dir doesn't exist.
-if [ ! -d ${FLAGS_output_dir} ]; then
-  warn "Output dir not found, using ${IMAGE_DIR}."
-  FLAGS_output_dir="${IMAGE_DIR}"
-  FLAGS_rootfs_hash="${IMAGE_DIR}/rootfs.hash"
-  FLAGS_rootfs_mountpoint="${IMAGE_DIR}/rootfs_dir"
-  FLAGS_statefulfs_mountpoint="${IMAGE_DIR}/stateful_dir"
-  FLAGS_espfs_mountpoint="${IMAGE_DIR}/esp"
-fi
+# Store output and temporary files next to image.
+FLAGS_output_dir="${IMAGE_DIR}"
+FLAGS_rootfs_hash="${IMAGE_DIR}/rootfs.hash"
+FLAGS_rootfs_mountpoint="${IMAGE_DIR}/rootfs_dir"
+FLAGS_statefulfs_mountpoint="${IMAGE_DIR}/stateful_dir"
+FLAGS_espfs_mountpoint="${IMAGE_DIR}/esp"
 
 # Create the directories if they don't exist.
 mkdir -p ${FLAGS_rootfs_mountpoint}
