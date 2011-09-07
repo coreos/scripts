@@ -157,6 +157,11 @@ create_base_image() {
   LIBC_TAR="glibc-${LIBC_VERSION}.tbz2"
   LIBC_PATH="${PKGDIR}/cross-${CHOST}/${LIBC_TAR}"
 
+  if ! [[ -e ${LIBC_PATH} ]]; then
+    die "${LIBC_PATH} does not exist. Try running ./setup_board --board=\
+${BOARD} to update the version of libc installed on that board."
+  fi
+
   sudo tar jxvpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}" ./usr/${CHOST} \
     --strip-components=3 --exclude=usr/include --exclude=sys-include \
     --exclude=*.a --exclude=*.o
