@@ -63,6 +63,22 @@ emerge_chromeos_test() {
   emerge_to_image --root="${root_dev_dir}" chromeos-test
 }
 
+prepare_hwid_for_factory() {
+  local hwid_dest="$1/hwid"
+  local hwid_src="${BOARD_ROOT}/usr/share/chromeos-hwid"
+
+  # Force refreshing source folder in build root folder
+  sudo rm -rf "${hwid_src}" "${hwid_dest}"
+  emerge_to_image chromeos-hwid
+  if [ -d "${hwid_src}" ]; then
+    # TODO(hungte) After being archived by chromite, the HWID files will be in
+    # factory_test/hwid; we should move it to top level folder.
+    cp -r "${hwid_src}" "${hwid_dest}"
+  else
+    echo "Skipping HWID: No HWID bundles found."
+  fi
+}
+
 install_autotest_for_factory() {
   local autotest_src="${BOARD_ROOT}/usr/local/autotest"
   local stateful_root="${ROOT_FS_DIR}/usr/local"
@@ -121,6 +137,7 @@ mod_image_for_test () {
   if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
     emerge_to_image --root="${ROOT_FS_DIR}" factorytest-init
 
+    prepare_hwid_for_factory "${image_dir}"
     install_autotest_for_factory
 
     local mod_factory_script
