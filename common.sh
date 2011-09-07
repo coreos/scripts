@@ -644,52 +644,6 @@ function reinterpret_path_for_chroot() {
   fi
 }
 
-# Find a firmware component using one of a set of prefixes, or an override if
-# one is given.
-# The first argument is a list of path prefixes which are prepended to the
-# component name, relative to the current board's build directory.
-# The second argument is the name of the component to look for.
-# The third argument is an optional override. If it's a non-empty string, that
-# value is returned instead of searching. This makes it a little easier to
-# accept overrides in calling scripts.
-# The return value is the override if one is set, the first path at which a
-# component is found, or the last path searched if none is found. Later checks
-# in the calling scripts can identify that the file doesn't exist and handle
-# the error appropriately.
-function find_fw_component() {
-  local prefixes=$1
-  local component=$2
-  local override=$3
-  if [ ! -z "${override}" ]; then
-    echo "${override}"
-    exit 0
-  fi
-  local path=""
-  for prefix in ${prefixes}; do
-    path="/build/${BOARD_VARIANT}/${prefix}/${component}"
-    if [ -e "${path}" ]; then
-      break
-    fi
-  done
-  echo "${path}"
-}
-
-# A wrapper for find_fw_component which provides a set of prefixes which make
-# sense for u-boot.
-function find_u_boot_component () {
-  local component=$1
-  local override=$2
-  find_fw_component "firmware u-boot" "${component}" "${override}"
-}
-
-# A wrapper for find_fw_component which provides a set of prefixes which make
-# sense for coreboot.
-function find_coreboot_component () {
-  local component=$1
-  local override=$2
-  find_fw_component "firmware coreboot" "${component}" "${override}"
-}
-
 function emerge_custom_kernel() {
   local install_root="$1"
   local root=${FLAGS_build_root}/${FLAGS_board}
