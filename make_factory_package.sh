@@ -74,6 +74,8 @@ DEFINE_boolean preserve ${FLAGS_FALSE} \
 DEFINE_integer sectors 31277232  "Size of image in sectors"
 DEFINE_boolean detect_release_image ${FLAGS_TRUE} \
   "If set, try to auto-detect the type of release image and convert if required"
+DEFINE_string config "" \
+  "Config file where parameters are read from"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -617,9 +619,73 @@ To run the server:
   python2.6 devserver.py --factory_config miniomaha.conf"
 }
 
+parse_and_run_config() {
+  # This function parses parameters from config file. Parameters can be put
+  # in sections and sections of parameters will be run in turn.
+  #
+  # Config file format:
+  # [section1]
+  #  --param value
+  #  --another_param  # comment
+  #
+  # # some more comment
+  # [section2]
+  #  --yet_another_param
+  #
+  # Note that it's not allowed to read from config file recursively.
+
+  local config_file="$1"
+  local -a cmds
+  local cmd=""
+
+  echo "Read parameters from: $config_file"
+  local config="$(<$config_file)"
+  local IFS=$'\n'
+  for line in $config
+  do
+    if [[ "$line" =~ \[.*\] ]]; then
+      if [ -n "$cmd" ]; then
+        cmds+=("$cmd")
+        cmd=""
+      fi
+      continue
+    fi
+    line="${line%%#*}"
+    cmd="$cmd $line"
+  done
+  if [ -n "$cmd" ]; then
+    cmds+=("$cmd")
+  fi
+
+  for cmd in "${cmds[@]}"
+  do
+    info "Executing: $0 $cmd"
+    eval "MFP_SUBPROCESS=1 $0 $cmd"
+  done
+}
+
 main() {
   set -e
   trap on_exit EXIT
+
+  if [ -n "$FLAGS_config" ]; then
+    [ -z "$MFP_SUBPROCESS" ] ||
+      die "Recursively reading from config file is not allowed"
+
+    check_file_param FLAGS_config ""
+    check_empty_param FLAGS_release "when using config file"
+    check_empty_param FLAGS_factory "when using config file"
+    check_empty_param FLAGS_firmware_updater "when using config file"
+    check_empty_param FLAGS_hwid_updater "when using config file"
+    check_empty_param FLAGS_install_shim "when using config file"
+    check_empty_param FLAGS_complete_script "when using config file"
+    check_empty_param FLAGS_usbimg "when using config file"
+    check_empty_param FLAGS_diskimg "when using config file"
+    check_empty_param FLAGS_subfolder "when using config file"
+
+    parse_and_run_config "$FLAGS_config"
+    exit
+  fi
 
   check_parameters
   setup_environment
