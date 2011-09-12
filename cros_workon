@@ -24,7 +24,7 @@ DEFINE_string command "git status" \
 DEFINE_boolean all "${FLAGS_FALSE}" \
   "Apply to all possible packages for the given command"
 
-FLAGS_HELP="usage: $0 <command> [flags] [<list of packages>|--all]
+FLAGS_HELP="usage: $0 <command> [flags] [<list of packages>|.|--all]
 commands:
   start:     Moves an ebuild to live (intended to support development)
   stop:      Moves an ebuild to stable (use last known good)
@@ -172,8 +172,7 @@ canonicalize_name () {
     return 1
   fi
 
-  pkgname=$(\
-    echo "${pkgfile}" |awk -F '/' '{ print $(NF-2) "/" $(NF-1) }')
+  pkgname=$(echo "${pkgfile}" |awk -F '/' '{ print $(NF-2) "/" $(NF-1) }')
 
   # TODO(rcui): remove special casing of chromeos-chrome here when we make it
   # inherit from cros-workon class.  Tracked in chromium-os:19259.
@@ -199,6 +198,22 @@ canonicalize_names () {
   done
 
   echo "${names}"
+}
+
+# Locate the package name based on the current directory
+locate_package () {
+  local projectname=$(git config --get remote.cros.projectname ||
+                      git config --get remote.cros-internal.projectname)
+  if [ -z "${projectname}" ]; then
+    die "No project in git config: Can not cros_workon . here"
+  fi
+  local reponame=$(show_project_ebuild_map |
+                   grep "^${projectname} " | cut -d" " -f2)
+  if [ -z "${reponame}" ]; then
+    die "No matching package for ${projectname}: Can not cros_workon . here"
+  else
+    echo "${reponame}"
+  fi
 }
 
 # Display ebuilds currently part of the live branch and open for development.
@@ -334,7 +349,11 @@ else # not selected --all
       ATOM_LIST=$@
       if [ -z "${ATOM_LIST}" ]; then
         die "${WORKON_CMD}: No packages specified"
-      elif ! ATOM_LIST=$(canonicalize_names "${ATOM_LIST}"); then
+      fi
+      if [ "${ATOM_LIST}" = "." ]; then
+        ATOM_LIST=$(locate_package)
+      fi
+      if ! ATOM_LIST=$(canonicalize_names "${ATOM_LIST}"); then
         die "Error parsing package list"
       fi;;
     *) ;;
@@ -349,5 +368,5 @@ case ${WORKON_CMD} in
     show_workon_ebuilds ${BOARD_KEYWORD} ;;
   list-all) show_all_live_ebuilds ;;
   iterate) ebuild_iterate "${ATOM_LIST}" ;;
-  *)      die "$(basename $0): command '${WORKON_CMD}' not recognized" ;;
+  *) die "$(basename $0): command '${WORKON_CMD}' not recognized" ;;
 esac
