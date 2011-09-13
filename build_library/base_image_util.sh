@@ -162,7 +162,7 @@ create_base_image() {
 ${BOARD} to update the version of libc installed on that board."
   fi
 
-  sudo tar jxvpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}" ./usr/${CHOST} \
+  sudo tar jxpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}" ./usr/${CHOST} \
     --strip-components=3 --exclude=usr/include --exclude=sys-include \
     --exclude=*.a --exclude=*.o
 
@@ -170,7 +170,7 @@ ${BOARD} to update the version of libc installed on that board."
   # works with threads and also for a better debugging experience.
   if [[ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]] ; then
     sudo mkdir -p "${ROOT_FS_DIR}/usr/local/lib/debug"
-    sudo tar jxvpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}/usr/local/lib/debug" \
+    sudo tar jxpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}/usr/local/lib/debug" \
     ./usr/lib/debug/usr/${CHOST} --strip-components=6
   fi
 
