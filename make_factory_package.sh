@@ -175,11 +175,9 @@ setup_environment() {
     OMAHA_DATA_DIR="${OMAHA_DIR}/static/${FLAGS_subfolder}/"
   fi
 
-  if [ ${INSIDE_CHROOT} -eq 0 ]; then
-    echo "Caching sudo authentication"
-    sudo -v
-    echo "Done"
-  fi
+  echo "Caching sudo authentication"
+  sudo -v
+  echo "Done"
 
   # Use this image as the source image to copy
   RELEASE_DIR="$(dirname "${FLAGS_release}")"
