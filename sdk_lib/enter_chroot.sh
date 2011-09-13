@@ -333,10 +333,13 @@ function setup_env {
       esac
       gen_locales=("${gen_locales[@]}" "${l} ${enc}")
     done
-    if [[ ${#gen_locales[@]} -gt 0 ]] ; then
-      sudo -- chroot "$FLAGS_chroot" locale-gen -q -u \
-        -G "$(printf '%s\n' "${gen_locales[@]}")"
-    fi
+    # TODO(raymes): Something broke this with the new
+    # glibc. Need to uncomment this as soon as it's fixed.
+    # http://code.google.com/p/chromium-os/issues/detail?id=20378
+    #if [[ ${#gen_locales[@]} -gt 0 ]] ; then
+    #  sudo -- chroot "$FLAGS_chroot" locale-gen -q -u \
+    #    -G "$(printf '%s\n' "${gen_locales[@]}")"
+    #fi
 
     # Fix permissions on shared memory to allow non-root users access to POSIX
     # semaphores.
