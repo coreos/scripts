@@ -630,7 +630,8 @@ parse_and_run_config() {
   # [section2]
   #  --yet_another_param
   #
-  # Note that it's not allowed to read from config file recursively.
+  # Note that a section header must start at the beginning of a line.
+  # And it's not allowed to read from config file recursively.
 
   local config_file="$1"
   local -a cmds
@@ -641,7 +642,7 @@ parse_and_run_config() {
   local IFS=$'\n'
   for line in $config
   do
-    if [[ "$line" =~ \[.*\] ]]; then
+    if [[ "$line" =~ ^\[.*] ]]; then
       if [ -n "$cmd" ]; then
         cmds+=("$cmd")
         cmd=""
