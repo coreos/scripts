@@ -51,11 +51,11 @@ DEFINE_boolean cleanup ${FLAGS_FALSE} "Clean up temp directory"
 DEFINE_string iterations "" "Iterations to run every top level test" i
 DEFINE_string prepackaged_autotest "" "Use this prepackaged autotest dir"
 DEFINE_string results_dir_root "" "alternate root results directory"
+DEFINE_string remote "" "IP of device to perform test"
 DEFINE_boolean verbose ${FLAGS_FALSE} "Show verbose autoserv output" v
 
 # These flags are specific to run_cell_tests
 DEFINE_string cell "" "Cell name to perform test on"
-DEFINE_string client "" "Host name or IP of device to perform test"
 DEFINE_string lab "${DEFAULT_LAB}" "Lab machine to perform test on"
 DEFINE_string url "" "URL to lab server config server"
 
@@ -118,15 +118,18 @@ if [ -a "${FLAGS_cell}" ]; then
   exit 1
 fi
 
-append_arg "config_url=$lab_url";
-append_arg "config_cell=$FLAGS_cell";
+# TODO(ttuttle): Somewhere between us and the control file, the list of
+# arguments is rotated left (so that the first argument ends up at the
+# end).  This is a workaround; the correct order is "0 url cell".
 
-remote=$1
-shift
-for arg in "$@"; do
-    append_arg $arg
-done
+append_arg "$FLAGS_cell";
+append_arg "0"
+append_arg "$lab_url";
+
+#for arg in "$@"; do
+#    append_arg $arg
+#done
 
 eval "exec ${SCRIPTS_DIR}/run_remote_tests.sh \
-      --args=\"${run_remote_args}\" --remote=${remote} $run_remote_flags \
+      --args=\"${run_remote_args}\" --remote=${FLAGS_remote} $run_remote_flags \
       $FLAGS_ARGV"
