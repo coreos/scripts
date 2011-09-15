@@ -273,8 +273,9 @@ function setup_env {
       fi
     fi
 
-    # Install fuse module.
-    if [ -c "${FUSE_DEVICE}" ]; then
+    # Install fuse module.  Skip modprobe when possible for slight
+    # speed increase when initializing the env.
+    if [ -c "${FUSE_DEVICE}" ] && ! grep -q fuse /proc/filesystems; then
       sudo modprobe fuse 2> /dev/null ||\
         warn "-- Note: modprobe fuse failed.  gmergefs will not work"
     fi
