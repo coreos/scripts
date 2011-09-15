@@ -682,6 +682,10 @@ main() {
     check_empty_param FLAGS_diskimg "when using config file"
     check_empty_param FLAGS_subfolder "when using config file"
 
+    # Make the path and folder of config file available when parsing config.
+    MFP_CONFIG_PATH="$(readlink -f "$FLAGS_config")"
+    MFP_CONFIG_DIR="$(dirname "$MFP_CONFIG_PATH")"
+
     parse_and_run_config "$FLAGS_config"
     exit
   fi
