@@ -1,0 +1,16 @@
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Make sure existing chroot's have default locales enabled
+# to match the new make_chroot behavior
+# http://crosbug.com/20378
+if ! grep -q -v -e '^#' -e '^$' /etc/locale.gen ; then
+  sudo_append /etc/locale.gen <<EOF
+en_US ISO-8859-1
+en_US.UTF-8 UTF-8
+EOF
+fi
+
+info "Chroot upgraded to version 10: Set default locale sets"
+exit 0

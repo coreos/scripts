@@ -336,13 +336,14 @@ function setup_env {
       esac
       gen_locales=("${gen_locales[@]}" "${l} ${enc}")
     done
-    # TODO(raymes): Something broke this with the new
-    # glibc. Need to uncomment this as soon as it's fixed.
-    # http://code.google.com/p/chromium-os/issues/detail?id=20378
-    #if [[ ${#gen_locales[@]} -gt 0 ]] ; then
-    #  sudo -- chroot "$FLAGS_chroot" locale-gen -q -u \
-    #    -G "$(printf '%s\n' "${gen_locales[@]}")"
-    #fi
+    if [[ ${#gen_locales[@]} -gt 0 ]] ; then
+      # Force LC_ALL=C to workaround slow string parsing in bash
+      # with long multibyte strings.  Newer setups have this fixed,
+      # but locale-gen doesn't need to be run in any locale in the
+      # first place, so just go with C to keep it fast.
+      sudo -- chroot "$FLAGS_chroot" env LC_ALL=C locale-gen -q -u \
+        -G "$(printf '%s\n' "${gen_locales[@]}")"
+    fi
 
     # Fix permissions on shared memory to allow non-root users access to POSIX
     # semaphores.
