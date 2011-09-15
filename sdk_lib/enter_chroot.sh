@@ -408,12 +408,7 @@ function teardown_env {
 
       MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
       debug "Unmounting chroot environment."
-      # sort the list of mounts in reverse order, to ensure umount of
-      # cascading mounts in proper order
-      for i in \
-        $(mount | grep -F "on $MOUNTED_PATH/" | sort -r | awk '{print $3}'); do
-        safe_umount "$i"
-      done
+      safe_umount_tree "${MOUNTED_PATH}/"
     fi
   ) 200>>"$LOCKFILE" || die "teardown_env failed"
 }

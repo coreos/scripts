@@ -373,18 +373,38 @@ function sudo_append() {
   sudo tee -a "$1" > /dev/null
 }
 
+# Locate all mounts below a specified directory.
+#
+# $1 - The root tree.
+function sub_mounts() {
+  # Assume that `mount` outputs a list of mount points in the order
+  # that things were mounted (since it always has and hopefully always
+  # will).  As such, we have to unmount in reverse order to cleanly
+  # unmount submounts (think /dev/pts and /dev).
+  mount | \
+    awk -v path="$1" -v l="${#1}" \
+      '(substr($3, 0, l) == path) { print $3 }' | \
+    tac
+}
+
 # Unmounts a directory, if the unmount fails, warn, and then lazily unmount.
 #
 # $1 - The path to unmount.
-function safe_umount {
-  path=${1:?}
-  shift
+function safe_umount_tree {
+  local mounts=$(sub_mounts "$1")
 
-  if ! sudo umount -d "${path}"; then
-    warn "Failed to unmount ${path}"
-    warn "Doing a lazy unmount"
+  # First try to unmount in one shot to speed things up.
+  if sudo umount -d ${mounts}; then
+    return 0
+  fi
 
-    sudo umount -d -l "${path}" || die "Failed to lazily unmount ${path}"
+  # Well that didn't work, so lazy unmount remaining ones.
+  mounts=$(sub_mounts "$1")
+  warn "Failed to unmount ${mounts}"
+  warn "Doing a lazy unmount"
+  if ! sudo umount -d -l ${mounts}; then
+    mounts=$(sub_mounts "$1")
+    die "Failed to lazily unmount ${mounts}"
   fi
 }
 
