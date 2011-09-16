@@ -175,9 +175,16 @@ setup_environment() {
     OMAHA_DATA_DIR="${OMAHA_DIR}/static/${FLAGS_subfolder}/"
   fi
 
-  echo "Caching sudo authentication"
-  sudo -v
-  echo "Done"
+  # When "sudo -v" is executed inside chroot, it prompts for password; however
+  # the user account inside chroot may be using a different password (ex,
+  # "chronos") from the same account outside chroot.  The /etc/sudoers file
+  # inside chroot has explicitly specified "userid ALL=NOPASSWD: ALL" for the
+  # account, so we should do nothing inside chroot.
+  if [ ${INSIDE_CHROOT} -eq 0 ]; then
+    echo "Caching sudo authentication"
+    sudo -v
+    echo "Done"
+  fi
 
   # Use this image as the source image to copy
   RELEASE_DIR="$(dirname "${FLAGS_release}")"
