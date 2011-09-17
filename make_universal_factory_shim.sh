@@ -1,5 +1,5 @@
 #!/bin/sh
-#
+
 # Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
@@ -9,11 +9,14 @@
 # CAUTION: Recovery shim images are not supported yet because they require the
 # kernel partitions to be laid out in a special way
 
-SCRIPT="$0"
-SCRIPT_ROOT=$(dirname "$SCRIPT")
+# This script may be executed in a full CrOS source tree or an extracted factory
+# bundle with limited tools, so we must always load scripts from $SCRIPT_ROOT
+# and search for binary programs in $SCRIPT_ROOT/../bin
 
-# Load functions designed for image processing
-. "${SCRIPT_ROOT}/lib/cros_image_common.sh" || exit 1
+SCRIPT="$(readlink -f "$0")"
+SCRIPT_ROOT="$(dirname "$SCRIPT")"
+. "$SCRIPT_ROOT/lib/cros_image_common.sh" || exit 1
+image_find_tool "cgpt" "$SCRIPT_ROOT/../bin"
 
 # CGPT Header: PMBR, header, table; sec_table, sec_header
 CGPT_START_SIZE=$((1 + 1 + 32))

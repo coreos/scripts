@@ -45,6 +45,16 @@ image_has_part_tools() {
   image_has_command cgpt || image_has_command parted
 }
 
+# Finds if specified tool can be found by current path; updates system path if
+# the tool is available in given folder.
+image_find_tool() {
+  local tool="$1"
+  local alternative_folder="$(readlink -f "$2")"
+  if ! image_has_command "$tool" && [ -x "$alternative_folder/$tool" ]; then
+    PATH="$alternative_folder:$PATH"; export PATH
+  fi
+}
+
 # Finds the best partition tool and print partition offset
 image_part_offset() {
   local file="$1"

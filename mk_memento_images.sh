@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,35 +8,16 @@
 # build_image.sh and generates an image that can be used for auto
 # update.
 
+# This script may be executed in a full CrOS source tree or an extracted factory
+# bundle with limited tools, so we must always load scripts from $SCRIPT_ROOT
+# and search for binary programs in $SCRIPT_ROOT/../bin
+
+SCRIPT="$(readlink -f "$0")"
+SCRIPT_ROOT="$(dirname "$SCRIPT")"
+. "$SCRIPT_ROOT/lib/cros_image_common.sh" || exit 1
+image_find_tool "cgpt" "$SCRIPT_ROOT/../bin"
+
 set -e
-
-# --- BEGIN COMMON.SH BOILERPLATE ---
-# Load common CrOS utilities.  Inside the chroot this file is installed in
-# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
-# location.
-find_common_sh() {
-  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
-  local path
-
-  SCRIPT_ROOT=
-  for path in "${common_paths[@]}"; do
-    if [ -r "${path}/common.sh" ]; then
-      SCRIPT_ROOT=${path}
-      break
-    fi
-  done
-}
-
-find_common_sh
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
-# --- END COMMON.SH BOILERPLATE ---
-
-# Load functions designed for image processing
-if ! . "${SCRIPT_ROOT}/lib/cros_image_common.sh"; then
-  echo "ERROR: Cannot load required library: lib/cros_image_common.sh; Abort."
-  exit 1
-fi
-
 # We need 2-3 non-zero parameters.
 if [ "$#" -lt 2 ] || [ "$#" -gt 3 ] || [ -z "$1" ] || [ -z "$2" ]; then
   echo "
@@ -54,12 +35,6 @@ Examples:
        $0 chromiumos_image.bin:2 otherimage.bin:3 /tmp/myoutput
   "
   exit 1
-fi
-
-if [ "$CROS_GENERATE_UPDATE_PAYLOAD_CALLED" != "1" ]; then
-  echo "WARNING:"
-  echo " This script should only be called from cros_generate_update_payload"
-  echo " Please run that script with --help to see how to use it."
 fi
 
 if ! image_has_command pigz; then

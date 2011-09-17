@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2009 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,40 +11,23 @@
 # miniomaha lives in src/platform/dev/ and miniomaha partition sets live
 # in src/platform/dev/static.
 
-# --- BEGIN COMMON.SH BOILERPLATE ---
-# Load common CrOS utilities.  Inside the chroot this file is installed in
-# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
-# location.
-find_common_sh() {
-  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
-  local path
+# This script may be executed in a full CrOS source tree or an extracted factory
+# bundle with limited tools, so we must always load scripts from $SCRIPT_ROOT
+# and search for binary programs in $SCRIPT_ROOT/../bin
 
-  SCRIPT_ROOT=
-  for path in "${common_paths[@]}"; do
-    if [ -r "${path}/common.sh" ]; then
-      SCRIPT_ROOT=${path}
-      break
-    fi
-  done
-}
+SCRIPT="$(readlink -f "$0")"
+SCRIPT_ROOT="$(dirname "$SCRIPT")"
+. "$SCRIPT_ROOT/lib/cros_image_common.sh" || exit 1
+image_find_tool "cgpt" "$SCRIPT_ROOT/../bin"
 
-find_common_sh
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
-# --- END COMMON.SH BOILERPLATE ---
+if [ -f "$SCRIPT_ROOT/../dev/devserver.py" ]; then
+  # Running within an extracted factory bundle
+  GCLIENT_ROOT="$(readlink -f "$SCRIPT_ROOT/..")"
+fi
+. "$SCRIPT_ROOT/common.sh" || exit 1
+. "$SCRIPT_ROOT/chromeos-common.sh" || exit 1
 
-# Load functions and constants for chromeos-install
-# NOTE: This script needs to be called from outside the chroot.
-. "/usr/lib/installer/chromeos-common.sh" &> /dev/null || \
-. "${SRC_ROOT}/platform/installer/chromeos-common.sh" || \
-  die "Unable to load /usr/lib/installer/chromeos-common.sh"
-
-# Load functions designed for image processing
-. "${SCRIPT_ROOT}/lib/cros_image_common.sh" ||
-  die "Cannot load required library: lib/cros_image_common.sh; Abort."
-
-SCRIPT="$0"
 get_default_board
-
 FLAGS_NONE='none'
 
 # Flags
