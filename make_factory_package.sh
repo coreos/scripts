@@ -481,6 +481,7 @@ generate_img() {
 
 generate_omaha() {
   local kernel rootfs
+  [ -n "$FLAGS_board" ] || die "Need --board parameter for mini-omaha server."
   # Clean up stale config and data files.
   prepare_dir "${OMAHA_DATA_DIR}"
 
@@ -490,41 +491,40 @@ generate_omaha() {
   echo "Output omaha config to ${OMAHA_CONF}"
 
   # Get the release image.
-  # TODO(hungte) deprecate pushd and use temporary folders
-  pushd "${RELEASE_DIR}" >/dev/null
-  prepare_dir "."
+  ( set -e
+    cd "${RELEASE_DIR}"
+    prepare_dir "."
 
-  kernel="${RELEASE_KERNEL:-${RELEASE_IMAGE}:2}"
-  rootfs="${RELEASE_IMAGE}:3"
-  release_hash="$(compress_and_hash_memento_image "$kernel" "$rootfs")"
-  mv ./update.gz "${OMAHA_DATA_DIR}/rootfs-release.gz"
-  echo "release: ${release_hash}"
+    kernel="${RELEASE_KERNEL:-${RELEASE_IMAGE}:2}"
+    rootfs="${RELEASE_IMAGE}:3"
+    release_hash="$(compress_and_hash_memento_image "$kernel" "$rootfs")"
+    mv ./update.gz "${OMAHA_DATA_DIR}/rootfs-release.gz"
+    echo "release: ${release_hash}"
 
-  oem_hash="$(compress_and_hash_partition "${RELEASE_IMAGE}" 8 "oem.gz")"
-  mv oem.gz "${OMAHA_DATA_DIR}"
-  echo "oem: ${oem_hash}"
-
-  popd >/dev/null
+    oem_hash="$(compress_and_hash_partition "${RELEASE_IMAGE}" 8 "oem.gz")"
+    mv oem.gz "${OMAHA_DATA_DIR}"
+    echo "oem: ${oem_hash}"
+  )
 
   # Go to retrieve the factory test image.
-  pushd "${FACTORY_DIR}" >/dev/null
-  prepare_dir "."
+  ( set -e
+    cd "${FACTORY_DIR}"
+    prepare_dir "."
 
-  kernel="${FACTORY_IMAGE}:2"
-  rootfs="${FACTORY_IMAGE}:3"
-  test_hash="$(compress_and_hash_memento_image "$kernel" "$rootfs")"
-  mv ./update.gz "${OMAHA_DATA_DIR}/rootfs-test.gz"
-  echo "test: ${test_hash}"
+    kernel="${FACTORY_IMAGE}:2"
+    rootfs="${FACTORY_IMAGE}:3"
+    test_hash="$(compress_and_hash_memento_image "$kernel" "$rootfs")"
+    mv ./update.gz "${OMAHA_DATA_DIR}/rootfs-test.gz"
+    echo "test: ${test_hash}"
 
-  state_hash="$(compress_and_hash_partition "${FACTORY_IMAGE}" 1 "state.gz")"
-  mv state.gz "${OMAHA_DATA_DIR}"
-  echo "state: ${state_hash}"
+    state_hash="$(compress_and_hash_partition "${FACTORY_IMAGE}" 1 "state.gz")"
+    mv state.gz "${OMAHA_DATA_DIR}"
+    echo "state: ${state_hash}"
 
-  efi_hash="$(compress_and_hash_partition "${FACTORY_IMAGE}" 12 "efi.gz")"
-  mv efi.gz "${OMAHA_DATA_DIR}"
-  echo "efi: ${efi_hash}"
-
-  popd >/dev/null
+    efi_hash="$(compress_and_hash_partition "${FACTORY_IMAGE}" 12 "efi.gz")"
+    mv efi.gz "${OMAHA_DATA_DIR}"
+    echo "efi: ${efi_hash}"
+  )
 
   if [ -n "${FLAGS_firmware_updater}" ]; then
     firmware_hash="$(compress_and_hash_file "${FLAGS_firmware_updater}" \
