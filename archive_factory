@@ -1,0 +1,129 @@
+#!/bin/bash
+
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Script to take an archived build result and prepare a factory bundle.
+
+# --- BEGIN COMMON.SH BOILERPLATE ---
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    if [ -r "${path}/common.sh" ]; then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+# --- END COMMON.SH BOILERPLATE ---
+
+# Flags
+DEFINE_string factory_test "" "Directory with factory test image."
+DEFINE_string factory_install "" "Directory with factory install image."
+DEFINE_string scripts "" "Directory with factory setup scripts."
+DEFINE_string devserver "" "Directory with mini-omaha files."
+DEFINE_string bin "" "Directory with binary programs (ex: cgpt)."
+DEFINE_string output "factory.zip" "Output zip archive file path."
+DEFINE_boolean fast $FLAGS_FALSE "Build faster (lower compression rate)."
+
+# Parse command line
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+set -e
+
+STAGE_DIR=""
+
+clean_up() {
+  [ -z "$STAGE_DIR" ] || rm -rf "$STAGE_DIR" || true
+}
+
+# Builds the factory bundle
+build_factory_bundle() {
+  local stage_dir="$(mktemp -d --tmpdir)"
+  local output="$(readlink -f "$FLAGS_output")"
+  local level="-9"
+  STAGE_DIR="$stage_dir"
+  rm -f "$output"
+
+  if [ "$FLAGS_fast" = "$FLAGS_TRUE" ]; then
+    level='-1'
+  fi
+
+  (cd "$stage_dir"
+   ln -s "$FLAGS_factory_test" factory_test
+   ln -s "$FLAGS_factory_install" install_shim
+   ln -s "$FLAGS_scripts" scripts
+   ln -s "$FLAGS_devserver" dev
+   ln -s "$FLAGS_bin" bin
+   if [ -e "factory_test/hwid" ]; then
+     ln -s factory_test/hwid hwid
+   fi
+
+   # Archive file resources.
+   zip $level -db -dd "$output" \
+     bin/cgpt \
+     dev/autoupdate.py \
+     dev/buildutil.py \
+     dev/devserver.py \
+     dev/static \
+     factory_test/*factory_image* \
+     factory_test/*partition* \
+     hwid/hwid* \
+     install_shim/*factory_install* \
+     install_shim/*partition* \
+     install_shim/netboot/* \
+     scripts/chromeos-common.sh \
+     scripts/common.sh \
+     scripts/lib/cros_image_common.sh \
+     scripts/lib/shflags/shflags \
+     scripts/make_factory_package.sh \
+     scripts/make_universal_factory_shim.sh \
+     scripts/mk_memento_images.sh \
+     # End of resource list
+
+   # Adds symlinks as script helpers
+   ln -s . platform
+   ln -s . src
+   zip --grow --symlinks "$output" platform src
+  )
+}
+
+normalize_directory_param() {
+  local param="$1"
+  local value="$(eval "echo \$FLAGS_$param")"
+
+  if [ -z "$value" ]; then
+    die "Need directory parameter: --$param"
+  elif [ ! -d "$(readlink -f "$value")" ]; then
+    die "--$param: '$value' is not a directory."
+  else
+    eval "FLAGS_$param=\"$(readlink -f "$value")\""
+  fi
+}
+
+main() {
+  local param
+  for param in factory_test \
+               factory_install \
+               scripts \
+               devserver \
+               bin; do
+    normalize_directory_param "$param"
+  done
+  [ -n "$FLAGS_output" ] || die "Need output file name: --output"
+  build_factory_bundle
+  info "Done. Factory bundle created: $FLAGS_output"
+}
+
+trap clean_up EXIT
+main "$@"
