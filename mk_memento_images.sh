@@ -8,6 +8,7 @@
 # build_image.sh and generates an image that can be used for auto
 # update.
 
+# --- BEGIN FACTORY SCRIPTS BOILERPLATE ---
 # This script may be executed in a full CrOS source tree or an extracted factory
 # bundle with limited tools, so we must always load scripts from $SCRIPT_ROOT
 # and search for binary programs in $SCRIPT_ROOT/../bin
@@ -16,6 +17,7 @@ SCRIPT="$(readlink -f "$0")"
 SCRIPT_ROOT="$(dirname "$SCRIPT")"
 . "$SCRIPT_ROOT/lib/cros_image_common.sh" || exit 1
 image_find_tool "cgpt" "$SCRIPT_ROOT/../bin"
+# --- END FACTORY SCRIPTS BOILERPLATE ---
 
 set -e
 # We need 2-3 non-zero parameters.

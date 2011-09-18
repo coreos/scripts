@@ -11,6 +11,7 @@
 # miniomaha lives in src/platform/dev/ and miniomaha partition sets live
 # in src/platform/dev/static.
 
+# --- BEGIN FACTORY SCRIPTS BOILERPLATE ---
 # This script may be executed in a full CrOS source tree or an extracted factory
 # bundle with limited tools, so we must always load scripts from $SCRIPT_ROOT
 # and search for binary programs in $SCRIPT_ROOT/../bin
@@ -19,6 +20,7 @@ SCRIPT="$(readlink -f "$0")"
 SCRIPT_ROOT="$(dirname "$SCRIPT")"
 . "$SCRIPT_ROOT/lib/cros_image_common.sh" || exit 1
 image_find_tool "cgpt" "$SCRIPT_ROOT/../bin"
+# --- END FACTORY SCRIPTS BOILERPLATE ---
 
 if [ -f "$SCRIPT_ROOT/../dev/devserver.py" ]; then
   # Running within an extracted factory bundle
