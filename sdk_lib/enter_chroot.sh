@@ -302,13 +302,16 @@ function setup_env {
       ensure_mounted "${HOME}/.subversion" "--bind" "${TARGET}"
     fi
 
-    # Configure committer username and email in chroot .gitconfig
+    # Configure committer username and email in chroot .gitconfig.  Change
+    # to the root directory first so that random $PWD/.git/config settings
+    # do not get picked up.  We want to stick to ~/.gitconfig only.
+    ident=$(cd /; git var GIT_COMMITTER_IDENT || :)
+    ident_name=${ident%% <*}
+    ident_email=${ident%%>*}; ident_email=${ident_email##*<}
     git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all \
-      user.name "$(cd /tmp; git var GIT_COMMITTER_IDENT | \
-      sed -e 's/ *<.*//')" || true
+      user.name "${ident_name}" || true
     git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all \
-      user.email "$(cd /tmp; git var GIT_COMMITTER_IDENT | \
-        sed -e 's/.*<\([^>]*\)>.*/\1/')" || true
+      user.email "${ident_email}" || true
 
     # Copy ~/.gdata_cred.txt to chroot if it exists.  This file contains
     # credentials for reading/writing Google Docs on chromium.org.
