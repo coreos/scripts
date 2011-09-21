@@ -92,6 +92,7 @@ function ensure_mounted {
   local source="$1"
   local mount_args="$2"
   local target="$3"
+  local warn="$4"
 
   local mounted_path="$(readlink -f "${FLAGS_chroot}/$target")"
 
@@ -107,8 +108,14 @@ function ensure_mounted {
 
     # NB:  mount_args deliberately left unquoted
     debug mount ${mount_args} "${source}" "${mounted_path}"
-    sudo -- mount ${mount_args} "${source}" "${mounted_path}" || \
-      die "Could not mount ${source} on ${mounted_path}"
+    if ! sudo -- mount ${mount_args} "${source}" "${mounted_path}" ; then
+      if [ -z "${warn}" ]; then
+        die "Could not mount ${source} on ${mounted_path}"
+      else
+        warn "Failed to mount ${source}; perhaps it's on NFS?"
+        warn "${warn}"
+      fi
+    fi
     ;;
   esac
 }
@@ -269,17 +276,11 @@ function setup_env {
       fi
     fi
 
-    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_DEPOT_TOOLS_ROOT}")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
-      if DEPOT_TOOLS=$(type -P gclient) ; then
-        DEPOT_TOOLS=${DEPOT_TOOLS%/*} # dirname
-        debug "Mounting depot_tools"
-        mkdir -p "$MOUNTED_PATH"
-        if ! sudo mount --bind "$DEPOT_TOOLS" "$MOUNTED_PATH"; then
-          warn "depot_tools failed to mount; perhaps it's on NFS?"
-          warn "This may impact chromium build."
-        fi
-      fi
+    if DEPOT_TOOLS=$(type -P gclient) ; then
+      DEPOT_TOOLS=${DEPOT_TOOLS%/*} # dirname
+      debug "Mounting depot_tools"
+      ensure_mounted "$DEPOT_TOOLS" --bind "$INNER_DEPOT_TOOLS_ROOT" \
+        "This may impact chromium build."
     fi
 
     # Install fuse module.  Skip modprobe when possible for slight
