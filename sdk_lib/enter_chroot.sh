@@ -250,29 +250,24 @@ function setup_env {
       fi
     fi
 
-    MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_CHROME_ROOT}")"
-    if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
-      CHROME_ROOT="$(readlink -f "$FLAGS_chrome_root" || :)"
-      if [ -z "$CHROME_ROOT" ]; then
-        CHROME_ROOT="$(cat "${FLAGS_chroot}${CHROME_ROOT_CONFIG}" \
-          2>/dev/null || :)"
-        CHROME_ROOT_AUTO=1
-      fi
-      if [[ -n "$CHROME_ROOT" ]]; then
-        if [[ ! -d "${CHROME_ROOT}/src" ]]; then
-          error "Not mounting chrome source"
-          sudo rm -f "${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
-          if [[ ! "$CHROME_ROOT_AUTO" ]]; then
-            exit 1
-          fi
-        else
-          debug "Mounting chrome source at: $INNER_CHROME_ROOT"
-          sudo bash -c "echo '$CHROME_ROOT' > \
-            '${FLAGS_chroot}${CHROME_ROOT_CONFIG}'"
-          mkdir -p "$MOUNTED_PATH"
-          sudo mount --bind "$CHROME_ROOT" "$MOUNTED_PATH" || \
-            die "Could not mount $MOUNTED_PATH"
+    CHROME_ROOT="$(readlink -f "$FLAGS_chrome_root" || :)"
+    if [ -z "$CHROME_ROOT" ]; then
+      CHROME_ROOT="$(cat "${FLAGS_chroot}${CHROME_ROOT_CONFIG}" \
+        2>/dev/null || :)"
+      CHROME_ROOT_AUTO=1
+    fi
+    if [[ -n "$CHROME_ROOT" ]]; then
+      if [[ ! -d "${CHROME_ROOT}/src" ]]; then
+        error "Not mounting chrome source"
+        sudo rm -f "${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
+        if [[ ! "$CHROME_ROOT_AUTO" ]]; then
+          exit 1
         fi
+      else
+        debug "Mounting chrome source at: $INNER_CHROME_ROOT"
+        sudo bash -c "echo '$CHROME_ROOT' > \
+          '${FLAGS_chroot}${CHROME_ROOT_CONFIG}'"
+        ensure_mounted "$CHROME_ROOT" --bind "$INNER_CHROME_ROOT"
       fi
     fi
 
