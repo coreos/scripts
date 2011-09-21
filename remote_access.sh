@@ -54,9 +54,16 @@ function set_up_remote_access() {
   chmod 0400 $TMP_PRIVATE_KEY
 
   # Verify the client is reachable before continuing
-  echo "Initiating first contact with remote host"
-  remote_sh "true"
-  echo "Connection OK"
+  local output
+  local status=0
+  if output=$(remote_sh "true" 2>&1); then
+    :
+  else
+    status=$?
+    echo "Could not initiate first contact with remote host"
+    echo "$output"
+  fi
+  return $status
 }
 
 # Ask the target what board it is
