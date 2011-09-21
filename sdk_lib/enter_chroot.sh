@@ -77,7 +77,10 @@ FUSE_DEVICE="/dev/fuse"
 AUTOMOUNT_PREF="/apps/nautilus/preferences/media_automount"
 SAVED_AUTOMOUNT_PREF_FILE="/tmp/.automount_pref"
 
-sudo chmod 0777 "$FLAGS_chroot/var/lock"
+# Avoid the sudo call if possible since it is a little slow.
+if [ $(stat -c %a "$FLAGS_chroot/var/lock") != 777 ]; then
+  sudo chmod 0777 "$FLAGS_chroot/var/lock"
+fi
 
 LOCKFILE="$FLAGS_chroot/var/lock/enter_chroot"
 SYNCERPIDFILE="${FLAGS_chroot}/var/tmp/enter_chroot_sync.pid"
@@ -349,8 +352,10 @@ function setup_env {
     fi
 
     # Fix permissions on shared memory to allow non-root users access to POSIX
-    # semaphores.
-    sudo chmod -R 777 "${FLAGS_chroot}/dev/shm"
+    # semaphores.  Avoid the sudo call if possible (sudo is slow).
+    if [ -n "$(find "${FLAGS_chroot}/dev/shm" ! -perm 777)" ] ; then
+      sudo chmod -R 777 "${FLAGS_chroot}/dev/shm"
+    fi
   ) 200>>"$LOCKFILE" || die "setup_env failed"
 }
 
