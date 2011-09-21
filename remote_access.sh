@@ -37,6 +37,13 @@ function remote_sh() {
   return ${PIPESTATUS[0]}
 }
 
+function remote_sh_raw() {
+  ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -o ConnectTimeout=120 \
+    -i $TMP_PRIVATE_KEY $EXTRA_REMOTE_SH_ARGS root@$FLAGS_remote "$@"
+  return $?
+}
+
 function remote_sh_allow_changed_host_key() {
   rm -f $TMP_KNOWN_HOSTS
   remote_sh "$@"
