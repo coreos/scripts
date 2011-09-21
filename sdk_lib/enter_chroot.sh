@@ -95,7 +95,11 @@ function ensure_mounted {
 
   local mounted_path="$(readlink -f "${FLAGS_chroot}/$target")"
 
-  if [ -z "$(mount | grep -F "on ${mounted_path} ")" ]; then
+  case ${MOUNT_CACHE} in
+  *" on ${mounted_path} "*)
+    # Already mounted!
+    ;;
+  *)
     # Attempt to make the mountpoint as the user.  This depends on the
     # fact that all mountpoints that should be owned by root are
     # already present.
@@ -105,7 +109,8 @@ function ensure_mounted {
     debug mount ${mount_args} "${source}" "${mounted_path}"
     sudo -- mount ${mount_args} "${source}" "${mounted_path}" || \
       die "Could not mount ${source} on ${mounted_path}"
-  fi
+    ;;
+  esac
 }
 
 function env_sync_proc {
@@ -219,6 +224,7 @@ function setup_env {
     fi
 
     debug "Mounting chroot environment."
+    MOUNT_CACHE=$(mount)
     ensure_mounted none "-t proc" /proc
     ensure_mounted none "-t sysfs" /sys
     ensure_mounted /dev "--bind" /dev
