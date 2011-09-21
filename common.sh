@@ -393,6 +393,11 @@ function sub_mounts() {
 function safe_umount_tree {
   local mounts=$(sub_mounts "$1")
 
+  # Hmm, this shouldn't normally happen, but anything is possible.
+  if [ -z "${mounts}" ] ; then
+    return 0
+  fi
+
   # First try to unmount in one shot to speed things up.
   if sudo umount -d ${mounts}; then
     return 0
