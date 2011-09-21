@@ -217,7 +217,7 @@ function setup_env {
         sudo rm -f "${SYNCERPIDFILE}";
     fi;
     if ! [ -f "${SYNCERPIDFILE}" ] || \
-       ! [ -d /proc/$(cat "${SYNCERPIDFILE}") ]; then
+       ! [ -d /proc/$(<"${SYNCERPIDFILE}") ]; then
       debug "Starting sync process"
       env_sync_proc &
       echo $! > "${SYNCERPIDFILE}"
@@ -233,27 +233,26 @@ function setup_env {
     ensure_mounted "${FLAGS_trunk}" "--bind" "${CHROOT_TRUNK_DIR}"
 
     if [ $FLAGS_ssh_agent -eq $FLAGS_TRUE ]; then
-      TARGET_DIR="$(readlink -f "${FLAGS_chroot}/home/${USER}/.ssh")"
       if [ -n "${SSH_AUTH_SOCK}" -a -d "${HOME}/.ssh" ]; then
+        TARGET_DIR="${FLAGS_chroot}/home/${USER}/.ssh"
         mkdir -p "${TARGET_DIR}"
-        cp -r "${HOME}/.ssh/known_hosts" "${TARGET_DIR}"
-        cp -r ${HOME}/.ssh/*.pub "${TARGET_DIR}"
+        cp "${HOME}"/.ssh/{known_hosts,*.pub} "${TARGET_DIR}/"
         copy_ssh_config "${TARGET_DIR}"
-        ASOCK="$(dirname "${SSH_AUTH_SOCK}")"
+        ASOCK=${SSH_AUTH_SOCK%/*}
         ensure_mounted "${ASOCK}" "--bind" "${ASOCK}"
       fi
     fi
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_CHROME_ROOT}")"
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
-      ! CHROME_ROOT="$(readlink -f "$FLAGS_chrome_root")"
+      CHROME_ROOT="$(readlink -f "$FLAGS_chrome_root" || :)"
       if [ -z "$CHROME_ROOT" ]; then
-        ! CHROME_ROOT="$(cat "${FLAGS_chroot}${CHROME_ROOT_CONFIG}" \
-          2>/dev/null)"
+        CHROME_ROOT="$(cat "${FLAGS_chroot}${CHROME_ROOT_CONFIG}" \
+          2>/dev/null || :)"
         CHROME_ROOT_AUTO=1
       fi
-      if [[ ( -n "$CHROME_ROOT" ) ]]; then
-        if [[ ( ! -d "${CHROME_ROOT}/src" ) ]]; then
+      if [[ -n "$CHROME_ROOT" ]]; then
+        if [[ ! -d "${CHROME_ROOT}/src" ]]; then
           error "Not mounting chrome source"
           sudo rm -f "${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
           if [[ ! "$CHROME_ROOT_AUTO" ]]; then
@@ -272,9 +271,9 @@ function setup_env {
 
     MOUNTED_PATH="$(readlink -f "${FLAGS_chroot}${INNER_DEPOT_TOOLS_ROOT}")"
     if [ -z "$(mount | grep -F "on $MOUNTED_PATH ")" ]; then
-      if [ $(which gclient 2>/dev/null) ]; then
+      if DEPOT_TOOLS=$(type -P gclient) ; then
+        DEPOT_TOOLS=${DEPOT_TOOLS%/*} # dirname
         debug "Mounting depot_tools"
-        DEPOT_TOOLS=$(dirname "$(which gclient)")
         mkdir -p "$MOUNTED_PATH"
         if ! sudo mount --bind "$DEPOT_TOOLS" "$MOUNTED_PATH"; then
           warn "depot_tools failed to mount; perhaps it's on NFS?"
@@ -394,7 +393,7 @@ function teardown_env {
       fi
     done
     # Remove any dups from lock file while installing new one
-    sort -n "$TMP_LOCKFILE" | uniq > "$LOCKFILE"
+    sort -u -n "$TMP_LOCKFILE" > "$LOCKFILE"
 
     SAVED_PREF=$(<"${FLAGS_chroot}${SAVED_AUTOMOUNT_PREF_FILE}")
     if [ "${SAVED_PREF}" != "false" ]; then
@@ -421,7 +420,7 @@ function teardown_env {
       # has been reused by another process; make sure we don't skip
       # starting the syncer process when this occurs by deleting the
       # PID file.
-      kill $(cat "${SYNCERPIDFILE}") && \
+      kill $(<"${SYNCERPIDFILE}") && \
           sudo rm -f "${SYNCERPIDFILE}" || \
           debug "Unable to clean up syncer process.";
 
@@ -466,9 +465,8 @@ CHROMEOS_VERSION_DEVSERVER=${CHROMEOS_VERSION_DEVSERVER}"
 
 # Pass proxy variables into the environment.
 for type in http_proxy ftp_proxy all_proxy GIT_PROXY_COMMAND GIT_SSH; do
-   eval value=\$${type}
-   if [ -n "${value}" ]; then
-      CHROOT_PASSTHRU="${CHROOT_PASSTHRU} ${type}=${value}"
+   if [ -n "${!type}" ]; then
+      CHROOT_PASSTHRU="${CHROOT_PASSTHRU} ${type}=${!type}"
    fi
 done
 
