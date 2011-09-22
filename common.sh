@@ -382,8 +382,8 @@ function sub_mounts() {
   # will).  As such, we have to unmount in reverse order to cleanly
   # unmount submounts (think /dev/pts and /dev).
   mount | \
-    awk -v path="$1" -v l="${#1}" \
-      '(substr($3, 0, l) == path) { print $3 }' | \
+    awk -v path="$1" -v len="${#1}" \
+      '(substr($3, 1, len) == path) { print $3 }' | \
     tac
 }
 
