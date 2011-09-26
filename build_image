@@ -62,6 +62,8 @@ DEFINE_integer verity_max_ios -1 \
   "Number of outstanding I/O operations dm-verity caps at. Default: -1"
 DEFINE_string verity_algorithm "sha1" \
   "Cryptographic hash algorithm used for kernel vboot. Default : sha1"
+DEFINE_string verity_salt "" \
+  "Root filesystem salt. Default: randomly generated."
 DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
   "Install standard backdoor credentials for testing"
 DEFINE_string symlink "latest" \

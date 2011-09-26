@@ -34,6 +34,14 @@ check_blacklist() {
   info "No blacklisted packages found."
 }
 
+make_salt() {
+  # It is not important that the salt be cryptographically strong; it just needs
+  # to be different for each release. The purpose of the salt is just to ensure
+  # that if someone collides a block in one release, they can't reuse it in
+  # future releases.
+  xxd -l 32 -p -c 32 /dev/urandom
+}
+
 # Takes no arguments and populates the configuration for
 # cros_make_image_bootable.
 create_boot_desc() {
@@ -42,6 +50,7 @@ create_boot_desc() {
     enable_rootfs_verification_flag="--enable_rootfs_verification"
   fi
 
+  [ -z "${FLAGS_verity_salt}" ] && FLAGS_verity_salt=$(make_salt)
   cat <<EOF > ${OUTPUT_DIR}/boot.desc
   --arch="${ARCH}"
   --boot_args="${FLAGS_boot_args}"
@@ -50,6 +59,7 @@ create_boot_desc() {
   --verity_error_behavior="${FLAGS_verity_error_behavior}"
   --verity_max_ios="${FLAGS_verity_max_ios}"
   --verity_algorithm="${FLAGS_verity_algorithm}"
+  --verity_salt="${FLAGS_verity_salt}"
   --keys_dir="${DEVKEYSDIR}"
   --usb_disk="${FLAGS_usb_disk}"
   --nocleanup_dirs

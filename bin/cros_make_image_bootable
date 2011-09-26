@@ -34,6 +34,7 @@ assert_inside_chroot
 # Load functions and constants for chromeos-install
 . "/usr/lib/installer/chromeos-common.sh" || \
   die "Unable to load /usr/lib/installer/chromeos-common.sh"
+. "${SCRIPTS_DIR}/build_library/build_image_util.sh" || die "No build_image_util"
 
 set -e
 
@@ -101,6 +102,8 @@ DEFINE_integer verity_max_ios 1024 \
   "Number of outstanding I/O operations dm-verity caps at."
 DEFINE_string verity_algorithm "sha1" \
   "Cryptographic hash algorithm used for kernel vboot."
+DEFINE_string verity_salt "" \
+  "Salt for rootfs hash tree."
 
 DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
   "Directory containing the signing keys."
@@ -136,6 +139,8 @@ DEFINE_string squash_sort_file "" \
 # Parse the boot.desc and any overrides
 eval set -- "${BOOT_DESC} ${FLAG_OVERRIDES}"
 FLAGS "${@}" || exit 1
+
+[ -z "${FLAGS_verity_salt}" ] && FLAGS_verity_salt=$(make_salt)
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
 # so will die prematurely if 'set -e' is specified before now.
@@ -216,6 +221,7 @@ make_image_bootable() {
     --verity_hash_alg=${FLAGS_verity_algorithm} \
     --verity_max_ios=${FLAGS_verity_max_ios} \
     --verity_error_behavior=${FLAGS_verity_error_behavior} \
+    --verity_salt=${FLAGS_verity_salt} \
     --root=${cros_root} \
     --keys_dir="${FLAGS_keys_dir}" \
     ${use_dev_keys}
