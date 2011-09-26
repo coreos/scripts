@@ -30,11 +30,31 @@ function remote_rsync_from() {
     --no-R --files-from=$1 root@${FLAGS_remote}:/ $2
 }
 
-function remote_sh() {
+function _verbose_remote_sh() {
+  REMOTE_OUT=$(ssh -vp ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -o ConnectTimeout=120 \
+    -i $TMP_PRIVATE_KEY root@$FLAGS_remote "$@")
+  return ${PIPESTATUS[0]}
+}
+
+function _non_verbose_remote_sh() {
   REMOTE_OUT=$(ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -o ConnectTimeout=120 \
     -i $TMP_PRIVATE_KEY root@$FLAGS_remote "$@")
   return ${PIPESTATUS[0]}
+}
+
+# Wrapper for ssh that runs the commmand given by the args on the remote host
+# If an ssh error occurs, re-runs the ssh command with verbose flag set.
+function remote_sh() {
+  local ssh_status=0
+  _non_verbose_remote_sh "$@" || ssh_status=$?
+  # 255 indicates an ssh error.
+  if [ ${ssh_status} -eq 255 ]; then
+    _verbose_remote_sh "$@"
+  else
+    return ${ssh_status}
+  fi
 }
 
 function remote_sh_raw() {
