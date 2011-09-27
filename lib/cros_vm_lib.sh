@@ -37,6 +37,14 @@ function blocking_kill() {
   ! ps -p ${1} > /dev/null
 }
 
+function kvm_version_greater_equal() {
+  local test_version="${1}"
+  local kvm_version=$(kvm --version | sed -E 's/^.*version ([0-9\.]*) .*$/\1/')
+
+  [ $(echo -e "${test_version}\n${kvm_version}" | sort -r -V | head -n 1) = \
+    $kvm_version ]
+}
+
 # $1: Path to the virtual image to start.
 function start_kvm() {
   # Override default pid file.
@@ -73,6 +81,11 @@ function start_kvm() {
       net_option="-net nic,model=e1000"
     fi
 
+    local cache_type="writeback"
+    if kvm_version_greater_equal "0.14"; then
+      cache_type="unsafe"
+    fi
+
     sudo kvm -m 1024 \
       -vga std \
       -pidfile "${KVM_PID_FILE}" \
@@ -81,7 +94,7 @@ function start_kvm() {
       ${nographics} \
       ${snapshot} \
       -net user,hostfwd=tcp::${FLAGS_ssh_port}-:22 \
-      -hda "${1}"
+      -drive "file=${1},index=0,media=disk,cache=${cache_type}"
 
     info "KVM started with pid stored in ${KVM_PID_FILE}"
     LIVE_VM_IMAGE="${1}"
