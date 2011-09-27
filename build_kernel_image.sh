@@ -179,6 +179,7 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
     > "${FLAGS_working_dir}/config.txt"
 earlyprintk
 kern_guid=%U
+vmalloc=234MB
 EOF
   WORK="${WORK} ${FLAGS_working_dir}/config.txt"
 
