@@ -418,8 +418,9 @@ function teardown_env {
       # starting the syncer process when this occurs by deleting the
       # PID file.
       kill $(<"${SYNCERPIDFILE}") && \
-          sudo rm -f "${SYNCERPIDFILE}" || \
-          debug "Unable to clean up syncer process.";
+        { rm -f "${SYNCERPIDFILE}" 2>/dev/null || \
+          sudo rm -f "${SYNCERPIDFILE}" ; } ||
+        debug "Unable to clean up syncer process.";
 
       debug "Unmounting chroot environment."
       safe_umount_tree "${MOUNTED_PATH}/"
