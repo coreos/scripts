@@ -11,7 +11,7 @@
 
 # Use canonical path since some tools (e.g. mount) do not like symlinks.
 # Append build attempt to output directory.
-IMAGE_SUBDIR="${CHROME_BRANCH}-${CHROMEOS_VERSION_STRING}-a\
+IMAGE_SUBDIR="R${CHROME_BRANCH}-${CHROMEOS_VERSION_STRING}-a\
 ${FLAGS_build_attempt}"
 OUTPUT_DIR="${FLAGS_output_root}/${BOARD}/${IMAGE_SUBDIR}"
 OUTSIDE_OUTPUT_DIR="../build/images/${BOARD}/${IMAGE_SUBDIR}"
