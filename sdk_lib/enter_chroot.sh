@@ -118,13 +118,14 @@ function env_sync_proc {
   # necessary.
 
   local poll_interval=10
-  local sync_files="etc/resolv.conf etc/hosts"
+  local sync_files=( etc/resolv.conf etc/hosts )
 
   # Make sure the synced files are writable by normal user, so that we
   # don't have to sudo inside the loop.
-  for file in ${sync_files}; do
-    sudo chown ${USER} ${FLAGS_chroot}/${file} 1>&2
-  done
+  local chmods=$(find ${sync_files[@]/#/${FLAGS_chroot}/} '!' -user ${USER})
+  if [ -n "${chmods}" ]; then
+    sudo -- chown ${USER} ${chmods} 1>&2
+  fi
 
   # Drop stdin, stderr, stdout, and chroot lock.
   # This is needed for properly daemonizing the process.
