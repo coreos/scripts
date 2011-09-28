@@ -86,6 +86,7 @@ LOCKFILE="$FLAGS_chroot/var/lock/enter_chroot"
 SYNCERPIDFILE="${FLAGS_chroot}/var/tmp/enter_chroot_sync.pid"
 
 
+MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
 function ensure_mounted {
   # If necessary, mount $source in the host FS at $target inside the
   # chroot directory with $mount_args.
@@ -94,7 +95,7 @@ function ensure_mounted {
   local target="$3"
   local warn="$4"
 
-  local mounted_path="$(readlink -f "${FLAGS_chroot}/$target")"
+  local mounted_path="${MOUNTED_PATH}$target"
 
   case ${MOUNT_CACHE} in
   *" on ${mounted_path} "*)
@@ -420,7 +421,6 @@ function teardown_env {
           sudo rm -f "${SYNCERPIDFILE}" || \
           debug "Unable to clean up syncer process.";
 
-      MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
       debug "Unmounting chroot environment."
       safe_umount_tree "${MOUNTED_PATH}/"
     fi
