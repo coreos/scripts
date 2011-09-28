@@ -87,13 +87,16 @@ SYNCERPIDFILE="${FLAGS_chroot}/var/tmp/enter_chroot_sync.pid"
 
 
 MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
-function ensure_mounted {
+function mount_queue_init {
+  MOUNT_QUEUE=()
+}
+
+function queue_mount {
   # If necessary, mount $source in the host FS at $target inside the
   # chroot directory with $mount_args.
   local source="$1"
   local mount_args="$2"
   local target="$3"
-  local warn="$4"
 
   local mounted_path="${MOUNTED_PATH}$target"
 
@@ -102,27 +105,21 @@ function ensure_mounted {
     # Already mounted!
     ;;
   *)
-    # Attempt to make the mountpoint as the user.  This depends on the
-    # fact that all mountpoints that should be owned by root are
-    # already present.  However, when distributions add new paths (such as
-    # Ubuntu 11.10's /run), it might not yet exist in the chroot.  If that
-    # happens, just create it as root.
-    if ! mkdir -p "${mounted_path}" 2>/dev/null; then
-      sudo mkdir -p "${mounted_path}"
-    fi
-
-    # NB:  mount_args deliberately left unquoted
-    debug mount ${mount_args} "${source}" "${mounted_path}"
-    if ! sudo -- mount ${mount_args} "${source}" "${mounted_path}" ; then
-      if [ -z "${warn}" ]; then
-        die "Could not mount ${source} on ${mounted_path}"
-      else
-        warn "Failed to mount ${source}; perhaps it's on NFS?"
-        warn "${warn}"
-      fi
-    fi
+    MOUNT_QUEUE+=(
+      "mkdir -p '${mounted_path}'"
+      # The args are left unquoted on purpose.
+      "mount ${mount_args} '${source}' '${mounted_path}'"
+    )
     ;;
   esac
+}
+
+function process_mounts {
+  if [[ ${#MOUNT_QUEUE[@]} -eq 0 ]]; then
+    return 0
+  fi
+  sudo_multi "${MOUNT_QUEUE[@]}"
+  mount_queue_init
 }
 
 function env_sync_proc {
@@ -238,17 +235,18 @@ function setup_env {
 
     debug "Mounting chroot environment."
     MOUNT_CACHE=$(mount)
-    ensure_mounted none "-t proc" /proc
-    ensure_mounted none "-t sysfs" /sys
-    ensure_mounted /dev "--bind" /dev
-    ensure_mounted none "-t devpts" /dev/pts
+    mount_queue_init
+    queue_mount none "-t proc" /proc
+    queue_mount none "-t sysfs" /sys
+    queue_mount /dev "--bind" /dev
+    queue_mount none "-t devpts" /dev/pts
     if [ -d /run ]; then
-      ensure_mounted /run "--bind" /run
+      queue_mount /run "--bind" /run
       if [ -d /run/shm ]; then
-        ensure_mounted /run/shm "--bind" /run/shm
+        queue_mount /run/shm "--bind" /run/shm
       fi
     fi
-    ensure_mounted "${FLAGS_trunk}" "--bind" "${CHROOT_TRUNK_DIR}"
+    queue_mount "${FLAGS_trunk}" "--bind" "${CHROOT_TRUNK_DIR}"
 
     if [ $FLAGS_ssh_agent -eq $FLAGS_TRUE ]; then
       if [ -n "${SSH_AUTH_SOCK}" -a -d "${HOME}/.ssh" ]; then
@@ -258,9 +256,23 @@ function setup_env {
         cp "${HOME}"/.ssh/{known_hosts,*.pub} "${TARGET_DIR}/" 2>/dev/null || :
         copy_ssh_config "${TARGET_DIR}"
         ASOCK=${SSH_AUTH_SOCK%/*}
-        ensure_mounted "${ASOCK}" "--bind" "${ASOCK}"
+        queue_mount "${ASOCK}" "--bind" "${ASOCK}"
       fi
     fi
+
+    if [ -d "$HOME/.subversion" ]; then
+      TARGET="/home/${USER}/.subversion"
+      mkdir -p "${FLAGS_chroot}${TARGET}"
+      queue_mount "${HOME}/.subversion" "--bind" "${TARGET}"
+    fi
+
+    if DEPOT_TOOLS=$(type -P gclient) ; then
+      DEPOT_TOOLS=${DEPOT_TOOLS%/*} # dirname
+      debug "Mounting depot_tools"
+      queue_mount "$DEPOT_TOOLS" --bind "$INNER_DEPOT_TOOLS_ROOT"
+    fi
+
+    process_mounts
 
     CHROME_ROOT="$(readlink -f "$FLAGS_chrome_root" || :)"
     if [ -z "$CHROME_ROOT" ]; then
@@ -279,16 +291,11 @@ function setup_env {
         debug "Mounting chrome source at: $INNER_CHROME_ROOT"
         sudo bash -c "echo '$CHROME_ROOT' > \
           '${FLAGS_chroot}${CHROME_ROOT_CONFIG}'"
-        ensure_mounted "$CHROME_ROOT" --bind "$INNER_CHROME_ROOT"
+        queue_mount "$CHROME_ROOT" --bind "$INNER_CHROME_ROOT"
       fi
     fi
 
-    if DEPOT_TOOLS=$(type -P gclient) ; then
-      DEPOT_TOOLS=${DEPOT_TOOLS%/*} # dirname
-      debug "Mounting depot_tools"
-      ensure_mounted "$DEPOT_TOOLS" --bind "$INNER_DEPOT_TOOLS_ROOT" \
-        "This may impact chromium build."
-    fi
+    process_mounts
 
     # Install fuse module.  Skip modprobe when possible for slight
     # speed increase when initializing the env.
@@ -312,12 +319,6 @@ function setup_env {
     fi
     # Always write the temp file so we can read it when exiting
     echo "${SAVED_PREF:-false}" > "${FLAGS_chroot}${SAVED_AUTOMOUNT_PREF_FILE}"
-
-    if [ -d "$HOME/.subversion" ]; then
-      TARGET="/home/${USER}/.subversion"
-      mkdir -p "${FLAGS_chroot}${TARGET}"
-      ensure_mounted "${HOME}/.subversion" "--bind" "${TARGET}"
-    fi
 
     # Configure committer username and email in chroot .gitconfig.  Change
     # to the root directory first so that random $PWD/.git/config settings

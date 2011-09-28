@@ -378,6 +378,36 @@ function sudo_append() {
   sudo tee -a "$1" > /dev/null
 }
 
+# Execute multiple commands in a single sudo. Generally will speed things
+# up by avoiding multiple calls to `sudo`. If any commands fail, we will
+# call die with the failing command. We can handle a max of ~100 commands,
+# but hopefully no one will ever try that many at once.
+#
+# $@ - The commands to execute, one per arg.
+function sudo_multi() {
+  local i cmds
+
+  # Construct the shell code to execute. It'll be of the form:
+  # ... && ( ( command ) || exit <command index> ) && ...
+  # This way we know which command exited. The exit status of
+  # the underlying command is lost, but we never cared about it
+  # in the first place (other than it is non zero), so oh well.
+  for (( i = 1; i <= $#; ++i )); do
+    cmds+=" && ( ( ${!i} ) || exit $(( i + 10 )) )"
+  done
+
+  # Execute our constructed shell code.
+  sudo -- sh -c ":${cmds[*]}" && i=0 || i=$?
+
+  # See if this failed, and if so, print out the failing command.
+  if [[ $i -gt 10 ]]; then
+    : $(( i -= 10 ))
+    die "sudo_multi failed: ${!i}"
+  elif [[ $i -ne 0 ]]; then
+    die "sudo_multi failed for unknown reason $i"
+  fi
+}
+
 # Locate all mounts below a specified directory.
 #
 # $1 - The root tree.
