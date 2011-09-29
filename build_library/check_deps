@@ -7,6 +7,7 @@
 import os
 import re
 import sys
+import glob
 
 _SHARED_RE = re.compile(r"Shared library: \[([^\]]+)\]")
 _RPATH_RE = re.compile(r"Library rpath: \[([^\]]+)\]")
@@ -14,6 +15,43 @@ _RPATH_RE = re.compile(r"Library rpath: \[([^\]]+)\]")
 
 class CheckDependencies(object):
   """Check that dependencies for binaries can be found in the specified dir."""
+
+  def _ReadLdSoConf(self, path):
+    """Parse ld.so.conf files.
+
+    Starting with the file at PATH (searched relative to self._root), return
+    all the valid libdirs found. Include directives are handled recursively.
+
+    Args:
+      path: the path to the ld.so.conf file (inside of the root).
+
+    Returns:
+      A list of valid libdirs.
+    """
+
+    libdirs = []
+
+    ld_so_conf = self._root + path
+    if os.path.exists(ld_so_conf):
+      f = file(ld_so_conf)
+
+      for line in f:
+        line = line.rstrip()
+
+        if line.startswith("/"):
+          libpath = self._root + line
+          if os.path.exists(libpath):
+            libdirs.append(libpath)
+
+        elif line.startswith("include "):
+          # Includes are absolute or relative to the file itself.
+          line = os.path.join(os.path.dirname(path), line[8:])
+          for p in glob.glob(self._root + line):
+            libdirs.extend(self._ReadLdSoConf(os.path.relpath(p, self._root)))
+
+      f.close()
+
+    return libdirs
 
   def __init__(self, root, verbose=False):
     """Initializer.
@@ -38,15 +76,7 @@ class CheckDependencies(object):
     ]
 
     # Read more directories from ld.so.conf.
-    ld_so_conf = "%s/etc/ld.so.conf" % root
-    if os.path.exists(ld_so_conf):
-      f = file(ld_so_conf)
-      for line in f:
-        if line.startswith("/"):
-          path = root + line[:-1]
-          if os.path.exists(path):
-            libdirs.append(path)
-      f.close()
+    libdirs.extend(self._ReadLdSoConf("/etc/ld.so.conf"))
 
     self._ReadLibs(libdirs, self._libcache)
 
