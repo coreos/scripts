@@ -13,34 +13,37 @@ DEFINE_string private_key "$DEFAULT_PRIVATE_KEY" \
 DEFINE_integer ssh_port 22 \
   "SSH port of the remote machine running Chromium OS instance"
 
+SSH_CONNECT_SETTINGS="-o Protocol=2 -o ConnectTimeout=30 \
+  -o ConnectionAttempts=4 -o ServerAliveInterval=10 \
+  -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no"
+
 # Copies $1 to $2 on remote host
 function remote_cp_to() {
-  REMOTE_OUT=$(scp -P ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -o ConnectTimeout=120 \
-    -i $TMP_PRIVATE_KEY $1 root@$FLAGS_remote:$2)
+  REMOTE_OUT=$(scp -P ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
+    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY $1 \
+    root@$FLAGS_remote:$2)
   return ${PIPESTATUS[0]}
 }
 
 # Copies a list of remote files specified in file $1 to local location
 # $2.  Directory paths in $1 are collapsed into $2.
 function remote_rsync_from() {
-  rsync -e "ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
-             -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -o ConnectTimeout=120 \
-             -i $TMP_PRIVATE_KEY" \
+  rsync -e "ssh -p ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
+             -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY" \
     --no-R --files-from=$1 root@${FLAGS_remote}:/ $2
 }
 
 function _verbose_remote_sh() {
-  REMOTE_OUT=$(ssh -vp ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -o ConnectTimeout=120 \
-    -i $TMP_PRIVATE_KEY root@$FLAGS_remote "$@")
+  REMOTE_OUT=$(ssh -vp ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
+    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY \
+    root@$FLAGS_remote "$@")
   return ${PIPESTATUS[0]}
 }
 
 function _non_verbose_remote_sh() {
-  REMOTE_OUT=$(ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -o ConnectTimeout=120 \
-    -i $TMP_PRIVATE_KEY root@$FLAGS_remote "$@")
+  REMOTE_OUT=$(ssh -p ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
+    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY \
+    root@$FLAGS_remote "$@")
   return ${PIPESTATUS[0]}
 }
 
@@ -58,9 +61,9 @@ function remote_sh() {
 }
 
 function remote_sh_raw() {
-  ssh -p ${FLAGS_ssh_port} -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -o ConnectTimeout=120 \
-    -i $TMP_PRIVATE_KEY $EXTRA_REMOTE_SH_ARGS root@$FLAGS_remote "$@"
+  ssh -p ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
+    -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY \
+    $EXTRA_REMOTE_SH_ARGS root@$FLAGS_remote "$@"
   return $?
 }
 
