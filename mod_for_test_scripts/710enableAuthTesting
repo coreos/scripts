@@ -35,7 +35,7 @@ sudo mount --bind /proc "${ROOT_FS_DIR}"/proc
 
 # Generate testing root cert on the fly.
 sudo chroot "${ROOT_FS_DIR}" ${QEMU} /usr/bin/openssl req -x509 -days 21 \
-  -subj "/CN=www.google.com" \
+  -subj "/CN=*.google.com" \
   -newkey rsa:1024 -nodes -keyout "${TMP_KEY}" -out "${TMP_CERT}"
 
 mkdir -m 0755 -p "${ROOT_FS_DIR}/${FAKE_NSSDB}"
