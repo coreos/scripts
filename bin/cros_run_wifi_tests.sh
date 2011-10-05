@@ -49,6 +49,8 @@ DEFINE_string board "" "The board for which you are building autotest"
 DEFINE_string chroot "" "alternate chroot location" c
 DEFINE_boolean cleanup ${FLAGS_FALSE} "Clean up temp directory"
 DEFINE_string iterations "" "Iterations to run every top level test" i
+DEFINE_boolean use_emerged ${FLAGS_FALSE} \
+    "Force use of emerged autotest pacakges"
 DEFINE_string prepackaged_autotest "" "Use this prepackaged autotest dir"
 DEFINE_string results_dir_root "" "alternate root results directory"
 DEFINE_boolean verbose ${FLAGS_FALSE} "Show verbose autoserv output" v
@@ -90,6 +92,10 @@ fi
 
 if [ -n "${FLAGS_iterations}" ]; then
   append_flag --iterations ${FLAGS_iterations}
+fi
+
+if [ "${FLAGS_use_emerged}" -eq ${FLAGS_TRUE} ]; then
+  append_flag --use_emerged
 fi
 
 if [ -n "${FLAGS_prepackaged_autotest}" ]; then
