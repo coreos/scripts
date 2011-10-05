@@ -64,6 +64,7 @@ DEFINE_string config "" \
 
 # Parse command line
 FLAGS "$@" || exit 1
+ORIGINAL_PARAMS="$@"
 eval set -- "${FLAGS_ARGV}"
 
 on_exit() {
@@ -138,6 +139,13 @@ check_parameters() {
     check_file_param_or_none FLAGS_hwid_updater "in --diskimg mode"
     check_empty_param FLAGS_complete_script "in --diskimg mode"
     check_empty_param FLAGS_install_shim "in --diskimg mode"
+    if [ -b "${FLAGS_diskimg}" -a ! -w "${FLAGS_diskimg}" ] &&
+       [ -z "$MFP_SUDO" -a "$(id -u)" != "0" ]; then
+      # Restart the command with original parameters with sudo for writing to
+      # block device that needs root permission.
+      # MFP_SUDO is a internal flag to prevent unexpected recursion.
+      MFP_SUDO=TRUE exec sudo "$0" $ORIGINAL_PARAMS
+    fi
   else
     check_file_param_or_none FLAGS_firmware_updater "in mini-omaha mode"
     check_file_param_or_none FLAGS_hwid_updater "in mini-omaha mode"
