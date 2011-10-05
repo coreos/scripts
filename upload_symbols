@@ -39,6 +39,7 @@ DEFINE_string board "$DEFAULT_BOARD" "The board to build packages for."
 DEFINE_string breakpad_root "" "Root directory for breakpad symbols."
 DEFINE_boolean official_build ${FLAGS_FALSE} "Point to official symbol server."
 DEFINE_boolean regenerate ${FLAGS_FALSE} "Regenerate all symbols."
+DEFINE_boolean strip_x86_cfi ${FLAGS_TRUE} "Strip CFI data for x86."
 DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts."
 
@@ -72,15 +73,31 @@ function really_upload() {
 
 # Upload the given symbol file to given URL.
 function upload_file() {
-  local upload_file="$1"
+  local symbol_file="$1"
   local upload_url="$2"
+  local upload_file="${symbol_file}"
+  if [ ${FLAGS_strip_x86_cfi} -eq ${FLAGS_TRUE} ]; then
+    local arch=$(portageq-${FLAGS_board} envvar ARCH)
+    if [ "${arch}" == "x86" ]; then
+      # Call frame info is unnecessary for 32b x86 targets with frame
+      # pointer used (as all of ours have) and it accounts for over
+      # half the size of the symbols uploaded.  To buy us more time
+      # for the server team to increase the current 160MB, remove this
+      # data unless the user requests it.
+      if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
+        info "Stripping CFI for ${symbol_file} due to board ${FLAGS_board}."
+      fi
+      upload_file="${OUT_DIR}/stripped.sym"
+      sed '/^STACK CFI/d' < "${symbol_file}" > "${upload_file}"
+    fi
+  fi
   if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
-    info "Uploading ${upload_file}"
+    info "Uploading ${symbol_file}"
   fi
   "${SYM_UPLOAD}" "${upload_file}" "${upload_url}" > "${OUT_DIR}/stdout" \
     2> "${OUT_DIR}/stderr"
   if ! grep -q "Successfully sent the symbol file." "${OUT_DIR}/stdout"; then
-    error "Unable to upload symbols in ${upload_file}:"
+    error "Unable to upload symbols in ${symbol_file}:"
     cat "${OUT_DIR}/stderr"
     ANY_ERRORS=1
     return 1
