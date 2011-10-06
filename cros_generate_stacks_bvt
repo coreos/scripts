@@ -58,7 +58,7 @@ function cleanup() {
 trap cleanup INT TERM EXIT
 
 info "Downloading minidumps from $2..."
-wget -q -nv -r -np -A "*.dmp" -P "${OUTPUT_DIR}" $2
+wget -q -nv -r -l 10 -np -A "*.dmp" -P "${OUTPUT_DIR}" $2
 if [[ -z "$(find "${OUTPUT_DIR}" -name "*.dmp")" ]] ; then
   die "No minidumps found"
 fi
