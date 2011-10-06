@@ -1,0 +1,24 @@
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+info "Cleaning old configuration files, crosbug.com/13987"
+
+# The filesystem may be polluted by a lot of pending config file updates
+# at this point. By changing CONFIG_PROTECT, several of these have become
+# permanently stale, as neither tool considers them updates anymore.
+
+# First discard all updates in config files that are still protected, as
+# governed by the current CONFIG_PROTECT.
+# Autodiscard is option "-9" followed by the "YES" confirmation.
+info "Discarding bad updates"
+printf '%s\nYES\n' -9 | sudo etc-update
+
+# Overload CONFIG_PROTECT and automerge all possible updates in all sensible
+# locations, that is all updates that should've been merged immediately in
+# the first place.
+# Automerge is the "-5" option.
+info "Automerging good updates"
+echo "-5" | sudo CONFIG_PROTECT="/etc /usr/share" etc-update
+
+exit 0
