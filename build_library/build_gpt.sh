@@ -47,7 +47,7 @@ build_gpt() {
   local pmbr_img
   if [ "$ARCH" = "arm" ]; then
     pmbr_img=/dev/zero
-  elif [ "$ARCH" = "x86" ]; then
+  elif [ "$ARCH" = "x86" -o "$ARCH" = "amd64" ]; then
     pmbr_img=$(readlink -f /usr/share/syslinux/gptmbr.bin)
   else
     error "Unknown architecture: $ARCH"
