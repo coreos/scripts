@@ -11,12 +11,12 @@
 assert_inside_chroot "$@"
 
 function usage() {
-    echo "Usage: $0 url_to_debug_tgz url_to_bvt_test_results"
+    echo "Usage: $0 url_or_path_to_debug_tgz url_to_bvt_test_results"
 }
 
 if [ -z "$1" ] ; then
   usage
-  die "The URL to symbols tarball (debug.tgz) is required"
+  die "The URL or path to symbols tarball (debug.tgz) is required"
 fi
 
 if [ -z "$2" ] ; then
@@ -28,40 +28,51 @@ fi
 set -e
 
 BREAKPAD_DIR="debug/breakpad"
-DEBUG_TGZ=$(basename $1)
 STACKS_GENERATED=""
-OUTPUT_DIR=$(mktemp -d)
+OUTPUT_DIR="$(mktemp -d)"
+
+function extract_tarball() {
+  info "Extracting breakpad symbols from $1..."
+  tar zxf "$1" -C "${OUTPUT_DIR}" "${BREAKPAD_DIR}"
+}
 
 function generate_stacktrace() {
   echo "$1.txt"
-  minidump_stackwalk $1 ${OUTPUT_DIR}/${BREAKPAD_DIR} > $1.txt 2> /dev/null
+  minidump_stackwalk "$1" "${OUTPUT_DIR}/${BREAKPAD_DIR}" \
+      >"$1.txt" 2>/dev/null
 }
 
 function find_and_generate_stacktraces() {
-  find ${OUTPUT_DIR} -name *.dmp |
+  find "${OUTPUT_DIR}" -name "*.dmp" |
     while read filename ; do
-      generate_stacktrace ${filename}
+      generate_stacktrace "${filename}"
     done
 }
 
 function cleanup() {
   if [ -n "${OUTPUT_DIR}" -a -z "${STACKS_GENERATED}" ] ; then
-    rm -rf ${OUTPUT_DIR}
+    rm -rf "${OUTPUT_DIR}"
   fi
 }
 
 trap cleanup INT TERM EXIT
 
-info "Downloading symbols tarball..."
-wget -P ${OUTPUT_DIR} $1
-info "Extracting breakpad symbols..."
-tar zxf ${OUTPUT_DIR}/${DEBUG_TGZ} -C ${OUTPUT_DIR} ${BREAKPAD_DIR}
-rm ${OUTPUT_DIR}/${DEBUG_TGZ}
-info "Downloading minidumps from test results..."
-wget -q -nv -r -np -A "*.dmp" -P ${OUTPUT_DIR} $2
+info "Downloading minidumps from $2..."
+wget -q -nv -r -np -A "*.dmp" -P "${OUTPUT_DIR}" $2
+if [[ -z "$(find "${OUTPUT_DIR}" -name "*.dmp")" ]] ; then
+  die "No minidumps found"
+fi
+
+if [[ -f "$1" ]] ; then
+  extract_tarball "$1"
+else
+  info "Downloading symbols tarball from $1..."
+  wget -P "${OUTPUT_DIR}" "$1"
+  TARBALL="${OUTPUT_DIR}/$(basename $1)"
+  extract_tarball "$TARBALL"
+  rm -f "$TARBALL"
+fi
+
 info "Generating stack traces..."
 STACKS_GENERATED=$(find_and_generate_stacktraces)
 echo $STACKS_GENERATED
-if [ -z "${STACKS_GENERATED}" ] ; then
-  warn "No minidumps found"
-fi
