@@ -10,6 +10,10 @@
 #
 # miniomaha lives in src/platform/dev/ and miniomaha partition sets live
 # in src/platform/dev/static.
+#
+# All internal environment variables used by this script are prefixed with
+# "MFP_".  Please avoid using them for other purposes.
+# "MFP_CONFIG_"* are shell variables that can be used in config file (--config)
 
 # --- BEGIN FACTORY SCRIPTS BOILERPLATE ---
 # This script may be executed in a full CrOS source tree or an extracted factory
@@ -60,7 +64,16 @@ DEFINE_integer sectors 31277232  "Size of image in sectors"
 DEFINE_boolean detect_release_image ${FLAGS_TRUE} \
   "If set, try to auto-detect the type of release image and convert if required"
 DEFINE_string config "" \
-  "Config file where parameters are read from"
+  'Configuration file where parameters are read from.  You can use '\
+'\$MFP_CONFIG_PATH and \$MFP_CONFIG_DIR (path and directory to the '\
+'config file itself) in config file to use relative path'
+
+# Usage Help
+FLAGS_HELP="Prepares factory resources (mini-omaha server, RMA/usb/disk images)
+
+USAGE: $0 [flags] args
+Note environment variables with prefix MFP_ are for reserved for internal use.
+"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -660,6 +673,8 @@ parse_and_run_config() {
   for cmd in "${cmds[@]}"
   do
     info "Executing: $0 $cmd"
+    # Sets internal environment variable MFP_SUBPROCESS to prevent unexpected
+    # recursion.
     eval "MFP_SUBPROCESS=1 $0 $cmd"
   done
 }
@@ -684,6 +699,8 @@ main() {
     check_empty_param FLAGS_subfolder "when using config file"
 
     # Make the path and folder of config file available when parsing config.
+    # These MFP_CONFIG_* are special shell variables (not environment variables)
+    # that a config file (by --config) can use them.
     MFP_CONFIG_PATH="$(readlink -f "$FLAGS_config")"
     MFP_CONFIG_DIR="$(dirname "$MFP_CONFIG_PATH")"
 
