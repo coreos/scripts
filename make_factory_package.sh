@@ -42,6 +42,7 @@ DEFINE_string factory "" \
   "Directory and file containing factory image: /path/chromiumos_test_image.bin"
 DEFINE_string firmware_updater "" \
   "Firmware updater (shellball) into the server configuration,"\
+" or leave empty (default) for the updater in release image (--release), "\
 " or '$FLAGS_NONE' to prevent running firmware updater."
 DEFINE_string hwid_updater "" \
   "The component list updater for HWID validation,"\
@@ -74,6 +75,9 @@ FLAGS_HELP="Prepares factory resources (mini-omaha server, RMA/usb/disk images)
 USAGE: $0 [flags] args
 Note environment variables with prefix MFP_ are for reserved for internal use.
 "
+
+# Internal variables
+ENABLE_FIRMWARE_UPDATER=$FLAGS_TRUE
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -136,6 +140,22 @@ check_empty_param() {
 check_parameters() {
   check_file_param FLAGS_release ""
   check_file_param FLAGS_factory ""
+
+  # Pre-parse parameter default values
+  case "${FLAGS_firmware_updater}" in
+    $FLAGS_NONE )
+      ENABLE_FIRMWARE_UPDATER=$FLAGS_FALSE
+      ;;
+    "" )
+      # Empty value means "enable updater from rootfs" for all modes except
+      # --diskimg mode.
+      if [ -n "${FLAGS_diskimg}" ]; then
+        ENABLE_FIRMWARE_UPDATER=$FLAGS_FALSE
+      else
+        FLAGS_firmware_updater=$FLAGS_NONE
+      fi
+      ;;
+  esac
 
   # All remaining parameters must be checked:
   # install_shim, firmware, hwid_updater, complete_script.
@@ -257,6 +277,32 @@ prepare_release_image() {
       die "Cannot update kernel with $vmlinuz_hd_file"
     image_umount_partition "$temp_mount"
   fi
+}
+
+# Prepares firmware updater from specified file source or release rootfs.
+prepare_firmware_updater() {
+  local image="$(readlink -f "$1")"
+  if [ -f "$FLAGS_firmware_updater" ]; then
+    return
+  fi
+
+  local fwupdater="$(mktemp --tmpdir)"
+  local temp_mount="$(mktemp -d --tmpdir)"
+  local updater_path="/usr/sbin/chromeos-firmwareupdate"
+  local src_file="$temp_mount$updater_path"
+  image_add_temp "$fwupdater"
+  image_add_temp "$temp_mount"
+
+  # 'ext2' is required to prevent accidentally modifying image
+  image_mount_partition "$image" "3" "$temp_mount" "ro" "-t ext2" ||
+    die "Cannot mount partition #3 (rootfs) in release image: $image"
+  [ -f "$src_file" ] ||
+    die "No firmware updater in release image: $image"
+  cp "$src_file" "$fwupdater" ||
+    die "Failed to copy firmware updater from release image $image."
+  image_umount_partition "$temp_mount"
+  info "Prepared firmware updater from release image: $image:3#$updater_path"
+  FLAGS_firmware_updater="$fwupdater"
 }
 
 prepare_img() {
@@ -711,8 +757,12 @@ main() {
 
   check_parameters
   setup_environment
-  if [ "$FLAGS_detect_release_image" = "$FLAGS_TRUE" ]; then
+
+  if [ "$FLAGS_detect_release_image" = $FLAGS_TRUE ]; then
     prepare_release_image "$FLAGS_release"
+  fi
+  if [ "$ENABLE_FIRMWARE_UPDATER" = $FLAGS_TRUE ]; then
+    prepare_firmware_updater "$FLAGS_release"
   fi
 
   if [ -n "$FLAGS_usbimg" ]; then

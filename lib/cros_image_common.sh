@@ -199,6 +199,7 @@ image_mount_partition() {
   local part_num="$2"
   local mount_point="$3"
   local mount_opt="$4"
+  local mount_ext="$5"
   local offset="$(image_part_offset "$file" "$part_num")" ||
     image_die "failed to find partition #$part_num from: $file"
   local size="$(image_part_size "$file" "$part_num")" ||
@@ -211,6 +212,7 @@ image_mount_partition() {
 
   sudo mount \
     -o "loop,offset=$((offset * 512)),sizelimit=$((size * 512)),$mount_opt" \
+    $mount_ext \
     "$file" \
     "$mount_point"
 }
