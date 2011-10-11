@@ -37,7 +37,7 @@ ${SCRIPTS_DIR}/run_chroot_version_hooks
 
 info "Updating chroot"
 
-EMERGE_FLAGS="-uDNv --with-bdeps=y"
+EMERGE_FLAGS="-uNv --with-bdeps=y"
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   EMERGE_FLAGS="${EMERGE_FLAGS} --getbinpkg"
 
@@ -55,6 +55,24 @@ if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
   EMERGE_CMD="${GCLIENT_ROOT}/chromite/bin/parallel_emerge"
 fi
 
+# In first pass, update portage and toolchains. Lagged updates of both
+# can cause serious issues later.
+CHOST="$(portageq envvar CHOST)"
+LATEST="$(gcc-config -l | grep "${CHOST}" | awk '{ print $2 }' | \
+          sort -V | tail -n 1 )"
+CURRENT="$(gcc-config -c)" || true # This fails if current profile is invalid.
+eretry sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
+    sys-devel/gcc sys-devel/binutils sys-libs/glibc sys-apps/portage
+# If the latest toolchain wasn't already selected before we updated, do nothing,
+# otherwise autoselect the latest. Also fix if the current profile is invalid.
+if [ "${LATEST}" = "${CURRENT}" ] || ! gcc-config -c &> /dev/null; then
+  LATEST="$(gcc-config -l | grep "${CHOST}" | awk '{ print $2 }' | \
+            sort -V | tail -n 1 )"
+  sudo gcc-config "${LATEST}"
+fi
+
+# Second pass, update everything else.
+EMERGE_FLAGS+=" --deep"
 eretry sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
     chromeos-base/hard-host-depends world
 
