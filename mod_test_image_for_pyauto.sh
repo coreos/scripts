@@ -139,8 +139,9 @@ if __name__ == '__main__':\n\
 chrome/test/functional/example.py"
 fi
 
-sudo chown -R chronos "${ROOT_FS_DIR}/usr/local/autotest"
-sudo chgrp -R chronos "${ROOT_FS_DIR}/usr/local/autotest"
+# In some chroot configurations chronos is not configured, so we use 1000
+sudo chown -R 1000 "${ROOT_FS_DIR}/usr/local/autotest"
+sudo chgrp -R 1000 "${ROOT_FS_DIR}/usr/local/autotest"
 
 # Setup permissions and symbolic links
 for item in chrome_test pyauto_dep; do
