@@ -31,7 +31,7 @@ get_default_board
 
 # Flags.
 DEFINE_string arch "x86" \
-  "The boot architecture: arm or x86. (Default: x86)"
+  "The boot architecture: arm, x86, or amd64. (Default: x86)"
 DEFINE_string to "/tmp/vmlinuz.image" \
   "The path to the kernel image to be created. (Default: /tmp/vmlinuz.image)"
 DEFINE_string hd_vblock "/tmp/vmlinuz_hd.vblock" \
@@ -148,7 +148,7 @@ EOF
 WORK="${WORK} ${FLAGS_working_dir}/boot.config"
 info "Emitted cross-platform boot params to ${FLAGS_working_dir}/boot.config"
 
-if [[ "${FLAGS_arch}" = "x86" ]]; then
+if [ "${FLAGS_arch}" = "x86" -o "${FLAGS_arch}" = "amd64" ]; then
   # Legacy BIOS will use the kernel in the rootfs (via syslinux), as will
   # standard EFI BIOS (via grub, from the EFI System Partition). Chrome OS
   # BIOS will use a separate signed kernel partition, which we'll create now.
