@@ -315,7 +315,6 @@ make_image_bootable() {
 verify_image_rootfs() {
   local image=$1
   local rootfs_offset="$(partoffset ${image} 3)"
-  local rootfs_size="$(partsize ${image} 3)"
 
   local rootfs_tmp_file=$(mktemp)
   trap "rm ${rootfs_tmp_file}" EXIT
