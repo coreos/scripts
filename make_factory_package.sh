@@ -650,12 +650,10 @@ parse_and_run_config() {
   local config_file="$1"
   local -a cmds
   local cmd=""
+  local line
 
   echo "Read parameters from: $config_file"
-  local config="$(<$config_file)"
-  local IFS=$'\n'
-  for line in $config
-  do
+  while read line; do
     if [[ "$line" =~ ^\[.*] ]]; then
       if [ -n "$cmd" ]; then
         cmds+=("$cmd")
@@ -665,7 +663,7 @@ parse_and_run_config() {
     fi
     line="${line%%#*}"
     cmd="$cmd $line"
-  done
+  done < "$config_file"
   if [ -n "$cmd" ]; then
     cmds+=("$cmd")
   fi
