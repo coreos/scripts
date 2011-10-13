@@ -202,8 +202,12 @@ ${BOARD} to update the version of libc installed on that board."
   # use those templates to update the legacy boot partition (12/ESP)
   # on update.
   # (This script does not populate vmlinuz.A and .B needed by syslinux.)
+  # Factory install shims may be booted from USB by legacy EFI BIOS, which does
+  # not support verified boot yet (see create_legacy_bootloader_templates.sh)
+  # so rootfs verification is disabled if we are building with --factory_install
   local enable_rootfs_verification=
-  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
+  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]] &&
+     [[ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]] ; then
     enable_rootfs_verification="--enable_rootfs_verification"
   fi
 
