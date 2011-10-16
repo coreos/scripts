@@ -83,6 +83,11 @@ EMERGE_FLAGS+=" --deep"
 eretry sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
     chromeos-base/hard-host-depends world
 
+# Automatically discard all CONFIG_PROTECT'ed files. Those that are
+# protected should not be overwritten until the variable is changed.
+# Autodiscard is option "-9" followed by the "YES" confirmation.
+printf '%s\nYES\n' -9 | sudo etc-update
+
 # If the user still has old perl modules installed, update them.
 PERL_VERSIONS=$(find /usr/lib*/perl5/vendor_perl/ -maxdepth 1 -mindepth 1 \
   -type d -printf '%P\n' | sort -u | wc -w)
