@@ -189,7 +189,7 @@ cleanup() {
 trap cleanup EXIT
 sudo mount "${ESP_DEV}" "${ESP_FS_DIR}"
 
-if [[ "${FLAGS_arch}" = "x86" ]]; then
+if [ "${FLAGS_arch}" = "x86" -o "${FLAGS_arch}" = "amd64" ]; then
   # Populate the EFI bootloader configuration
   sudo mkdir -p "${ESP_FS_DIR}/efi/boot"
   sudo cp "${FLAGS_from}"/efi/boot/bootx64.efi \
