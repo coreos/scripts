@@ -70,11 +70,10 @@ fi
 
 EMERGE_BOARD_CMD="emerge-$BOARD"
 
-# We have a board name but no image set.  Use image at default location
+# No image was provided.  Use the standard latest image
 if [ -z "$FLAGS_image" ]; then
-  IMAGES_DIR="$DEFAULT_BUILD_ROOT/images/$BOARD"
-  FILENAME="$CHROMEOS_IMAGE_NAME"
-  FLAGS_image="$IMAGES_DIR/$(ls -t $IMAGES_DIR 2>&-| head -1)/$FILENAME"
+  IMAGES_DIR="$($SCRIPT_ROOT/get_latest_image.sh --board=$BOARD)"
+  FLAGS_image="$IMAGES_DIR/$CHROMEOS_IMAGE_NAME"
 fi
 
 # Turn path into an absolute path.

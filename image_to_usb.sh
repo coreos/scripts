@@ -114,10 +114,7 @@ fi
 
 # We have a board name but no image set.  Use image at default location
 if [ -z "${FLAGS_from}" ]; then
-  IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
-
-  # Get latest image directory
-  FLAGS_from="${IMAGES_DIR}/$(ls -t ${IMAGES_DIR} 2>&-| head -1)"
+  FLAGS_from="$($SCRIPT_ROOT/get_latest_image.sh --board=${FLAGS_board})"
 fi
 
 if [ ! -d "${FLAGS_from}" ] ; then
