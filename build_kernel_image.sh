@@ -148,7 +148,7 @@ EOF
 WORK="${WORK} ${FLAGS_working_dir}/boot.config"
 info "Emitted cross-platform boot params to ${FLAGS_working_dir}/boot.config"
 
-if [ "${FLAGS_arch}" = "x86" -o "${FLAGS_arch}" = "amd64" ]; then
+if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
   # Legacy BIOS will use the kernel in the rootfs (via syslinux), as will
   # standard EFI BIOS (via grub, from the EFI System Partition). Chrome OS
   # BIOS will use a separate signed kernel partition, which we'll create now.
