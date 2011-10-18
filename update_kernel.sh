@@ -138,6 +138,7 @@ function main() {
   if [[ ${REMOTE_VERITY} -eq ${FLAGS_FALSE} ]]; then
     tar -C /build/"${FLAGS_board}"/lib/modules -cjf /tmp/new_modules.tar .
     tar -C /build/"${FLAGS_board}"/lib/firmware -cjf /tmp/new_firmware.tar .
+    tar -C /build/"${FLAGS_board}"/boot -cjf /tmp/new_boot.tar .
 
     remote_sh mount -o remount,rw /
     echo "copying modules"
@@ -149,9 +150,33 @@ function main() {
     remote_cp_to /tmp/new_firmware.tar /tmp/
 
     remote_sh tar -C /lib/firmware -xjf /tmp/new_firmware.tar
+
+    echo "copying kernel"
+    remote_cp_to /tmp/new_boot.tar /tmp/
+
+    remote_sh tar -C /boot -xjf /tmp/new_boot.tar
+
+    # ARM does not have the syslinux directory, so skip it when the
+    # partition or the syslinux vmlinuz target is missing.
+    echo "updating syslinux kernel"
+    remote_sh grep $(echo ${FLAGS_device}12 | cut -d/ -f3) /proc/partitions
+    if [ $(echo "$REMOTE_OUT" | wc -l) -eq 1 ]; then
+        remote_sh mkdir -p /tmp/12
+        remote_sh mount ${FLAGS_device}12 /tmp/12
+
+        if [ "$FLAGS_partition" = "${FLAGS_device}2" ]; then
+            target="/tmp/12/syslinux/vmlinuz.A"
+        else
+            target="/tmp/12/syslinux/vmlinuz.B"
+        fi
+        remote_sh "test ! -f $target || cp /boot/vmlinuz $target"
+
+        remote_sh umount /tmp/12
+        remote_sh rmdir /tmp/12
+    fi
   fi
 
-  echo "copying kernel"
+  echo "copying kernel image"
 
   copy_kernelimage
 
