@@ -112,13 +112,7 @@ if [ -f "$CHROMEOS_DEV_SETTINGS" ]; then
 fi
 
 # Load shflags
-if [[ -f /usr/lib/shflags ]]; then
-  . /usr/lib/shflags
-elif [ -f ./lib/shflags/shflags ]; then
-  . ./lib/shflags/shflags
-else
-  . "${SRC_ROOT}/scripts/lib/shflags/shflags"
-fi
+. "${SCRIPTS_DIR}"/lib/shflags/shflags || exit 1
 
 # Our local mirror
 DEFAULT_CHROMEOS_SERVER=${CHROMEOS_SERVER:-"http://build.chromium.org/mirror"}
