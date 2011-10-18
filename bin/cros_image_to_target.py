@@ -605,8 +605,10 @@ def main(argv):
                     action='store_true', help='Display progress')
   parser.add_option('--debug', dest='debug', default=False,
                     action='store_true', help='Display running commands')
-  parser.add_option('--test', dest='test', default=False,
+  parser.add_option('--test', dest='test', default=True,
                     action='store_true', help='Select test image')
+  parser.add_option('--no-test', dest='test',
+                    action='store_false', help='Select non-test image')
 
   (options, args) = parser.parse_args(argv)
 
