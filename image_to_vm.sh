@@ -7,26 +7,9 @@
 # Script to convert the output of build_image.sh to a VMware image and write a
 # corresponding VMware config file.
 
-# --- BEGIN COMMON.SH BOILERPLATE ---
-# Load common CrOS utilities.  Inside the chroot this file is installed in
-# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
-# location.
-find_common_sh() {
-  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
-  local path
-
-  SCRIPT_ROOT=
-  for path in "${common_paths[@]}"; do
-    if [ -r "${path}/common.sh" ]; then
-      SCRIPT_ROOT=${path}
-      break
-    fi
-  done
-}
-
-find_common_sh
+# Helper scripts should be run from the same location as this script.
+SCRIPT_ROOT=$(dirname "$(readlink -f "$0")")
 . "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
-# --- END COMMON.SH BOILERPLATE ---
 
 # Need to be inside the chroot to load chromeos-common.sh
 assert_inside_chroot
@@ -103,7 +86,7 @@ fi
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
 # Default to the most recent image
 if [ -z "${FLAGS_from}" ] ; then
-  FLAGS_from="$(./get_latest_image.sh --board=${FLAGS_board})"
+  FLAGS_from="$(${SCRIPT_ROOT}/get_latest_image.sh --board=${FLAGS_board})"
 else
   pushd "${FLAGS_from}" && FLAGS_from=`pwd` && popd
 fi

@@ -7,26 +7,9 @@
 # Helper script that mounts chromium os image from a device or directory
 # and creates mount points for /var and /usr/local (if in dev_mode).
 
-# --- BEGIN COMMON.SH BOILERPLATE ---
-# Load common CrOS utilities.  Inside the chroot this file is installed in
-# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
-# location.
-find_common_sh() {
-  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
-  local path
-
-  SCRIPT_ROOT=
-  for path in "${common_paths[@]}"; do
-    if [ -r "${path}/common.sh" ]; then
-      SCRIPT_ROOT=${path}
-      break
-    fi
-  done
-}
-
-find_common_sh
+# Helper scripts should be run from the same location as this script.
+SCRIPT_ROOT=$(dirname "$(readlink -f "$0")")
 . "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
-# --- END COMMON.SH BOILERPLATE ---
 
 if [ $INSIDE_CHROOT -ne 1 ]; then
   INSTALL_ROOT="$SRC_ROOT/platform/installer/"
@@ -194,7 +177,7 @@ function mount_image() {
 
 # Find the last image built on the board.
 if [ ${FLAGS_most_recent} -eq ${FLAGS_TRUE} ] ; then
-  FLAGS_from="$(./get_latest_image.sh --board="${FLAGS_board}")"
+  FLAGS_from="$(${SCRIPT_ROOT}/get_latest_image.sh --board="${FLAGS_board}")"
 fi
 
 # Turn paths into absolute paths.
