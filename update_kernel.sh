@@ -94,7 +94,7 @@ function make_kernelimage() {
     bootloader_path="/lib64/bootstub/bootstub.efi"
     kernel_image="/build/${FLAGS_board}/boot/vmlinuz"
   fi
-  vbutil_kernel --pack new_kern.bin \
+  vbutil_kernel --pack $TMP/new_kern.bin \
     --keyblock /usr/share/vboot/devkeys/kernel.keyblock \
     --signprivate /usr/share/vboot/devkeys/kernel_data_key.vbprivk \
     --version 1 \
@@ -109,7 +109,7 @@ function copy_kernelimage() {
     remote_cp_to /build/${FLAGS_board}/boot/vmlinux.uimg /boot
   fi
 
-  remote_cp_to new_kern.bin /tmp
+  remote_cp_to $TMP/new_kern.bin /tmp
 
   remote_sh dd if=/tmp/new_kern.bin of="${FLAGS_partition}"
 }
@@ -117,7 +117,7 @@ function copy_kernelimage() {
 function main() {
   trap cleanup EXIT
 
-  TMP=$(mktemp -d /tmp/image_to_live.XXXX)
+  TMP=$(mktemp -d /tmp/update_kernel.XXXXXX)
 
   remote_access_init
 
@@ -136,24 +136,21 @@ function main() {
   make_kernelimage
 
   if [[ ${REMOTE_VERITY} -eq ${FLAGS_FALSE} ]]; then
-    tar -C /build/"${FLAGS_board}"/lib/modules -cjf /tmp/new_modules.tar .
-    tar -C /build/"${FLAGS_board}"/lib/firmware -cjf /tmp/new_firmware.tar .
-    tar -C /build/"${FLAGS_board}"/boot -cjf /tmp/new_boot.tar .
+    tar -C /build/"${FLAGS_board}"/lib/modules -cjf $TMP/new_modules.tar .
+    tar -C /build/"${FLAGS_board}"/lib/firmware -cjf $TMP/new_firmware.tar .
+    tar -C /build/"${FLAGS_board}"/boot -cjf $TMP/new_boot.tar .
 
     remote_sh mount -o remount,rw /
     echo "copying modules"
-    remote_cp_to /tmp/new_modules.tar /tmp/
-
+    remote_cp_to $TMP/new_modules.tar /tmp/
     remote_sh tar -C /lib/modules -xjf /tmp/new_modules.tar
 
     echo "copying firmware"
-    remote_cp_to /tmp/new_firmware.tar /tmp/
-
+    remote_cp_to $TMP/new_firmware.tar /tmp/
     remote_sh tar -C /lib/firmware -xjf /tmp/new_firmware.tar
 
     echo "copying kernel"
-    remote_cp_to /tmp/new_boot.tar /tmp/
-
+    remote_cp_to $TMP/new_boot.tar /tmp/
     remote_sh tar -C /boot -xjf /tmp/new_boot.tar
 
     # ARM does not have the syslinux directory, so skip it when the
