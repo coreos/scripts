@@ -104,8 +104,12 @@ function ensure_mounted {
   *)
     # Attempt to make the mountpoint as the user.  This depends on the
     # fact that all mountpoints that should be owned by root are
-    # already present.
-    mkdir -p "${mounted_path}"
+    # already present.  However, when distributions add new paths (such as
+    # Ubuntu 11.10's /run), it might not yet exist in the chroot.  If that
+    # happens, just create it as root.
+    if ! mkdir -p "${mounted_path}" 2>/dev/null; then
+      sudo mkdir -p "${mounted_path}"
+    fi
 
     # NB:  mount_args deliberately left unquoted
     debug mount ${mount_args} "${source}" "${mounted_path}"
@@ -238,6 +242,12 @@ function setup_env {
     ensure_mounted none "-t sysfs" /sys
     ensure_mounted /dev "--bind" /dev
     ensure_mounted none "-t devpts" /dev/pts
+    if [ -d /run ]; then
+      ensure_mounted /run "--bind" /run
+      if [ -d /run/shm ]; then
+        ensure_mounted /run/shm "--bind" /run/shm
+      fi
+    fi
     ensure_mounted "${FLAGS_trunk}" "--bind" "${CHROOT_TRUNK_DIR}"
 
     if [ $FLAGS_ssh_agent -eq $FLAGS_TRUE ]; then
