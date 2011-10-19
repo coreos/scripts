@@ -131,6 +131,7 @@ create_recovery_kernel_image() {
                    -o $((root_offset * 512)) \
                    --sizelimit $((root_size * 512)) \
                    "$FLAGS_image")
+  echo "16651 root_dev: $root_dev"
   trap "sudo losetup -d $root_dev" EXIT
 
   cros_root="PARTUUID=%U/PARTNROFF=1"  # only used for non-verified images
@@ -185,6 +186,8 @@ create_recovery_kernel_image() {
     --nouse_dev_keys \
     ${verity_args} 1>&2 || failboat "build_kernel_image"
   sudo rm "$FLAGS_rootfs_hash"
+  sudo mount | sed 's/^/16651 /'
+  sudo losetup -a | sed 's/^/16651 /'
   sudo losetup -d "$root_dev"
   trap - RETURN
 
@@ -199,7 +202,9 @@ create_recovery_kernel_image() {
                   "$FLAGS_image")
   local efi_dir=$(mktemp -d)
   trap "sudo losetup -d $efi_dev && rmdir \"$efi_dir\"" EXIT
+  echo "16651 mount: $efi_dev -> $efi_dir"
   sudo mount "$efi_dev" "$efi_dir"
+  sudo mount | sed 's/^/16651 /'
   sudo sed  -i -e "s/cros_legacy/cros_legacy kern_b_hash=$kern_hash/g" \
     "$efi_dir/syslinux/usb.A.cfg" || true
   # This will leave the hash in the kernel for all boots, but that should be
@@ -207,6 +212,7 @@ create_recovery_kernel_image() {
   sudo sed  -i -e "s/cros_efi/cros_efi kern_b_hash=$kern_hash/g" \
     "$efi_dir/efi/boot/grub.cfg" || true
   sudo umount "$efi_dir"
+  sudo losetup -a | sed 's/^/16651 /'
   sudo losetup -d "$efi_dev"
   rmdir "$efi_dir"
   trap - EXIT
