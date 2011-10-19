@@ -50,7 +50,7 @@ IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
 if [ -L ${IMAGES_DIR}/latest ] ; then
   DEFAULT_FROM="${IMAGES_DIR}/`readlink ${IMAGES_DIR}/latest`"
 else
-  DEFAULT_FROM="${IMAGES_DIR}/`ls -t $IMAGES_DIR | head -1`"
+  DEFAULT_FROM=$(ls -dt "$IMAGES_DIR"/*/ | head -1)
 fi
 
 echo $DEFAULT_FROM
