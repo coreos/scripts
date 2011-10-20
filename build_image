@@ -132,16 +132,20 @@ to True."
   fi
 fi
 
-# Reduce the size of factory install shim.
+# Tweak flags for factory install.
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   # TODO: Build a separated ebuild for the install shim to reduce size.
   INSTALL_MASK="${INSTALL_MASK} ${FACTORY_INSTALL_MASK}"
 
+  # Reduce the size of factory install shim.
   info "Fixing the rootfs size at 300 MiB for install shim"
   FLAGS_rootfs_size=280
   FLAGS_rootfs_partition_size=300
   info "Fixing the statefulfs size at 140 MiB for install shim"
   FLAGS_statefulfs_size=140
+
+  # Add the cros_factory_install boot arg.
+  FLAGS_boot_args="${FLAGS_boot_args} cros_factory_install"
 fi
 
 if [ $((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) -gt \
