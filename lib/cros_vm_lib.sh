@@ -48,19 +48,22 @@ function kvm_version_greater_equal() {
 # $1: Path to the virtual image to start.
 function start_kvm() {
   # Override default pid file.
+  local start_vm=0
   [ -n "${FLAGS_kvm_pid}" ] && KVM_PID_FILE=${FLAGS_kvm_pid}
-  if [ -e "${KVM_PID_FILE}" ]; then
+  if [ -f "${KVM_PID_FILE}" ]; then
     local pid=$(get_pid)
     # Check if the process exists.
     if ps -p ${pid} > /dev/null ; then
       echo "Using a pre-created KVM instance specified by ${FLAGS_kvm_pid}." >&2
+      start_vm=1
     else
       # Let's be safe in case they specified a file that isn't a pid file.
       echo "File ${KVM_PID_FILE} exists but specified pid doesn't." >&2
-      exit 1
     fi
-  else
-    # No pid specified by PID file.  Let's create a VM instance in this case.
+  fi
+
+  # No kvm specified by pid file found, start a new one.
+  if [ ${start_vm} -eq 0 ]; then
     echo "Starting a KVM instance" >&2
     local nographics=""
     local usesnapshot=""
