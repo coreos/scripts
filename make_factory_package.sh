@@ -469,16 +469,19 @@ generate_img() {
   image_add_temp "$tmpesp"
   image_mount_partition "${outdev}" 12 "$tmpesp" "rw"
 
-  # Edit boot device default for legacy.
-  # Support both vboot and regular boot.
-  sudo sed -i "s/chromeos-usb.A/chromeos-hd.A/" \
+  # Edit boot device default for legacy boot loaders, if available.
+  if [ -d "${tmpesp}/syslinux" ]; then
+    # Support both vboot and regular boot.
+    sudo sed -i "s/chromeos-usb.A/chromeos-hd.A/" \
       "${tmpesp}"/syslinux/default.cfg
-  sudo sed -i "s/chromeos-vusb.A/chromeos-vhd.A/" \
+    sudo sed -i "s/chromeos-vusb.A/chromeos-vhd.A/" \
       "${tmpesp}"/syslinux/default.cfg
-
-  # Edit root fs default for legacy
-  # Somewhat safe as ARM does not support syslinux, I believe.
-  sudo sed -i "s'HDROOTA'/dev/sda3'g" "${tmpesp}"/syslinux/root.A.cfg
+    # Edit root fs default for legacy.
+    # Since legacy loader currently exists only on x86 platforms, we can assume
+    # the rootfs is always sda3.
+    sudo sed -i "s'HDROOTA'/dev/sda3'g" \
+      "${tmpesp}"/syslinux/root.A.cfg
+  fi
 
   image_umount_partition "$tmpesp"
   echo "Generated Image at $outdev."
