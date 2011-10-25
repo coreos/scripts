@@ -148,9 +148,9 @@ fi
 sudo chown -R 1000 "${ROOT_FS_DIR}/usr/local/autotest"
 sudo chgrp -R 1000 "${ROOT_FS_DIR}/usr/local/autotest"
 
-# Based on how the autotest package it extracted the user running in the chroot
-# may not have access to navigate into this folder because own the owner
-# (chronos) has access.  This fixes that so that other can as well.
+# Based on how the autotest package is extracted, the user running in the chroot
+# may not have access to navigate into this folder because only the owner
+# (chronos) has access.  This fixes that so anyone can access.
 sudo chmod 747 -R "${ROOT_FS_DIR}/usr/local/autotest"
 
 # Setup permissions and symbolic links
