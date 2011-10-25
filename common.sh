@@ -148,11 +148,16 @@ DEFAULT_BOARD=$(echo $ALL_BOARDS | awk '{print $NF}')
 # Enable --fast by default.
 DEFAULT_FAST=${FLAGS_TRUE}
 
+# Directory to store built images.  Should be set by sourcing script when used.
+BUILD_DIR=
 
 # Standard filenames
+CHROMEOS_BASE_IMAGE_NAME="chromiumos_base_image.bin"
 CHROMEOS_IMAGE_NAME="chromiumos_image.bin"
+CHROMEOS_DEVELOPER_IMAGE_NAME="chromiumos_image.bin"
 CHROMEOS_TEST_IMAGE_NAME="chromiumos_test_image.bin"
 CHROMEOS_FACTORY_TEST_IMAGE_NAME="chromiumos_factory_image.bin"
+CHROMEOS_FACTORY_INSTALL_SHIM_NAME="factory_install_shim.bin"
 
 # Directory locations inside the dev chroot
 CHROOT_TRUNK_DIR="/home/$USER/trunk"

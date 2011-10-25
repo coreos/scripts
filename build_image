@@ -96,41 +96,7 @@ OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos"
 . "${BUILD_LIBRARY_DIR}/test_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
 
-# Look at flags to determine which image types we should build
-if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
-  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
-    info "Incompatible flags: --factory and --factory_install cannot both be \
-set to True. Resetting --factory to False."
-    FLAGS_factory=${FLAGS_FALSE}
-  fi
-  if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
-    info "Incompatible flags: --test and --factory_install cannot both be \
-set to True. Resetting --test to False."
-    FLAGS_test=${FLAGS_FALSE}
-  fi
-  # Disable --withdev flag when --factory_install is set to True. Otherwise, the
-  # dev image produced will be based on install shim, rather than a pristine
-  # image
-  if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
-    info "Incompatible flags: --withdev and --factory_install cannot both be \
-set to True. Resetting --withdev to False."
-    FLAGS_withdev=${FLAGS_FALSE}
-  fi
-fi
-if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
-  if [ ${FLAGS_test} -eq ${FLAGS_FALSE} ]; then
-    info "Incompatible flags: --factory implies --test. Resetting --test to \
-True."
-    FLAGS_test=${FLAGS_TRUE}
-  fi
-fi
-if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
-  if [ ${FLAGS_withdev} -eq ${FLAGS_FALSE} ]; then
-    info "Incompatible flags: --test implies --withdev. Resetting --withdev \
-to True."
-    FLAGS_withdev=${FLAGS_TRUE}
-  fi
-fi
+parse_build_image_args
 
 # Tweak flags for factory install.
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
@@ -156,25 +122,17 @@ fi
 
 # If we are creating a developer image, also create a pristine image with a
 # different name.
-# TODO(vlaviano): fix all image names to match those in uploaded archive
-DEVELOPER_IMAGE_NAME=
 PRISTINE_IMAGE_NAME=chromiumos_image.bin
 if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
-  PRISTINE_IMAGE_NAME=chromiumos_base_image.bin
-  DEVELOPER_IMAGE_NAME=chromiumos_image.bin
-# Rename pristine image for factory install shim
+  PRISTINE_IMAGE_NAME=${CHROMEOS_BASE_IMAGE_NAME}
+# Rename pristine image for factory install shim.
 elif [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
-  PRISTINE_IMAGE_NAME=factory_install_shim.bin
+  PRISTINE_IMAGE_NAME=${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}
 fi
 
-PRISTINE_IMG="${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}"
-DEVELOPER_IMG="${OUTPUT_DIR}/${DEVELOPER_IMAGE_NAME}"
-TEST_IMG="${OUTPUT_DIR}/${CHROMEOS_TEST_IMAGE_NAME}"
-FACTORY_IMG="${OUTPUT_DIR}/${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
-
-ROOT_FS_DIR="${OUTPUT_DIR}/rootfs"
-STATEFUL_FS_DIR="${OUTPUT_DIR}/stateful_partition"
-ESP_FS_DIR=${OUTPUT_DIR}/esp
+ROOT_FS_DIR="${BUILD_DIR}/rootfs"
+STATEFUL_FS_DIR="${BUILD_DIR}/stateful_partition"
+ESP_FS_DIR=${BUILD_DIR}/esp
 
 DEVKEYSDIR="/usr/share/vboot/devkeys"
 
@@ -196,19 +154,18 @@ PACKAGES_FILE="${BOARD_ROOT}/packages/Packages"
 sudo sed -e "s/CHOST: x86_64-pc-linux-gnu//" -i "${PACKAGES_FILE}"
 
 # Handle existing directory.
-if [[ -e "${OUTPUT_DIR}" ]]; then
+if [[ -e "${BUILD_DIR}" ]]; then
   if [[ ${FLAGS_replace} -eq ${FLAGS_TRUE} ]]; then
-    sudo rm -rf "${OUTPUT_DIR}"
+    sudo rm -rf "${BUILD_DIR}"
   else
-    echo "Directory ${OUTPUT_DIR} already exists."
-    echo "Use --build_attempt option to specify an unused attempt."
-    echo "Or use --replace if you want to overwrite this directory."
-    exit 1
+    error "Directory ${BUILD_DIR} already exists."
+    error "Use --build_attempt option to specify an unused attempt."
+    die "Or use --replace if you want to overwrite this directory."
   fi
 fi
 
 # Create the output directory and temporary mount points.
-mkdir -p "${OUTPUT_DIR}"
+mkdir -p "${BUILD_DIR}"
 mkdir -p "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 
 # Create the boot.desc file which stores the build-time configuration
@@ -216,7 +173,7 @@ mkdir -p "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 # cros_make_image_bootable.
 create_boot_desc
 
-create_base_image "$PRISTINE_IMAGE_NAME"
+create_base_image ${PRISTINE_IMAGE_NAME}
 
 
 BOOT_FLAG=
@@ -226,23 +183,26 @@ if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
 load_kernel_test"
 fi
 
-# Verify the final image.
-load_kernel_test "${OUTPUT_DIR}/${PRISTINE_IMAGE_NAME}" \
-  "${DEVKEYSDIR}/recovery_key.vbpubk" ${BOOT_FLAG}
+# Verify pristine image if we built it.
+if should_build_image "${PRISTINE_IMAGE_NAME}"; then
+  load_kernel_test "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}" \
+    "${DEVKEYSDIR}/recovery_key.vbpubk" ${BOOT_FLAG}
+fi
 
 # Create a developer image based on the chromium os base image.
 if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
-  copy_image "$PRISTINE_IMG" "$DEVELOPER_IMG"
-  install_dev_packages "$DEVELOPER_IMAGE_NAME"
+  copy_image ${CHROMEOS_BASE_IMAGE_NAME} ${CHROMEOS_DEVELOPER_IMAGE_NAME}
+  install_dev_packages  ${CHROMEOS_DEVELOPER_IMAGE_NAME}
 fi
 
-# Create a test or factory test image if desired
+# Create a test or factory test image if desired.
 if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
-  copy_image "$DEVELOPER_IMG" "$FACTORY_IMG"
-  mod_image_for_test "${FACTORY_IMG}"
+  copy_image  ${CHROMEOS_DEVELOPER_IMAGE_NAME} \
+    ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}
+  mod_image_for_test  ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}
 elif [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
-  copy_image "$DEVELOPER_IMG" "$TEST_IMG"
-  mod_image_for_test "${TEST_IMG}"
+  copy_image  ${CHROMEOS_DEVELOPER_IMAGE_NAME} ${CHROMEOS_TEST_IMAGE_NAME}
+  mod_image_for_test  ${CHROMEOS_TEST_IMAGE_NAME}
 fi
 
 rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
@@ -252,12 +212,12 @@ generate_au_zip || echo "Failed generating AU zip file - ignoring Error..."
 
 # Create a named symlink.
 LINK_NAME="${FLAGS_output_root}/${BOARD}/${FLAGS_symlink}"
-ln -sfT $(basename ${OUTPUT_DIR}) ${LINK_NAME}
+ln -sfT $(basename ${BUILD_DIR}) ${LINK_NAME}
 
-echo "Done.  Image created in ${OUTPUT_DIR}"
+echo "Done.  Image created in ${BUILD_DIR}"
 echo "Chromium OS image created as ${PRISTINE_IMAGE_NAME}"
 if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
-  echo "Developer image created as ${DEVELOPER_IMAGE_NAME}"
+  echo "Developer image created as ${CHROMEOS_DEVELOPER_IMAGE_NAME}"
 fi
 if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
   echo "Factory test image created as ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"

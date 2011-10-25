@@ -13,9 +13,120 @@
 # Append build attempt to output directory.
 IMAGE_SUBDIR="R${CHROME_BRANCH}-${CHROMEOS_VERSION_STRING}-a\
 ${FLAGS_build_attempt}"
-OUTPUT_DIR="${FLAGS_output_root}/${BOARD}/${IMAGE_SUBDIR}"
+BUILD_DIR="${FLAGS_output_root}/${BOARD}/${IMAGE_SUBDIR}"
 OUTSIDE_OUTPUT_DIR="../build/images/${BOARD}/${IMAGE_SUBDIR}"
+IMAGES_TO_BUILD=
 
+
+# Populates list of IMAGES_TO_BUILD from args passed in.
+# Arguments should be the shortnames of images we want to build.
+get_images_to_build() {
+  local image_to_build
+  for image_to_build in $*; do
+    # Shflags leaves "'"s around ARGV.
+    case ${image_to_build} in
+      \'base\' )
+        IMAGES_TO_BUILD="${IMAGES_TO_BUILD} ${CHROMEOS_BASE_IMAGE_NAME}"
+        ;;
+      \'dev\' )
+        IMAGES_TO_BUILD="${IMAGES_TO_BUILD} ${CHROMEOS_DEVELOPER_IMAGE_NAME}"
+        ;;
+      \'test\' )
+        IMAGES_TO_BUILD="${IMAGES_TO_BUILD} ${CHROMEOS_TEST_IMAGE_NAME}"
+        ;;
+      \'factory_test\' )
+        IMAGES_TO_BUILD="${IMAGES_TO_BUILD} ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
+        ;;
+      \'factory_install\' )
+        IMAGES_TO_BUILD="${IMAGES_TO_BUILD} \
+          ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}"
+        ;;
+      * )
+        die "${image_to_build} is not an image specification."
+        ;;
+    esac
+  done
+
+  info "The following images will be built ${IMAGES_TO_BUILD}."
+}
+
+# Look at flags to determine which image types we should build.
+parse_build_image_args() {
+  # If argv is specified, we use the new parsing method to determine exactly
+  # which images we need to build and the flags to set.
+  if [ -n "${FLAGS_ARGV}" ]; then
+    info "Ignoring image flags since image(s) in $FLAGS_ARGV specified."
+    get_images_to_build ${FLAGS_ARGV}
+    if should_build_image ${CHROMEOS_BASE_IMAGE_NAME}; then
+      FLAGS_factory_install=${FLAGS_FALSE}
+    fi
+    if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME}; then
+      FLAGS_withdev=${FLAGS_TRUE}
+      FLAGS_factory_install=${FLAGS_FALSE}
+    fi
+    if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
+      FLAGS_withdev=${FLAGS_TRUE}
+      FLAGS_test=${FLAGS_TRUE}
+      FLAGS_factory_install=${FLAGS_FALSE}
+      if should_build_image "${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"; then
+        die "Cannot build both the test and factory_test images."
+      fi
+    fi
+    if should_build_image ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}; then
+      FLAGS_withdev=${FLAGS_TRUE}
+      FLAGS_test=${FLAGS_FALSE}
+      FLAGS_factory=${FLAGS_TRUE}
+      FLAGS_factory_install=${FLAGS_FALSE}
+    fi
+    if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
+      for image in ${CHROMEOS_BASE_IMAGE_NAME} ${CHROMEOS_DEVELOPER_IMAGE_NAME}\
+          ${CHROMEOS_TEST_IMAGE_NAME} ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}; do
+        should_build_image ${image} && die \
+          "Can't build both $image and ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}."
+      done
+      FLAGS_withdev=${FLAGS_FALSE}
+      FLAGS_test=${FLAGS_FALSE}
+      FLAGS_factory=${FLAGS_FALSE}
+      FLAGS_factory_install=${FLAGS_TRUE}
+    fi
+  else
+    # Legacy method for tweaking flags to do the right thing.
+    if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
+      if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+        info "Incompatible flags: --factory and --factory_install cannot both \
+          be set to True. Resetting --factory to False."
+        FLAGS_factory=${FLAGS_FALSE}
+      fi
+      if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
+        info "Incompatible flags: --test and --factory_install cannot both be \
+    set to True. Resetting --test to False."
+        FLAGS_test=${FLAGS_FALSE}
+      fi
+      # Disable --withdev flag when --factory_install is set to True. Otherwise,
+      # the dev image produced will be based on install shim, rather than a
+      # pristine image.
+      if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
+        info "Incompatible flags: --withdev and --factory_install cannot both \
+          be set to True. Resetting --withdev to False."
+        FLAGS_withdev=${FLAGS_FALSE}
+      fi
+    fi
+    if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+      if [ ${FLAGS_test} -eq ${FLAGS_FALSE} ]; then
+        info "Incompatible flags: --factory implies --test. Resetting --test \
+          to True."
+        FLAGS_test=${FLAGS_TRUE}
+      fi
+    fi
+    if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
+      if [ ${FLAGS_withdev} -eq ${FLAGS_FALSE} ]; then
+        info "Incompatible flags: --test implies --withdev. Resetting \
+          --withdev to True."
+        FLAGS_withdev=${FLAGS_TRUE}
+      fi
+    fi
+  fi
+}
 
 check_blacklist() {
   info "Verifying that the base image does not contain a blacklisted package."
@@ -51,7 +162,7 @@ create_boot_desc() {
   fi
 
   [ -z "${FLAGS_verity_salt}" ] && FLAGS_verity_salt=$(make_salt)
-  cat <<EOF > ${OUTPUT_DIR}/boot.desc
+  cat <<EOF > ${BUILD_DIR}/boot.desc
   --arch="${ARCH}"
   --boot_args="${FLAGS_boot_args}"
   --rootfs_size="${FLAGS_rootfs_size}"
@@ -81,17 +192,17 @@ delete_prompt() {
     echo "Running in non-interactive mode so deleting output directory."
   fi
   if [ "${SURE}" == "y" ] ; then
-    sudo rm -rf "${OUTPUT_DIR}"
-    echo "Deleted ${OUTPUT_DIR}"
+    sudo rm -rf "${BUILD_DIR}"
+    echo "Deleted ${BUILD_DIR}"
   else
-    echo "Not deleting ${OUTPUT_DIR}."
+    echo "Not deleting ${BUILD_DIR}."
   fi
 }
 
 generate_au_zip () {
   local lgenerateauzip="${BUILD_LIBRARY_DIR}/generate_au_zip.py"
-  local largs="-o ${OUTPUT_DIR}"
-  test ! -d "${OUTPUT_DIR}" && mkdir -p "${OUTPUT_DIR}"
+  local largs="-o ${BUILD_DIR}"
+  test ! -d "${BUILD_DIR}" && mkdir -p "${BUILD_DIR}"
   info "Running ${lgenerateauzip} ${largs} for generating AU updater zip file"
   $lgenerateauzip $largs
 }

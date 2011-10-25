@@ -31,9 +31,9 @@ fi
 ROOT_LOOP_DEV=
 STATEFUL_LOOP_DEV=
 
-ROOT_FS_IMG="${OUTPUT_DIR}/rootfs.image"
-STATEFUL_FS_IMG="${OUTPUT_DIR}/stateful_partition.image"
-ESP_FS_IMG=${OUTPUT_DIR}/esp.image
+ROOT_FS_IMG="${BUILD_DIR}/rootfs.image"
+STATEFUL_FS_IMG="${BUILD_DIR}/stateful_partition.image"
+ESP_FS_IMG=${BUILD_DIR}/esp.image
 
 cleanup_rootfs_loop() {
   sudo umount -d "${ROOT_FS_DIR}"
@@ -72,6 +72,7 @@ zero_free_space() {
     || true ) 2>&1 | grep -v "No space left on device"
 }
 
+# Takes as an arg the name of the image to be created.
 create_base_image() {
   local image_name=$1
 
@@ -250,7 +251,7 @@ ${BOARD} to update the version of libc installed on that board."
   sudo umount -d "${ROOT_FS_DIR}"
 
   # Create the GPT-formatted image.
-  build_gpt "${OUTPUT_DIR}/${image_name}" \
+  build_gpt "${BUILD_DIR}/${image_name}" \
             "${ROOT_FS_IMG}" \
             "${STATEFUL_FS_IMG}" \
             "${ESP_FS_IMG}"
@@ -259,7 +260,7 @@ ${BOARD} to update the version of libc installed on that board."
   rm -f "${ROOT_FS_IMG}" "${STATEFUL_FS_IMG}" "${ESP_FS_IMG}"
 
   # Emit helpful scripts for testers, etc.
-  emit_gpt_scripts "${OUTPUT_DIR}/${image_name}" "${OUTPUT_DIR}"
+  emit_gpt_scripts "${BUILD_DIR}/${image_name}" "${BUILD_DIR}"
 
   trap - EXIT
 
@@ -268,8 +269,10 @@ ${BOARD} to update the version of libc installed on that board."
     USE_DEV_KEYS="--use_dev_keys"
   fi
 
-  # Place flags before positional args
-  ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
-                                              "${PRISTINE_IMAGE_NAME}" \
-                                              ${USE_DEV_KEYS}
+  # Place flags before positional args.
+  if should_build_image ${image_name}; then
+    ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
+                                                ${image_name} \
+                                                ${USE_DEV_KEYS}
+  fi
 }

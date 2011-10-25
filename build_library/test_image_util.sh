@@ -31,15 +31,18 @@ export INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
 
 
 # Utility function for creating a copy of an image prior to
-# modification:
-#  $1: source image path
-#  $2: destination image path
+# modification from the BUILD_DIR:
+#  $1: source filename
+#  $2: destination filename
 copy_image() {
-  local src_base=$(basename "$1")
-  local dst_base=$(basename "$2")
-  echo "Creating $dst_base from $src_base..."
-  $COMMON_PV_CAT "$1" >"$2" ||
-    die "Cannot copy $src_base to $dst_base"
+  local src="${BUILD_DIR}/$1"
+  local dst="${BUILD_DIR}/$2"
+  if should_build_image $1; then
+    echo "Creating $2 from $1..."
+    $COMMON_PV_CAT "$src" >"$dst" || die "Cannot copy $1 to $2"
+  else
+    mv "${src}" "${dst}" || die "Cannot move $1 to $2"
+  fi
 }
 
 # Basic command to emerge binary packages into the target image.
@@ -48,6 +51,22 @@ copy_image() {
 emerge_to_image() {
   sudo -E ${EMERGE_BOARD_CMD} --root-deps=rdeps --usepkgonly -v \
     "$@" ${EMERGE_JOBS}
+}
+
+
+# Returns 0 if this image was requested to be built, 1 otherwise.
+# $1 The name of the image to build.
+should_build_image() {
+  # Fast pass back if we should build all incremental images.
+  local image_name=$1
+  local image_to_build
+  [ -z "${IMAGES_TO_BUILD}" ] && return 0
+
+  for image_to_build in ${IMAGES_TO_BUILD}; do
+    [ ${image_to_build} = ${image_name} ] && return 0
+  done
+
+  return 1
 }
 
 # ----
@@ -110,15 +129,13 @@ install_autotest_for_factory() {
   sudo chown -R 1000:1000 "${autotest_client}"
 }
 
-# convert a dev image into a test or factory test image
+# Converts a dev image into a test or factory test image
+# Takes as an arg the name of the image to be created.
 mod_image_for_test () {
-  local test_pathname="$1"
-
-  local image_dir=$(dirname ${test_pathname})
-  local image_name=$(basename ${test_pathname})
+  local image_name="$1"
 
   trap unmount_image EXIT
-  mount_image "${image_dir}/${image_name}" \
+  mount_image "${BUILD_DIR}/${image_name}" \
     "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}"
 
   emerge_chromeos_test
@@ -137,7 +154,7 @@ mod_image_for_test () {
   if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
     emerge_to_image --root="${ROOT_FS_DIR}" factorytest-init
 
-    prepare_hwid_for_factory "${image_dir}"
+    prepare_hwid_for_factory "${BUILD_DIR}"
     install_autotest_for_factory
 
     local mod_factory_script
@@ -153,8 +170,10 @@ mod_image_for_test () {
   unmount_image
   trap - EXIT
 
-  # Now make it bootable with the flags from build_image
-  "${SCRIPTS_DIR}/bin/cros_make_image_bootable" "${image_dir}" \
-                                                "${image_name}" \
-                                                --force_developer_mode
+  # Now make it bootable with the flags from build_image.
+  if should_build_image ${image_name}; then
+    "${SCRIPTS_DIR}/bin/cros_make_image_bootable" "${BUILD_DIR}" \
+                                                  ${image_name} \
+                                                 --force_developer_mode
+  fi
 }

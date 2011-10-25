@@ -61,19 +61,21 @@ fi
 # Turn path into an absolute path.
 FLAGS_image=$(eval readlink -f "$FLAGS_image")
 
-IMAGE_DIR=$(dirname "$FLAGS_image")
-ROOT_FS_DIR="${IMAGE_DIR}/rootfs"
-STATEFUL_FS_DIR="${IMAGE_DIR}/stateful_partition"
+# Setting for build scripts.
+BUILD_DIR="$(dirname "$FLAGS_image")"
+
+ROOT_FS_DIR="${BUILD_DIR}/rootfs"
+STATEFUL_FS_DIR="${BUILD_DIR}/stateful_partition"
 
 # Copy the image to a test location if required
 if [ $FLAGS_inplace -eq $FLAGS_FALSE ]; then
   if [ $FLAGS_factory -eq $FLAGS_TRUE ]; then
-    TEST_PATHNAME="$IMAGE_DIR/$CHROMEOS_FACTORY_TEST_IMAGE_NAME"
+    TEST_PATHNAME="$BUILD_DIR/$CHROMEOS_FACTORY_TEST_IMAGE_NAME"
   else
-    TEST_PATHNAME="$IMAGE_DIR/$CHROMEOS_TEST_IMAGE_NAME"
+    TEST_PATHNAME="$BUILD_DIR/$CHROMEOS_TEST_IMAGE_NAME"
   fi
   if [ ! -f "$TEST_PATHNAME" -o $FLAGS_force_copy -eq $FLAGS_TRUE ]; then
-    copy_image "$FLAGS_image" "$TEST_PATHNAME"
+    copy_image $(basename "$FLAGS_image") $(basename "$TEST_PATHNAME")
     FLAGS_image="$TEST_PATHNAME"
   else
     echo "Using cached $(basename "$FLAGS_image")"
@@ -102,6 +104,6 @@ else
   echo "Modifying image $FLAGS_image for test..."
 fi
 
-mod_image_for_test "$FLAGS_image"
+mod_image_for_test $(basename "$FLAGS_image")
 
 print_time_elapsed

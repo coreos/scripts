@@ -7,7 +7,8 @@
 # library is 'install_dev_packages'.
 
 
-# Modifies an existing image to add development packages
+# Modifies an existing image to add development packages.
+# Takes as an arg the name of the image to be created.
 install_dev_packages() {
   local image_name=$1
 
@@ -15,7 +16,7 @@ install_dev_packages() {
 
   trap "unmount_image ; delete_prompt" EXIT
 
-  mount_image "${OUTPUT_DIR}/${image_name}" "${ROOT_FS_DIR}" \
+  mount_image "${BUILD_DIR}/${image_name}" "${ROOT_FS_DIR}" \
     "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 
   # Determine the root dir for developer packages.
@@ -92,7 +93,9 @@ install_dev_packages() {
   unmount_image
   trap - EXIT
 
-  ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${OUTPUT_DIR}" \
-                                              "${DEVELOPER_IMAGE_NAME}" \
-                                              --force_developer_mode
+  if should_build_image ${image_name}; then
+    ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
+                                                ${image_name} \
+                                                --force_developer_mode
+  fi
 }
