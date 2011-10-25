@@ -4,7 +4,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Script to modify a keyfob-based chromeos test image to have pyauto installed.
+# Script to modify a keyfob-based chromeos test image to install pyauto.
 
 # --- BEGIN COMMON.SH BOILERPLATE ---
 # Load common CrOS utilities.  Inside the chroot this file is installed in
@@ -89,8 +89,13 @@ ROOT_FS_AUTOTEST_DIR="${ROOT_FS_DIR}/usr/local/autotest"
 # Copy all of the needed pyauto deps onto the image
 sudo mkdir "${ROOT_FS_AUTOTEST_DIR}"
 sudo mkdir "${ROOT_FS_DIR}/usr/local/autotest/deps/"
+
+if [ ! -d "${FLAGS_build_root}/client/cros" ]; then
+  die "The required path: ${FLAGS_build_root}/client/cros does not exist."
+fi
 sudo cp -r "${FLAGS_build_root}/client/cros" \
   "${ROOT_FS_DIR}/usr/local/autotest/"
+
 sudo cp -r $CHROME_DEP "${ROOT_FS_DIR}/usr/local/autotest/deps"
 sudo cp -r $PYAUTO_DEP "${ROOT_FS_DIR}/usr/local/autotest/deps"
 
@@ -142,6 +147,11 @@ fi
 # In some chroot configurations chronos is not configured, so we use 1000
 sudo chown -R 1000 "${ROOT_FS_DIR}/usr/local/autotest"
 sudo chgrp -R 1000 "${ROOT_FS_DIR}/usr/local/autotest"
+
+# Based on how the autotest package it extracted the user running in the chroot
+# may not have access to navigate into this folder because own the owner
+# (chronos) has access.  This fixes that so that other can as well.
+sudo chmod 747 -R "${ROOT_FS_DIR}/usr/local/autotest"
 
 # Setup permissions and symbolic links
 for item in chrome_test pyauto_dep; do
