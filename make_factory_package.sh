@@ -68,6 +68,8 @@ DEFINE_string config "" \
   'Configuration file where parameters are read from.  You can use '\
 '\$MFP_CONFIG_PATH and \$MFP_CONFIG_DIR (path and directory to the '\
 'config file itself) in config file to use relative path'
+DEFINE_boolean run_omaha ${FLAGS_FALSE} \
+  "Run mini-omaha server after factory package setup completed."
 
 # Usage Help
 FLAGS_HELP="Prepares factory resources (mini-omaha server, RMA/usb/disk images)
@@ -137,6 +139,16 @@ check_empty_param() {
   [ -z "$param_value" ] || die "Parameter --$param_name is not supported $msg"
 }
 
+check_false_param() {
+  local param="$1"
+  local msg="$2"
+  local param_name="${param#FLAGS_}"
+  local param_value="$(eval echo \$$1)"
+
+  [ "$param_value" = $FLAGS_FALSE ] ||
+    die "Parameter --$param_name is not supported $msg"
+}
+
 check_parameters() {
   check_file_param FLAGS_release ""
   check_file_param FLAGS_factory ""
@@ -167,11 +179,13 @@ check_parameters() {
     check_file_param_or_none FLAGS_hwid_updater "in --usbimg mode"
     check_empty_param FLAGS_complete_script "in --usbimg mode"
     check_file_param FLAGS_install_shim "in --usbimg mode"
+    check_false_param FLAGS_run_omaha "in --usbimg mode"
   elif [ -n "${FLAGS_diskimg}" ]; then
     check_empty_param FLAGS_firmware_updater "in --diskimg mode"
     check_file_param_or_none FLAGS_hwid_updater "in --diskimg mode"
     check_empty_param FLAGS_complete_script "in --diskimg mode"
     check_empty_param FLAGS_install_shim "in --diskimg mode"
+    check_false_param FLAGS_run_omaha "in --diskimg mode"
     if [ -b "${FLAGS_diskimg}" -a ! -w "${FLAGS_diskimg}" ] &&
        [ -z "$MFP_SUDO" -a "$(id -u)" != "0" ]; then
       # Restart the command with original parameters with sudo for writing to
@@ -187,11 +201,20 @@ check_parameters() {
   fi
 }
 
+find_omaha() {
+  OMAHA_DIR="${SRC_ROOT}/platform/dev"
+  OMAHA_PROGRAM="${OMAHA_DIR}/devserver.py"
+  OMAHA_CONF="${OMAHA_DIR}/miniomaha.conf"
+
+  [ -f "${OMAHA_PROGRAM}" ] ||
+    die "Cannot find mini-omaha server program: $OMAHA_PROGRAM"
+}
+
 setup_environment() {
   # Convert args to paths.  Need eval to un-quote the string so that shell
   # chars like ~ are processed; just doing FOO=`readlink -f ${FOO}` won't work.
-  OMAHA_DIR="${SRC_ROOT}/platform/dev"
-  OMAHA_CONF="${OMAHA_DIR}/miniomaha.conf"
+
+  find_omaha
   OMAHA_DATA_DIR="${OMAHA_DIR}/static/"
 
   # Note: The subfolder flag can only append configs.  That means you will need
@@ -672,12 +695,50 @@ generate_omaha() {
 ]
 " >>"${OMAHA_CONF}"
 
-  info "The miniomaha server lives in src/platform/dev.
-To validate the configutarion, run:
-  python2.6 devserver.py --factory_config miniomaha.conf \
-  --validate_factory_config
-To run the server:
-  python2.6 devserver.py --factory_config miniomaha.conf"
+  local program="$(basename "${OMAHA_PROGRAM}")"
+  local config="$(basename "${OMAHA_CONF}")"
+
+  info "The miniomaha server lives in: $OMAHA_DIR
+  To validate the configutarion, run:
+    python2.6 $program --factory_config $config --validate_factory_config
+  To run the server:
+    python2.6 $program --factory_config $config"
+}
+
+check_cherrypy3() {
+  local version="$("$1" -c 'import cherrypy as c;print c.__version__' || true)"
+  local version_major="${version%%.*}"
+
+  if [ -n "$version_major" ] && [ "$version_major" -ge 3 ]; then
+    return $FLAGS_TRUE
+  fi
+  # Check how to install cherrypy3
+  local install_command=""
+  if image_has_command apt-get; then
+    install_command="by 'sudo apt-get install python-cherrypy3'"
+  elif image_has_command emerge; then
+    install_command="by 'sudo emerge dev-python/cherrypy'"
+  fi
+  die "Please install cherrypy 3.0 or later $install_command"
+}
+
+run_omaha() {
+  local python="python2.6"
+  image_has_command "$python" || python="python"
+  image_has_command "$python" || die "Please install Python in your system."
+  check_cherrypy3 "$python"
+
+  find_omaha
+
+  info "Running mini-omaha in $OMAHA_DIR..."
+  (set -e
+   cd "$OMAHA_DIR"
+   info "Validating factory config..."
+   "$python" "${OMAHA_PROGRAM}" --factory_config "${OMAHA_CONF}" \
+             --validate_factory_config
+   info "Starting mini-omaha..."
+   "$python" "${OMAHA_PROGRAM}" --factory_config "${OMAHA_CONF}"
+  )
 }
 
 parse_and_run_config() {
@@ -726,24 +787,28 @@ parse_and_run_config() {
   done
 }
 
+# Checks if normal parameters are all empty.
+check_empty_normal_params() {
+  local param
+  local mode="$1"
+  local param_list="release factory firmware_updater hwid_updater install_shim
+                    complete_script usb_img disk_img subfolder"
+  for param in $param_list; do
+    check_empty_param FLAGS_$param "$mode"
+  done
+}
+
 main() {
   set -e
   trap on_exit EXIT
+  [ "$#" = 0 ] || flags_help
 
   if [ -n "$FLAGS_config" ]; then
     [ -z "$MFP_SUBPROCESS" ] ||
       die "Recursively reading from config file is not allowed"
 
     check_file_param FLAGS_config ""
-    check_empty_param FLAGS_release "when using config file"
-    check_empty_param FLAGS_factory "when using config file"
-    check_empty_param FLAGS_firmware_updater "when using config file"
-    check_empty_param FLAGS_hwid_updater "when using config file"
-    check_empty_param FLAGS_install_shim "when using config file"
-    check_empty_param FLAGS_complete_script "when using config file"
-    check_empty_param FLAGS_usbimg "when using config file"
-    check_empty_param FLAGS_diskimg "when using config file"
-    check_empty_param FLAGS_subfolder "when using config file"
+    check_empty_normal_params "when using config file"
 
     # Make the path and folder of config file available when parsing config.
     # These MFP_CONFIG_* are special shell variables (not environment variables)
@@ -752,6 +817,7 @@ main() {
     MFP_CONFIG_DIR="$(dirname "$MFP_CONFIG_PATH")"
 
     parse_and_run_config "$FLAGS_config"
+    [ "$FLAGS_run_omaha" = $FLAGS_FALSE ] || run_omaha
     exit
   fi
 
@@ -771,6 +837,7 @@ main() {
     generate_img
   else
     generate_omaha
+    [ "$FLAGS_run_omaha" = $FLAGS_FALSE ] || run_omaha
   fi
 }
 
