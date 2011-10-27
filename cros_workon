@@ -261,6 +261,11 @@ chrome_to_live () {
   # Run chrome_set_ver to set DEPS
   info "Setting Chrome dependencies to the correct revision."
   ${CHROME_SET_VER}
+  if [ -n "${CHROME_ORIGIN}" ] && [ "${CHROME_ORIGIN}" != GERRIT_SOURCE ]; then
+    warn "CHROME_ORIGIN is already set to ${CHROME_ORIGIN}"
+    warn "To use the new GERRIT_SOURCE workflow, please unset it."
+    warn "Run 'unset CHROME_ORIGIN' to reset to the default source location."
+  fi
 }
 
 # Move a stable ebuild to the live development catgeory.  The ebuild
