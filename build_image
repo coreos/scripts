@@ -73,6 +73,26 @@ DEFINE_string symlink "latest" \
 DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
   "A dummy this flag for preventing buildbot fail"
 
+FLAGS_HELP="USAGE: build_image [flags] [list of images to build].
+This script is used to build a Chromium OS image. Chromium OS comes in many
+different forms.  This scripts can be used to build the following:
+
+base - Pristine Chromium OS image. As similar to Chrome OS as possible.
+dev - Developer image. Like base but with additional developer packages.
+test - Like dev, but with additional test specific packages and can be easily
+  used for automated testing using scripts like run_remote_tests, etc.
+factory_test - Like test but with extra packages and modifications used to
+  test images in a factory setting.  Cannot be built along with a test image.
+factory_install - Install shim for bootstrapping the factory test process.
+  Cannot be built along with any other image.
+
+Examples
+
+build_image --board=<board> dev test - builds developer and test images.
+build_image --board=<board> factory_install - builds a factory install shim.
+...
+"
+
 # Parse command line.
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
