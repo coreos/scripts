@@ -321,19 +321,19 @@ function check_flags_only_and_allow_null_arg {
 }
 
 function info {
-  echo -e >&2  "${V_BOLD_GREEN}INFO    ${CROS_LOG_PREFIX:-""}: $1${V_VIDOFF}"
+  echo -e >&2  "${V_BOLD_GREEN}INFO    ${CROS_LOG_PREFIX:-""}: $@${V_VIDOFF}"
 }
 
 function warn {
-  echo -e >&2 "${V_BOLD_YELLOW}WARNING ${CROS_LOG_PREFIX:-""}: $1${V_VIDOFF}"
+  echo -e >&2 "${V_BOLD_YELLOW}WARNING ${CROS_LOG_PREFIX:-""}: $@${V_VIDOFF}"
 }
 
 function error {
-  echo -e >&2    "${V_BOLD_RED}ERROR   ${CROS_LOG_PREFIX:-""}: $1${V_VIDOFF}"
+  echo -e >&2    "${V_BOLD_RED}ERROR   ${CROS_LOG_PREFIX:-""}: $@${V_VIDOFF}"
 }
 
 function die {
-  error "$1"
+  error "$@"
   exit 1
 }
 

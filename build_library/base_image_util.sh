@@ -159,8 +159,8 @@ create_base_image() {
   LIBC_PATH="${PKGDIR}/cross-${CHOST}/${LIBC_TAR}"
 
   if ! [[ -e ${LIBC_PATH} ]]; then
-    die "${LIBC_PATH} does not exist. Try running ./setup_board --board=\
-${BOARD} to update the version of libc installed on that board."
+    die "${LIBC_PATH} does not exist. Try running ./setup_board" \
+      "--board=${BOARD} to update the version of libc installed on that board."
   fi
 
   sudo tar jxpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}" ./usr/${CHOST} \

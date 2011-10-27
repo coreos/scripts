@@ -116,8 +116,8 @@ fi
 
 if [ $((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) -gt \
      ${FLAGS_rootfs_partition_size} ] ; then
-  die "rootfs ($((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) MiB) is \
-bigger than partition (${FLAGS_rootfs_partition_size} MiB)."
+  die "rootfs ($((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) MiB) is" \
+    "bigger than partition (${FLAGS_rootfs_partition_size} MiB)."
 fi
 
 # If we are creating a developer image, also create a pristine image with a
@@ -179,8 +179,8 @@ create_base_image ${PRISTINE_IMAGE_NAME}
 BOOT_FLAG=
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   BOOT_FLAG="-b 1"  # BOOT_FLAG_DEVELOPER value defined in load_kernel_fw.h
-  info "--factory_install set, pass BOOT_FLAG_DEVELOPER flag to \
-load_kernel_test"
+  info "--factory_install set, pass BOOT_FLAG_DEVELOPER flag to" \
+    "load_kernel_test"
 fi
 
 # Verify pristine image if we built it.

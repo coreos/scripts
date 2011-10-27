@@ -81,8 +81,8 @@ parse_build_image_args() {
     if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
       for image in ${CHROMEOS_BASE_IMAGE_NAME} ${CHROMEOS_DEVELOPER_IMAGE_NAME}\
           ${CHROMEOS_TEST_IMAGE_NAME} ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}; do
-        should_build_image ${image} && die \
-          "Can't build both $image and ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}."
+        should_build_image ${image} && die "Can't build both $image" \
+          "and ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}."
       done
       FLAGS_withdev=${FLAGS_FALSE}
       FLAGS_test=${FLAGS_FALSE}
@@ -93,35 +93,35 @@ parse_build_image_args() {
     # Legacy method for tweaking flags to do the right thing.
     if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
       if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
-        info "Incompatible flags: --factory and --factory_install cannot both \
-          be set to True. Resetting --factory to False."
+        info "Incompatible flags: --factory and --factory_install cannot both" \
+          "be set to True. Resetting --factory to False."
         FLAGS_factory=${FLAGS_FALSE}
       fi
       if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
-        info "Incompatible flags: --test and --factory_install cannot both be \
-    set to True. Resetting --test to False."
+        info "Incompatible flags: --test and --factory_install cannot both be" \
+          "set to True. Resetting --test to False."
         FLAGS_test=${FLAGS_FALSE}
       fi
       # Disable --withdev flag when --factory_install is set to True. Otherwise,
       # the dev image produced will be based on install shim, rather than a
       # pristine image.
       if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
-        info "Incompatible flags: --withdev and --factory_install cannot both \
-          be set to True. Resetting --withdev to False."
+        info "Incompatible flags: --withdev and --factory_install cannot both" \
+          "be set to True. Resetting --withdev to False."
         FLAGS_withdev=${FLAGS_FALSE}
       fi
     fi
     if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
       if [ ${FLAGS_test} -eq ${FLAGS_FALSE} ]; then
-        info "Incompatible flags: --factory implies --test. Resetting --test \
-          to True."
+        info "Incompatible flags: --factory implies --test. Resetting --test" \
+          "to True."
         FLAGS_test=${FLAGS_TRUE}
       fi
     fi
     if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
       if [ ${FLAGS_withdev} -eq ${FLAGS_FALSE} ]; then
-        info "Incompatible flags: --test implies --withdev. Resetting \
-          --withdev to True."
+        info "Incompatible flags: --test implies --withdev. Resetting" \
+          "--withdev to True."
         FLAGS_withdev=${FLAGS_TRUE}
       fi
     fi
