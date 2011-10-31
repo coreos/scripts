@@ -254,7 +254,8 @@ function setup_env {
       if [ -n "${SSH_AUTH_SOCK}" -a -d "${HOME}/.ssh" ]; then
         TARGET_DIR="${FLAGS_chroot}/home/${USER}/.ssh"
         mkdir -p "${TARGET_DIR}"
-        cp "${HOME}"/.ssh/{known_hosts,*.pub} "${TARGET_DIR}/"
+        # Ignore errors as some people won't have these files to copy.
+        cp "${HOME}"/.ssh/{known_hosts,*.pub} "${TARGET_DIR}/" 2>/dev/null || :
         copy_ssh_config "${TARGET_DIR}"
         ASOCK=${SSH_AUTH_SOCK%/*}
         ensure_mounted "${ASOCK}" "--bind" "${ASOCK}"
