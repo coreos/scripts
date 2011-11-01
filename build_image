@@ -118,7 +118,9 @@ OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos"
 
 parse_build_image_args
 
-# Tweak flags for factory install.
+# Tweak flags, configure extra USE flags, and add packages for the factory
+# install shim.
+EXTRA_PACKAGES=""
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   # TODO: Build a separated ebuild for the install shim to reduce size.
   INSTALL_MASK="${INSTALL_MASK} ${FACTORY_INSTALL_MASK}"
@@ -132,6 +134,21 @@ if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
 
   # Add the cros_factory_install boot arg.
   FLAGS_boot_args="${FLAGS_boot_args} cros_factory_install"
+
+  # Factory install needs to have the factory installer added.
+  EXTRA_PACKAGES="${EXTRA_PACKAGES} chromeos-base/chromeos-factoryinstall"
+  # On x86, we boot the factory install shim from an SD card using
+  # initramfs for our root.  On ARM, we boot the factory install shim
+  # over the network, so we don't require initramfs, but we do require
+  # fbconsole to fix a display driver bug.
+  if [ "${ARCH}" = "x86" ] ; then
+    export USE="${USE} initramfs"
+  fi
+  # CONFIG_BLK_DEV_RAM is disabled by default.
+  # But tftp install needs it to mount rootfs in ram
+  if [ "${ARCH}" = "arm" ] ; then
+    export USE="${USE} fbconsole blkdevram"
+  fi
 fi
 
 if [ $((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) -gt \

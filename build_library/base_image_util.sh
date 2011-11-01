@@ -8,26 +8,6 @@
 # not used outside this file.
 
 
-# Configure extra USE flags and packages for factory install shim
-# images.
-EXTRA_PACKAGES=""
-if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
-  # Factory install needs to have the factory installer added.
-  EXTRA_PACKAGES="${EXTRA_PACKAGES} chromeos-base/chromeos-factoryinstall"
-  # On x86, we boot the factory install shim from an SD card using
-  # initramfs for our root.  On ARM, we boot the factory install shim
-  # over the network, so we don't require initramfs, but we do require
-  # fbconsole to fix a display driver bug.
-  if [ "${ARCH}" = "x86" ] ; then
-    export USE="${USE} initramfs"
-  fi
-  # CONFIG_BLK_DEV_RAM is disabled by default.
-  # But tftp install needs it to mount rootfs in ram
-  if [ "${ARCH}" = "arm" ] ; then
-    export USE="${USE} fbconsole blkdevram"
-  fi
-fi
-
 ROOT_LOOP_DEV=
 STATEFUL_LOOP_DEV=
 
