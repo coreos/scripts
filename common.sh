@@ -112,7 +112,13 @@ if [ -f "$CHROMEOS_DEV_SETTINGS" ]; then
 fi
 
 # Load shflags
-. "${SCRIPTS_DIR}"/lib/shflags/shflags || exit 1
+# NOTE: This code snippet is in particular used by the au-generator (which
+# stores shflags in ./lib/shflags/) and should not be touched.
+if [ -f "${SCRIPTS_DIR}/lib/shflags/shflags" ]; then
+  . "${SCRIPTS_DIR}/lib/shflags/shflags"
+else
+  . ./lib/shflags/shflags || die "Couldn't find shflags"
+fi
 
 # Our local mirror
 DEFAULT_CHROMEOS_SERVER=${CHROMEOS_SERVER:-"http://build.chromium.org/mirror"}
