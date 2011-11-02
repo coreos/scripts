@@ -1,0 +1,19 @@
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Make sure the board's /etc/portage/env is no longer a symlink.
+# This basically reverts the old 14_board_portage_env.
+for board_root in /build/*; do
+  envd="${board_root}/etc/portage/env"
+  if [ -L "${envd}" ]; then
+    sudo rm -f "${envd}"
+  fi
+done
+
+# Then undo the host bashrc.
+if [ -L /etc/portage/bashrc ]; then
+  sudo rm -f /etc/portage/bashrc
+fi
+
+exit 0
