@@ -109,9 +109,9 @@ create_base_image() {
     echo "No free loop device.  Free up a loop device or reboot.  exiting. "
     exit 1
   fi
-  sudo mkfs.ext3 "${STATEFUL_LOOP_DEV}"
+  sudo mkfs.ext4 "${STATEFUL_LOOP_DEV}"
   sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${STATEFUL_LOOP_DEV}"
-  sudo mount -t ext3 "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"
+  sudo mount -t ext4 "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"
 
   # -- Install packages into the root file system --
 
