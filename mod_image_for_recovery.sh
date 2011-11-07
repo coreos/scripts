@@ -177,7 +177,7 @@ create_recovery_kernel_image() {
     --hd_vblock="$RECOVERY_KERNEL_VBLOCK" \
     --vmlinuz="$vmlinuz" \
     --working_dir="${IMAGE_DIR}" \
-    --boot_args="panic=60 cros_recovery kern_b_hash=$kern_hash" \
+    --boot_args="noinitrd panic=60 cros_recovery kern_b_hash=$kern_hash" \
     --keep_work \
     --rootfs_image=${root_dev} \
     --rootfs_hash=${FLAGS_rootfs_hash} \
