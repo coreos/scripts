@@ -44,7 +44,9 @@ get_default_board
 DEFINE_string board "${DEFAULT_BOARD}" "Board for which the image was built"
 DEFINE_string from "" \
   "Directory containing ${CHROMEOS_IMAGE_NAME}, or filename"
-DEFINE_string to "/dev/sdX" "${DEFAULT_TO_HELP}"
+DEFINE_string to "/dev/sdX" "Write to a specific disk or image file."
+DEFINE_string to_product "" \
+  "Write to a disk with product name matching a pattern."
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts" "y"
 DEFINE_boolean force_copy ${FLAGS_FALSE} "Always rebuild test image"
 DEFINE_boolean force_non_usb ${FLAGS_FALSE} \
@@ -122,8 +124,35 @@ if [ ! -d "${FLAGS_from}" ] ; then
   exit 1
 fi
 
+if [ -n "${FLAGS_to_product}" ]; then
+  if [ "${FLAGS_to}" != "/dev/sdX" ]; then
+    echo "Cannot specify both --to and --to_product"
+    exit 1
+  fi
+
+  match=""
+  for disk in $(list_usb_disks) $(list_mmc_disks); do
+    if [[ "$(get_disk_info $disk product)" = ${FLAGS_to_product} ]]; then
+      if [ -n "${match}" ]; then
+        echo "Found multiple devices matching product" \
+             "'${FLAGS_to_product}'; aborting."
+        exit 1
+      fi
+      match="$disk"
+    fi
+  done
+
+  if [ -z "${match}" ]; then
+    echo "Failed to find a devices matching product '${FLAGS_to_product}'"
+    # Leave FLAGS_to set to its default and fall through to the error report.
+  else
+    FLAGS_to="/dev/${match}"
+  fi
+fi
+
 if [ "${FLAGS_to}" == "/dev/sdX" ]; then
-  echo "You must specify a file or device to write to using --to."
+  echo "You must specify a file or device to write to using one of" \
+       "--to or --to_product."
   disks="$(list_usb_disks) $(list_mmc_disks)"
   if [ -n "$disks" ]; then
     echo "Available USB & MMC disks:"
