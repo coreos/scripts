@@ -32,10 +32,21 @@ find_common_sh
 # Script must be run inside the chroot.
 assert_inside_chroot
 
+get_default_board
+
 DEFINE_string output_root "$DEFAULT_BUILD_ROOT/images" \
   "Directory in which to place image result directories (named by version)"
 DEFINE_string board "$DEFAULT_BOARD" \
   "The board to build an image for."
+
+# Parse command line.
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+if [[ -z "${FLAGS_board}" ]]; then
+  error "--board is required."
+  exit 1
+fi
 
 OUTPUT_DIR="${FLAGS_output_root}/${FLAGS_board}"
 
