@@ -48,8 +48,9 @@ zero_free_space() {
   info "Zeroing freespace in ${fs_mount_point}"
   # dd is a silly thing and will produce a "No space left on device" message
   # that cannot be turned off and is confusing to unsuspecting victims.
-  ( sudo dd if=/dev/zero of="${fs_mount_point}/filler" bs=4096 \
+  ( sudo dd if=/dev/zero of="${fs_mount_point}/filler" bs=4096 conv=fdatasync \
     || true ) 2>&1 | grep -v "No space left on device"
+  sudo rm "${fs_mount_point}/filler"
 }
 
 # Takes as an arg the name of the image to be created.
@@ -218,24 +219,14 @@ create_base_image() {
   # Zero rootfs free space to make it more compressible so auto-update
   # payloads become smaller
   zero_free_space "${ROOT_FS_DIR}"
-
   loopback_cleanup
   trap delete_prompt EXIT
-
-  # Now that the filler file has been sync'd to disk and has filled
-  # up all free space with zeros, re-mount the rootfs to delete the
-  # filler file.
-  ROOT_LOOP_DEV=$(sudo losetup --show -f "${ROOT_FS_IMG}")
-  sudo mount -t ext2 "${ROOT_LOOP_DEV}" "${ROOT_FS_DIR}"
-  sudo rm -f "${ROOT_FS_DIR}/filler"
-  sudo umount -d "${ROOT_FS_DIR}"
 
   # Create the GPT-formatted image.
   build_gpt "${BUILD_DIR}/${image_name}" \
             "${ROOT_FS_IMG}" \
             "${STATEFUL_FS_IMG}" \
             "${ESP_FS_IMG}"
-
   # Clean up temporary files.
   rm -f "${ROOT_FS_IMG}" "${STATEFUL_FS_IMG}" "${ESP_FS_IMG}"
 
