@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -101,16 +101,22 @@ function dump_file() {
   # Dump symbols as root in order to read all files.
   if ! sudo "${DUMP_SYMS}" "${text_file}" "${debug_directory}" > "${SYM_FILE}" \
        2> "${ERR_FILE}"; then
-    # A lot of files (like kernel files) contain no debug information, do
-    # not consider such occurrences as errors.
-    if grep -q "file contains no debugging information" "${ERR_FILE}"; then
-      warn "No symbols found for ${text_file}"
+    # Try dumping just the main file to get public-only symbols.
+    if ! sudo "${DUMP_SYMS}" "${text_file}" > "${SYM_FILE}" 2> "${ERR_FILE}";
+    then
+      # A lot of files (like kernel files) contain no debug information, do
+      # not consider such occurrences as errors.
+      if grep -q "file contains no debugging information" "${ERR_FILE}"; then
+        warn "No symbols found for ${text_file}"
+        return 1
+      fi
+      error "Unable to dump symbols for ${text_file}:"
+      cat "${ERR_FILE}"
+      ANY_ERRORS=1
       return 1
+    else
+      warn "File ${text_file} did not have debug info, using linkage symbols"
     fi
-    error "Unable to dump symbols for ${text_file}:"
-    cat "${ERR_FILE}"
-    ANY_ERRORS=1
-    return 1
   fi
   local file_id=$(head -1 ${SYM_FILE} | cut -d' ' -f4)
   local module_name=$(head -1 ${SYM_FILE} | cut -d' ' -f5)
