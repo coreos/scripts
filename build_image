@@ -126,9 +126,9 @@ if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   INSTALL_MASK="${INSTALL_MASK} ${FACTORY_INSTALL_MASK}"
 
   # Reduce the size of factory install shim.
-  info "Fixing the rootfs size at 300 MiB for install shim"
-  FLAGS_rootfs_size=280
-  FLAGS_rootfs_partition_size=300
+  info "Fixing the rootfs size at 320 MiB for install shim"
+  FLAGS_rootfs_size=300
+  FLAGS_rootfs_partition_size=320
   info "Fixing the statefulfs size at 140 MiB for install shim"
   FLAGS_statefulfs_size=140
 
