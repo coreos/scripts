@@ -143,6 +143,7 @@ dm_verity.max_bios=${FLAGS_verity_max_ios}
 dm_verity.dev_wait=${dev_wait}
 ${verity_args}
 ${FLAGS_boot_args}
+vt.global_cursor_default=0
 EOF
 
 WORK="${WORK} ${FLAGS_working_dir}/boot.config"
