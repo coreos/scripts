@@ -41,8 +41,6 @@ DEFINE_string minidump_symbol_root "" \
   "Symbol root (defaults to /usr/lib/debug/breakpad for board)"
 DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
 
-DUMP_SYMS="dump_syms"
-
 CUMULATIVE_SIZE=0
 ANY_ERRORS=0
 
@@ -95,9 +93,6 @@ function dump_file() {
   local debug_file="$1"
   local text_file="$2"
   local debug_directory="$(dirname "${debug_file}")"
-  # 64b ELF files may be installed on the target in PERL directories
-  verify_not_64b_elf "${debug_file}" || return 1
-  verify_not_64b_elf "${text_file}" || return 1
   # Dump symbols as root in order to read all files.
   if ! sudo "${DUMP_SYMS}" "${text_file}" "${debug_directory}" > "${SYM_FILE}" \
        2> "${ERR_FILE}"; then
@@ -186,6 +181,17 @@ function main() {
   set -e
 
   [ -n "$FLAGS_board" ] ||  die "--board is required."
+
+  case "$FLAGS_board" in
+    amd64-*)
+      echo "Detected amd64 board.."
+      DUMP_SYMS="/build/${FLAGS_board}/usr/bin/dump_syms"
+      ;;
+    *)
+      DUMP_SYMS="dump_syms"
+  esac
+
+  echo "Using dump_sys: $DUMP_SYMS"
 
   SYSROOT="/build/${FLAGS_board}"
 
