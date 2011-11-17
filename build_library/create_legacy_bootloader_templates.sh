@@ -146,8 +146,17 @@ EOF
 
   # To cover all of our bases, now populate templated boot support for efi.
   sudo mkdir -p "${FLAGS_to}"/efi/boot
-  sudo grub-mkimage -p /efi/boot -o "${FLAGS_to}/efi/boot/bootx64.efi" \
-    part_gpt fat ext2 normal boot sh chain configfile linux
+
+  if [[ -f /bin/grub2-mkimage ]];then
+    # Use the newer grub2 1.99+
+    sudo grub2-mkimage -p /efi/boot -O x86_64-efi \
+     -o "${FLAGS_to}/efi/boot/bootx64.efi" \
+     part_gpt fat ext2 hfs hfsplus normal boot chain configfile linux
+  else
+    # Remove this else case after a few weeks (sometime in Dec 2011)
+    sudo grub-mkimage -p /efi/boot -o "${FLAGS_to}/efi/boot/bootx64.efi" \
+     part_gpt fat ext2 normal boot sh chain configfile linux
+  fi
   # Templated variables:
   #  DMTABLEA, DMTABLEB -> '0 xxxx verity ... '
   # This should be replaced during postinst when updating the ESP.
