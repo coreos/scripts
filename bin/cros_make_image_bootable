@@ -175,8 +175,10 @@ make_image_bootable() {
   # The rootfs should never be mounted rw again after this point without
   # re-calling make_image_bootable.
   sudo mount -o remount,ro "${FLAGS_rootfs_mountpoint}"
-  root_dev=$(mount | grep -- "on ${FLAGS_rootfs_mountpoint} type" |
-             cut -f1 -d' ' | tail -1)
+  # Newer `mount` will decode the filename backing the loop device,
+  # so we need to dig deeper and find the answer ourselves.
+  root_dev=$(awk -v mnt="${FLAGS_rootfs_mountpoint}" \
+             '$2 == mnt { print $1 }' /proc/mounts)
 
   # Make the filesystem un-mountable as read-write.
   # mount_gpt_image.sh will undo this as needed.
