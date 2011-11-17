@@ -90,6 +90,7 @@ function start_kvm() {
     fi
 
     sudo kvm -m 1024 \
+      -smp 4 \
       -vga std \
       -pidfile "${KVM_PID_FILE}" \
       -daemonize \
