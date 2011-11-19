@@ -4,5 +4,4 @@
 
 CLEAN_DELAY=0 sudo emerge --unmerge =sys-boot/grub-1.97-r2
 
-info "Chroot upgraded to version 17: Removed old grub install"
 exit 0

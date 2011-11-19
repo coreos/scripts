@@ -2,31 +2,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Older chroots used to tweak /etc/sudoers directly, but we split that
-# off into files in /etc/sudoers.d/.  One of those is handled by the
-# make_chroot helper, so make sure we upgrade old chroots which missed
-# the migration to /etc/sudoers.d/90_cros.
-frag="/etc/sudoers.d/90_cros"
-if [ ! -e ${frag} ]; then
-  tmp=$(mktemp 2>/dev/null || echo /tmp/17_upgrade_hook.$$)
-  cat <<EOF > "${tmp}" || exit 1
-Defaults env_keep += CROS_WORKON_SRCROOT
-Defaults env_keep += CHROMEOS_OFFICIAL
-Defaults env_keep += PORTAGE_USERNAME
-Defaults env_keep += http_proxy
-Defaults env_keep += ftp_proxy
-Defaults env_keep += all_proxy
-%adm ALL=(ALL) ALL
-root ALL=(ALL) ALL
-$USER ALL=NOPASSWD: ALL
-EOF
-  cmds=(
-    "mkdir -p -m 0750 '${frag%/*}'"
-    "chmod 0440 '${tmp}'"
-    "chown root:root '${tmp}'"
-    "mv '${tmp}' '${frag}'"
-  )
-  sudo_multi "${cmds[@]}"
-fi
+# This upgrade is a dummy since there was a mid air collision; moved to 19_*
 
 exit 0
