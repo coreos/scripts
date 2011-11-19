@@ -110,17 +110,29 @@ if [ "${LATEST_VERSION}" -gt "${CHROOT_VERSION}" ]; then
 
   pushd "${UPGRADE_D}" 1> /dev/null
   for n in $(seq "$(expr ${CHROOT_VERSION} + 1)" "${LATEST_VERSION}"); do
+    hook=(${n}_*)
+
+    # Sanity check: if there are multiple ${n}_* files, then CL's landed
+    # at the same time and people didn't notice.  Let's notice for them.
+    if [ ${#hook[@]} -gt 1 ]; then
+      error "Fatal: Upgrade ${n} has multiple hooks:"
+      error "   ${hook[*]}"
+      error "Connor MacLeod knows: There can be only one."
+      exit 1
+    fi
+    hook=${hook[0]}
+
     # Deprecation check; Deprecation can be done by removing old upgrade
     # scripts and causing too old chroots to have to start over.
     # Upgrades have to form a continuous sequence.
-    if ! [ -f ${n}_* ]; then
+    if ! [ -f ${hook} ]; then
       error "Fatal: Upgrade ${n} doesn't exist."
       error "Your chroot is so old, that some updates have been deprecated!"
       error "You need to re-create it!"
       exit 1
     fi
 
-    info "Rollup $(echo ${n}_*)"
+    info "Rollup ${hook}"
 
     # Attempt the upgrade.
     # NOTE: We source the upgrade scripts because:
@@ -129,7 +141,7 @@ if [ "${LATEST_VERSION}" -gt "${CHROOT_VERSION}" ]; then
     # Side effect is that the scripts have to be internally enclosed in
     # a code block, otherwise simply running "exit" in any of them would
     # terminate the master script, so we call it in a subshell.
-    if ! ( source ${n}_* ); then
+    if ! ( source ${hook} ); then
       error "Fatal: failed to upgrade ${n}!"
       exit 1
     fi
