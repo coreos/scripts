@@ -77,25 +77,22 @@ UNMASK_FILE=${UNMASK_DIR}/cros-workon
 CHROME_ATOM=chromeos-base/chromeos-chrome
 CHROME_SET_VER=${CHROMITE_DIR}/bin/chrome_set_ver.py
 
-# TODO(msb): remove the backward compatibility after 10/01/2010
-if [ -d "${WORKON_DIR}" ]; then
-  sudo chown -R "${USER}" "${WORKON_DIR}"
-fi
-
 mkdir -p "${WORKON_DIR}" || die "mkdir -p ${WORKON_DIR}"
 touch "${WORKON_FILE}" || die "touch ${WORKON_FILE}"
 sudo mkdir -p "${KEYWORDS_DIR}" "${UNMASK_DIR}" || \
   die "mkdir -p ${KEYWORDS_DIR} ${UNMASK_DIR}"
-if [ ! -L "${KEYWORDS_FILE}" ]; then
-  sudo rm -f "${KEYWORDS_FILE}"
-  sudo ln -s "${WORKON_FILE}" "${KEYWORDS_FILE}" || \
-    die "ln -s ${WORKON_FILE} ${KEYWORDS_FILE}"
-fi
-if [ ! -L "${UNMASK_FILE}" ]; then
-  [ -f "${UNMASK_FILE}" ] && sudo mv "${UNMASK_FILE}" "${WORKON_FILE}"
-  sudo ln -s "${WORKON_FILE}" "${UNMASK_FILE}" || \
-    die "ln -s ${WORKON_FILE} ${UNMASK_FILE}"
-fi
+
+# Clobber and re-create the WORKON_FILE symlinks every time. This
+# is a trivial operation and eliminates all kinds of corner cases
+# as well as any possible future renames of WORKON_FILE.
+# In particular, chroot is usually built as "amd64-host" but becomes
+# just "host" after installation. crosbug.com/23096
+sudo rm -f "${KEYWORDS_FILE}" "${UNMASK_FILE}"
+sudo ln -s "${WORKON_FILE}" "${KEYWORDS_FILE}" || \
+  die "ln -s ${WORKON_FILE} ${KEYWORDS_FILE}"
+sudo ln -s "${WORKON_FILE}" "${UNMASK_FILE}" || \
+  die "ln -s ${WORKON_FILE} ${UNMASK_FILE}"
+
 
 find_keyword_workon_ebuilds() {
   local keyword="${1}"
