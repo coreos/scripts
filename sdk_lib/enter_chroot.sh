@@ -160,8 +160,10 @@ function copy_ssh_config {
   # ssh options to filter out. The entire strings containing these substrings
   # will be deleted before copying.
   local bad_options=(
-    'UseProxyIf='
-    'GSSAPIAuthentication no'
+    'UseProxyIf'
+    'GSSAPIAuthentication'
+    'GSSAPIKeyExchange'
+    'ProxyUseFdpass'
   )
   local sshc="${HOME}/.ssh/config"
   local chroot_ssh_dir="${1}"
