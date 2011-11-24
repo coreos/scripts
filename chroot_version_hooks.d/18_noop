@@ -2,6 +2,5 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-CLEAN_DELAY=0 sudo emerge --unmerge =sys-boot/grub-1.97-r2
-
+# No-op, this change is being reverted
 exit 0
