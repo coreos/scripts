@@ -180,7 +180,14 @@ fi
 ESP_FS_DIR=$(mktemp -d /tmp/esp.XXXXXX)
 cleanup() {
   set +e
-  sudo umount "${ESP_FS_DIR}"
+  if ! sudo umount "${ESP_FS_DIR}"; then
+      # There is a race condition possible on some ubuntu setups
+      # with mounting and unmounting a device very quickly
+      # Doing a quick sleep/retry as a temporary workaround
+      warn "Initial unmount failed. Possibly crosbug.com/23443. Retrying"
+      sleep 5
+      sudo umount "${ESP_FS_DIR}"
+  fi
   if [[ -n "${ESP_DEV}" && -z "${ESP_DEV//\/dev\/loop*}" ]]; then
     sudo losetup -d  "${ESP_DEV}"
   fi
