@@ -50,7 +50,8 @@ fi
 
 OUTPUT_DIR="${FLAGS_output_root}/${FLAGS_board}"
 
-echo "This will unmount any directory under $OUTPUT_DIR:"
+echo 'This will unmount all directories matching /tmp/esp.*'
+echo "and any directory under $OUTPUT_DIR"
 read -p "Are you sure (y/N)? " SURE
 SURE="${SURE:0:1}" # Get just the first character
 if [ "${SURE}" != "y" ]; then
@@ -59,4 +60,5 @@ if [ "${SURE}" != "y" ]; then
 fi
 
 sudo umount "$OUTPUT_DIR"/*/* 2> /dev/null
+sudo umount /tmp/esp.* 2> /dev/null
 sudo losetup -d /dev/loop* 2> /dev/null
