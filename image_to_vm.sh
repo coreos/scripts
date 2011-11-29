@@ -205,7 +205,7 @@ echo Creating final image
 # Convert image to output format
 if [ "${FLAGS_format}" = "virtualbox" -o "${FLAGS_format}" = "qemu" ]; then
   if [ "${FLAGS_format}" = "virtualbox" ]; then
-    VBoxManage convertdd "${TEMP_IMG}" "${FLAGS_to}/${FLAGS_vbox_disk}"
+    sudo VBoxManage convertdd "${TEMP_IMG}" "${FLAGS_to}/${FLAGS_vbox_disk}"
   else
     mv ${TEMP_IMG} ${FLAGS_to}/${DEFAULT_QEMU_IMAGE}
   fi
