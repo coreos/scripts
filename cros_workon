@@ -142,15 +142,16 @@ show_workon_ebuilds() {
 show_workon_info() {
    local atoms="$1"
    local keyword="$2"
+   local sort="sort -u -k1b,1"
    # Column 1: Package name
    # Column 2: Repo name
    # Column 3: Source directory (if present locally)
    join \
-     <(echo "$atoms" | sed -e 's/ /\n/g' | sort -u) \
+     <(echo "${atoms}" | sed -e 's/ /\n/g' | ${sort}) \
      <(join -a 1 -e - -o 1.2,1.1,2.2 \
-       <(show_project_ebuild_map "${keyword}" | sort -u) \
-       <(show_project_path_map | sort -u) \
-       | sort -u)
+       <(show_project_ebuild_map "${keyword}" | ${sort}) \
+       <(show_project_path_map | ${sort}) \
+       | ${sort})
 }
 
 # Canonicalize package name to category/package.
