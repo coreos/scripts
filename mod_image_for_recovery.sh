@@ -41,6 +41,9 @@ DEFINE_integer jobs -1 \
 DEFINE_string build_root "/build" \
     "The root location for board sysroots."
 
+DEFINE_string rootfs_hash "/tmp/rootfs.hash" \
+  "Path where the rootfs hash should be stored."
+
 DEFINE_boolean verbose $FLAGS_FALSE \
     "Log all commands to stdout." v
 
@@ -101,32 +104,17 @@ get_install_vblock() {
   echo "$out"
 }
 
-okboat() {
-# http://www.chris.com/ascii/index.php?art=transportation/nautical
-  echo -e "${V_BOLD_GREEN}"
-  cat <<"BOAT"
-
-     .  o ..
-     o . o o.o
-          ...oo_
-            _[__\___
-         __|_o_o_o_o\__
-     OK  \' ' ' ' ' ' /
-     ^^^^^^^^^^^^^^^^^^^^
-BOAT
-  echo -e "${V_VIDOFF}"
-}
-
 failboat() {
+# http://www.chris.com/ascii/index.php?art=transportation/nautical
   echo -e "${V_BOLD_RED}"
-  cat <<"BOAT"
-              '
-         '    )
-          ) (
-         ( .')  __/\
-           (.  /o/` \
-            __/o/`   \
-     FAIL  / /o/`    /
+  cat <<BOAT
+             .  o ..
+     o . o o.o
+          ...oo
+            __[]__
+         __|_o_o_o\__
+         \""""""""""/
+          \   FAIL /
      ^^^^^^^^^^^^^^^^^^^^
 BOAT
   echo -e "${V_VIDOFF}"
@@ -139,10 +127,24 @@ create_recovery_kernel_image() {
   local root_offset=$(partoffset "$FLAGS_image" 3)
   local root_size=$(partsize "$FLAGS_image" 3)
 
+  local root_dev=$(sudo losetup --show -f \
+                   -o $((root_offset * 512)) \
+                   --sizelimit $((root_size * 512)) \
+                   "$FLAGS_image")
+  echo "16651 root_dev: $root_dev"
+  trap "sudo losetup -d $root_dev" EXIT
+
   cros_root="PARTUUID=%U/PARTNROFF=1"  # only used for non-verified images
   if grep -q enable_rootfs_verification "${IMAGE_DIR}/boot.desc"; then
     cros_root=/dev/dm-0
   fi
+  # TODO(wad) LOAD FROM IMAGE KERNEL AND NOT BOOT.DESC
+  local verity_args=$(grep -- '--verity_' "${IMAGE_DIR}/boot.desc")
+  # Convert the args to the right names and clean up extra quoting.
+  # TODO(wad) just update these everywhere
+  verity_args=$(echo $verity_args | sed \
+    -e 's/verity_algorithm/verity_hash_alg/g' \
+    -e 's/"//g')
 
   # Tie the installed recovery kernel to the final kernel.  If we don't
   # do this, a normal recovery image could be used to drop an unsigned
@@ -177,11 +179,16 @@ create_recovery_kernel_image() {
     --working_dir="${IMAGE_DIR}" \
     --boot_args="noinitrd panic=60 cros_recovery kern_b_hash=$kern_hash" \
     --keep_work \
+    --rootfs_image=${root_dev} \
+    --rootfs_hash=${FLAGS_rootfs_hash} \
     --root=${cros_root} \
     --keys_dir="${FLAGS_keys_dir}" \
-    --nouse_dev_keys 1>&2 || failboat "build_kernel_image"
+    --nouse_dev_keys \
+    ${verity_args} 1>&2 || failboat "build_kernel_image"
+  sudo rm "$FLAGS_rootfs_hash"
   sudo mount | sed 's/^/16651 /'
   sudo losetup -a | sed 's/^/16651 /'
+  sudo losetup -d "$root_dev"
   trap - RETURN
 
   # Update the EFI System Partition configuration so that the kern_hash check
@@ -427,8 +434,6 @@ trap cleanup EXIT
 maybe_resize_stateful  # Also copies the image if needed.
 
 install_recovery_kernel
-
-okboat
 
 echo "Recovery image created at $RECOVERY_IMAGE"
 print_time_elapsed
