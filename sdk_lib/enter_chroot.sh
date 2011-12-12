@@ -257,8 +257,12 @@ function setup_env {
         # Ignore errors as some people won't have these files to copy.
         cp "${HOME}"/.ssh/{known_hosts,*.pub} "${TARGET_DIR}/" 2>/dev/null || :
         copy_ssh_config "${TARGET_DIR}"
+
+        # Don't try to bind mount the ssh agent dir if it has gone stale.
         ASOCK=${SSH_AUTH_SOCK%/*}
-        queue_mount "${ASOCK}" "--bind" "${ASOCK}"
+        if [ -d "${ASOCK}" ]; then
+          queue_mount "${ASOCK}" "--bind" "${ASOCK}"
+        fi
       fi
     fi
 
