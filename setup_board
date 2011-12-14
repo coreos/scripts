@@ -175,7 +175,9 @@ toolchain_needs_update() {
         pkgs+=" =cross-$toolchain/linux-headers-$FLAGS_kernel_version"
     fi
   fi
-  pkgs+=" cross-$toolchain/gdb"
+  if [[ "$toolchain" != "arm-none-eabi" ]] ; then
+    pkgs+=" cross-$toolchain/gdb"
+  fi
   ACCEPT_KEYWORDS="~* *" emerge $flags $pkgs | grep cross-$toolchain/
 }
 
