@@ -6,3 +6,4 @@
 # Generated files
 *.pyc
 *~
+/cbuildbot_package.list
