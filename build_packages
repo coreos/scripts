@@ -1,1 +1,221 @@
-../third_party/chromiumos-overlay/chromeos/scripts/build_packages
+#!/bin/bash
+
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Script to build the set of binary packages needed by Chrome OS. It will
+# cross compile all of the packages into the given targets root and build
+# binary packages as a side-effect. The output packages will be picked up
+# by the build_image script to put together a bootable Chrome OS image.
+
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$0"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    local common="${path}/common.sh"
+    if ([ -r "${common}" ] && . "${common}" && [ -d "${SCRIPTS_DIR}" ]); then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || ! echo "Unable to load common.sh" || exit 1
+
+# Script must run inside the chroot
+restart_in_chroot_if_needed "$@"
+
+get_default_board
+
+# Flags
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "The board to build packages for."
+# Deprecate chrome* options below once we have cbuild not passing these options
+DEFINE_boolean chromefromsource "${FLAGS_FALSE}" \
+  "Deprecated"
+DEFINE_string chromebuild "" \
+  "Deprecated"
+DEFINE_string chromebase "" \
+  "Deprecated"
+DEFINE_boolean usepkg "${FLAGS_TRUE}" \
+  "Use binary packages to bootstrap when possible."
+DEFINE_boolean withdev "${FLAGS_TRUE}" \
+  "Build useful developer friendly utilities."
+DEFINE_boolean withautotest "${FLAGS_TRUE}" \
+  "Build autotest client code."
+DEFINE_integer jobs -1 \
+  "How many packages to build in parallel at maximum."
+DEFINE_integer retries -1 \
+  "On build failure, the number of times to retry."
+DEFINE_boolean withtest "${FLAGS_TRUE}" \
+  "Build packages required for testing."
+DEFINE_boolean withfactory "${FLAGS_TRUE}" \
+  "Build factory installer."
+DEFINE_boolean fast "${DEFAULT_FAST}" \
+  "Call many emerges in parallel."
+DEFINE_boolean norebuild "${FLAGS_FALSE}" \
+  "Don't automatically rebuild dependencies."
+DEFINE_boolean showoutput "${FLAGS_FALSE}" \
+  "Show all output from parallel_emerge."
+DEFINE_boolean noworkon "${FLAGS_FALSE}" \
+  "Don't force-build workon packages."
+DEFINE_boolean withdebug "${FLAGS_TRUE}" \
+  "Build debug versions of Chromium-OS-specific packages."
+DEFINE_boolean oldchromebinary "${FLAGS_FALSE}" \
+  "Use the last prebuilt binary for Chrome produced by the buildbot."
+DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
+  "Don't update toolchain automatically."
+
+
+# Parse command line
+FLAGS_HELP="usage: $0 [flags]"
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+check_flags_only_and_allow_null_arg "$@" && set --
+
+# Die on any errors.
+set -e
+
+# Right now build_packages has to be run from scripts/
+. ${SRC_ROOT}/third_party/chromiumos-overlay/chromeos/config/chromeos_version.sh
+
+if [[ -z "${FLAGS_board}" ]]; then
+  echo "Error: --board is required."
+  exit 1
+fi
+
+EMERGE_FLAGS="--backtrack=30"
+
+EMERGE_CMD="emerge"
+EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
+if [[ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
+  EMERGE_CMD="${GCLIENT_ROOT}/chromite/bin/parallel_emerge"
+  EMERGE_BOARD_CMD="${EMERGE_CMD} --board=${FLAGS_board}"
+fi
+if [[ -n "${EXTRA_BOARD_FLAGS}" ]]; then
+  EMERGE_BOARD_CMD="${EMERGE_BOARD_CMD} ${EXTRA_BOARD_FLAGS}"
+fi
+
+if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
+  # Use binary packages. Include all build-time dependencies,
+  # so as to avoid unnecessary differences between source
+  # and binary builds.
+  EMERGE_FLAGS="${EMERGE_FLAGS} --getbinpkg --usepkg --with-bdeps y"
+fi
+
+if [[ "${FLAGS_jobs}" -ne -1 ]]; then
+  EMERGE_JOBS="--jobs=${FLAGS_jobs}"
+  if [[ "${FLAGS_retries}" -eq -1 ]]; then
+    # The jobs flag can be flaky. Retry once by default,
+    # without the jobs flag.
+    FLAGS_retries=1
+  fi
+fi
+
+if [[ "${FLAGS_withdebug}" -eq "${FLAGS_FALSE}" ]]; then
+  export USE="${USE} -cros-debug"
+fi
+
+${EMERGE_CMD} --info
+
+# Before we can run any tools, we need to update chroot or setup_board.
+UPDATE_ARGS=""
+if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
+  UPDATE_ARGS+=" --fast"
+else
+  UPDATE_ARGS+=" --nofast"
+fi
+if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
+  UPDATE_ARGS+=" --usepkg"
+else
+  UPDATE_ARGS+=" --nousepkg"
+fi
+if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_TRUE}" ]; then
+  UPDATE_ARGS+=" --skip_toolchain_update"
+fi
+${SCRIPTS_DIR}/setup_board --quiet --board=${FLAGS_board} ${UPDATE_ARGS}
+
+if [ "${FLAGS_noworkon}" -eq "${FLAGS_FALSE}" ]; then
+  # Always build cros-workon packages
+  CROS_WORKON_PKGS=$(cros_workon --board="${FLAGS_board}" list)
+fi
+
+# TODO(anush): Make chrome a fake cros-workon package.
+if [[ -n "${CHROME_ORIGIN}" ]]; then
+  CROS_WORKON_PKGS="${CROS_WORKON_PKGS} chromeos-base/chromeos-chrome"
+fi
+
+PACKAGES="chromeos-base/chromeos"
+if [[ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]]; then
+  PACKAGES="${PACKAGES} chromeos-base/chromeos-dev"
+fi
+if [[ "${FLAGS_withfactory}" -eq "${FLAGS_TRUE}" ]]; then
+  PACKAGES="${PACKAGES} chromeos-base/chromeos-factoryinstall"
+  PACKAGES="${PACKAGES} chromeos-base/factorytest-init"
+  PACKAGES="${PACKAGES} chromeos-base/chromeos-hwid"
+fi
+if [[ "${FLAGS_withtest}" -eq "${FLAGS_TRUE}" ]]; then
+  PACKAGES="${PACKAGES} chromeos-base/chromeos-test"
+fi
+if [[ "${FLAGS_withautotest}" -eq "${FLAGS_TRUE}" ]]; then
+  PACKAGES="${PACKAGES} chromeos-base/autotest-all"
+fi
+
+# Verify that all packages can be emerged from scratch, without any
+# backtracking. Only print the output if this step fails.
+if ! OUTPUT=$(emerge-${FLAGS_board} -pe --backtrack=0 ${PACKAGES} 2>&1); then
+  printf "%s\n" "${OUTPUT}"
+  die "emerge detected broken ebuilds. See error message above."
+fi
+
+if [[ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
+  # These flags are specific to parallel_emerge
+  for pkg in ${CROS_WORKON_PKGS}; do
+    EMERGE_FLAGS="${EMERGE_FLAGS} --workon=${pkg}"
+  done
+  if [[ "${FLAGS_norebuild}" -eq "${FLAGS_FALSE}" ]]; then
+    EMERGE_FLAGS="${EMERGE_FLAGS} --rebuild"
+  fi
+  if [[ "${FLAGS_showoutput}" -eq "${FLAGS_TRUE}" ]]; then
+    EMERGE_FLAGS="${EMERGE_FLAGS} --show-output"
+  fi
+  if [[ "${FLAGS_oldchromebinary}" -eq "${FLAGS_TRUE}" ]]; then
+    EMERGE_FLAGS="${EMERGE_FLAGS} --force-remote-binary=chromeos-chrome"
+    EMERGE_FLAGS="${EMERGE_FLAGS} --force-remote-binary=libcros"
+  fi
+  eretry sudo -E ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES}
+else
+  echo "Building ${PACKAGES} ${CROS_WORKON_PKGS}"
+  if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
+    # Merge all packages, including binary versions of packages.
+    eretry ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES}
+    if [[ -n "${CROS_WORKON_PKGS}" ]]; then
+      # Re-merge cros-workon packages, this time from source. This is
+      # inefficient, but regular emerge doesn't support any way of specifying
+      # that you want specific packages to be merged from source only.
+      eretry ${EMERGE_BOARD_CMD} --oneshot ${CROS_WORKON_PKGS}
+    fi
+  else
+    # Re-merge cros_workon packages, updating dependencies if necessary.
+    #   --selective=n: Always re-merge cros_workon packages.
+    #   -1: Don't add cros_workon packages to world file.
+    if [[ -n "${CROS_WORKON_PKGS}" ]]; then
+      eretry ${EMERGE_BOARD_CMD} -uDNv1 --selective=n ${CROS_WORKON_PKGS}
+    fi
+
+    # Update the remainder of the packages.
+    eretry ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES}
+  fi
+fi
+
+
+echo "Builds complete"
+print_time_elapsed
+echo "Done"

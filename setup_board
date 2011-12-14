@@ -1,1 +1,718 @@
-../third_party/chromiumos-overlay/chromeos/scripts/setup_board
+#!/bin/bash
+
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# This script sets up a the sysroot for a particular target board.
+
+# Load common CrOS utilities.  Inside the chroot this file is installed in
+# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
+# location.
+find_common_sh() {
+  local common_paths=(/usr/lib/crosutils $(dirname "$0"))
+  local path
+
+  SCRIPT_ROOT=
+  for path in "${common_paths[@]}"; do
+    local common="${path}/common.sh"
+    if ([ -r "${common}" ] && . "${common}" && [ -d "${SCRIPTS_DIR}" ]); then
+      SCRIPT_ROOT=${path}
+      break
+    fi
+  done
+}
+
+find_common_sh
+. "${SCRIPT_ROOT}/common.sh" || ! echo "Unable to load common.sh" || exit 1
+
+# Script must run inside the chroot
+restart_in_chroot_if_needed "$@"
+
+get_default_board
+
+# Flags
+DEFINE_string board "$DEFAULT_BOARD" \
+  "The name of the board to set up."
+DEFINE_string build_root "/build" \
+  "The root location for board sysroots."
+DEFINE_string board_overlay "" \
+  "Location of the board overlay."
+DEFINE_string variant "" \
+  "Board variant."
+DEFINE_string toolchain "" \
+  "Toolchain.  For example: i686-pc-linux-gnu, armv7a-softfloat-linux-gnueabi"
+DEFINE_boolean usepkg $FLAGS_TRUE \
+  "Use binary packages to bootstrap."
+DEFINE_boolean force $FLAGS_FALSE \
+  "Force re-creating board root."
+DEFINE_string binutils_version "2.21-r3" \
+  "Version of binutils to use."
+DEFINE_string gcc_version "4.6.0-r10" \
+  "Version of gcc to use."
+DEFINE_string libc_version "2.11.1-r3" \
+  "Version of libc to use."
+DEFINE_string kernel_version "2.6.38" \
+  "Version of kernel headers to use."
+DEFINE_boolean latest_toolchain $FLAGS_FALSE \
+  "Use the latest ebuild for all toolchain packages (gcc, binutils, libc, \
+kernel). This overrides the other toolchain version options."
+DEFINE_boolean default $FLAGS_FALSE \
+  "Set board to the default board in your chroot"
+DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
+DEFINE_string profile "" \
+  "The portage configuration profile to use. Profile must be located in overlay-board/profiles"
+DEFINE_boolean quiet $FLAGS_FALSE \
+  "Don't print warnings when board already exists."
+DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
+  "Don't update toolchain automatically."
+
+# builds wrappers like equery-arm-generic.
+# args:
+#   $1:  command to wrap
+#   rest:  extra arguments to pass to the command
+generate_wrapper() {
+  local command="${1}"
+  shift
+  local extra_args="$@"
+
+
+  local target="/usr/local/bin/${command}-${BOARD_VARIANT}"
+  sudo_clobber "${target}" <<EOF
+#!/bin/bash
+
+export CHROMEOS_ROOT="$GCLIENT_ROOT"
+export CHOST="$FLAGS_toolchain"
+export PORTAGE_CONFIGROOT="$BOARD_ROOT"
+export SYSROOT="$BOARD_ROOT"
+if [ -z "\$PORTAGE_USERNAME" ]; then
+  export PORTAGE_USERNAME=\$(basename \$HOME)
+fi
+export ROOT="$BOARD_ROOT"
+exec sudo -E ${command} ${extra_args} "\$@"
+EOF
+  sudo chmod +rx ${target}
+  sudo chown root:root ${target}
+  eval ${command^^}_WRAPPER="${target}" # ${foo^^} returns toupper($foo)
+  echo created wrapper ${target}
+}
+
+generate_pkgconfig_wrapper() {
+  local target="/usr/local/bin/pkg-config-${BOARD_VARIANT}"
+  sudo_clobber "${target}" <<EOF
+#!/bin/bash
+
+PKG_CONFIG_LIBDIR="${BOARD_ROOT}/usr/lib/pkgconfig:\
+${BOARD_ROOT}/usr/lib64/pkgconfig:\
+${BOARD_ROOT}/usr/share/pkgconfig"
+export PKG_CONFIG_LIBDIR
+
+export PKG_CONFIG_SYSROOT_DIR="${BOARD_ROOT}"
+
+exec pkg-config "\$@"
+EOF
+  sudo chmod a+rx ${target}
+  sudo chown root:root ${target}
+  echo created wrapper pkg-config
+}
+
+# Checks whether the libc version installed in the board
+# matches the one installed by the toolchain.
+board_needs_libc_update() {
+  local board_version=$(. "${BOARD_SETUP}"; echo "${LIBC_VERSION}")
+  local toolchain_version=$(cross_get_version glibc)
+  if [[ "${board_version}" = "${toolchain_version}" ]]; then
+    return 1
+  fi
+  return 0
+}
+
+# Check whether any new toolchain packages are available.
+# Returns true if new toolchain packages are available and false otherwise.
+toolchain_needs_update() {
+  local toolchain=$1
+
+  # If toolchain symlinks weren't created yet, we definitely need to update.
+  if [ ! -d /usr/local/portage/crossdev/cross-$toolchain ]; then
+    return 0
+  fi
+
+  # Skip toolchain updates if requested.
+  if [ $FLAGS_skip_toolchain_update -eq $FLAGS_TRUE ]; then
+    return 1
+  fi
+
+  # Unmask any ebuilds previously masked by crossdev. crossdev will re-setup
+  # its masks appropriately the next time we run it.
+  sudo rm -f /etc/portage/package.mask/cross-$toolchain
+
+  local flags="--pretend --quiet --update"
+  local pkgs
+  if [ $FLAGS_usepkg -eq $FLAGS_TRUE ]; then
+    flags+=" --getbinpkg --usepkgonly"
+  fi
+
+  if [ $FLAGS_latest_toolchain -eq $FLAGS_TRUE ]; then
+    pkgs="cross-$toolchain/gcc"
+    pkgs+=" cross-$toolchain/binutils"
+    # For arm-none-eabi, there is no "glibc" or "linux-headers" packages.
+    if [[ "$toolchain" != "arm-none-eabi" ]] ; then
+        pkgs+=" cross-$toolchain/glibc"
+        pkgs+=" cross-$toolchain/linux-headers"
+    fi
+  elif [ $FLAGS_usepkg -eq $FLAGS_TRUE ]; then
+    pkgs="<=cross-$toolchain/gcc-$FLAGS_gcc_version"
+    pkgs+=" <=cross-$toolchain/binutils-$FLAGS_binutils_version"
+    if [[ "$toolchain" != "arm-none-eabi" ]] ; then
+        pkgs+=" <=cross-$toolchain/glibc-$FLAGS_libc_version"
+        pkgs+=" <=cross-$toolchain/linux-headers-$FLAGS_kernel_version"
+    fi
+  else
+    pkgs="=cross-$toolchain/gcc-$FLAGS_gcc_version"
+    pkgs+=" =cross-$toolchain/binutils-$FLAGS_binutils_version"
+    if [[ "$toolchain" != "arm-none-eabi" ]] ; then
+        pkgs+=" =cross-$toolchain/glibc-$FLAGS_libc_version"
+        pkgs+=" =cross-$toolchain/linux-headers-$FLAGS_kernel_version"
+    fi
+  fi
+  pkgs+=" cross-$toolchain/gdb"
+  ACCEPT_KEYWORDS="~* *" emerge $flags $pkgs | grep cross-$toolchain/
+}
+
+uninstall_toolchain() {
+  local toolchain=$1
+  echo "Uninstalling the toolchain."
+  # Even if the uninstall fails, keep going. It's likely
+  # that it didn't exist in the first place.
+  yes | sudo crossdev -v -C $toolchain || true
+}
+
+# Build the toolchain with crossdev.
+build_toolchain() {
+  local toolchain=$1
+  echo "Building the toolchain."
+  CROSS_ARGS="-v --target $toolchain -P --oneshot"
+  if [ $FLAGS_usepkg -eq $FLAGS_TRUE ]; then
+    # Grab the latest packages from the prebuilt server.
+    #  --getbinpkg: Use packages from the prebuilt server.
+    #  --usepkgonly: Always use prebuilts. Don't build from source.
+    #  --without-headers: Don't build headers-only versions of packages for
+    #                     bootstrapping. Because we use binary packages, this
+    #                     isn't necessary.
+    CROSS_ARGS+=" -P --getbinpkg -P --usepkgonly --without-headers"
+  fi
+  if [ $FLAGS_latest_toolchain -ne $FLAGS_TRUE ]; then
+    CROSS_ARGS+=" --binutils $FLAGS_binutils_version"
+    CROSS_ARGS+=" --gcc $FLAGS_gcc_version"
+    CROSS_ARGS+=" --kernel $FLAGS_kernel_version"
+    CROSS_ARGS+=" --libc $FLAGS_libc_version"
+  fi
+
+  CROSS_ARGS+=" --ex-gdb"
+
+  # TODO: remove this when crossdev upgrades.
+  if [[ "$toolchain" == "arm-none-eabi" ]]; then
+    CROSS_ARGS+=" --without-headers"
+  fi
+
+  sudo -E FEATURES="splitdebug ${FEATURES}" crossdev $CROSS_ARGS
+}
+
+# Get the version number of a toolchain package.
+cross_get_version() {
+  local pkg="$1"
+  local cpv=""
+  if [[ "$CHOST" != "$FLAGS_toolchain" ]]; then
+    if [[  "$pkg" = "gcc" ]]; then
+      # Users can install multiple versions of gcc at once, so we need to call
+      # gcc-config to find out which installed version is selected.
+      local path=$(CTARGET=$FLAGS_toolchain gcc-config -B || true)
+      cpv=$(portageq owners / $path | sed -e '/^\t/d')
+    else
+      cpv=$(portageq match / cross-$FLAGS_toolchain/$pkg || true)
+    fi
+  else
+    if [[ "$pkg" = binutils ]] ; then
+      cpv=$(portageq match / sys-devel/binutils || true)
+    elif [[ "$pkg" = glibc ]] ; then
+      cpv=$(portageq match / sys-libs/glibc || true)
+    elif [[ "$pkg" = gcc ]] ; then
+      cpv=$(portageq match / sys-devel/gcc || true)
+    else
+      die "Unknown pkg ${pkg}"
+    fi
+  fi
+  local cp=$(echo $cpv | sed -e 's/-r[0-9]*$//; s/-[^-]*$//')
+  local result="${cpv#$cp-}"
+  local count="$(echo $result | wc -w)"
+  if [ "$count" -gt "1" ]; then
+    die "Multiple versions of $pkg installed"
+  elif [ "$count" -lt "1" ]; then
+    die "Cannot find $pkg"
+  fi
+  echo $result
+}
+
+install_toolchain_in_provided() {
+  local binutils_ver="$1"
+  local gcc_ver="$2"
+  local glibc_ver="$3"
+  # Tell portage that toolchain packages are already installed in the sysroot.
+  (
+    echo sys-devel/binutils-$binutils_ver
+    echo sys-devel/gcc-$gcc_ver
+    echo sys-libs/glibc-$glibc_ver
+  ) | sudo_clobber "$BOARD_PROFILE/package.provided"
+}
+
+# Install all of the stuff that depends on the toolchain versions
+# into the board root.
+install_toolchain_in_board() {
+  local binutils_ver=$(cross_get_version binutils)
+  local gcc_ver=$(cross_get_version gcc)
+  local libc_ver=$(cross_get_version glibc)
+  if [[ -z "$binutils_ver" || -z "$gcc_ver" || -z "$libc_ver" ]]; then
+    die "Cannot find toolchain to install into board root"
+  fi
+  echo "Installing the toolchain into the board root."
+  # Untar glibc to get most of the headers required to build.
+  LIBC_TAR="glibc-${libc_ver}.tbz2"
+
+  # Install libc libraries.
+  if [ "${CHOST}" != "$FLAGS_toolchain" ] ; then
+    LIBC_PATH="${PKGDIR}/cross-${FLAGS_toolchain}/${LIBC_TAR}"
+    sudo tar jxpf "${LIBC_PATH}" -C "${BOARD_ROOT}" ./usr/${FLAGS_toolchain} --strip-components=3
+    sudo mkdir -p ${BOARD_ROOT}/usr/lib/debug
+    sudo tar jxpf "${LIBC_PATH}" -C "${BOARD_ROOT}/usr/lib/debug" ./usr/lib/debug/usr/${FLAGS_toolchain} --strip-components=6 || warn "libc debug info not copied."
+    GCC_PKG=cross-${FLAGS_toolchain}/gcc-$gcc_ver
+
+    # TODO(asharif): Remove this hack after a while.
+    BOARD_GCC_DIR="${BOARD_ROOT}/usr/lib/gcc"
+    if [[ -L "${BOARD_GCC_DIR}" ]] ; then
+      sudo rm -f "${BOARD_GCC_DIR}"
+    fi
+    . "${SRC_ROOT}/platform/dev/toolchain_utils.sh"
+    copy_gcc_libs "${BOARD_ROOT}" "cross-$FLAGS_toolchain/gcc-$gcc_ver"
+  else
+    sudo mkdir -p ${BOARD_ROOT}/usr/lib64
+    sudo ln -sf ${BOARD_ROOT}/usr/lib64 ${BOARD_ROOT}/usr/lib
+    sudo mkdir -p ${BOARD_ROOT}/lib64
+    sudo ln -sf ${BOARD_ROOT}/lib64 ${BOARD_ROOT}/lib
+    LIBC_PATH="${PKGDIR}/sys-libs/${LIBC_TAR}"
+    sudo emerge --oneshot --nodeps -k --root=${BOARD_ROOT} =sys-libs/glibc-${libc_ver}
+    sudo mkdir -p ${BOARD_ROOT}/usr/lib/debug
+    # TODO: we have no debug
+    GCC_PKG=sys-devel/gcc-$gcc_ver
+  fi
+
+  # Some header files are needed also for rpcbind (NFS support)
+  # TODO: Figure out a better way of doing this too?
+  sudo cp -a /usr/include/rpcsvc/mount.h "${BOARD_ROOT}/usr/include/rpcsvc"
+  sudo cp -a /usr/include/rpcsvc/rquota.h "${BOARD_ROOT}/usr/include/rpcsvc"
+  sudo cp -a /usr/include/rpcsvc/nfs_prot.h "${BOARD_ROOT}/usr/include/rpcsvc"
+  sudo cp -a /usr/include/rpcsvc/yppasswd.h "${BOARD_ROOT}/usr/include/rpcsvc"
+
+  install_toolchain_in_provided "$binutils_ver" "$gcc_ver" "$libc_ver"
+
+  # Configure new libc version in make.conf.board_setup.
+  sudo sed -i -e "/^LIBC_VERSION=/d" $BOARD_SETUP
+  echo "LIBC_VERSION=\"$libc_ver\"" | sudo_append $BOARD_SETUP
+}
+
+# Print contents of $BOARD_ETC/make.conf.board. This file sources make.conf
+# from each overlay, and then calculates the prebuilt URLs based on the
+# various binhost configuration files.
+print_board_make_conf() {
+  echo "# AUTO-GENERATED FILE. DO NOT EDIT."
+  echo
+  echo "# Source make.conf from each overlay."
+  local boto_config=""
+  for overlay in $BOARD_OVERLAY_LIST; do
+    if [[ -f "$overlay/make.conf" ]]; then
+      echo source "$overlay/make.conf"
+    fi
+    if [[ -f "$overlay/googlestorage_account.boto" ]]; then
+      boto_config="$overlay/googlestorage_account.boto"
+    fi
+  done
+  local chromeos_overlay="$SRC_ROOT/private-overlays/chromeos-overlay"
+  if [[ -f "$chromeos_overlay/googlestorage_account.boto" ]]; then
+    boto_config="$chromeos_overlay/googlestorage_account.boto"
+  fi
+  local gsutil_cmd='gsutil cp \"${URI}\" \"${DISTDIR}/${FILE}\"'
+  echo
+  echo FETCHCOMMAND_GS="\"bash -c 'BOTO_CONFIG=$boto_config $gsutil_cmd'\""
+  echo RESUMECOMMAND_GS='"$FETCHCOMMAND_GS"'
+  echo
+}
+
+print_board_binhost_config() {
+  local binhost_dir="$CHROMIUMOS_OVERLAY/chromeos/binhost/target"
+  local preflight_binhost="$binhost_dir/$BOARD-PREFLIGHT_BINHOST.conf"
+  local chrome_binhost_suffix="LATEST_RELEASE_CHROME_BINHOST.conf"
+  local chrome_binhost="$binhost_dir/$BOARD-$chrome_binhost_suffix"
+  if [[ $ARCH = x86 && ! -f "$preflight_binhost" ]]; then
+    preflight_binhost="$binhost_dir/x86-generic-PREFLIGHT_BINHOST.conf"
+  fi
+  if [[ $ARCH = x86 && ! -f "$chrome_binhost" ]]; then
+    if portageq-$BOARD_VARIANT envvar USE | grep -Eq '(^| )aura( |$)'; then
+      chrome_binhost="$binhost_dir/x86-generic_aura-$chrome_binhost_suffix"
+    else
+      chrome_binhost="$binhost_dir/x86-generic-$chrome_binhost_suffix"
+    fi
+  fi
+  local chromeos_overlay="$SRC_ROOT/private-overlays/chromeos-overlay"
+  local internal_binhost_dir="$chromeos_overlay/chromeos/binhost/target"
+  local internal_binhost="$internal_binhost_dir/$BOARD-PREFLIGHT_BINHOST.conf"
+
+  cat <<'EOF'
+# FULL_BINHOST is populated by the full builders. It is listed first because it
+# is the lowest priority binhost. It is better to download packages from the
+# preflight binhost because they are fresher packages.
+PORTAGE_BINHOST="$FULL_BINHOST"
+
+EOF
+
+  if [[ -f "$preflight_binhost" && -z "$IGNORE_PREFLIGHT_BINHOST" ]]; then
+    cat <<'EOF'
+# PREFLIGHT_BINHOST is populated by the preflight builders. If the same
+# package is provided by both the preflight and full binhosts, the package is
+# downloaded from the preflight binhost.
+EOF
+    echo source "$preflight_binhost"
+    echo 'PORTAGE_BINHOST="$PORTAGE_BINHOST $PREFLIGHT_BINHOST"'
+    echo
+  fi
+
+  if [[ -f "$internal_binhost"  && -z "$IGNORE_PREFLIGHT_BINHOST" ]]; then
+    cat <<'EOF'
+# The internal PREFLIGHT_BINHOST is populated by the internal preflight
+# builders. It takes priority over the public preflight binhost.
+EOF
+    echo source "$internal_binhost"
+    echo 'PORTAGE_BINHOST="$PORTAGE_BINHOST $PREFLIGHT_BINHOST"'
+    echo
+  fi
+
+  if [[ -f "$chrome_binhost" ]]; then
+    cat <<'EOF'
+# LATEST_RELEASE_CHROME_BINHOST provides prebuilts for chromeos-chrome only.
+EOF
+    echo source "$chrome_binhost"
+    echo 'PORTAGE_BINHOST="$PORTAGE_BINHOST $LATEST_RELEASE_CHROME_BINHOST"'
+  fi
+}
+
+# Parse command line flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Only now can we die on error.  shflags functions leak non-zero error codes,
+# so will die prematurely if 'set -e' is specified before now.
+set -e
+
+if [ -z "$FLAGS_board" ] ; then
+  error "--board required."
+  exit 1
+fi
+
+# Before we can run any tools, we need to update chroot
+UPDATE_ARGS=""
+if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
+  UPDATE_ARGS+=" --fast"
+else
+  UPDATE_ARGS+=" --nofast"
+fi
+if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
+  UPDATE_ARGS+=" --usepkg"
+else
+  UPDATE_ARGS+=" --nousepkg"
+fi
+"${SRC_ROOT}/scripts"/update_chroot ${UPDATE_ARGS}
+
+get_board_and_variant $FLAGS_board $FLAGS_variant
+
+#
+# Check if there are any board overlays.  There should be at least a top
+# level board specific overlay.
+#
+PRIMARY_BOARD_OVERLAY=$(cros_overlay_list --board "$BOARD" --primary_only)
+
+#
+# Fetch the toolchain from the board overlay.
+#
+BOARD_TOOL_CHAIN="${PRIMARY_BOARD_OVERLAY}/toolchain.conf"
+FLAGS_toolchain=${FLAGS_toolchain:-$(cat ${BOARD_TOOL_CHAIN})}
+
+# Figure out ARCH from the given toolchain
+# TODO: Move to common.sh as a function after scripts are switched over.
+if [ -z "${FLAGS_toolchain}" ]; then
+  error "No toolchain specified in board overlay or on command line."
+  exit 1
+fi
+
+TC_ARCH=$(echo "$FLAGS_toolchain" | awk -F'-' '{ print $1 }')
+case "$TC_ARCH" in
+  arm*)
+    ARCH="arm"
+    ;;
+  *86)
+    ARCH="x86"
+    ;;
+  x86_64)
+    ARCH="amd64"
+    ;;
+  *)
+    error "Unable to determine ARCH from toolchain: $FLAGS_toolcahin"
+    exit 1
+esac
+
+case "$BOARD" in
+  *-host)
+    if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
+      die "host boards only support --nousepkg"
+    fi
+    HOST_BOARD=true
+    ;;
+  *)
+    HOST_BOARD=false
+esac
+# Locations we will need
+BOARD_ROOT="${FLAGS_build_root}/${BOARD_VARIANT}"
+CHROMIUMOS_OVERLAY="/usr/local/portage/chromiumos"
+CHROMIUMOS_CONFIG="${CHROMIUMOS_OVERLAY}/chromeos/config"
+CHROMIUMOS_PROFILES="${CHROMIUMOS_OVERLAY}/profiles"
+BOARD_ETC="${BOARD_ROOT}/etc"
+BOARD_SETUP="${BOARD_ETC}/make.conf.board_setup"
+BOARD_PROFILE="${BOARD_ETC}/portage/profile"
+
+#
+# Construct board overlay list.
+#
+BOARD_OVERLAY_LIST=$(cros_overlay_list \
+  --board "$BOARD" \
+  --board_overlay "$FLAGS_board_overlay" \
+  --variant "$VARIANT")
+
+eval $(portageq envvar -v CHOST PKGDIR)
+
+if [ "${CHOST}" != "$FLAGS_toolchain" ] ; then
+  if toolchain_needs_update $FLAGS_toolchain; then
+    warn "Toolchain needs to be updated! Updating toolchain..."
+    uninstall_toolchain $FLAGS_toolchain
+    build_toolchain $FLAGS_toolchain
+    # If the board root already exists, re-install the toolchain there.
+    if [ -d "$BOARD_ROOT" ] && [ "$FLAGS_force" = "$FLAGS_FALSE" ]; then
+      install_toolchain_in_board
+    fi
+    if [[ "${ARCH}" = "x86" || "${ARCH}" = "amd64" ]] ; then
+      echo "Switching on gold as the default linker."
+      BINUTILS_VERSION=$(cross_get_version binutils | sed 's/-r[0-9]\+//g')
+      sudo binutils-config "${FLAGS_toolchain}-${BINUTILS_VERSION}-gold"
+    fi
+  else
+    # Update the users libc in their board if needed.
+    if [ -d "$BOARD_ROOT" ] && [ "$FLAGS_force" = "$FLAGS_FALSE" ] ; then
+      if board_needs_libc_update; then
+        echo "Updating libc in the board."
+        install_toolchain_in_board
+      fi
+    fi
+  fi
+fi
+
+if [[ "${ARCH}" == "x86" ]] && toolchain_needs_update arm-none-eabi ; then
+  # We need a toolchain to build software for the embedded controller
+  # on the x86 board.
+  uninstall_toolchain arm-none-eabi
+  build_toolchain arm-none-eabi
+fi
+
+if [ -d "$BOARD_ROOT" ] ; then
+  if [[ $FLAGS_force -eq $FLAGS_TRUE ]]; then
+    echo "--force set.  Re-creating $BOARD_ROOT..."
+    # Removal takes long. Make it asynchronous.
+    TEMP_DIR=`mktemp -d`
+    sudo mv $BOARD_ROOT $TEMP_DIR
+    sudo rm -rf $TEMP_DIR &
+  else
+    if ! $HOST_BOARD; then
+      print_board_make_conf | sudo_clobber $BOARD_ETC/make.conf.board
+      print_board_binhost_config | sudo_append $BOARD_ETC/make.conf.board
+    fi
+    if [[ $FLAGS_quiet -eq $FLAGS_FALSE ]]; then
+      warn "Board output directory '$BOARD_ROOT' already exists."
+      warn "Not setting up board root. "
+      warn "Use --force to clobber the board root and start again."
+    fi
+    exit 0
+  fi
+fi
+
+sudo mkdir -p "$BOARD_ROOT" "${BOARD_ETC}" "${BOARD_PROFILE}"
+
+if [ "${CHOST}" != "$FLAGS_toolchain" ] ; then
+  # TODO(cmasone): Do this more cleanly, if we figure out what "cleanly" means.
+  # Set up wrapper for pkg-config.  Point a board-specific wrapper at the
+  # generic wrapper script created by crossdev-wrapper
+  sudo ln -sf "/usr/bin/cross-pkg-config" \
+      "/usr/bin/${FLAGS_toolchain}-pkg-config"
+fi
+
+# Setup the make.confs. We use the following:
+#    make.conf             <- Overall target make.conf [arm, x86, etc. version]
+#    make.conf.board_setup <- Declares CHOST, ROOT, etc.
+#    make.conf.common      <- Common settings across all targets
+#    make.conf.board       <- Optional board-supplied make.conf
+if ${HOST_BOARD}; then
+  sudo ln -sf "${CHROMIUMOS_CONFIG}/make.conf.${BOARD}" \
+    "${BOARD_ETC}/make.conf"
+  sudo cp -f "/etc/make.conf.host_setup" "${BOARD_ETC}/"
+
+  # Setting up symlinks for bootstrapping multilib.
+  # See http://crosbug.com/14498
+  sudo mkdir -p "${BOARD_ROOT}/usr/lib64" "${BOARD_ROOT}/lib64"
+  sudo ln -sf lib64 "${BOARD_ROOT}/lib"
+  sudo ln -sf lib64 "${BOARD_ROOT}/usr/lib"
+
+  # Copying some files for bootstrapping empty chroot.
+  # See http://crosbug.com/14499
+  sudo mkdir -p  ${BOARD_ETC}/xml/
+  sudo cp /etc/xml/catalog ${BOARD_ETC}/xml/
+  sudo mkdir -p  ${BOARD_ETC}/init.d/
+  sudo cp /etc/init.d/functions.sh ${BOARD_ETC}/init.d/
+fi
+sudo ln -sf "${CHROMIUMOS_CONFIG}/make.conf.common-target" \
+  "${BOARD_ETC}/make.conf.common"
+cat <<EOF | sudo dd of="${BOARD_SETUP}" > /dev/null 2>&1
+# Created by setup_board
+CHOST="${FLAGS_toolchain}"
+ROOT="${BOARD_ROOT}/"
+BOARD_OVERLAY="${BOARD_OVERLAY_LIST}"
+MAKEOPTS="-j${NUM_JOBS}"
+PKG_CONFIG="pkg-config-${BOARD_VARIANT}"
+BOARD_USE="${BOARD_VARIANT}"
+EOF
+if ! ${HOST_BOARD}; then
+  sudo ln -sf "${CHROMIUMOS_CONFIG}/make.conf.${ARCH}-target" \
+    "${BOARD_ETC}/make.conf"
+  print_board_make_conf | sudo_clobber $BOARD_ETC/make.conf.board
+  print_board_binhost_config | sudo_append $BOARD_ETC/make.conf.board
+
+  # We install the toolchain related bits after the BOARD_ROOT, BOARD_PROFILE
+  # and BOARD_ETC directories have been created.
+  install_toolchain_in_board
+fi
+# Setup make.globals and the profile.
+sudo touch /etc/make.conf.user
+sudo ln -sf /etc/make.globals "${BOARD_ROOT}/etc/make.globals"
+sudo ln -sf /etc/make.conf.user "${BOARD_ROOT}/etc/make.conf.user"
+
+# Select the profile to build based on the board and profile passed to
+# setup_board.  The developer can later change profiles by running
+# cros_choose_profile manually.
+if ! cros_choose_profile \
+       --board "${FLAGS_board}" \
+       --build_root "${FLAGS_build_root}" \
+       --board_overlay "${FLAGS_board_overlay}" \
+       --variant "${FLAGS_variant}" \
+       --profile "${FLAGS_profile}"; then
+  error "Selecting profile failed, removing incomplete board directory!"
+  sudo rm -rf "${BOARD_ROOT}"
+  exit 1
+fi
+
+
+for wrapper in 'emerge --root-deps' ebuild eclean equery portageq; do
+  generate_wrapper $wrapper
+done
+
+generate_pkgconfig_wrapper
+
+CROS_WORKON_WRAPPER="/usr/local/bin/cros_workon-${BOARD_VARIANT}"
+cat <<EOF | sudo dd of="$CROS_WORKON_WRAPPER" > /dev/null 2>&1
+#!/bin/bash
+exec cros_workon --board ${BOARD_VARIANT} "\$@"
+EOF
+sudo chmod +x "$CROS_WORKON_WRAPPER"
+
+#
+# Emerge the kernel headers into the board build root.
+#
+EMERGE_FLAGS=""
+if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
+  EMERGE_FLAGS="${EMERGE_FLAGS} --getbinpkg --usepkg"
+fi
+
+if ${HOST_BOARD}; then
+  EMERGE_CMD="emerge"
+  if [[ $FLAGS_fast -eq $FLAGS_TRUE ]]; then
+    EMERGE_CMD="${GCLIENT_ROOT}/chromite/bin/parallel_emerge"
+  fi
+  PACKAGES="system hard-host-depends world"
+
+  # First, rebuild all packages from scratch. This is needed to make sure
+  # we rebuild all chroot packages.
+  sudo -E $EMERGE_CMD --emptytree --with-bdeps=y $PACKAGES
+  sudo eclean -d packages
+
+  # Next, install our rebuilt packages into our separate root.
+  HOST_FLAGS="--root=$BOARD_ROOT --update --verbose --deep --root-deps"
+  HOST_FLAGS+=" --with-bdeps=y --newuse --jobs=$NUM_JOBS --usepkgonly"
+  sudo -E $EMERGE_CMD $HOST_FLAGS $PACKAGES
+  sudo cp -a "${PKGDIR}" $BOARD_ROOT/packages
+
+  # Install cross-compilers.
+  COMPILERS=$(equery l cross-*/* --format='=$cpv')
+  sudo -E $EMERGE_CMD $HOST_FLAGS --oneshot $COMPILERS
+
+  # Setup needed symlinks for cross-compilers.
+  sudo mkdir -p $BOARD_ROOT/usr/local/portage
+  sudo cp -a /usr/local/portage/crossdev $BOARD_ROOT/usr/local/portage
+
+  # Setup crossdev configuration for categories.
+  sudo cp -a /etc/portage/* $BOARD_ROOT/etc/portage
+
+  # The new chroot should have gcc for each target. Make sure that
+  # the latest one is correctly selected. Ignore cat errors as not
+  # all overlays will have a toolchain.conf.
+  ALL_OVERLAYS=$(cros_overlay_list --all_boards)
+  TARGETS=$(cat $(printf '%s/toolchain.conf ' ${ALL_OVERLAYS}) 2>/dev/null | \
+            sort -u)
+  for target in ${TARGETS}; do
+    # Install needed glibc tarball.
+    cross_target_path=/var/lib/portage/pkgs/cross-$target
+    if [[ -e "$cross_target_path" ]] ; then
+        sudo mkdir -p ${BOARD_ROOT}$cross_target_path
+        sudo cp -a ${cross_target_path}/glibc-* ${BOARD_ROOT}$cross_target_path
+    fi
+
+    CURRENT_GCC="$(gcc-config -c ${target})"
+    sudo ROOT=${BOARD_ROOT} gcc-config ${CURRENT_GCC}
+    CURRENT_BINUTILS="$(binutils-config -c ${target})"
+    sudo ROOT=${BOARD_ROOT} binutils-config ${CURRENT_BINUTILS}
+  done
+
+  # Now cleanup paths referencing the ROOT from the *.la files.
+  sudo find $BOARD_ROOT -type f -name '*.la' | xargs sudo \
+      sed -i -e "s|$BOARD_ROOT/|/|g"
+else
+  sudo -E "${EMERGE_WRAPPER}" ${EMERGE_FLAGS} chromeos-base/kernel-headers
+fi
+
+if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then
+  echo $BOARD_VARIANT > "$GCLIENT_ROOT/src/scripts/.default_board"
+fi
+
+echo "Done!"
+echo "The SYSROOT is: ${BOARD_ROOT}"
+
+# NOTE: Printing the working-on ebuilds does not only serve the informative
+# purpose. It also causes the ${BOARD_ROOT}/etc/portage/package.* files to be
+# regenerated.
+WORKING_ON=$(cros_workon --board=${FLAGS_board} list)
+if [ -n "${WORKING_ON}" ]; then
+  echo
+  echo "Currently working on the following ebuilds for this board:"
+  echo "${WORKING_ON}"
+fi
