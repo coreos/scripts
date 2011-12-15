@@ -243,6 +243,8 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
     sudo mkdir -p "${ESP_FS_DIR}/u-boot"
     sudo cp "${FLAGS_from}/boot-A.scr.uimg" \
       "${ESP_FS_DIR}/u-boot/boot.scr.uimg"
+    sudo cp -f "${FLAGS_from}"/vmlinuz "${ESP_FS_DIR}"/vmlinuz.uimg.A
+    sudo cp -f "${FLAGS_from}"/zImage "${ESP_FS_DIR}"/vmlinuz.A
   fi
 fi
 
