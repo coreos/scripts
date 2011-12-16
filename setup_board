@@ -363,8 +363,8 @@ print_board_binhost_config() {
       chrome_binhost="$binhost_dir/x86-generic-$chrome_binhost_suffix"
     fi
   fi
-  local chromeos_overlay="$SRC_ROOT/private-overlays/chromeos-overlay"
-  local internal_binhost_dir="$chromeos_overlay/chromeos/binhost/target"
+  local partner_overlay="$SRC_ROOT/private-overlays/chromeos-partner-overlay"
+  local internal_binhost_dir="$partner_overlay/chromeos/binhost/target"
   local internal_binhost="$internal_binhost_dir/$BOARD-PREFLIGHT_BINHOST.conf"
 
   cat <<'EOF'
