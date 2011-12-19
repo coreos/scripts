@@ -263,6 +263,11 @@ function get_default_board {
 
   if [ -f "$GCLIENT_ROOT/src/scripts/.default_board" ] ; then
     DEFAULT_BOARD=$(cat "$GCLIENT_ROOT/src/scripts/.default_board")
+    # Check for user typos like whitespace.
+    if [[ -n ${DEFAULT_BOARD//[a-zA-Z0-9-_]} ]] ; then
+      die ".default_board: invalid name detected; please fix:" \
+          "'${DEFAULT_BOARD}'"
+    fi
   fi
 }
 
