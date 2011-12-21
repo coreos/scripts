@@ -112,11 +112,6 @@ fi
 
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   EMERGE_JOBS="--jobs=${FLAGS_jobs}"
-  if [[ "${FLAGS_retries}" -eq -1 ]]; then
-    # The jobs flag can be flaky. Retry once by default,
-    # without the jobs flag.
-    FLAGS_retries=1
-  fi
 fi
 
 if [[ "${FLAGS_withdebug}" -eq "${FLAGS_FALSE}" ]]; then
@@ -175,46 +170,23 @@ if ! OUTPUT=$(emerge-${FLAGS_board} -pe --backtrack=0 ${PACKAGES} 2>&1); then
   die "emerge detected broken ebuilds. See error message above."
 fi
 
-if [[ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
-  # These flags are specific to parallel_emerge
-  for pkg in ${CROS_WORKON_PKGS}; do
-    EMERGE_FLAGS="${EMERGE_FLAGS} --workon=${pkg}"
-  done
-  if [[ "${FLAGS_norebuild}" -eq "${FLAGS_FALSE}" ]]; then
-    EMERGE_FLAGS="${EMERGE_FLAGS} --rebuild"
-  fi
-  if [[ "${FLAGS_showoutput}" -eq "${FLAGS_TRUE}" ]]; then
-    EMERGE_FLAGS="${EMERGE_FLAGS} --show-output"
-  fi
-  if [[ "${FLAGS_oldchromebinary}" -eq "${FLAGS_TRUE}" ]]; then
-    EMERGE_FLAGS="${EMERGE_FLAGS} --force-remote-binary=chromeos-chrome"
-    EMERGE_FLAGS="${EMERGE_FLAGS} --force-remote-binary=libcros"
-  fi
-  eretry sudo -E ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES}
-else
-  echo "Building ${PACKAGES} ${CROS_WORKON_PKGS}"
-  if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
-    # Merge all packages, including binary versions of packages.
-    eretry ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES}
-    if [[ -n "${CROS_WORKON_PKGS}" ]]; then
-      # Re-merge cros-workon packages, this time from source. This is
-      # inefficient, but regular emerge doesn't support any way of specifying
-      # that you want specific packages to be merged from source only.
-      eretry ${EMERGE_BOARD_CMD} --oneshot ${CROS_WORKON_PKGS}
-    fi
-  else
-    # Re-merge cros_workon packages, updating dependencies if necessary.
-    #   --selective=n: Always re-merge cros_workon packages.
-    #   -1: Don't add cros_workon packages to world file.
-    if [[ -n "${CROS_WORKON_PKGS}" ]]; then
-      eretry ${EMERGE_BOARD_CMD} -uDNv1 --selective=n ${CROS_WORKON_PKGS}
-    fi
-
-    # Update the remainder of the packages.
-    eretry ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES}
-  fi
+for pkg in ${CROS_WORKON_PKGS}; do
+  EMERGE_FLAGS+=" --reinstall-atoms=${pkg}"
+  EMERGE_FLAGS+=" --usepkg-exclude=${pkg}"
+done
+if [[ "${FLAGS_norebuild}" -eq "${FLAGS_FALSE}" ]]; then
+  EMERGE_FLAGS+=" --rebuild-if-unbuilt"
 fi
-
+if [[ "${FLAGS_oldchromebinary}" -eq "${FLAGS_TRUE}" ]]; then
+  EMERGE_FLAGS+=" --useoldpkg-atoms=chromeos-chrome"
+  EMERGE_FLAGS+=" --useoldpkg-atoms=libcros"
+fi
+if [[ "${FLAGS_showoutput}" -eq "${FLAGS_TRUE}" && \
+      "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
+  # Only parallel_emerge supports --show-output.
+  EMERGE_FLAGS+=" --show-output"
+fi
+eretry sudo -E ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES}
 
 echo "Builds complete"
 print_time_elapsed
