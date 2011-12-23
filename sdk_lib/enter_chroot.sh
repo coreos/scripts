@@ -250,6 +250,44 @@ function setup_env {
     fi
     queue_mount "${FLAGS_trunk}" "--bind" "${CHROOT_TRUNK_DIR}"
 
+
+    debug "Setting up referenced repositories if required."
+    REFERENCE_DIR=$(git config --file  \
+      "${FLAGS_trunk}/.repo/manifests.git/config" \
+      repo.reference)
+    if [ -n "${REFERENCE_DIR}" ]; then
+
+      IFS=$'\n';
+      required=( $( "${FLAGS_trunk}/chromite/lib/rewrite_git_alternates.py" \
+        "${FLAGS_trunk}" "${REFERENCE_DIR}" "${CHROOT_TRUNK_DIR}" ) )
+      unset IFS
+
+      queue_mount "${FLAGS_trunk}/.repo/chroot/alternates" --bind \
+        "${CHROOT_TRUNK_DIR}/.repo/alternates"
+
+      # Note that as we're bringing up each referened repo, we also
+      # mount bind an empty directory over its alternates.  This is
+      # required to suppress git from tracing through it- we already
+      # specify the required alternates for CHROOT_TRUNK_DIR, no point
+      # in having git try recursing through each on their own.
+      #
+      # Finally note that if you're unfamiliar w/ chroot/vfs semantics,
+      # the bind is visible only w/in the chroot.
+      mkdir -p ${FLAGS_trunk}/.repo/chroot/empty
+      position=1
+      for x in "${required[@]}"; do
+        base="${CHROOT_TRUNK_DIR}/.repo/chroot/external${position}"
+        queue_mount "${x}" "--bind" "${base}"
+        if [ -e "${x}/.repo/alternates" ]; then
+          queue_mount "${FLAGS_trunk}/.repo/chroot/empty" "--bind" \
+            "${base}/.repo/alternates"
+        fi
+        position=$(( ${position} + 1 ))
+      done
+      unset required position base
+    fi
+    unset REFERENCE_DIR
+
     if [ $FLAGS_ssh_agent -eq $FLAGS_TRUE ]; then
       if [ -n "${SSH_AUTH_SOCK}" -a -d "${HOME}/.ssh" ]; then
         TARGET_DIR="${FLAGS_chroot}/home/${USER}/.ssh"
