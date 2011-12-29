@@ -48,7 +48,7 @@ DEFINE_boolean force $FLAGS_FALSE \
   "Force re-creating board root."
 DEFINE_string binutils_version "2.21-r3" \
   "Version of binutils to use."
-DEFINE_string gcc_version "4.6.0-r12" \
+DEFINE_string gcc_version "4.6.0-r10" \
   "Version of gcc to use."
 DEFINE_string libc_version "2.11.1-r3" \
   "Version of libc to use."
