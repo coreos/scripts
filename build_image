@@ -159,12 +159,22 @@ fi
 
 # If we are creating a developer image, also create a pristine image with a
 # different name.
-PRISTINE_IMAGE_NAME=chromiumos_image.bin
+PRISTINE_IMAGE_NAME=
 if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
   PRISTINE_IMAGE_NAME=${CHROMEOS_BASE_IMAGE_NAME}
 # Rename pristine image for factory install shim.
 elif [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   PRISTINE_IMAGE_NAME=${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}
+else
+  # No withdev and no factory_install set meaning we must be building just the
+  # base image.
+  PRISTINE_IMAGE_NAME=chromiumos_image.bin
+  # Verify our assertion is true.
+  if [ ${IMAGES_TO_BUILD} != ${CHROMEOS_BASE_IMAGE_NAME} ]; then
+    warn "${IMAGES_TO_BUILD} != ${CHROMEOS_BASE_IMAGE_NAME}"
+    die "Should only reach this condition if only building the base image."
+  fi
+  IMAGES_TO_BUILD="chromiumos_image.bin"
 fi
 
 ROOT_FS_DIR="${BUILD_DIR}/rootfs"

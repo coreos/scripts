@@ -57,26 +57,24 @@ parse_build_image_args() {
   if [ -n "${FLAGS_ARGV}" ]; then
     info "Ignoring image flags since image(s) in $FLAGS_ARGV specified."
     get_images_to_build ${FLAGS_ARGV}
-    if should_build_image ${CHROMEOS_BASE_IMAGE_NAME}; then
-      FLAGS_factory_install=${FLAGS_FALSE}
-    fi
+    # Start at ground zero with all image flags set to False.
+    FLAGS_withdev=${FLAGS_FALSE}
+    FLAGS_test=${FLAGS_FALSE}
+    FLAGS_factory=${FLAGS_FALSE}
+    FLAGS_factory_install=${FLAGS_FALSE}
     if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME}; then
       FLAGS_withdev=${FLAGS_TRUE}
-      FLAGS_factory_install=${FLAGS_FALSE}
     fi
     if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
       FLAGS_withdev=${FLAGS_TRUE}
       FLAGS_test=${FLAGS_TRUE}
-      FLAGS_factory_install=${FLAGS_FALSE}
       if should_build_image "${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"; then
         die "Cannot build both the test and factory_test images."
       fi
     fi
     if should_build_image ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}; then
       FLAGS_withdev=${FLAGS_TRUE}
-      FLAGS_test=${FLAGS_FALSE}
       FLAGS_factory=${FLAGS_TRUE}
-      FLAGS_factory_install=${FLAGS_FALSE}
     fi
     if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
       for image in ${CHROMEOS_BASE_IMAGE_NAME} ${CHROMEOS_DEVELOPER_IMAGE_NAME}\
@@ -84,9 +82,6 @@ parse_build_image_args() {
         should_build_image ${image} && die "Can't build both $image" \
           "and ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}."
       done
-      FLAGS_withdev=${FLAGS_FALSE}
-      FLAGS_test=${FLAGS_FALSE}
-      FLAGS_factory=${FLAGS_FALSE}
       FLAGS_factory_install=${FLAGS_TRUE}
     fi
   else
