@@ -144,6 +144,7 @@ dm_verity.dev_wait=${dev_wait}
 ${verity_args}
 ${FLAGS_boot_args}
 vt.global_cursor_default=0
+kern_guid=%U
 EOF
 
 WORK="${WORK} ${FLAGS_working_dir}/boot.config"
@@ -166,7 +167,6 @@ noresume
 noswap
 i915.modeset=1
 cros_secure
-kern_guid=%U
 tpm_tis.force=1
 tpm_tis.interrupts=0
 nmi_watchdog=panic,lapic
@@ -179,7 +179,6 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
   cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
     > "${FLAGS_working_dir}/config.txt"
 earlyprintk
-kern_guid=%U
 vmalloc=234MB
 EOF
   WORK="${WORK} ${FLAGS_working_dir}/config.txt"
