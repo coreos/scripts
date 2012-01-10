@@ -53,7 +53,7 @@ if [ $FLAGS_board = x86-generic ]; then
     PATH_PREFIX="x86-generic-full"
   fi
 else
-  die "Unrecognized board: $FLAGS_board"
+  PATH_PREFIX="${FLAGS_board}-release"
 fi
 
 URL_PREFIX="gs://$BUCKET/$PATH_PREFIX"
