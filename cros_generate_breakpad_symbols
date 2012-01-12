@@ -204,6 +204,7 @@ function main() {
   DEBUG_ROOT="${SYSROOT}/usr/lib/debug"
   AUTOTEST_ROOT="${SYSROOT}/usr/local/autotest"
   CUMULATIVE_SIZE=0
+  sudo rm -rf "${FLAGS_minidump_symbol_root}"
 
   if [ -z "${FLAGS_ARGV}" ]; then
     for debug_file in $(find "${DEBUG_ROOT}" -name \*.debug); do
