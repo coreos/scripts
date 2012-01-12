@@ -67,15 +67,15 @@ build_gpt() {
   fi
 
   # Now populate the partitions.
-  echo "Copying stateful partition..."
+  info "Copying stateful partition..."
   $sudo dd if="$stateful_img" of="$outdev" conv=notrunc bs=512 \
       seek=$START_STATEFUL
 
-  echo "Copying rootfs..."
+  info "Copying rootfs..."
   $sudo dd if="$rootfs_img" of="$outdev" conv=notrunc bs=512 \
       seek=$START_ROOTFS_A
 
-  echo "Copying EFI system partition..."
+  info "Copying EFI system partition..."
   $sudo dd if="$esp_img" of="$outdev" conv=notrunc bs=512 \
       seek=$START_ESP
 

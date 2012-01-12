@@ -12,7 +12,7 @@
 install_dev_packages() {
   local image_name=$1
 
-  echo "Adding developer packages to ${image_name}"
+  info "Adding developer packages to ${image_name}"
 
   trap "unmount_image ; delete_prompt" EXIT
 
@@ -88,7 +88,7 @@ install_dev_packages() {
   if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]; then
     test_image_content "$ROOT_FS_DIR"
   fi
-  echo "Developer image built and stored at ${image_name}"
+  info "Developer image built and stored at ${image_name}"
 
   unmount_image
   trap - EXIT

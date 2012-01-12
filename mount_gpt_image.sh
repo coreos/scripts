@@ -73,7 +73,7 @@ fi
 
 # Common unmounts for either a device or directory
 function unmount_image() {
-  echo "Unmounting image from ${FLAGS_stateful_mountpt}" \
+  info "Unmounting image from ${FLAGS_stateful_mountpt}" \
       "and ${FLAGS_rootfs_mountpt}"
   # Don't die on error to force cleanup
   set +e
@@ -185,7 +185,7 @@ function mount_image() {
     setup_symlinks_on_root "${FLAGS_stateful_mountpt}/dev_image" \
       "${FLAGS_stateful_mountpt}/var" "${FLAGS_stateful_mountpt}"
   fi
-  echo "Image specified by ${FLAGS_from} mounted at"\
+  info "Image specified by ${FLAGS_from} mounted at"\
     "${FLAGS_rootfs_mountpt} successfully."
 }
 

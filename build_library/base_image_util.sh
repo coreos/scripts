@@ -73,8 +73,7 @@ create_base_image() {
 
   ROOT_LOOP_DEV=$(sudo losetup --show -f "${ROOT_FS_IMG}")
   if [ -z "${ROOT_LOOP_DEV}" ] ; then
-    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
-    exit 1
+    die "No free loop device.  Free up a loop device or reboot.  exiting. "
   fi
 
   # Specify a block size and block count to avoid using the hash pad.
@@ -106,8 +105,7 @@ create_base_image() {
   DISK_LABEL="C-STATE"
   STATEFUL_LOOP_DEV=$(sudo losetup --show -f "${STATEFUL_FS_IMG}")
   if [ -z "${STATEFUL_LOOP_DEV}" ] ; then
-    echo "No free loop device.  Free up a loop device or reboot.  exiting. "
-    exit 1
+    die "No free loop device.  Free up a loop device or reboot.  exiting. "
   fi
   sudo mkfs.ext4 "${STATEFUL_LOOP_DEV}"
   sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${STATEFUL_LOOP_DEV}"
@@ -126,7 +124,7 @@ create_base_image() {
 
   # Perform binding rather than symlinking because directories must exist
   # on rootfs so that we can bind at run-time since rootfs is read-only.
-  echo "Binding directories from stateful partition onto the rootfs"
+  info "Binding directories from stateful partition onto the rootfs"
   sudo mkdir -p "${ROOT_FS_DIR}/usr/local"
   sudo mount --bind "${DEV_IMAGE_ROOT}" "${ROOT_FS_DIR}/usr/local"
   sudo mkdir -p "${ROOT_FS_DIR}/var"
