@@ -152,15 +152,6 @@ function process_file() {
     fi
     return 0
   fi
-  if [ "${text_file#${AUTOTEST_ROOT}}" != "${text_file}" ]; then
-    # Skip autotest files, they are not part of the image to debug
-    # and some cause trouble to dump_syms because they are built
-    # externally (with different build options).
-    if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
-      info "Skipping autotest file: ${text_file}"
-    fi
-    return 0
-  fi
   if [ ! -f "${text_file}" ]; then
     # Allow files to not exist, for instance if they are in the INSTALL_MASK.
     warn "Binary does not exist: ${text_file}"
@@ -202,7 +193,6 @@ function main() {
   info "Writing minidump symbols to ${FLAGS_minidump_symbol_root}"
 
   DEBUG_ROOT="${SYSROOT}/usr/lib/debug"
-  AUTOTEST_ROOT="${SYSROOT}/usr/local/autotest"
   CUMULATIVE_SIZE=0
   sudo rm -rf "${FLAGS_minidump_symbol_root}"
 
