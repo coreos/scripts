@@ -186,7 +186,7 @@ if [ -b "${FLAGS_to}" ]; then
      list_mmc_disks | grep -q '^'${FLAGS_to##*/}'$'; then
     disk_manufacturer=$(get_disk_info ${FLAGS_to##*/} manufacturer)
     disk_product=$(get_disk_info ${FLAGS_to##*/} product)
-  elif [ ${FLAGS_force_non} -ne ${FLAGS_TRUE} ]; then
+  elif [ ${FLAGS_force_non_usb} -ne ${FLAGS_TRUE} ]; then
     # Safeguard against writing to a real non-USB disk or non-SD disk
     echo "Error: Device ${FLAGS_to} does not appear to be a USB or MMC disk!"
     echo "       To override this safeguard, use the --force_non_usb flag"
