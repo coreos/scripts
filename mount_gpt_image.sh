@@ -129,19 +129,31 @@ function get_gpt_partitions() {
     enable_rw_mount "${FLAGS_from}/${filename}" "$(( offset * 512 ))"
   fi
 
-  sudo mount ${safe_flag} -o loop,offset=$(( offset * 512 )) \
-    "${FLAGS_from}/${filename}" "${FLAGS_rootfs_mountpt}"
+  if ! sudo mount ${safe_flag} -o loop,offset=$(( offset * 512 )) \
+      "${FLAGS_from}/${filename}" "${FLAGS_rootfs_mountpt}" ; then
+    error "mount failed: options=${safe_flag} offset=$(( offset * 512 ))" \
+        "target=${FLAGS_rootfs_mountpt}"
+    return 1
+  fi
 
   # Mount the stateful partition using a loopback device.
   offset=$(partoffset "${FLAGS_from}/${filename}" 1)
-  sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
-    "${FLAGS_from}/${filename}" "${FLAGS_stateful_mountpt}"
+  if ! sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
+      "${FLAGS_from}/${filename}" "${FLAGS_stateful_mountpt}" ; then
+    error "mount failed: options=${ro_flag} offset=$(( offset * 512 ))" \
+        "target=${FLAGS_stateful_mountpt}"
+    return 1
+  fi
 
   # Mount the stateful partition using a loopback device.
   if [[ -n "${FLAGS_esp_mountpt}" ]]; then
     offset=$(partoffset "${FLAGS_from}/${filename}" 12)
-    sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
-      "${FLAGS_from}/${filename}" "${FLAGS_esp_mountpt}"
+    if ! sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
+        "${FLAGS_from}/${filename}" "${FLAGS_esp_mountpt}" ; then
+      error "mount failed: options=${ro_flag} offset=$(( offset * 512 ))" \
+          "target=${FLAGS_esp_mountpt}"
+      return 1
+    fi
   fi
 }
 
@@ -156,8 +168,10 @@ function mount_image() {
   # Get the partitions for the image / device.
   if [ -b ${FLAGS_from} ] ; then
     get_usb_partitions
-  else
-    get_gpt_partitions
+  elif ! get_gpt_partitions ; then
+    echo "Current loopback device status:"
+    sudo losetup --all | sed 's/^/    /'
+    die "Failed to mount all partitions in ${FLAGS_from}/${FLAGS_image}"
   fi
 
   # Mount directories and setup symlinks.
