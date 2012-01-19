@@ -173,8 +173,8 @@ function main() {
 
   [ -n "$FLAGS_board" ] ||  die "--board is required."
 
-  case "$FLAGS_board" in
-    amd64-*)
+  case "$(portageq-${FLAGS_board} envvar ARCH)" in
+    amd64)
       echo "Detected amd64 board.."
       DUMP_SYMS="/build/${FLAGS_board}/usr/bin/dump_syms"
       ;;
