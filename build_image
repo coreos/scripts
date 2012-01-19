@@ -123,7 +123,7 @@ parse_build_image_args
 EXTRA_PACKAGES=""
 if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
   # TODO: Build a separated ebuild for the install shim to reduce size.
-  INSTALL_MASK="${INSTALL_MASK} ${FACTORY_INSTALL_MASK}"
+  INSTALL_MASK="${FACTORY_SHIM_INSTALL_MASK}"
 
   # Reduce the size of factory install shim.
   info "Fixing the rootfs size at 320 MiB for install shim"

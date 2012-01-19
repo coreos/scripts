@@ -170,7 +170,7 @@ CHROOT_TRUNK_DIR="/home/$USER/trunk"
 
 # Install make for portage ebuilds.  Used by build_image and gmergefs.
 # TODO: Is /usr/local/autotest-chrome still used by anyone?
-DEFAULT_INSTALL_MASK="
+COMMON_INSTALL_MASK="
   *.a
   *.la
   /etc/init.d
@@ -183,7 +183,6 @@ DEFAULT_INSTALL_MASK="
   /usr/lib/gcc
   /usr/lib/gtk-2.0/include
   /usr/lib/pkgconfig
-  /usr/local/autotest
   /usr/local/autotest-chrome
   /usr/man
   /usr/share/aclocal
@@ -199,18 +198,38 @@ DEFAULT_INSTALL_MASK="
   /usr/src
   "
 
-FACTORY_INSTALL_MASK="
-  /opt/Qualcomm
-  /opt/Synaptics
+# Mask for base, dev, and test images (build_image, build_image --test)
+DEFAULT_INSTALL_MASK="
+  $COMMON_INSTALL_MASK
+  /usr/local/autotest
+  "
+
+# Mask for factory test image (build_image --factory)
+FACTORY_TEST_INSTALL_MASK="
+  $COMMON_INSTALL_MASK
+  */.svn
+  */CVS
+  /usr/local/autotest/[^c]*
+  /usr/local/autotest/conmux
+  /usr/local/autotest/client/deps/chrome_test
+  /usr/local/autotest/client/deps/piglit
+  /usr/local/autotest/client/deps/pyauto_dep
+  /usr/local/autotest/client/deps/realtimecomm_*
+  /usr/local/autotest/client/site_tests/desktopui_PageCyclerTests
+  /usr/local/autotest/client/site_tests/graphics_WebGLConformance
+  /usr/local/autotest/client/site_tests/platform_ToolchainOptions
+  /usr/local/autotest/client/site_tests/realtimecomm_GTalk*
+  "
+
+# Mask for factory install shim (build_image --factory_install)
+FACTORY_SHIM_INSTALL_MASK="
+  $DEFAULT_INSTALL_MASK
+  /opt/[^g]*
   /opt/google/chrome
   /opt/google/o3d
   /opt/google/talkplugin
-  /opt/netscape
-  /usr/lib/debug
   /usr/lib/dri
   /usr/lib/python2.6/test
-  /usr/local/autotest
-  /usr/local/autotest-chrome
   /usr/local/autotest-pkgs
   /usr/share/X11
   /usr/share/chewing

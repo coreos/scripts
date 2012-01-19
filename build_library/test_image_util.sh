@@ -98,37 +98,6 @@ prepare_hwid_for_factory() {
   fi
 }
 
-install_autotest_for_factory() {
-  local autotest_src="${BOARD_ROOT}/usr/local/autotest"
-  local stateful_root="${ROOT_FS_DIR}/usr/local"
-  local autotest_client="${stateful_root}/autotest"
-
-  echo "Install autotest into stateful partition from ${autotest_src}"
-
-  sudo mkdir -p "${autotest_client}"
-
-  # Remove excess files from stateful partition.
-  sudo rm -rf "${autotest_client}/"*
-  sudo rm -rf "${stateful_root}/autotest-pkgs"
-  sudo rm -rf "${stateful_root}/lib/icedtea6"
-
-  sudo rsync --delete --delete-excluded -au \
-    --exclude=deps/realtimecomm_playground \
-    --exclude=tests/ltp \
-    --exclude=site_tests/graphics_O3DSelenium \
-    --exclude=site_tests/realtimecomm_GTalk\* \
-    --exclude=site_tests/platform_StackProtector \
-    --exclude=deps/chrome_test \
-    --exclude=site_tests/desktopui_BrowserTest \
-    --exclude=site_tests/desktopui_PageCyclerTests \
-    --exclude=site_tests/desktopui_UITest \
-    --exclude=.svn \
-    "${autotest_src}/client/"* "${autotest_client}"
-
-  sudo chmod 755 "${autotest_client}"
-  sudo chown -R 1000:1000 "${autotest_client}"
-}
-
 # Converts a dev image into a test or factory test image
 # Takes as an arg the name of the image to be created.
 mod_image_for_test () {
@@ -153,9 +122,10 @@ mod_image_for_test () {
 
   if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
     emerge_to_image --root="${ROOT_FS_DIR}" factorytest-init
-
+    INSTALL_MASK="${FACTORY_TEST_INSTALL_MASK}"
+    emerge_to_image --root="${ROOT_FS_DIR}/usr/local" \
+      chromeos-base/autotest chromeos-base/autotest-all
     prepare_hwid_for_factory "${BUILD_DIR}"
-    install_autotest_for_factory
 
     local mod_factory_script
     mod_factory_script="${SCRIPTS_DIR}/mod_for_factory_scripts/factory_setup.sh"
