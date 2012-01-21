@@ -113,13 +113,15 @@ def CopyRequiredFiles(dest_files_root):
   # We need directories to be copied recursively to a destination within tempdir
   recurse_dirs = {'~/trunk/src/scripts/lib/shflags': 'lib/shflags'}
 
+  # Feel free to delete any file here if the chroot version is newer than
+  # the goobuntu workstation version. Otherwise delta generator will break
+  # when used by the release team to generate a delta.
   black_list = [
     'linux-vdso.so',
     'libgcc_s.so',
     'libgthread-2.0.so',
     'libpthread.so',
     'librt.so',
-    'libstdc',
     'libgcc_s.so',
     'libc.so',
     'ld-linux-x86-64',
