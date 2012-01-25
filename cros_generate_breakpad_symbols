@@ -67,21 +67,26 @@ function get_debug_for_text() {
   echo ${debug_path}
 }
 
-# Verify the file given is not a 64-bit ELF file.  For now all targets
-# are 32-bit, we'll need to determine the correct bit automatically
-# once we release 64-bit versions.  Allow files in /usr/lib64 to exist
-# on the image and only give warnings.
-function verify_not_64b_elf() {
+# Returns true if the file given is a 64-bit ELF file.
+function is_64b_elf() {
   local elf="$1"
-  if file "${elf}" | grep -q "ELF 64-bit"; then
-    # Allow with a warning if in /usr/lib64
-    if echo "${elf}" | grep -q /usr/lib64; then
-      warn "64-bit usr/lib64 file ${elf} ignored."
-    else
-      error "File ${elf} is a 64b executable"
-      ANY_ERRORS=1
+  file "${elf}" | grep -q "ELF 64-bit"
+}
+
+# Verify the file given is an ELF file that dump_syms can handle.  A 32-bit
+# dump_syms cannot dump a 64-bit ELF file, and vice versa.
+function verify_not_mismatched_elf() {
+  local elf="$1"
+  if [ ${DUMP_SYMS_IS_64BIT} -ne 0 ]; then
+    if ! is_64b_elf "${elf}"; then
+      warn "Not dumping symbols for file ${elf} because it is not 64-bit"
+      return 1
     fi
-    return 1
+  else
+    if is_64b_elf "${elf}"; then
+      warn "Not dumping symbols for file ${elf} because it is 64-bit"
+      return 1
+    fi
   fi
   return 0
 }
@@ -93,6 +98,8 @@ function dump_file() {
   local debug_file="$1"
   local text_file="$2"
   local debug_directory="$(dirname "${debug_file}")"
+  # 32-bit dump_syms cannot dump a 64-bit ELF file, and vice versa
+  verify_not_mismatched_elf "${text_file}" || return 1
   # Dump symbols as root in order to read all files.
   if ! sudo "${DUMP_SYMS}" "${text_file}" "${debug_directory}" > "${SYM_FILE}" \
        2> "${ERR_FILE}"; then
@@ -177,9 +184,11 @@ function main() {
     amd64)
       echo "Detected amd64 board.."
       DUMP_SYMS="/build/${FLAGS_board}/usr/bin/dump_syms"
+      DUMP_SYMS_IS_64BIT=1
       ;;
     *)
       DUMP_SYMS="dump_syms"
+      DUMP_SYMS_IS_64BIT=0
   esac
 
   echo "Using dump_sys: $DUMP_SYMS"
