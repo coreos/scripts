@@ -48,9 +48,9 @@ DEFINE_boolean force $FLAGS_FALSE \
   "Force re-creating board root."
 DEFINE_string binutils_version "2.21-r3" \
   "Version of binutils to use."
-DEFINE_string gcc_version "4.6.0-r13" \
+DEFINE_string gcc_version "stable" \
   "Version of gcc to use."
-DEFINE_string libc_version "2.11.1-r3" \
+DEFINE_string libc_version "stable" \
   "Version of libc to use."
 DEFINE_string kernel_version "3.1" \
   "Version of kernel headers to use."
@@ -142,9 +142,23 @@ toolchain_needs_update() {
     return 1
   fi
 
-  # Unmask any ebuilds previously masked by crossdev. crossdev will re-setup
-  # its masks appropriately the next time we run it.
-  sudo rm -f /etc/portage/package.mask/cross-$toolchain
+  # Unmask any ebuilds previously [un]masked by crossdev. crossdev will
+  # re-setup its masks appropriately the next time we run it.
+  sudo rm -f /etc/portage/package.{mask,keywords}/cross-$toolchain
+
+  pkg_to_flag() {
+    [ "${1}" = "glibc" ] && echo "libc" || echo "$1"
+  }
+
+  local pkg
+  for pkg in gcc glibc binutils; do
+    local flagname=FLAGS_$(pkg_to_flag ${pkg})_version
+    if [ "${!flagname}" = "stable" ]; then
+      eval ${flagname}=$( \
+          portageq best_visible / "cross-$toolchain/${pkg}"| \
+          sed -e "s,cross-$toolchain/${pkg}-,,")
+    fi
+  done
 
   local flags="--pretend --quiet --update"
   local pkgs
