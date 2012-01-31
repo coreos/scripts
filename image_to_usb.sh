@@ -216,6 +216,12 @@ else
   SRC_IMAGE="${FLAGS_from}/${FLAGS_image_name}"
 fi
 
+if [ ! -f "${SRC_IMAGE}" ]; then
+  echo "Could not find the source image:"
+  echo "  ${SRC_IMAGE}"
+  exit 1
+fi
+
 # Let's do it.
 if [ -b "${FLAGS_to}" ]; then
   # Output to a block device (i.e., a real USB key / SD card), so need sudo dd
