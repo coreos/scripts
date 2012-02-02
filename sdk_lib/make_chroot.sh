@@ -198,9 +198,15 @@ EOF
    sudo chmod 0644 "${FLAGS_chroot}"/etc/make.conf.user
 
    # Create directories referred to by our conf files.
-   sudo mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/distfiles" \
-     "${FLAGS_chroot}/var/lib/portage/distfiles-target" \
-     "${FLAGS_chroot}/var/lib/portage/pkgs"
+   sudo mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/pkgs"
+
+   # These are created for compatibility while transitioning
+   # make.conf and friends over to the new location.
+   # TODO(ferringb): remove this 03/12 or so.
+   sudo ln -s ../../cache/distfiles/host \
+     "${FLAGS_chroot}/var/lib/portage/distfiles"
+   sudo ln -s ../../cache/distfiles/target \
+     "${FLAGS_chroot}/var/lib/portage/distfiles-target"
 
    if [[ $FLAGS_jobs -ne -1 ]]; then
      EMERGE_JOBS="--jobs=$FLAGS_jobs"

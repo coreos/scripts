@@ -25,6 +25,8 @@ DEFINE_string chrome_root "" \
   "The root of your chrome browser source. Should contain a 'src' subdir."
 DEFINE_string chrome_root_mount "/home/$USER/chrome_root" \
   "The mount point of the chrome broswer source in the chroot."
+DEFINE_string distfiles "" \
+  "Override the destination dir used for distfiles."
 
 DEFINE_boolean official_build $FLAGS_FALSE \
   "Set CHROMEOS_OFFICIAL=1 for release builds."
@@ -66,6 +68,9 @@ eval set -- "${FLAGS_ARGV}"
 if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
    CHROMEOS_OFFICIAL=1
 fi
+
+[ -z "${FLAGS_distfiles}" ] && \
+  FLAGS_distfiles="${FLAGS_trunk}/distfiles"
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
 # so will die prematurely if 'set -e' is specified before now.
@@ -289,6 +294,11 @@ function setup_env {
       unset required position base
     fi
     unset REFERENCE_DIR
+
+    debug "Setting up shared distfiles directory."
+    mkdir -p "${FLAGS_distfiles}"/{target,host}
+    sudo mkdir -p "${FLAGS_chroot}/var/cache/distfiles/"
+    queue_mount "${FLAGS_distfiles}" "--bind" "/var/cache/distfiles"
 
     if [ $FLAGS_ssh_agent -eq $FLAGS_TRUE ]; then
       if [ -n "${SSH_AUTH_SOCK}" -a -d "${HOME}/.ssh" ]; then
