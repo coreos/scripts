@@ -31,6 +31,8 @@ DEFINE_boolean official_build $FLAGS_FALSE \
 DEFINE_boolean mount $FLAGS_FALSE "Only set up mounts."
 DEFINE_boolean unmount $FLAGS_FALSE "Only tear down mounts."
 DEFINE_boolean ssh_agent $FLAGS_TRUE "Import ssh agent."
+DEFINE_boolean early_make_chroot $FLAGS_FALSE \
+  "Internal flag.  If set, the command is run as root without sudo."
 DEFINE_boolean verbose $FLAGS_FALSE "Print out actions taken"
 
 # More useful help
@@ -502,33 +504,47 @@ fi
 trap teardown_env EXIT
 setup_env
 
-CHROOT_PASSTHRU="BUILDBOT_BUILD=$FLAGS_build_number \
-CHROMEOS_OFFICIAL=$CHROMEOS_OFFICIAL"
-CHROOT_PASSTHRU="${CHROOT_PASSTHRU} \
-CHROMEOS_RELEASE_APPID=${CHROMEOS_RELEASE_APPID:-"{DEV-BUILD}"}"
+CHROOT_PASSTHRU=(
+  "BUILDBOT_BUILD=$FLAGS_build_number"
+  "CHROMEOS_OFFICIAL=$CHROMEOS_OFFICIAL"
+  "CHROMEOS_RELEASE_APPID=${CHROMEOS_RELEASE_APPID:-{DEV-BUILD}}"
 
-# Set CHROMEOS_VERSION_TRACK, CHROMEOS_VERSION_AUSERVER,
-# CHROMEOS_VERSION_DEVSERVER as environment variables to override the default
-# assumptions (local AU server). These are used in cros_set_lsb_release, and
-# are used by external Chromium OS builders.
-CHROOT_PASSTHRU="${CHROOT_PASSTHRU} \
-CHROMEOS_VERSION_TRACK=${CHROMEOS_VERSION_TRACK} \
-CHROMEOS_VERSION_AUSERVER=${CHROMEOS_VERSION_AUSERVER} \
-CHROMEOS_VERSION_DEVSERVER=${CHROMEOS_VERSION_DEVSERVER}"
+  # Set CHROMEOS_VERSION_TRACK, CHROMEOS_VERSION_AUSERVER,
+  # CHROMEOS_VERSION_DEVSERVER as environment variables to override the default
+  # assumptions (local AU server). These are used in cros_set_lsb_release, and
+  # are used by external Chromium OS builders.
+
+  "CHROMEOS_VERSION_TRACK=${CHROMEOS_VERSION_TRACK}"
+  "CHROMEOS_VERSION_AUSERVER=${CHROMEOS_VERSION_AUSERVER}"
+  "CHROMEOS_VERSION_DEVSERVER=${CHROMEOS_VERSION_DEVSERVER}"
+  "EXTERNAL_TRUNK_PATH=${FLAGS_trunk}"
+  "SSH_AGENT_PID=${SSH_AGENT_PID}"
+  "SSH_AUTH_SOCK=${SSH_AUTH_SOCK}"
+)
 
 # Pass proxy variables into the environment.
 for type in http_proxy ftp_proxy all_proxy GIT_PROXY_COMMAND GIT_SSH; do
-   if [ -n "${!type}" ]; then
-      CHROOT_PASSTHRU="${CHROOT_PASSTHRU} ${type}=${!type}"
-   fi
+  if [ -n "${!type}" ]; then
+    CHROOT_PASSTHRU+=( "${type}=${!type}" )
+  fi
 done
 
 # Run command or interactive shell.  Also include the non-chrooted path to
 # the source trunk for scripts that may need to print it (e.g.
 # build_image.sh).
-sudo -- chroot "$FLAGS_chroot" sudo -i -u $USER $CHROOT_PASSTHRU \
-  EXTERNAL_TRUNK_PATH="${FLAGS_trunk}" SSH_AGENT_PID="${SSH_AGENT_PID}" \
-  SSH_AUTH_SOCK="${SSH_AUTH_SOCK}" "$@"
+
+if [ $FLAGS_early_make_chroot -eq $FLAGS_TRUE ]; then
+  cmd=( /bin/bash -l -c 'env "$@"' -- )
+elif [ ! -x "${FLAGS_chroot}/usr/bin/sudo" ]; then
+  # Complain that sudo is missing.
+  error "Failing since the chroot lacks sudo."
+  error "Requested enter_chroot command was: $@"
+  exit 127
+else
+  cmd=( sudo -i -u "$USER" )
+fi
+
+sudo -- chroot "${FLAGS_chroot}" "${cmd[@]}" "${CHROOT_PASSTHRU[@]}" "$@"
 
 # Remove trap and explicitly unmount
 trap - EXIT
