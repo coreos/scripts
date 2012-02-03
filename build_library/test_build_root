@@ -31,7 +31,6 @@ if [[ ! -d "$ROOT" ]]; then
 fi
 
 BINARIES="$ROOT/usr/bin/Xorg
-          $ROOT/usr/bin/chromeos-wm
           $ROOT/boot/vmlinuz
           $ROOT/sbin/session_manager
           $ROOT/bin/sed

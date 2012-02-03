@@ -8,7 +8,6 @@ test_image_content() {
 
   local binaries=(
     "$root/usr/bin/Xorg"
-    "$root/usr/bin/chromeos-wm"
     "$root/boot/vmlinuz"
     "$root/sbin/session_manager"
     "$root/bin/sed"
