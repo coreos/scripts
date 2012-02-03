@@ -72,8 +72,7 @@ eval set -- "${FLAGS_ARGV}"
 
 if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
   if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
-    echo "Factory test image is incompatible with factory install shim."
-    exit 1
+    die "Factory test image is incompatible with factory install shim"
   fi
 fi
 
@@ -120,23 +119,19 @@ if [ -z "${FLAGS_from}" ]; then
 fi
 
 if [ ! -d "${FLAGS_from}" ] ; then
-  echo "Cannot find image directory ${FLAGS_from}"
-  exit 1
+  die "Cannot find image directory ${FLAGS_from}"
 fi
 
 if [ -n "${FLAGS_to_product}" ]; then
   if [ "${FLAGS_to}" != "/dev/sdX" ]; then
-    echo "Cannot specify both --to and --to_product"
-    exit 1
+    die "Cannot specify both --to and --to_product"
   fi
 
   match=""
   for disk in $(list_usb_disks) $(list_mmc_disks); do
     if [[ "$(get_disk_info $disk product)" = ${FLAGS_to_product} ]]; then
       if [ -n "${match}" ]; then
-        echo "Found multiple devices matching product" \
-             "'${FLAGS_to_product}'; aborting."
-        exit 1
+        die "Multiple devices match product '${FLAGS_to_product}', aborting"
       fi
       match="$disk"
     fi
@@ -150,20 +145,54 @@ if [ -n "${FLAGS_to_product}" ]; then
   fi
 fi
 
-if [ "${FLAGS_to}" == "/dev/sdX" ]; then
-  echo "You must specify a file or device to write to using one of" \
-       "--to or --to_product."
-  disks="$(list_usb_disks) $(list_mmc_disks)"
-  if [ -n "$disks" ]; then
-    echo "Available USB & MMC disks:"
-    for disk in $disks; do
-      echo "  /dev/$disk:"
-      echo "    Manufacturer: $(get_disk_info $disk manufacturer)"
-      echo "         Product: $(get_disk_info $disk product)"
-      echo "            Size: $[$(cat /sys/block/$disk/size) * 512] bytes"
-    done
+# Generates a descriptive string of a removable device. Includes the
+# manufacturer (if non-empty), product and a human-readable size.
+function get_disk_string() {
+  local disk="${1##*/}"
+  local manufacturer_string=$(get_disk_info $disk manufacturer)
+  local product_string=$(get_disk_info $disk product)
+  local disk_size=$(sudo fdisk -l /dev/$disk 2>/dev/null | grep Disk |
+                    head -n 1 | cut -d' ' -f3-4 | sed 's/,//g')
+  # I've seen one case where manufacturer only contains spaces, hence the test.
+  if [ -n "${manufacturer_string// }" ]; then
+    echo -n "${manufacturer_string} "
   fi
-  exit 1
+  echo "${product_string}, ${disk_size}"
+}
+
+# No target provided, attempt autodetection.
+if [ "${FLAGS_to}" == "/dev/sdX" ]; then
+  echo "No target device was specified, autodetecting..."
+
+  # Obtain list of USB and MMC device names.
+  disk_list=( $(list_usb_disks) $(list_mmc_disks) )
+  if (( ! ${#disk_list[*]} )); then
+    die "No target device could be detected"
+  fi
+
+  # Build list of descriptive strings for detected devices.
+  unset disk_string_list
+  for disk in "${disk_list[@]}"; do
+    disk_string=$(get_disk_string /dev/${disk})
+    disk_string_list=( "${disk_string_list[@]}" \
+                       "/dev/${disk}: ${disk_string}" )
+  done
+
+  # Prompt for selection, or autoselect if only one device was found.
+  if (( ${#disk_string_list[*]} > 1 )); then
+    PS3="Select a target device: "
+    select disk_string in "${disk_string_list[@]}"; do
+      if [ -z "${disk_string}" ]; then
+        die "Invalid selection"
+      fi
+      break
+    done
+  else
+    disk_string="${disk_string_list}"
+    echo "Found ${disk_string}"
+  fi
+
+  FLAGS_to="${disk_string%%:*}"
 fi
 
 # Guess ARCH if it's unset
@@ -180,17 +209,16 @@ fi
 FLAGS_from=`eval readlink -f ${FLAGS_from}`
 FLAGS_to=`eval readlink -f ${FLAGS_to}`
 
-# One last check to make sure user is not shooting themselves in the foot
+# Check whether target device is USB/MMC, and obtain a string descriptor for it.
+unset disk_string
 if [ -b "${FLAGS_to}" ]; then
   if list_usb_disks | grep -q '^'${FLAGS_to##*/}'$' ||
      list_mmc_disks | grep -q '^'${FLAGS_to##*/}'$'; then
-    disk_manufacturer=$(get_disk_info ${FLAGS_to##*/} manufacturer)
-    disk_product=$(get_disk_info ${FLAGS_to##*/} product)
+    disk_string=$(get_disk_string ${FLAGS_to})
   elif [ ${FLAGS_force_non_usb} -ne ${FLAGS_TRUE} ]; then
     # Safeguard against writing to a real non-USB disk or non-SD disk
-    echo "Error: Device ${FLAGS_to} does not appear to be a USB or MMC disk!"
-    echo "       To override this safeguard, use the --force_non_usb flag"
-    exit 1
+    die "${FLAGS_to} does not appear to be a USB/MMC disk," \
+        "use --force_non_usb to override"
   fi
 fi
 
@@ -217,55 +245,47 @@ else
 fi
 
 if [ ! -f "${SRC_IMAGE}" ]; then
-  echo "Could not find the source image:"
-  echo "  ${SRC_IMAGE}"
-  exit 1
+  die "Image not found: ${SRC_IMAGE}"
 fi
 
 # Let's do it.
 if [ -b "${FLAGS_to}" ]; then
   # Output to a block device (i.e., a real USB key / SD card), so need sudo dd
   if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
-    echo "Copying USB image ${SRC_IMAGE} to device ${FLAGS_to}..."
+    echo "Copying USB image ${SRC_IMAGE} to ${FLAGS_to}..."
   else
-    echo "Installing  image ${SRC_IMAGE} to device ${FLAGS_to}..."
+    echo "Installing  image ${SRC_IMAGE} to ${FLAGS_to}..."
   fi
 
   # Warn if it looks like they supplied a partition as the destination.
   if echo "${FLAGS_to}" | grep -q '[0-9]$'; then
     drive=$(echo "${FLAGS_to}" | sed -re 's/[0-9]+$//')
     if [ -b "${drive}" ]; then
-      echo
-      echo "NOTE: It looks like you may have supplied a partition as the "
-      echo "destination.  This script needs to write to the drive's device "
-      echo "node instead (i.e. ${drive} rather than ${FLAGS_to})."
-      echo
+      warn "${FLAGS_to} looks like a partition; did you mean ${drive}?"
     fi
   fi
 
   # Make sure this is really what the user wants, before nuking the device
   if [ ${FLAGS_yes} -ne ${FLAGS_TRUE} ]; then
-    sudo fdisk -l "${FLAGS_to}" 2>/dev/null | grep Disk | head -1
-    [ -n "$disk_manufacturer" ] && echo "Manufacturer: $disk_manufacturer"
-    [ -n "$disk_product" ] && echo "Product: $disk_product"
-    echo "This will erase all data on this device:"
+    warning_str="this will erase all data on ${FLAGS_to}"
+    if [ -n "${disk_string}" ]; then
+      warning_str="${warning_str}: ${disk_string}"
+    else
+      warning_str="${warning_str}, which does not appear to be a USB/MMC disk!"
+    fi
+    warn "${warning_str}"
     read -p "Are you sure (y/N)? " SURE
     SURE="${SURE:0:1}" # Get just the first character
     if [ "${SURE}" != "y" ]; then
       echo "Ok, better safe than sorry."
-      exit 1
+      exit
     fi
   fi
 
-  echo "Attempting to unmount any mounts on the USB/MMC device..."
+  echo "Attempting to unmount any mounts on the target device..."
   for i in $(mount | grep ^"${FLAGS_to}" | awk '{print $1}'); do
     if sudo umount "$i" 2>&1 >/dev/null | grep "not found"; then
-      echo
-      echo "The device you have specified is already mounted at some point "
-      echo "that is not visible from inside the chroot.  Please unmount the "
-      echo "device manually from outside the chroot and try again."
-      echo
-      exit 1
+      die "Device ${FLAGS_to} needs to be unmounted outside the chroot"
     fi
   done
   sleep 3
@@ -277,8 +297,7 @@ if [ -b "${FLAGS_to}" ]; then
     sync
   else
     if [ ${INSIDE_CHROOT} -ne 1 ]; then
-      echo "Installation must be done from inside the chroot."
-      exit 1
+      die "Installation must be done from inside the chroot"
     fi
 
     echo "Installing ${SRC_IMAGE} to ${FLAGS_to}..."
