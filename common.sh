@@ -765,3 +765,14 @@ function emerge_custom_kernel() {
   sudo -E PKGDIR="${tmp_pkgdir}" $EMERGE_BOARD_CMD --usepkgonly \
     --root=${install_root} ${kernel} || die "Cannot emerge kernel to root"
 }
+
+function enable_strict_sudo {
+  if [ -z "$CROS_SUDO_KEEP_ALIVE" ]; then
+    echo "$0 was somehow invoked in a way that the sudo keep alive could"
+    echo "not be found.  Failing due to this.  See crosbug.com/18393."
+    exit 126
+  fi
+  function sudo {
+    `type -P sudo` -n "$@"
+  }
+}

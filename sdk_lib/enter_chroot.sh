@@ -9,6 +9,8 @@
 SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
+enable_strict_sudo
+
 # Script must be run outside the chroot and as a regular user.
 assert_outside_chroot
 assert_not_root_user

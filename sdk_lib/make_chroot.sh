@@ -14,6 +14,8 @@ SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 
 ENTER_CHROOT=$(readlink -f $(dirname "$0")/enter_chroot.sh)
 
+enable_strict_sudo
+
 # Check if the host machine architecture is supported.
 ARCHITECTURE="$(uname -m)"
 if [[ "$ARCHITECTURE" != "x86_64" ]]; then
