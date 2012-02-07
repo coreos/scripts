@@ -1,0 +1,35 @@
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# As of update 24, we preserve distfiles across chroot rebuilds via storing
+# the content outside of the chroot, and binding it in.
+#
+# chromeos-chrome stores its build output in distdir however, which we
+# don't currently want preserved across chroot builds, thus this script
+# pulls the content out to the new location within the chroot.
+
+upgrade_path() {
+  local src="/var/cache/distfiles/target/$1"
+  local dest="/var/cache/chromeos-chrome/$1"
+
+  if [ -d "$src" ]; then
+    if [ -d "$dest" ]; then
+      # User has already built it- thus wipe the src and use what's in
+      # the chrome specific cache.
+      sudo rm -rf "$src"
+    else
+      sudo mv "$src" "$dest"
+    fi
+  fi
+}
+
+sudo mkdir -p 0775 /var/cache/chromeos-chrome/
+sudo chown "$USER:portage" /var/cache/chromeos-chrome/
+
+upgrade_path chrome-src
+upgrade_path chrome-src-internal
+upgrade_path chrome-src-custom
+upgrade_path chrome-src-custom-internal
+
+exit 0

@@ -198,7 +198,13 @@ EOF
    sudo chmod 0644 "${FLAGS_chroot}"/etc/make.conf.user
 
    # Create directories referred to by our conf files.
-   sudo mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/pkgs"
+   sudo mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/pkgs" \
+     "${FLAGS_chroot}/var/cache/distfiles" \
+     "${FLAGS_chroot}/var/cache/chromeos-chrome"
+
+   # Run this from w/in the chroot so we use whatever uid/gid
+   # these are defined as w/in the chroot.
+   sudo_chroot chown "${USER}:portage" /var/cache/chromeos-chrome
 
    # These are created for compatibility while transitioning
    # make.conf and friends over to the new location.
