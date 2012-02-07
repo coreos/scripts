@@ -150,7 +150,7 @@ fi
 # NOTE: This code snippet is in particular used by the au-generator (which
 # stores shflags in ./lib/shflags/) and should not be touched.
 if [ -f "${SCRIPTS_DIR}/lib/shflags/shflags" ]; then
-  . "${SCRIPTS_DIR}/lib/shflags/shflags"
+  . "${SCRIPTS_DIR}/lib/shflags/shflags" || die "Couldn't find shflags"
 else
   . ./lib/shflags/shflags || die "Couldn't find shflags"
 fi
