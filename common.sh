@@ -35,6 +35,41 @@ else
   INSIDE_CHROOT=0
 fi
 
+# Determine and set up variables needed for fancy color output (if supported).
+V_BOLD_RED=
+V_BOLD_GREEN=
+V_BOLD_YELLOW=
+V_REVERSE=
+V_VIDOFF=
+
+if tput colors >/dev/null 2>&1; then
+  # order matters: we want VIDOFF last so that when we trace with `set -x`,
+  # our terminal doesn't bleed colors as bash dumps the values of vars.
+  V_BOLD_RED="$(tput bold; tput setaf 1)"
+  V_BOLD_GREEN="$(tput bold; tput setaf 2)"
+  V_BOLD_YELLOW="$(tput bold; tput setaf 3)"
+  V_REVERSE="$(tput rev)"
+  V_VIDOFF="$(tput sgr0)"
+fi
+
+# Declare these asap so that code below can safely assume they exist.
+function info {
+  echo -e >&2  "${V_BOLD_GREEN}INFO    ${CROS_LOG_PREFIX:-""}: $@${V_VIDOFF}"
+}
+
+function warn {
+  echo -e >&2 "${V_BOLD_YELLOW}WARNING ${CROS_LOG_PREFIX:-""}: $@${V_VIDOFF}"
+}
+
+function error {
+  echo -e >&2    "${V_BOLD_RED}ERROR   ${CROS_LOG_PREFIX:-""}: $@${V_VIDOFF}"
+}
+
+function die {
+  error "$@"
+  exit 1
+}
+
 # Construct a list of possible locations for the source tree.  This list is
 # based on various environment variables and globals that may have been set
 # by the calling script.
@@ -244,23 +279,6 @@ FACTORY_SHIM_INSTALL_MASK="
   /usr/share/zoneinfo
   "
 
-# Determine and set up variables needed for fancy color output (if supported).
-V_BOLD_RED=
-V_BOLD_GREEN=
-V_BOLD_YELLOW=
-V_REVERSE=
-V_VIDOFF=
-
-if tput colors >/dev/null 2>&1; then
-  # order matters: we want VIDOFF last so that when we trace with `set -x`,
-  # our terminal doesn't bleed colors as bash dumps the values of vars.
-  V_BOLD_RED="$(tput bold; tput setaf 1)"
-  V_BOLD_GREEN="$(tput bold; tput setaf 2)"
-  V_BOLD_YELLOW="$(tput bold; tput setaf 3)"
-  V_REVERSE="$(tput rev)"
-  V_VIDOFF="$(tput sgr0)"
-fi
-
 # -----------------------------------------------------------------------------
 # Functions
 
@@ -348,23 +366,6 @@ function check_flags_only_and_allow_null_arg {
     exit 1
   fi
   return $do_shift
-}
-
-function info {
-  echo -e >&2  "${V_BOLD_GREEN}INFO    ${CROS_LOG_PREFIX:-""}: $@${V_VIDOFF}"
-}
-
-function warn {
-  echo -e >&2 "${V_BOLD_YELLOW}WARNING ${CROS_LOG_PREFIX:-""}: $@${V_VIDOFF}"
-}
-
-function error {
-  echo -e >&2    "${V_BOLD_RED}ERROR   ${CROS_LOG_PREFIX:-""}: $@${V_VIDOFF}"
-}
-
-function die {
-  error "$@"
-  exit 1
 }
 
 # Retry an emerge command according to $FLAGS_retries
