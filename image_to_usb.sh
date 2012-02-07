@@ -70,10 +70,26 @@ DEFINE_string arch "" "Architecture of the image."
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
-if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
-  if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
-    die "Factory test image is incompatible with factory install shim"
+# Generates a descriptive string of a removable device. Includes the
+# manufacturer (if non-empty), product and a human-readable size.
+function get_disk_string() {
+  local disk="${1##*/}"
+  local manufacturer_string=$(get_disk_info $disk manufacturer)
+  local product_string=$(get_disk_info $disk product)
+  local disk_size=$(sudo fdisk -l /dev/$disk 2>/dev/null | grep Disk |
+                    head -n 1 | cut -d' ' -f3-4 | sed 's/,//g')
+  # I've seen one case where manufacturer only contains spaces, hence the test.
+  if [ -n "${manufacturer_string// }" ]; then
+    echo -n "${manufacturer_string} "
   fi
+  echo "${product_string}, ${disk_size}"
+}
+
+
+# Prohibit mutually exclusive factory/install flags.
+if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} -a \
+     ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
+  die "Factory test image is incompatible with factory install shim"
 fi
 
 # Allow --from /foo/file.bin
@@ -83,7 +99,6 @@ if [ -f "${FLAGS_from}" ]; then
   FLAGS_image_name="${filename}"
   FLAGS_from="${pathname}"
 fi
-
 
 # Require autotest for manucaturing image.
 if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ; then
@@ -144,21 +159,6 @@ if [ -n "${FLAGS_to_product}" ]; then
     FLAGS_to="/dev/${match}"
   fi
 fi
-
-# Generates a descriptive string of a removable device. Includes the
-# manufacturer (if non-empty), product and a human-readable size.
-function get_disk_string() {
-  local disk="${1##*/}"
-  local manufacturer_string=$(get_disk_info $disk manufacturer)
-  local product_string=$(get_disk_info $disk product)
-  local disk_size=$(sudo fdisk -l /dev/$disk 2>/dev/null | grep Disk |
-                    head -n 1 | cut -d' ' -f3-4 | sed 's/,//g')
-  # I've seen one case where manufacturer only contains spaces, hence the test.
-  if [ -n "${manufacturer_string// }" ]; then
-    echo -n "${manufacturer_string} "
-  fi
-  echo "${product_string}, ${disk_size}"
-}
 
 # No target provided, attempt autodetection.
 if [ "${FLAGS_to}" == "/dev/sdX" ]; then
@@ -224,16 +224,6 @@ fi
 
 STATEFUL_DIR="${FLAGS_from}/stateful_partition"
 mkdir -p "${STATEFUL_DIR}"
-
-function do_cleanup {
-  echo "Cleaning loopback devices: ${STATEFUL_LOOP_DEV}"
-  if [ "${STATEFUL_LOOP_DEV}" != "" ]; then
-    sudo umount "${STATEFUL_DIR}"
-    sudo losetup -d "${STATEFUL_LOOP_DEV}"
-    rmdir "${STATEFUL_DIR}"
-    echo "Cleaned"
-  fi
-}
 
 if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
   # Make a test image - this returns the test filename in CHROMEOS_RETURN_VAL
