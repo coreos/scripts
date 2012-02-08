@@ -196,6 +196,7 @@ BUILD_DIR=
 CHROMEOS_BASE_IMAGE_NAME="chromiumos_base_image.bin"
 CHROMEOS_IMAGE_NAME="chromiumos_image.bin"
 CHROMEOS_DEVELOPER_IMAGE_NAME="chromiumos_image.bin"
+CHROMEOS_RECOVERY_IMAGE_NAME="recovery_image.bin"
 CHROMEOS_TEST_IMAGE_NAME="chromiumos_test_image.bin"
 CHROMEOS_FACTORY_TEST_IMAGE_NAME="chromiumos_factory_image.bin"
 CHROMEOS_FACTORY_INSTALL_SHIM_NAME="factory_install_shim.bin"
