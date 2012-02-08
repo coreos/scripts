@@ -46,7 +46,7 @@ DEFINE_boolean usepkg $FLAGS_TRUE \
   "Use binary packages to bootstrap."
 DEFINE_boolean force $FLAGS_FALSE \
   "Force re-creating board root."
-DEFINE_string binutils_version "2.21-r3" \
+DEFINE_string binutils_version "2.21-r4" \
   "Version of binutils to use."
 DEFINE_string gcc_version "[stable]" \
   "Version of gcc to use."
