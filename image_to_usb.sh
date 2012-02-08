@@ -41,30 +41,38 @@ declare -F list_mmc_disks >/dev/null || list_mmc_disks() { true; }
 get_default_board
 
 # Flags
-DEFINE_string board "${DEFAULT_BOARD}" "Board for which the image was built"
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "board for which the image was built"
 DEFINE_string from "" \
-  "Directory containing ${CHROMEOS_IMAGE_NAME}, or filename"
-DEFINE_string to "/dev/sdX" "Write to a specific disk or image file."
+  "directory containing the image, or image full pathname"
+DEFINE_string to "/dev/sdX" \
+  "write to a specific disk or image file"
 DEFINE_string to_product "" \
-  "Write to a disk with product name matching a pattern."
-DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts" "y"
-DEFINE_boolean force_copy ${FLAGS_FALSE} "Always rebuild test image"
+  "write to a disk with product name matching a pattern"
+DEFINE_boolean yes ${FLAGS_FALSE} \
+  "answer yes to all prompts" \
+  y
+DEFINE_boolean force_copy ${FLAGS_FALSE} \
+  "always rebuild test image"
 DEFINE_boolean force_non_usb ${FLAGS_FALSE} \
-  "Write out image even if target (--to) doesn't look like a USB or MMC disk"
+  "force writing even if target device doesn't appear to be a USB/MMC disk"
 DEFINE_boolean factory_install ${FLAGS_FALSE} \
-  "Whether to generate a factory install shim."
+  "generate a factory install shim"
 DEFINE_boolean factory ${FLAGS_FALSE} \
-  "Whether to generate a factory runin image. Implies aututest and test"
+  "generate a factory runing image, implies autotest and test"
 DEFINE_boolean copy_kernel ${FLAGS_FALSE} \
-  "Copy the kernel to the fourth partition."
+  "copy the kernel to the fourth partition"
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
-  "Copies normal image to ${CHROMEOS_TEST_IMAGE_NAME}, modifies it for test."
-DEFINE_string image_name "${CHROMEOS_IMAGE_NAME}" \
-  "Base name of the image" i
+  "copy normal image to ${CHROMEOS_TEST_IMAGE_NAME} and modify it for test"
+DEFINE_string image_name "" \
+  "image base name (auto-select if empty)" \
+  i
 DEFINE_string build_root "/build" \
-  "The root location for board sysroots."
-DEFINE_boolean install ${FLAGS_FALSE} "Install to the USB or MMC device."
-DEFINE_string arch "" "Architecture of the image."
+  "root location for board sysroots"
+DEFINE_boolean install ${FLAGS_FALSE} \
+  "install to the USB/MMC device"
+DEFINE_string arch "" \
+  "architecture for which the image was built (derived from board if empty)"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -162,7 +170,7 @@ fi
 
 # No target provided, attempt autodetection.
 if [ "${FLAGS_to}" == "/dev/sdX" ]; then
-  echo "No target device was specified, autodetecting..."
+  echo "No target device specified, autodetecting..."
 
   # Obtain list of USB and MMC device names.
   disk_list=( $(list_usb_disks) $(list_mmc_disks) )
@@ -225,6 +233,45 @@ fi
 STATEFUL_DIR="${FLAGS_from}/stateful_partition"
 mkdir -p "${STATEFUL_DIR}"
 
+# Autodetect image.
+if [ -z "${FLAGS_image_name}" ]; then
+  echo "No image name specified, autodetecting..."
+
+  # Obtain list of available images that can be used.
+  image_candidate_list=( "${CHROMEOS_IMAGE_NAME}" )
+  if [ ${FLAGS_test_image} -eq ${FLAGS_FALSE} ]; then
+    # Generation of test image not signaled, look for other images as well.
+    image_candidate_list=( "${image_candidate_list[@]}"
+                           "${CHROMEOS_RECOVERY_IMAGE_NAME}"
+                           "${CHROMEOS_TEST_IMAGE_NAME}"
+                           "${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
+                           "${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}" )
+  fi
+  unset image_list
+  for image_candidate in "${image_candidate_list[@]}"; do
+    if [ -f "${FLAGS_from}/${image_candidate}" ]; then
+      image_list=( "${image_list[@]}" "${image_candidate}" )
+    fi
+  done
+
+  num_images=${#image_list[*]}
+  if (( ${num_images} == 0 )); then
+    die "No candidate images could be detected"
+  elif (( ${num_images} == 1)); then
+    image="${image_list}"
+    echo "Found image ${image}"
+  else
+    # Select one from a list of available images; default to the first.
+    PS3="Select an image [1]: "
+    choose image "${image_list}" "ERROR" "${image_list[@]}"
+    if [ "${image}" == "ERROR" ]; then
+      die "Invalid selection"
+    fi
+  fi
+
+  FLAGS_image_name="${image}"
+fi
+
 if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
   # Make a test image - this returns the test filename in CHROMEOS_RETURN_VAL
   prepare_test_image "${FLAGS_from}" "${FLAGS_image_name}"
@@ -242,9 +289,9 @@ fi
 if [ -b "${FLAGS_to}" ]; then
   # Output to a block device (i.e., a real USB key / SD card), so need sudo dd
   if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
-    echo "Copying USB image ${SRC_IMAGE} to ${FLAGS_to}..."
+    echo "Copying image ${SRC_IMAGE} to ${FLAGS_to}..."
   else
-    echo "Installing  image ${SRC_IMAGE} to ${FLAGS_to}..."
+    echo "Installing image ${SRC_IMAGE} to ${FLAGS_to}..."
   fi
 
   # Warn if it looks like they supplied a partition as the destination.
@@ -272,16 +319,18 @@ if [ -b "${FLAGS_to}" ]; then
     fi
   fi
 
-  echo "Attempting to unmount any mounts on the target device..."
-  for i in $(mount | grep ^"${FLAGS_to}" | awk '{print $1}'); do
-    if sudo umount "$i" 2>&1 >/dev/null | grep "not found"; then
-      die "Device ${FLAGS_to} needs to be unmounted outside the chroot"
-    fi
-  done
-  sleep 3
+  mount_list=$(mount | grep ^"${FLAGS_to}" | awk '{print $1}')
+  if [ -n "${mount_list}" ]; then
+    echo "Attempting to unmount any mounts on the target device..."
+    for i in ${mount_list}; do
+      if sudo umount "$i" 2>&1 >/dev/null | grep "not found"; then
+        die "Device ${FLAGS_to} needs to be unmounted outside the chroot"
+      fi
+    done
+    sleep 3
+  fi
 
   if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
-    echo "Copying with dd ${SRC_IMAGE} to ${FLAGS_to}..."
     sudo ${COMMON_PV_CAT} "${SRC_IMAGE}" |
       sudo dd of="${FLAGS_to}" bs=4M oflag=sync status=noxfer
     sync
@@ -290,7 +339,6 @@ if [ -b "${FLAGS_to}" ]; then
       die "Installation must be done from inside the chroot"
     fi
 
-    echo "Installing ${SRC_IMAGE} to ${FLAGS_to}..."
     "${FLAGS_build_root}/${FLAGS_board}/usr/sbin/chromeos-install" \
       --yes \
       --skip_src_removable \
@@ -299,7 +347,6 @@ if [ -b "${FLAGS_to}" ]; then
       --payload_image="${SRC_IMAGE}" \
       --dst="${FLAGS_to}"
   fi
-  echo "Done."
 else
   # Output to a file, so just make a copy.
   if [ "${SRC_IMAGE}" != "${FLAGS_to}" ]; then
@@ -307,7 +354,8 @@ else
     ${COMMON_PV_CAT} "${SRC_IMAGE}" >"${FLAGS_to}"
   fi
 
-  echo "Done.  To copy to a USB/MMC drive, do something like:"
-  echo "   sudo dd if=${FLAGS_to} of=/dev/sdX bs=4M oflag=sync"
-  echo "where /dev/sdX is the entire drive."
+  info "To copy onto a USB/MMC drive /dev/sdX, use: "
+  info "  sudo dd if=${FLAGS_to} of=/dev/sdX bs=4M oflag=sync"
 fi
+
+echo "Done."
