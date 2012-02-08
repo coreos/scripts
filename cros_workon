@@ -47,9 +47,12 @@ shift
 # there's no way to override.
 [ -n "${FLAGS_board}" ] && [ "${FLAGS_host}" = ${FLAGS_TRUE} ] && \
   FLAGS_board="" # kill board
-[ -z "${FLAGS_board}" ] && [ "${FLAGS_host}" = ${FLAGS_FALSE} ] && \
-[ "${WORKON_CMD}" != "list-all" ] && \
+if [ -z "${FLAGS_board}" ] && \
+   [ "${FLAGS_host}" = ${FLAGS_FALSE} ] && \
+   [ "${WORKON_CMD}" != "list-all" ]; then
+  flags_help
   die "You must specify either --host or --board="
+fi
 
 if [ -n "${FLAGS_board}" ]; then
   BOARD_DIR=/build/"${FLAGS_board}" # --board specified
@@ -353,5 +356,8 @@ case ${WORKON_CMD} in
     show_workon_ebuilds ${BOARD_KEYWORD} ;;
   list-all) show_all_live_ebuilds ;;
   iterate) ebuild_iterate "${ATOM_LIST}" ;;
-  *) die "$(basename $0): command '${WORKON_CMD}' not recognized" ;;
+  *)
+    flags_help
+    die "$(basename $0): command '${WORKON_CMD}' not recognized"
+    ;;
 esac
