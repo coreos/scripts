@@ -12,41 +12,39 @@
 SCRIPT_ROOT=$(dirname "$0")
 . "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
 
+# Default recovery kernel name.
+RECOVERY_KERNEL_NAME=recovery_vmlinuz.image
 
-DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built" b
+DEFINE_string board "$DEFAULT_BOARD" \
+  "board for which the image was built" \
+  b
 DEFINE_integer statefulfs_sectors 4096 \
-  "Number of sectors to use for the stateful filesystem when minimizing"
-# Skips the build steps and just does the kernel swap.
+  "number of sectors in stateful filesystem when minimizing"
 DEFINE_string kernel_image "" \
-    "Path to a pre-built recovery kernel"
+  "path to a pre-built recovery kernel"
 DEFINE_string kernel_outfile "" \
-    "Filename and path to emit the kernel outfile to. \
-If empty, emits to IMAGE_DIR."
-DEFINE_string image "" "Path to the image to use"
+  "emit recovery kernel to path/file ($RECOVERY_KERNEL_NAME if empty)"
+DEFINE_string image "" \
+  "source image to use ($CHROMEOS_IMAGE_NAME if empty)"
 DEFINE_string to "" \
-    "Path to the image to create. If empty, defaults to \
-IMAGE_DIR/recovery_image.bin."
+  "emit recovery image to path/file ($CHROMEOS_RECOVERY_IMAGE_NAME if empty)"
 DEFINE_boolean kernel_image_only $FLAGS_FALSE \
-    "Emit the recovery kernel image only"
+  "only emit recovery kernel"
 DEFINE_boolean sync_keys $FLAGS_TRUE \
-    "Update the kernel to be installed with the vblock from stateful"
+  "update install kernel with the vblock from stateful"
 DEFINE_boolean minimize_image $FLAGS_TRUE \
-    "Decides if the original image is used or a minimal recovery image is \
-created."
+  "create a minimized recovery image from source image"
 DEFINE_boolean modify_in_place $FLAGS_FALSE \
-    "Modifies the source image in place. This cannot be used with \
---minimize_image."
+  "modify source image in place"
 DEFINE_integer jobs -1 \
-    "How many packages to build in parallel at maximum." j
+  "how many packages to build in parallel at maximum" \
+  j
 DEFINE_string build_root "/build" \
-    "The root location for board sysroots."
-
-DEFINE_boolean verbose $FLAGS_FALSE \
-    "Log all commands to stdout." v
-
-# Keep in sync with build_image.
+  "root location for board sysroots"
 DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
-  "Directory containing the signing keys."
+  "directory containing the signing keys"
+DEFINE_boolean verbose $FLAGS_FALSE \
+  "log all commands to stdout" v
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -61,26 +59,10 @@ if [ $FLAGS_verbose -eq $FLAGS_TRUE ]; then
   set -x
 fi
 
-
-. "${SCRIPT_ROOT}/build_library/board_options.sh" || exit 1
-
-
+# Load board options.
+. "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 EMERGE_BOARD_CMD="emerge-$BOARD"
 
-# No image was provided.  Use the standard latest image
-if [ -z "$FLAGS_image" ]; then
-  IMAGES_DIR="$($SCRIPT_ROOT/get_latest_image.sh --board=$BOARD)"
-  FLAGS_image="$IMAGES_DIR/$CHROMEOS_IMAGE_NAME"
-fi
-
-# Turn path into an absolute path.
-FLAGS_image=$(eval readlink -f "$FLAGS_image")
-
-# Abort early if we can't find the image
-if [ ! -f "$FLAGS_image" ]; then
-  echo "No image found at $FLAGS_image"
-  exit 1
-fi
 
 get_install_vblock() {
   # If it exists, we need to copy the vblock over to stateful
@@ -361,14 +343,29 @@ cleanup() {
   rm "$INSTALL_VBLOCK"
 }
 
-# main process begins here.
+
+# Main process begins here.
 set -u
+
+# No image was provided, use standard latest image path.
+if [ -z "$FLAGS_image" ]; then
+  DEFAULT_IMAGE_DIR="$($SCRIPT_ROOT/get_latest_image.sh --board=$BOARD)"
+  FLAGS_image="$DEFAULT_IMAGE_DIR/$CHROMEOS_IMAGE_NAME"
+fi
+
+# Turn path into an absolute path.
+FLAGS_image=$(readlink -f "$FLAGS_image")
+
+# Abort early if we can't find the image.
+if [ ! -f "$FLAGS_image" ]; then
+  die "Image not found: $FLAGS_image"
+fi
 
 IMAGE_DIR="$(dirname "$FLAGS_image")"
 IMAGE_NAME="$(basename "$FLAGS_image")"
-RECOVERY_IMAGE="${FLAGS_to:-$IMAGE_DIR/recovery_image.bin}"
+RECOVERY_IMAGE="${FLAGS_to:-$IMAGE_DIR/$CHROMEOS_RECOVERY_IMAGE_NAME}"
 RECOVERY_KERNEL_IMAGE=\
-"${FLAGS_kernel_outfile:-${IMAGE_DIR}/recovery_vmlinuz.image}"
+"${FLAGS_kernel_outfile:-$IMAGE_DIR/$RECOVERY_KERNEL_NAME}"
 RECOVERY_KERNEL_VBLOCK="${RECOVERY_KERNEL_IMAGE}.vblock"
 STATEFUL_DIR="$IMAGE_DIR/stateful_partition"
 SCRIPTS_DIR=${SCRIPT_ROOT}
