@@ -195,6 +195,12 @@ function copy_ssh_config {
   sed "/^.*\(${filter}\).*$/d" "${sshc}" > "${chroot_ssh_dir}/config"
 }
 
+function copy_into_chroot_if_exists {
+  # $1 is file path outside of chroot to copy to path $2 inside chroot.
+  [ -e "$1" ] || return
+  cp "$1" "${FLAGS_chroot}/$2"
+}
+
 function setup_env {
   # Validate sudo timestamp before entering the critical section so that we
   # don't stall for a password while we have the lockfile.
@@ -389,11 +395,11 @@ function setup_env {
     git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all \
       user.email "${ident_email}" || true
 
-    # Copy ~/.gdata_cred.txt to chroot if it exists.  This file contains
-    # credentials for reading/writing Google Docs on chromium.org.
-    if [ -f "$HOME/.gdata_cred.txt" ]; then
-      cp "$HOME/.gdata_cred.txt" "${FLAGS_chroot}/home/${USER}/.gdata_cred.txt"
-    fi
+    # Copy ~/.gdata_cred.txt and ~/.gdata_token to chroot if they exist.  These
+    # files contain credentials for reading/writing Google Docs on chromium.org.
+    for fn in ".gdata_cred.txt" ".gdata_token"; do
+      copy_into_chroot_if_exists "${HOME}/${fn}" "/home/${USER}/${fn}"
+    done
 
     # Make sure user's requested locales are available
     # http://crosbug.com/19139
