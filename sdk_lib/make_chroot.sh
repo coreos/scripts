@@ -422,11 +422,12 @@ early_enter_chroot emerge -uNv $USEPKG '>=sys-devel/gcc-4.4' sys-libs/glibc \
 # HACK: Select the latest toolchain. We're assuming that when this is
 # ran, the chroot has no experimental versions of new toolchains, just
 # one that is very old, and one that was just emerged.
+GCC_ATOM="$(early_enter_chroot portageq best_version / sys-devel/gcc)"
+early_enter_chroot emerge --unmerge "<${GCC_ATOM}"
 CHOST="$(early_enter_chroot portageq envvar CHOST)"
 LATEST="$(early_enter_chroot gcc-config -l | grep "${CHOST}" | tail -n1 | \
           cut -f3 -d' ')"
 early_enter_chroot gcc-config "${LATEST}"
-early_enter_chroot emerge --unmerge "<sys-devel/gcc-${LATEST/${CHOST}-/}"
 
 # dhcpcd is included in 'world' by the stage3 that we pull in for some reason.
 # We have no need to install it in our host environment, so pull it out here.
