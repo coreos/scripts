@@ -474,11 +474,13 @@ fi
 print_time_elapsed
 
 cat <<EOF
-${CROS_LOG_PREFIX:-cros_sdk}: All set up.  To enter the chroot, run:"
-${CROS_LOG_PREFIX:-cros_sdk}: $ cros_sdk --enter $CHROOT_EXAMPLE_OPT"
+
+${CROS_LOG_PREFIX:-cros_sdk}: All set up.  To enter the chroot, run:
+$ cros_sdk --enter $CHROOT_EXAMPLE_OPT
 
 CAUTION: Do *NOT* rm -rf the chroot directory; if there are stale bind
 mounts you may end up deleting your source tree too.  To unmount and
 delete the chroot cleanly, use:
 $ cros_sdk --delete $CHROOT_EXAMPLE_OPT
+
 EOF
