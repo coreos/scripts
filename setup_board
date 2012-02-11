@@ -357,11 +357,7 @@ print_board_binhost_config() {
     preflight_binhost="$binhost_dir/x86-generic-PREFLIGHT_BINHOST.conf"
   fi
   if [[ $ARCH = x86 && ! -f "$chrome_binhost" ]]; then
-    if portageq-$BOARD_VARIANT envvar USE | grep -Eq '(^| )aura( |$)'; then
-      chrome_binhost="$binhost_dir/x86-generic_aura-$chrome_binhost_suffix"
-    else
-      chrome_binhost="$binhost_dir/x86-generic-$chrome_binhost_suffix"
-    fi
+    chrome_binhost="$binhost_dir/x86-generic-$chrome_binhost_suffix"
   fi
   local partner_overlay="$SRC_ROOT/private-overlays/chromeos-partner-overlay"
   local internal_binhost_dir="$partner_overlay/chromeos/binhost/target"
