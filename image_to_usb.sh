@@ -230,54 +230,56 @@ fi
 STATEFUL_DIR="${FLAGS_from}/stateful_partition"
 mkdir -p "${STATEFUL_DIR}"
 
-# Autodetect image.
-if [ -z "${FLAGS_image_name}" ]; then
-  echo "No image name specified, autodetecting..."
+# Figure out which image to use.
+if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ]; then
+  # Test image requested: pass the provided (or otherwise default) image name
+  # to the method that's in charge of preparing a test image (note that this
+  # image may or may not exist). The test image filename is returned in
+  # CHROMEOS_RETURN_VAL.
+  prepare_test_image "${FLAGS_from}" \
+    "${FLAGS_image_name:=${CHROMEOS_IMAGE_NAME}}"
+  SRC_IMAGE="${CHROMEOS_RETURN_VAL}"
+else
+  # Auto-detect and select an image name if none provided.
+  if [ -z "${FLAGS_image_name}" ]; then
+    echo "No image name specified, autodetecting..."
 
-  # Obtain list of available images that can be used.
-  image_candidate_list=( "${CHROMEOS_IMAGE_NAME}" )
-  if [ ${FLAGS_test_image} -eq ${FLAGS_FALSE} ]; then
-    # Generation of test image not signaled, look for other images as well.
-    image_candidate_list=( "${image_candidate_list[@]}"
+    # Obtain list of available images that can be used.
+    image_candidate_list=( "${CHROMEOS_IMAGE_NAME}"
                            "${CHROMEOS_RECOVERY_IMAGE_NAME}"
                            "${CHROMEOS_TEST_IMAGE_NAME}"
                            "${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
                            "${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}" )
-  fi
-  unset image_list
-  for image_candidate in "${image_candidate_list[@]}"; do
-    if [ -f "${FLAGS_from}/${image_candidate}" ]; then
-      image_list=( "${image_list[@]}" "${image_candidate}" )
+    unset image_list
+    for image_candidate in "${image_candidate_list[@]}"; do
+      if [ -f "${FLAGS_from}/${image_candidate}" ]; then
+        image_list=( "${image_list[@]}" "${image_candidate}" )
+      fi
+    done
+
+    num_images=${#image_list[*]}
+    if (( ${num_images} == 0 )); then
+      die "No candidate images could be detected"
+    elif (( ${num_images} == 1)); then
+      image="${image_list}"
+      echo "Found image ${image}"
+    else
+      # Select one from a list of available images; default to the first.
+      PS3="Select an image [1]: "
+      choose image "${image_list}" "ERROR" "${image_list[@]}"
+      if [ "${image}" == "ERROR" ]; then
+        die "Invalid selection"
+      fi
     fi
-  done
 
-  num_images=${#image_list[*]}
-  if (( ${num_images} == 0 )); then
-    die "No candidate images could be detected"
-  elif (( ${num_images} == 1)); then
-    image="${image_list}"
-    echo "Found image ${image}"
-  else
-    # Select one from a list of available images; default to the first.
-    PS3="Select an image [1]: "
-    choose image "${image_list}" "ERROR" "${image_list[@]}"
-    if [ "${image}" == "ERROR" ]; then
-      die "Invalid selection"
-    fi
+    FLAGS_image_name="${image}"
   fi
 
-  FLAGS_image_name="${image}"
-fi
-
-if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
-  # Make a test image - this returns the test filename in CHROMEOS_RETURN_VAL
-  prepare_test_image "${FLAGS_from}" "${FLAGS_image_name}"
-  SRC_IMAGE="${CHROMEOS_RETURN_VAL}"
-else
-  # Use the standard image
+  # Use the selected image.
   SRC_IMAGE="${FLAGS_from}/${FLAGS_image_name}"
 fi
 
+# Make sure that the selected image exists.
 if [ ! -f "${SRC_IMAGE}" ]; then
   die "Image not found: ${SRC_IMAGE}"
 fi

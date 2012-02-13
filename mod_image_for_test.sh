@@ -78,7 +78,7 @@ if [ $FLAGS_inplace -eq $FLAGS_FALSE ]; then
     copy_image $(basename "$FLAGS_image") $(basename "$TEST_PATHNAME")
     FLAGS_image="$TEST_PATHNAME"
   else
-    echo "Using cached $(basename "$FLAGS_image")"
+    echo "Using cached $(basename "${TEST_PATHNAME}")"
     exit
   fi
 
