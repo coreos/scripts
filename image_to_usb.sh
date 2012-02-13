@@ -48,7 +48,7 @@ DEFINE_string from "" \
 DEFINE_string to "/dev/sdX" \
   "write to a specific disk or image file"
 DEFINE_string to_product "" \
-  "write to a disk with product name matching a pattern"
+  "find target device with product name matching a string (accepts wildcards)"
 DEFINE_boolean yes ${FLAGS_FALSE} \
   "answer yes to all prompts" \
   y
@@ -145,46 +145,41 @@ if [ ! -d "${FLAGS_from}" ] ; then
   die "Cannot find image directory ${FLAGS_from}"
 fi
 
-if [ -n "${FLAGS_to_product}" ]; then
-  if [ "${FLAGS_to}" != "/dev/sdX" ]; then
-    die "Cannot specify both --to and --to_product"
-  fi
-
-  match=""
-  for disk in $(list_usb_disks) $(list_mmc_disks); do
-    if [[ "$(get_disk_info $disk product)" = ${FLAGS_to_product} ]]; then
-      if [ -n "${match}" ]; then
-        die "Multiple devices match product '${FLAGS_to_product}', aborting"
-      fi
-      match="$disk"
-    fi
-  done
-
-  if [ -z "${match}" ]; then
-    echo "Failed to find a devices matching product '${FLAGS_to_product}'"
-    # Leave FLAGS_to set to its default and fall through to the error report.
-  else
-    FLAGS_to="/dev/${match}"
-  fi
-fi
-
 # No target provided, attempt autodetection.
 if [ "${FLAGS_to}" == "/dev/sdX" ]; then
-  echo "No target device specified, autodetecting..."
+  if [ -z "${FLAGS_to_product}" ]; then
+    echo "No target device specified, autodetecting..."
+  else
+    echo "Looking for target devices matching '${FLAGS_to_product}'..."
+  fi
 
   # Obtain list of USB and MMC device names.
   disk_list=( $(list_usb_disks) $(list_mmc_disks) )
-  if (( ! ${#disk_list[*]} )); then
-    die "No target device could be detected"
-  fi
 
   # Build list of descriptive strings for detected devices.
   unset disk_string_list
   for disk in "${disk_list[@]}"; do
+    # If --to_product was used, match against provided string.
+    # Note: we intentionally use [[ ... != ... ]] to allow pattern matching on
+    # the product string.
+    if [ -n "${FLAGS_to_product}" ] &&
+       [[ "$(get_disk_info ${disk} product)" != ${FLAGS_to_product} ]]; then
+      continue
+    fi
+
     disk_string=$(get_disk_string /dev/${disk})
-    disk_string_list=( "${disk_string_list[@]}" \
+    disk_string_list=( "${disk_string_list[@]}"
                        "/dev/${disk}: ${disk_string}" )
   done
+
+  # If no (matching) devices found, quit.
+  if (( ! ${#disk_string_list[*]} )); then
+    if [ -z "${FLAGS_to_product}" ]; then
+      die "No USB/MMC devices could be detected"
+    else
+      die "No matching USB/MMC devices could be detected"
+    fi
+  fi
 
   # Prompt for selection, or autoselect if only one device was found.
   if (( ${#disk_string_list[*]} > 1 )); then
@@ -201,6 +196,8 @@ if [ "${FLAGS_to}" == "/dev/sdX" ]; then
   fi
 
   FLAGS_to="${disk_string%%:*}"
+elif [ -n "${FLAGS_to_product}" ]; then
+  die "Cannot specify both --to and --to_product"
 fi
 
 # Guess ARCH if it's unset
