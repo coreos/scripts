@@ -93,6 +93,17 @@ function get_disk_string() {
   echo "${product_string}, ${disk_size}"
 }
 
+# Prompt for user confirmation. Default is no, which will gracefully terminate
+# the script.
+function are_you_sure() {
+  local sure
+  read -p "Are you sure (y/N)? " sure
+  if [ "${sure}" != "y" ]; then
+    echo "Ok, better safe than sorry."
+    exit
+  fi
+}
+
 
 # Prohibit mutually exclusive factory/install flags.
 if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} -a \
@@ -288,9 +299,9 @@ fi
 if [ -b "${FLAGS_to}" ]; then
   # Output to a block device (i.e., a real USB key / SD card), so need sudo dd
   if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
-    echo "Copying image ${SRC_IMAGE} to ${FLAGS_to}..."
+    echo "Copying image ${SRC_IMAGE} to device ${FLAGS_to}..."
   else
-    echo "Installing image ${SRC_IMAGE} to ${FLAGS_to}..."
+    echo "Installing image ${SRC_IMAGE} to device ${FLAGS_to}..."
   fi
 
   # Warn if it looks like they supplied a partition as the destination.
@@ -310,12 +321,7 @@ if [ -b "${FLAGS_to}" ]; then
       warning_str="${warning_str}, which does not appear to be a USB/MMC disk!"
     fi
     warn "${warning_str}"
-    read -p "Are you sure (y/N)? " SURE
-    SURE="${SURE:0:1}" # Get just the first character
-    if [ "${SURE}" != "y" ]; then
-      echo "Ok, better safe than sorry."
-      exit
-    fi
+    are_you_sure
   fi
 
   mount_list=$(mount | grep ^"${FLAGS_to}" | awk '{print $1}')
@@ -346,10 +352,13 @@ if [ -b "${FLAGS_to}" ]; then
       --payload_image="${SRC_IMAGE}" \
       --dst="${FLAGS_to}"
   fi
+elif [[ "${FLAGS_to}" == /dev/* ]]; then
+  # Did the user attempt to write to a non-existent block device?
+  die "Target device ${FLAGS_to} does not exist"
 else
   # Output to a file, so just make a copy.
   if [ "${SRC_IMAGE}" != "${FLAGS_to}" ]; then
-    echo "Copying ${SRC_IMAGE} to ${FLAGS_to}..."
+    echo "Copying image ${SRC_IMAGE} to file ${FLAGS_to}..."
     ${COMMON_PV_CAT} "${SRC_IMAGE}" >"${FLAGS_to}"
   fi
 
