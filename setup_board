@@ -25,6 +25,7 @@ find_common_sh() {
 
 find_common_sh
 . "${SCRIPT_ROOT}/common.sh" || ! echo "Unable to load common.sh" || exit 1
+. "${SRC_ROOT}/platform/dev/toolchain_utils.sh"
 
 # Script must run inside the chroot
 restart_in_chroot_if_needed "$@"
@@ -315,7 +316,6 @@ install_toolchain_in_board() {
     if [[ -L "${BOARD_GCC_DIR}" ]] ; then
       sudo rm -f "${BOARD_GCC_DIR}"
     fi
-    . "${SRC_ROOT}/platform/dev/toolchain_utils.sh"
     copy_gcc_libs "${BOARD_ROOT}" "cross-$FLAGS_toolchain/gcc-$gcc_ver"
   else
     sudo mkdir -p ${BOARD_ROOT}/usr/lib64
@@ -453,39 +453,17 @@ fi
 get_board_and_variant $FLAGS_board $FLAGS_variant
 
 #
-# Check if there are any board overlays.  There should be at least a top
-# level board specific overlay.
-#
-PRIMARY_BOARD_OVERLAY=$(cros_overlay_list --board "$BOARD" --primary_only)
-
-#
 # Fetch the toolchain from the board overlay.
 #
-BOARD_TOOL_CHAIN="${PRIMARY_BOARD_OVERLAY}/toolchain.conf"
-FLAGS_toolchain=${FLAGS_toolchain:-$(cat ${BOARD_TOOL_CHAIN})}
+all_toolchains=( $(get_all_board_toolchains "${BOARD}") )
+: ${FLAGS_toolchain:=${all_toolchains[0]}}
 
-# Figure out ARCH from the given toolchain
-# TODO: Move to common.sh as a function after scripts are switched over.
 if [ -z "${FLAGS_toolchain}" ]; then
   error "No toolchain specified in board overlay or on command line."
   exit 1
 fi
 
-TC_ARCH=$(echo "$FLAGS_toolchain" | awk -F'-' '{ print $1 }')
-case "$TC_ARCH" in
-  arm*)
-    ARCH="arm"
-    ;;
-  *86)
-    ARCH="x86"
-    ;;
-  x86_64)
-    ARCH="amd64"
-    ;;
-  *)
-    error "Unable to determine ARCH from toolchain: $FLAGS_toolcahin"
-    exit 1
-esac
+ARCH=$(get_board_arch "${BOARD}") || exit 1
 
 case "$BOARD" in
   *-host)
@@ -516,37 +494,37 @@ BOARD_OVERLAY_LIST=$(cros_overlay_list \
 
 eval $(portageq envvar -v CHOST PKGDIR)
 
-if [ "${CHOST}" != "$FLAGS_toolchain" ] ; then
-  if toolchain_needs_update $FLAGS_toolchain; then
-    warn "Toolchain needs to be updated! Updating toolchain..."
-    uninstall_toolchain $FLAGS_toolchain
-    build_toolchain $FLAGS_toolchain
-    # If the board root already exists, re-install the toolchain there.
-    if [ -d "$BOARD_ROOT" ] && [ "$FLAGS_force" = "$FLAGS_FALSE" ]; then
-      install_toolchain_in_board
-    fi
-    if [[ "${ARCH}" = "x86" || "${ARCH}" = "amd64" ]] ; then
-      echo "Switching on gold as the default linker."
+# Update all the toolchains that this board wants.
+for toolchain in ${all_toolchains[@]} ; do
+  [[ "${CHOST}" == "${toolchain}" ]] && continue
+
+  toolchain_updated=${FLAGS_FALSE}
+  if toolchain_needs_update ${toolchain} ; then
+    toolchain_updated=${FLAGS_TRUE}
+
+    warn "Toolchain needs to be updated! Updating ${toolchain} ..."
+    uninstall_toolchain ${toolchain}
+    build_toolchain ${toolchain}
+
+    if [[ "${toolchain}" != arm* ]] ; then
+      info "Switching on gold as the default linker."
       BINUTILS_VERSION=$(cross_get_version binutils | sed 's/-r[0-9]\+//g')
       sudo binutils-config "${FLAGS_toolchain}-${BINUTILS_VERSION}-gold"
     fi
-  else
-    # Update the users libc in their board if needed.
-    if [ -d "$BOARD_ROOT" ] && [ "$FLAGS_force" = "$FLAGS_FALSE" ] ; then
-      if board_needs_libc_update; then
-        echo "Updating libc in the board."
-        install_toolchain_in_board
-      fi
+  fi
+
+  if [[ "${toolchain}" == "${FLAGS_toolchain}" ]] &&
+     [ -d "$BOARD_ROOT" ] && [ "$FLAGS_force" == "$FLAGS_FALSE" ] ; then
+    if [[ "${toolchain_updated}" == "${FLAGS_TRUE}" ]] ; then
+      # If the board root already exists, re-install the toolchain there.
+      install_toolchain_in_board
+    elif board_needs_libc_update; then
+      # Update the users libc in their board if needed.
+      echo "Updating libc in the board."
+      install_toolchain_in_board
     fi
   fi
-fi
-
-if [[ "${ARCH}" == "x86" ]] && toolchain_needs_update arm-none-eabi ; then
-  # We need a toolchain to build software for the embedded controller
-  # on the x86 board.
-  uninstall_toolchain arm-none-eabi
-  build_toolchain arm-none-eabi
-fi
+done
 
 if [ -d "$BOARD_ROOT" ] ; then
   if [[ $FLAGS_force -eq $FLAGS_TRUE ]]; then
@@ -698,8 +676,8 @@ if ${HOST_BOARD}; then
   # the latest one is correctly selected. Ignore cat errors as not
   # all overlays will have a toolchain.conf.
   ALL_OVERLAYS=$(cros_overlay_list --all_boards)
-  TARGETS=$(cat $(printf '%s/toolchain.conf ' ${ALL_OVERLAYS}) 2>/dev/null | \
-            sort -u)
+  TARGETS=$(sed 's:#.*::' $(printf '%s/toolchain.conf ' ${ALL_OVERLAYS}) \
+            2>/dev/null | sort -u)
   for target in ${TARGETS}; do
     # Install needed glibc tarball.
     cross_target_path=/var/lib/portage/pkgs/cross-$target
