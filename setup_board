@@ -643,7 +643,8 @@ if ! cros_choose_profile \
 fi
 
 
-for wrapper in 'emerge --root-deps' ebuild eclean equery portageq; do
+for wrapper in 'emerge --root-deps' ebuild eclean equery portageq \
+               qcheck qfile qlist ; do
   generate_wrapper $wrapper
 done
 
