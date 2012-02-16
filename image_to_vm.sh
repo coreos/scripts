@@ -150,8 +150,8 @@ dd if="${SRC_IMAGE}" of="${TEMP_PMBR}" bs=512 count=1
 TEMP_MNT=$(mktemp -d)
 TEMP_ESP_MNT=$(mktemp -d)
 cleanup() {
-  sudo umount -d "${TEMP_MNT}"
-  sudo umount -d "${TEMP_ESP_MNT}"
+  sudo umount "${TEMP_MNT}"
+  sudo umount "${TEMP_ESP_MNT}"
   rmdir "${TEMP_MNT}" "${TEMP_ESP_MNT}"
 }
 trap cleanup INT TERM EXIT

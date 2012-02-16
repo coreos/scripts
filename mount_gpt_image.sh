@@ -86,10 +86,10 @@ function unmount_image() {
   sudo umount "${FLAGS_rootfs_mountpt}/usr/local"
   sudo umount "${FLAGS_rootfs_mountpt}/var"
   if [[ -n "${FLAGS_esp_mountpt}" ]]; then
-    sudo umount -d "${FLAGS_esp_mountpt}"
+    sudo umount "${FLAGS_esp_mountpt}"
   fi
-  sudo umount -d "${FLAGS_stateful_mountpt}"
-  sudo umount -d "${FLAGS_rootfs_mountpt}"
+  sudo umount "${FLAGS_stateful_mountpt}"
+  sudo umount "${FLAGS_rootfs_mountpt}"
   set -e
 }
 

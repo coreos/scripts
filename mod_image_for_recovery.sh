@@ -77,7 +77,7 @@ get_install_vblock() {
   sudo cp "$stateful_mnt/vmlinuz_hd.vblock"  "$out"
   sudo chown $USER "$out"
 
-  sudo umount -d "$stateful_mnt"
+  sudo umount "$stateful_mnt"
   rmdir "$stateful_mnt"
   set -e
   echo "$out"
@@ -243,7 +243,7 @@ install_recovery_kernel() {
     local esp_mnt=$(mktemp -d)
     sudo mount -o loop,offset=$((esp_offset * 512)) "$RECOVERY_IMAGE" "$esp_mnt"
     sudo cp "$vmlinuz" "$esp_mnt/syslinux/vmlinuz.A" || failed=1
-    sudo umount -d "$esp_mnt"
+    sudo umount "$esp_mnt"
     rmdir "$esp_mnt"
     set -e
   fi
@@ -323,7 +323,7 @@ maybe_resize_stateful() {
   sudo mount -o loop $small_stateful $new_stateful_mnt
   sudo cp "$INSTALL_VBLOCK" "$new_stateful_mnt/vmlinuz_hd.vblock"
   sudo mkdir "$new_stateful_mnt/var"
-  sudo umount -d "$new_stateful_mnt"
+  sudo umount "$new_stateful_mnt"
   rmdir "$new_stateful_mnt"
   set -e
 
