@@ -255,29 +255,48 @@ else
   if [ -z "${FLAGS_image_name}" ]; then
     echo "No image name specified, autodetecting..."
 
-    # Obtain list of available images that can be used.
-    image_candidate_list=( "${CHROMEOS_IMAGE_NAME}"
+    # Resolve the default image full path (see though symlinks), make sure
+    # it's present.
+    default_image_path=$(readlink -f "${FLAGS_from}/${CHROMEOS_IMAGE_NAME}")
+    if [ ! -f "${default_image_path}" ]; then
+      default_image_path="MISSING"
+    fi
+
+    # The list of candidate image names.
+    image_candidate_list=( "${CHROMEOS_DEVELOPER_IMAGE_NAME}"
                            "${CHROMEOS_RECOVERY_IMAGE_NAME}"
                            "${CHROMEOS_TEST_IMAGE_NAME}"
                            "${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
                            "${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}" )
+
+    # Obtain list of available images that can be used.
     unset image_list
+    is_got_default=0
     for image_candidate in "${image_candidate_list[@]}"; do
-      if [ -f "${FLAGS_from}/${image_candidate}" ]; then
-        image_list=( "${image_list[@]}" "${image_candidate}" )
+      image_candidate_path="${FLAGS_from}/${image_candidate}"
+      if [ -f "${image_candidate_path}" ]; then
+        if [ "${image_candidate_path}" == "${default_image_path}" ]; then
+          # This is the default image, list it first.
+          image_list=( "${image_candidate}" "${image_list[@]}" )
+          is_got_default=1
+        else
+          image_list=( "${image_list[@]}" "${image_candidate}" )
+        fi
       fi
     done
 
-    num_images=${#image_list[*]}
-    if (( ${num_images} == 0 )); then
+    # Figure out what to do with the resulting list of images.
+    declare -i num_images=${#image_list[*]}
+    if (( num_images == 0 )); then
       die "No candidate images could be detected"
-    elif (( ${num_images} == 1)); then
-      image="${image_list}"
-      echo "Found image ${image}"
+    elif (( num_images == 1 )) && [ ${is_got_default} == 1 ]; then
+      # Found a single image that is the default image, just select it.
+      image="${image_list[0]}"
+      echo "Found default image ${image}"
     else
       # Select one from a list of available images; default to the first.
       PS3="Select an image [1]: "
-      choose image "${image_list}" "ERROR" "${image_list[@]}"
+      choose image "${image_list[0]}" "ERROR" "${image_list[@]}"
       if [ "${image}" == "ERROR" ]; then
         die "Invalid selection"
       fi
