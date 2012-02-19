@@ -150,7 +150,10 @@ toolchain_needs_update() {
 
   # Unmask any ebuilds previously [un]masked by crossdev. crossdev will
   # re-setup its masks appropriately the next time we run it.
-  sudo rm -f /etc/portage/package.{mask,keywords}/cross-$toolchain
+  local d
+  for d in package.{mask,keywords} ; do
+    sudo mv -f /etc/portage/${d}/{,.bak.}cross-${toolchain}
+  done
 
   pkg_to_flag() {
     [ "${1}" = "glibc" ] && echo "libc" || echo "$1"
@@ -199,6 +202,14 @@ toolchain_needs_update() {
     pkgs+=" cross-$toolchain/gdb"
   fi
   ACCEPT_KEYWORDS="~* *" emerge $flags $pkgs | grep cross-$toolchain/
+  local ret=$?
+
+  # Restore the masks in case we don't end up running crossdev.
+  for d in package.{mask,keywords} ; do
+    sudo mv -f /etc/portage/${d}/{.bak.,}cross-${toolchain}
+  done
+
+  return ${ret}
 }
 
 uninstall_toolchain() {
