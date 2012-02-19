@@ -679,11 +679,14 @@ if ${HOST_BOARD}; then
   TARGETS=$(sed 's:#.*::' $(printf '%s/toolchain.conf ' ${ALL_OVERLAYS}) \
             2>/dev/null | sort -u)
   for target in ${TARGETS}; do
-    # Install needed glibc tarball.
-    cross_target_path=/var/lib/portage/pkgs/cross-$target
-    if [[ -e "$cross_target_path" ]] ; then
-        sudo mkdir -p ${BOARD_ROOT}$cross_target_path
-        sudo cp -a ${cross_target_path}/glibc-* ${BOARD_ROOT}$cross_target_path
+    if [[ "${target}" != "arm-none-eabi" ]] ; then
+      # Install needed glibc tarball.
+      cross_target_path=/var/lib/portage/pkgs/cross-${target}
+      if [[ -e "$cross_target_path" ]] ; then
+          sudo mkdir -p ${BOARD_ROOT}${cross_target_path}
+          sudo cp -a ${cross_target_path}/glibc-* \
+            ${BOARD_ROOT}${cross_target_path}
+      fi
     fi
 
     CURRENT_GCC="$(gcc-config -c ${target})"
