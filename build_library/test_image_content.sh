@@ -1,4 +1,4 @@
-# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -30,6 +30,16 @@ test_image_content() {
     error "test_image_content: Failed dependency check"
     returncode=1
   fi
+
+  local blacklist_dirs=(
+    "$root/usr/share/locale"
+  )
+  for dir in "${blacklist_dirs[@]}"; do
+    if [ -d "$dir" ]; then
+      error "test_image_content: Blacklisted directory found: $dir"
+      returncode=1
+    fi
+  done
 
   return $returncode
 }
