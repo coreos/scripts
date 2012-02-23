@@ -575,7 +575,7 @@ class ChildFinished(Exception):
         raise self
 
 def MakePortList(user_supplied_port):
-  range_start = 8081
+  range_start = user_supplied_port or 8081
   port_list = []
   if user_supplied_port is not None:
     range_length = 1
