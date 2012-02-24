@@ -26,8 +26,7 @@ set -o pipefail
 
 ROOT="$FLAGS_root"
 if [[ ! -d "$ROOT" ]]; then
-  echo "Error: Root FS does not exist ($ROOT)"
-  exit 1
+  die "Root FS does not exist ($ROOT)"
 fi
 
 BINARIES="$ROOT/usr/bin/Xorg
@@ -39,7 +38,7 @@ BINARIES="$ROOT/usr/bin/Xorg
 EXITCODE=0
 for i in $BINARIES; do
   if ! [[ -f $i ]]; then
-    echo test_build_root: Cannot find $i
+    error "cannot find $i"
     EXITCODE=1
   fi
 done
