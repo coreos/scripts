@@ -216,10 +216,6 @@ EOF
    sudo ln -s ../../cache/distfiles/target \
      "${FLAGS_chroot}/var/lib/portage/distfiles-target"
 
-   if [[ $FLAGS_jobs -ne -1 ]]; then
-     EMERGE_JOBS="--jobs=$FLAGS_jobs"
-   fi
-
    # Add chromite/bin and depot_tools into the path globally; note that the
    # chromite wrapper itself might also be found in depot_tools.
    # We rely on 'env-update' getting called below.
@@ -463,6 +459,9 @@ if [[ ${FLAGS_fast} -eq ${FLAGS_TRUE} ]]; then
   UPDATE_ARGS+=( --fast )
 else
   UPDATE_ARGS+=( --nofast )
+fi
+if [[ "${FLAGS_jobs}" -ne -1 ]]; then
+  UPDATE_ARGS+=( --jobs=${FLAGS_jobs} )
 fi
 enter_chroot "${CHROOT_TRUNK}/src/scripts/update_chroot" "${UPDATE_ARGS[@]}"
 

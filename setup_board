@@ -67,6 +67,8 @@ DEFINE_boolean quiet $FLAGS_FALSE \
   "Don't print warnings when board already exists."
 DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
   "Don't update toolchain automatically."
+DEFINE_integer jobs -1 \
+  "How many packages to build in parallel at maximum."
 
 # builds wrappers like equery-arm-generic.
 # args:
@@ -458,6 +460,9 @@ if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=" --usepkg"
 else
   UPDATE_ARGS+=" --nousepkg"
+fi
+if [[ "${FLAGS_jobs}" -ne -1 ]]; then
+  UPDATE_ARGS+=" --jobs=${FLAGS_jobs}"
 fi
 "${SRC_ROOT}/scripts"/update_chroot ${UPDATE_ARGS}
 

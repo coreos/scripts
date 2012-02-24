@@ -111,7 +111,7 @@ if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
 fi
 
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
-  EMERGE_JOBS="--jobs=${FLAGS_jobs}"
+  EMERGE_FLAGS+=" --jobs=${FLAGS_jobs}"
 fi
 
 if [[ "${FLAGS_withdebug}" -eq "${FLAGS_FALSE}" ]]; then
@@ -131,6 +131,9 @@ if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=" --usepkg"
 else
   UPDATE_ARGS+=" --nousepkg"
+fi
+if [[ "${FLAGS_jobs}" -ne -1 ]]; then
+  UPDATE_ARGS+=" --jobs=${FLAGS_jobs}"
 fi
 if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=" --skip_toolchain_update"

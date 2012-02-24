@@ -23,6 +23,8 @@ DEFINE_boolean usepkg $FLAGS_TRUE \
 DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
 DEFINE_integer retries -1 \
   "On build failure, the number of times to retry."
+DEFINE_integer jobs -1 \
+  "How many packages to build in parallel at maximum."
 
 # Parse command line flags
 FLAGS "$@" || exit 1
@@ -54,6 +56,10 @@ if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   EMERGE_FLAGS+=" --useoldpkg-atoms=sys-devel/binutils"
   EMERGE_FLAGS+=" --useoldpkg-atoms=sys-devel/gcc"
   EMERGE_FLAGS+=" --useoldpkg-atoms=sys-libs/glibc"
+fi
+
+if [[ "${FLAGS_jobs}" -ne -1 ]]; then
+  EMERGE_FLAGS+=" --jobs=${FLAGS_jobs}"
 fi
 
 # Perform an update of hard-host-depends and world in the chroot.

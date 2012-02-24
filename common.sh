@@ -370,12 +370,11 @@ function check_flags_only_and_allow_null_arg {
 }
 
 # Retry an emerge command according to $FLAGS_retries
-# The $EMERGE_JOBS flags will only be added the first time the command is run
 function eretry () {
   local i
   for i in $(seq $FLAGS_retries); do
     echo "Retrying $@"
-    "$@" $EMERGE_JOBS && return 0
+    "$@" && return 0
   done
   "$@" && return 0
   return 1
