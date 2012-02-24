@@ -39,10 +39,8 @@ ${SCRIPTS_DIR}/run_chroot_version_hooks
 
 PREBUILT_SETUP="/etc/make.conf.prebuilt_setup"
 if [[ -n "$IGNORE_PREFLIGHT_BINHOST" ]]; then
-  echo 'PORTAGE_BINHOST="$FULL_BINHOST"' | sudo_clobber "$PREBUILT_SETUP"
-elif [[ -s "$PREBUILT_SETUP" ]]; then
-  sudo_clobber "$PREBUILT_SETUP" < /dev/null
-fi
+  echo 'PORTAGE_BINHOST="$FULL_BINHOST"'
+fi | sudo_clobber "$PREBUILT_SETUP"
 
 info "Updating chroot"
 

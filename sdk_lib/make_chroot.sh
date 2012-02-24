@@ -368,7 +368,7 @@ info "Setting up mounts..."
 # Set up necessary mounts and make sure we clean them up on exit.
 sudo mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK}" "${FLAGS_chroot}/run"
 PREBUILT_SETUP="$FLAGS_chroot/etc/make.conf.prebuilt_setup"
-if [[ -z "$IGNORE_PREFLIGHT_BINHOST" ]]; then
+if [[ -n "$IGNORE_PREFLIGHT_BINHOST" ]]; then
   echo 'PORTAGE_BINHOST="$FULL_BINHOST"'
 fi | sudo_clobber "$PREBUILT_SETUP"
 
