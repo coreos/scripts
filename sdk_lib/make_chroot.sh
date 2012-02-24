@@ -58,6 +58,8 @@ umask 022
 # TODO: replace shflags with something less error-prone, or contribute a fix.
 set -e
 
+. "${SCRIPT_ROOT}"/sdk_lib/make_conf_util.sh
+
 FULLNAME="ChromeOS Developer"
 DEFGROUPS="eng,adm,cdrom,floppy,audio,video,portage"
 PASSWORD=chronos
@@ -367,30 +369,11 @@ echo
 info "Setting up mounts..."
 # Set up necessary mounts and make sure we clean them up on exit.
 sudo mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK}" "${FLAGS_chroot}/run"
-PREBUILT_SETUP="$FLAGS_chroot/etc/make.conf.prebuilt_setup"
-if [[ -n "$IGNORE_PREFLIGHT_BINHOST" ]]; then
-  echo 'PORTAGE_BINHOST="$FULL_BINHOST"'
-fi | sudo_clobber "$PREBUILT_SETUP"
 
-sudo chmod 0644 "$PREBUILT_SETUP"
-
-# For bootstrapping from old wget, disable certificate checking. Once we've
-# upgraded to new curl (below), certificate checking is re-enabled. See
-# http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=409938
-sudo_clobber "${FLAGS_chroot}/etc/make.conf.fetchcommand_setup" <<'EOF'
-FETCHCOMMAND="/usr/bin/wget -t 5 -T 60 --no-check-certificate --passive-ftp -O \"\${DISTDIR}/\${FILE}\" \"\${URI}\""
-RESUMECOMMAND="/usr/bin/wget -c -t 5 -T 60 --no-check-certificate --passive-ftp -O \"\${DISTDIR}/\${FILE}\" \"\${URI}\""
-EOF
-
-sudo_clobber "${FLAGS_chroot}/etc/make.conf.host_setup" <<EOF
-# Created by make_chroot.
-source make.conf.prebuilt_setup
-source make.conf.fetchcommand_setup
-MAKEOPTS="-j${NUM_JOBS}"
-EOF
-
-sudo chmod 0644 "${FLAGS_chroot}"/etc/make.conf.host_setup \
-  "${FLAGS_chroot}"/etc/make.conf.fetchcommand_setup
+# Create a special /etc/make.conf.host_setup that we use to bootstrap
+# the chroot.  The regular content for the file will be generated the
+# first time we invoke update_chroot (further down in this script).
+create_bootstrap_host_setup "${FLAGS_chroot}"
 
 if ! [ -f "$CHROOT_STATE" ];then
   INITIALIZE_CHROOT=1
@@ -433,13 +416,6 @@ early_enter_chroot $EMERGE_CMD --deselect dhcpcd
 info "Running emerge ccache curl sudo ..."
 early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
   ccache net-misc/curl sudo
-
-# Curl is now installed, so we can depend on it now.
-sudo_clobber "${FLAGS_chroot}/etc/make.conf.fetchcommand_setup" <<'EOF'
-FETCHCOMMAND='curl -f -y 30 --retry 9 -L --output \${DISTDIR}/\${FILE} \${URI}'
-RESUMECOMMAND='curl -f -y 30 -C - --retry 9 -L --output \${DISTDIR}/\${FILE} \${URI}'
-EOF
-sudo chmod 0644 "${FLAGS_chroot}"/etc/make.conf.fetchcommand_setup
 
 if [ -n "${INITIALIZE_CHROOT}" ]; then
   # If we're creating a new chroot, we also want to set it to the latest

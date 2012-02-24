@@ -34,13 +34,21 @@ eval set -- "${FLAGS_ARGV}"
 # so will die prematurely if 'set -e' is specified before now.
 set -e
 
+. ${SCRIPTS_DIR}/sdk_lib/make_conf_util.sh
+
 # Run version hooks as pre-update
 ${SCRIPTS_DIR}/run_chroot_version_hooks
 
-PREBUILT_SETUP="/etc/make.conf.prebuilt_setup"
-if [[ -n "$IGNORE_PREFLIGHT_BINHOST" ]]; then
-  echo 'PORTAGE_BINHOST="$FULL_BINHOST"'
-fi | sudo_clobber "$PREBUILT_SETUP"
+# Create /etc/make.conf.host_setup.  The file content is regenerated
+# from scratch every update.  There are various reasons to do this:
+#  + It's cheap, so this is an easy way to guarantee correct content
+#    after an upgrade.
+#  + Inside make_chroot.sh, we use a temporary version of the file
+#    which must be updated before the script completes; that final
+#    update happens here.
+#  + If the repositories change to add or remove the private
+#    overlay, the file may need to be regenerated.
+create_host_setup
 
 info "Updating chroot"
 
