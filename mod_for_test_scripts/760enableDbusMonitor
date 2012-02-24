@@ -8,9 +8,12 @@ echo "Configuring to enable root access to dbus-monitor"
 
 cat > "${ROOT_FS_DIR}/etc/dbus-1/system-local.conf" <<EOF
 <busconfig>
-  <policy user="root">
-    <allow send_destination="*" eavesdrop="true"/>
-    <allow receive_sender="*" eavesdrop="true"/>
+  <policy context="default">
+    <!-- All messages may be received by default -->
+    <allow receive_requested_reply="false" receive_type="method_call" eavesdrop="true"/>
+    <allow receive_requested_reply="false" receive_type="method_return" eavesdrop="true"/>
+    <allow receive_requested_reply="false" receive_type="error" eavesdrop="true"/>
+    <allow receive_requested_reply="false" receive_type="signal" eavesdrop="true"/>
   </policy>
 </busconfig>
 EOF
