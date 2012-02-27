@@ -776,6 +776,20 @@ function enable_strict_sudo {
   }
 }
 
+# Checks that stdin and stderr are both terminals.
+# If so, we assume that there is a live user we can interact with.
+# This check can be overridden by setting the CROS_NO_PROMPT environment
+# variable to a non-empty value.
+function is_interactive() {
+  [ -z "${CROS_NO_PROMPT}" -a -t 0 -a -t 2 ]
+}
+
+function assert_interactive() {
+  if ! is_interactive; then
+    die "Script ${0##*/} tried to get user input on a non-interactive terminal."
+  fi
+}
+
 # Selection menu with a default option: this is similar to bash's select
 # built-in, only that in case of an empty selection it'll return the default
 # choice. Like select, it uses PS3 as the prompt.
@@ -814,10 +828,12 @@ function choose() {
   # Select a return value
   unset REPLY
   if [ $# -gt 0 ]; then
+    assert_interactive
+
     # Actual options provided, present a menu and prompt for a choice.
     local choose_opt
     for choose_opt in "$@"; do
-      echo "$choose_i) $choose_opt"
+      echo "$choose_i) $choose_opt" >&2
       choose_i=choose_i+1
     done
     read -p "$PS3"
