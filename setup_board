@@ -651,14 +651,6 @@ exec cros_workon --board ${BOARD_VARIANT} "\$@"
 EOF
 sudo chmod +x "$CROS_WORKON_WRAPPER"
 
-#
-# Emerge the kernel headers into the board build root.
-#
-EMERGE_FLAGS=""
-if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
-  EMERGE_FLAGS="${EMERGE_FLAGS} --getbinpkg --usepkg"
-fi
-
 if ${HOST_BOARD}; then
   EMERGE_CMD="emerge"
   if [[ $FLAGS_fast -eq $FLAGS_TRUE ]]; then
@@ -674,6 +666,7 @@ if ${HOST_BOARD}; then
   # Next, install our rebuilt packages into our separate root.
   HOST_FLAGS="--root=$BOARD_ROOT --update --verbose --deep --root-deps"
   HOST_FLAGS+=" --with-bdeps=y --newuse --jobs=$NUM_JOBS --usepkgonly"
+  HOST_FLAGS+=" --select"
   sudo -E $EMERGE_CMD $HOST_FLAGS $PACKAGES
   sudo cp -a "${PKGDIR}" $BOARD_ROOT/packages
 
@@ -715,6 +708,14 @@ if ${HOST_BOARD}; then
   sudo find $BOARD_ROOT -type f -name '*.la' | xargs sudo \
       sed -i -e "s|$BOARD_ROOT/|/|g"
 else
+  #
+  # Emerge the kernel headers into the board build root.
+  #
+  EMERGE_FLAGS="--select"
+  if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
+    EMERGE_FLAGS+=" --getbinpkg --usepkg"
+  fi
+
   sudo -E "${EMERGE_WRAPPER}" ${EMERGE_FLAGS} chromeos-base/kernel-headers
 fi
 

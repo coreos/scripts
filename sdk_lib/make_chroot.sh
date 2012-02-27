@@ -431,7 +431,7 @@ info "Deselecting dhcpcd"
 early_enter_chroot $EMERGE_CMD --deselect dhcpcd
 
 info "Running emerge ccache curl sudo ..."
-early_enter_chroot $EMERGE_CMD -uNv $USEPKG $EMERGE_JOBS \
+early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
   ccache net-misc/curl sudo
 
 # Curl is now installed, so we can depend on it now.
