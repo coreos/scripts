@@ -137,82 +137,102 @@ board_needs_libc_update() {
 # Check whether any new toolchain packages are available.
 # Returns true if new toolchain packages are available and false otherwise.
 toolchain_needs_update() {
-  local toolchain=$1
-
-  # If toolchain symlinks weren't created yet, we definitely need to update.
-  if [ ! -d /usr/local/portage/crossdev/cross-$toolchain ]; then
-    # NOTE: In this branch, the versions have not been resolved, and will
-    # be passed directly to crossdev. That works because crossdev understands
-    # '[stable]'.
-    # We cannot resolve the versions because the cross-$toolchain category is
-    # not yet set up.
-    return 0
-  fi
-
   # Skip toolchain updates if requested.
   if [ $FLAGS_skip_toolchain_update -eq $FLAGS_TRUE ]; then
     return 1
+  fi
+
+  local toolchain=$1 crossdev_cfg category arch
+
+  # Query crossdev for how it will be laying things out.
+  crossdev_cfg=$(crossdev --show-target-cfg "${toolchain}" --ex-gdb)
+  category=$(eval "${crossdev_cfg}"; echo "${category}")
+  arch=$(eval "${crossdev_cfg}"; echo "${arch}")
+
+  # If toolchain symlinks weren't created yet, we definitely need to update.
+  if [ ! -d ${CROSSDEV_OVERLAY}/${category} ]; then
+    # NOTE: In this branch, the versions have not been resolved, and will
+    # be passed directly to crossdev. That works because crossdev understands
+    # '[stable]'.
+    # We cannot resolve the versions because the cross toolchain category is
+    # not yet set up.
+    return 0
   fi
 
   # Unmask any ebuilds previously [un]masked by crossdev. crossdev will
   # re-setup its masks appropriately the next time we run it.
   local d
   for d in package.{mask,keywords} ; do
-    sudo mv -f /etc/portage/${d}/{,.bak.}cross-${toolchain}
-  done
-
-  pkg_to_flag() {
-    [ "${1}" = "glibc" ] && echo "libc" || echo "$1"
-  }
-
-  local pkg
-  for pkg in gcc glibc binutils; do
-    local flagname=FLAGS_$(pkg_to_flag ${pkg})_version
-    if [ "${!flagname}" = "[stable]" ]; then
-      eval ${flagname}=$( \
-          portageq best_visible / "cross-$toolchain/${pkg}"| \
-          sed -e "s,cross-$toolchain/${pkg}-,,")
+    d="/etc/portage/${d}"
+    if [[ -e ${d}/${category} ]] ; then
+      sudo mv -f ${d}/{,.bak.}${category}
     fi
   done
 
-  local flags="--pretend --quiet --update"
-  local pkgs
-  if [ $FLAGS_usepkg -eq $FLAGS_TRUE ]; then
-    flags+=" --getbinpkg --usepkgonly"
-  fi
-
-  if [ $FLAGS_latest_toolchain -eq $FLAGS_TRUE ]; then
-    pkgs="cross-$toolchain/gcc"
-    pkgs+=" cross-$toolchain/binutils"
-    # For arm-none-eabi, there is no "glibc" or "linux-headers" packages.
-    if [[ "$toolchain" != "arm-none-eabi" ]] ; then
-        pkgs+=" cross-$toolchain/glibc"
-        pkgs+=" cross-$toolchain/linux-headers"
-    fi
-  elif [ $FLAGS_usepkg -eq $FLAGS_TRUE ]; then
-    pkgs="<=cross-$toolchain/gcc-$FLAGS_gcc_version"
-    pkgs+=" <=cross-$toolchain/binutils-$FLAGS_binutils_version"
-    if [[ "$toolchain" != "arm-none-eabi" ]] ; then
-        pkgs+=" <=cross-$toolchain/glibc-$FLAGS_libc_version"
-        pkgs+=" <=cross-$toolchain/linux-headers-$FLAGS_kernel_version"
-    fi
+  # Now get the atoms out of crossdev for the emerge below.
+  local pfx
+  if [[ ${FLAGS_latest_toolchain} -eq ${FLAGS_TRUE} ]] ; then
+    pfx=""
+  elif [[ ${FLAGS_usepkg} -eq ${FLAGS_TRUE} ]] ; then
+    pfx="<="
   else
-    pkgs="=cross-$toolchain/gcc-$FLAGS_gcc_version"
-    pkgs+=" =cross-$toolchain/binutils-$FLAGS_binutils_version"
-    if [[ "$toolchain" != "arm-none-eabi" ]] ; then
-        pkgs+=" =cross-$toolchain/glibc-$FLAGS_libc_version"
-        pkgs+=" =cross-$toolchain/linux-headers-$FLAGS_kernel_version"
+    pfx="="
+  fi
+
+  local crosspkgs=$(eval "${crossdev_cfg}"; echo "${crosspkgs}")
+  local pkgs=()
+  for pkg in ${crosspkgs} ; do
+    local pn=$(eval "${crossdev_cfg}" \; echo \${${pkg}_pn})
+    local atom="${category}/${pn}"
+
+    if [[ -z ${pn} ]] ; then
+      # Not all toolchains provide all packages
+      # e.g. arm-elf does not have "kernel" headers.
+      continue
     fi
+
+    if [[ ${FLAGS_latest_toolchain} -ne ${FLAGS_TRUE} ]] ; then
+      local flagname="FLAGS_${pkg}_version"
+
+      # Some packages (like gdb) don't have pinned versions.
+      if [[ -n ${!flagname} ]] ; then
+        if [[ ${!flagname} == "[stable]" ]] ; then
+          # This will return the full cat/pn-ver for us.
+          atom="${pfx}"$(ACCEPT_KEYWORDS="${arch}" \
+                         portageq best_visible / ebuild "${atom}")
+        else
+          atom="${pfx}${atom}-${!flagname}"
+        fi
+      fi
+    fi
+
+    # HACK: Older crossdev did not generate a gdb even when given
+    # --ex-gdb if it did not build all previous stages.  So need
+    # to skip gdb for these targets until the binpkgs get posted
+    # otherwise users end up hitting problems when they setup_board.
+    if [[ ${FLAGS_usepkg} -eq ${FLAGS_TRUE} ]] &&
+       [[ ${toolchain} == "arm-none-eabi" ]] &&
+       [[ ${pn} == "gdb" ]] ; then
+      continue
+    fi
+
+    pkgs+=( "${atom}" )
+  done
+
+  local flags=( --pretend --quiet --update )
+  if [[ ${FLAGS_usepkg} -eq ${FLAGS_TRUE} ]] ; then
+    flags+=( --getbinpkg --usepkgonly )
   fi
-  if [[ "$toolchain" != "arm-none-eabi" ]] ; then
-    pkgs+=" cross-$toolchain/gdb"
-  fi
-  ACCEPT_KEYWORDS="~* *" emerge $flags $pkgs | grep cross-$toolchain/
+
+  ACCEPT_KEYWORDS="~* *" emerge "${flags[@]}" "${pkgs[@]}" | grep ${category}/
   local ret=$?
 
   # Restore the masks in case we don't end up running crossdev.
   for d in package.{mask,keywords} ; do
-    sudo mv -f /etc/portage/${d}/{.bak.,}cross-${toolchain}
+    d="/etc/portage/${d}"
+    if [[ -e ${d}/.bak.${category} ]] ; then
+      sudo mv -f ${d}/{.bak.,}${category}
+    fi
   done
 
   return ${ret}
@@ -220,17 +240,17 @@ toolchain_needs_update() {
 
 uninstall_toolchain() {
   local toolchain=$1
-  echo "Uninstalling the toolchain."
+  info "Uninstalling the toolchain."
   # Even if the uninstall fails, keep going. It's likely
   # that it didn't exist in the first place.
-  yes | sudo crossdev -v -C $toolchain || true
+  sudo crossdev -v --force -C "${toolchain}" || true
 }
 
 # Build the toolchain with crossdev.
 build_toolchain() {
   local toolchain=$1
-  echo "Building the toolchain."
-  CROSS_ARGS="-v --target $toolchain -P --oneshot"
+  info "Building the toolchain."
+  local CROSS_ARGS=( --show-fail-log --target "${toolchain}" -P --oneshot )
   if [ $FLAGS_usepkg -eq $FLAGS_TRUE ]; then
     # Grab the latest packages from the prebuilt server.
     #  --getbinpkg: Use packages from the prebuilt server.
@@ -238,26 +258,31 @@ build_toolchain() {
     #  --without-headers: Don't build headers-only versions of packages for
     #                     bootstrapping. Because we use binary packages, this
     #                     isn't necessary.
-    CROSS_ARGS+=" -P --getbinpkg -P --usepkgonly --without-headers"
+    CROSS_ARGS+=( -P --getbinpkg -P --usepkgonly --without-headers )
   fi
   if [ $FLAGS_latest_toolchain -ne $FLAGS_TRUE ]; then
-    CROSS_ARGS+=" --binutils $FLAGS_binutils_version"
-    CROSS_ARGS+=" --gcc $FLAGS_gcc_version"
-    if [[ "$toolchain" != "arm-none-eabi" ]]; then
-      # arm-none-eabi needs no version specification
-      CROSS_ARGS+=" --kernel $FLAGS_kernel_version"
-      CROSS_ARGS+=" --libc $FLAGS_libc_version"
-    fi
+    CROSS_ARGS+=(
+      --binutils $FLAGS_binutils_version
+      --gcc $FLAGS_gcc_version
+      --kernel $FLAGS_kernel_version
+      --libc $FLAGS_libc_version
+    )
+  fi
+  CROSS_ARGS+=(
+    --overlays "${CHROMIUMOS_OVERLAY} /usr/local/portage/stable"
+    --ov-output "${CROSSDEV_OVERLAY}"
+  )
+
+  # HACK: Older crossdev did not generate a gdb even when given
+  # --ex-gdb if it did not build all previous stages.  So need
+  # to skip gdb for these targets until the binpkgs get posted
+  # otherwise users end up hitting problems when they setup_board.
+  if [[ ${FLAGS_usepkg} -ne ${FLAGS_TRUE} ]] ||
+     [[ ${toolchain} != "arm-none-eabi" ]] ; then
+    CROSS_ARGS+=( --ex-gdb )
   fi
 
-  CROSS_ARGS+=" --ex-gdb"
-
-  # TODO: remove this when crossdev upgrades.
-  if [[ "$toolchain" == "arm-none-eabi" ]]; then
-    CROSS_ARGS+=" --without-headers"
-  fi
-
-  sudo -E FEATURES="splitdebug ${FEATURES}" crossdev $CROSS_ARGS
+  sudo -E FEATURES="splitdebug ${FEATURES}" crossdev "${CROSS_ARGS[@]}"
 }
 
 # Get the version number of a toolchain package.
@@ -504,6 +529,7 @@ case "$BOARD" in
 esac
 # Locations we will need
 BOARD_ROOT="${FLAGS_build_root}/${BOARD_VARIANT}"
+CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
 CHROMIUMOS_OVERLAY="/usr/local/portage/chromiumos"
 CHROMIUMOS_CONFIG="${CHROMIUMOS_OVERLAY}/chromeos/config"
 CHROMIUMOS_PROFILES="${CHROMIUMOS_OVERLAY}/profiles"
@@ -524,6 +550,7 @@ eval $(portageq envvar -v CHOST PKGDIR)
 # Update all the toolchains that this board wants.
 for toolchain in ${all_toolchains[@]} ; do
   [[ "${CHOST}" == "${toolchain}" ]] && continue
+  info "Checking for updates to ${toolchain} ..."
 
   toolchain_updated=${FLAGS_FALSE}
   if toolchain_needs_update ${toolchain} ; then
@@ -686,7 +713,7 @@ if ${HOST_BOARD}; then
 
   # Setup needed symlinks for cross-compilers.
   sudo mkdir -p $BOARD_ROOT/usr/local/portage
-  sudo cp -a /usr/local/portage/crossdev $BOARD_ROOT/usr/local/portage
+  sudo cp -a ${CROSSDEV_OVERLAY} $BOARD_ROOT/usr/local/portage
 
   # Setup crossdev configuration for categories.
   sudo cp -a /etc/portage/* $BOARD_ROOT/etc/portage
@@ -698,7 +725,8 @@ if ${HOST_BOARD}; then
   TARGETS=$(sed 's:#.*::' $(printf '%s/toolchain.conf ' ${ALL_OVERLAYS}) \
             2>/dev/null | sort -u)
   for target in ${TARGETS}; do
-    if [[ "${target}" != "arm-none-eabi" ]] ; then
+    libc=$(eval $(crossdev --show-target-cfg "${target}"); echo ${libc_pn})
+    if [[ ${libc} == "glibc" ]] ; then
       # Install needed glibc tarball.
       cross_target_path=/var/lib/portage/pkgs/cross-${target}
       if [[ -e "$cross_target_path" ]] ; then
