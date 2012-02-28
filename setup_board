@@ -69,6 +69,10 @@ DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
   "Don't update toolchain automatically."
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
+DEFINE_boolean skip_chroot_upgrade $FLAGS_FALSE \
+  "Don't run the chroot upgrade automatically. \
+This should only be called by version hook scripts that need to call \
+setup_board."
 
 # builds wrappers like equery-arm-generic.
 # args:
@@ -464,7 +468,9 @@ fi
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   UPDATE_ARGS+=" --jobs=${FLAGS_jobs}"
 fi
-"${SRC_ROOT}/scripts"/update_chroot ${UPDATE_ARGS}
+if [ "${FLAGS_skip_chroot_upgrade}" -eq "${FLAGS_FALSE}" ] ; then
+  "${SRC_ROOT}/scripts"/update_chroot ${UPDATE_ARGS}
+fi
 
 get_board_and_variant $FLAGS_board $FLAGS_variant
 
