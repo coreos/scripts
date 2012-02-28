@@ -1,0 +1,14 @@
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# There was a bug in the setup_board script where it added the cross-compilers
+# to the @world set.  Make sure we don't do that since letting emerge do the
+# upgrade rather than crossdev (currently) doesn't work.
+
+world="/var/lib/portage/world"
+if [[ -e ${world} ]] ; then
+  sudo sed -i '/^cross-/d' "${world}"
+fi
+
+exit 0
