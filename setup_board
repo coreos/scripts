@@ -53,7 +53,7 @@ DEFINE_string gcc_version "[stable]" \
   "Version of gcc to use."
 DEFINE_string libc_version "[stable]" \
   "Version of libc to use."
-DEFINE_string kernel_version "3.1" \
+DEFINE_string kernel_version "[stable]" \
   "Version of kernel headers to use."
 DEFINE_boolean latest_toolchain $FLAGS_FALSE \
   "Use the latest ebuild for all toolchain packages (gcc, binutils, libc, \
