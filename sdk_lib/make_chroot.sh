@@ -409,11 +409,11 @@ fi
 sudo sh -c "echo STAGE3=$STAGE3 > $CHROOT_STATE"
 
 info "Updating portage"
-early_enter_chroot emerge -uNv portage
+early_enter_chroot emerge -uNv --quiet portage
 
 info "Updating toolchain"
-early_enter_chroot emerge -uNv $USEPKG '>=sys-devel/gcc-4.4' sys-libs/glibc \
-  sys-devel/binutils sys-kernel/linux-headers
+early_enter_chroot emerge -uNv --quiet $USEPKG '>=sys-devel/gcc-4.4' \
+  sys-libs/glibc sys-devel/binutils sys-kernel/linux-headers
 
 # HACK: Select the latest toolchain. We're assuming that when this is
 # ran, the chroot has no experimental versions of new toolchains, just
