@@ -666,13 +666,12 @@ if ${HOST_BOARD}; then
   # Next, install our rebuilt packages into our separate root.
   HOST_FLAGS="--root=$BOARD_ROOT --update --verbose --deep --root-deps"
   HOST_FLAGS+=" --with-bdeps=y --newuse --jobs=$NUM_JOBS --usepkgonly"
-  HOST_FLAGS+=" --select"
-  sudo -E $EMERGE_CMD $HOST_FLAGS $PACKAGES
+  sudo -E $EMERGE_CMD $HOST_FLAGS --select=y $PACKAGES
   sudo cp -a "${PKGDIR}" $BOARD_ROOT/packages
 
   # Install cross-compilers.
   COMPILERS=$(equery l cross-*/* --format='=$cpv')
-  sudo -E $EMERGE_CMD $HOST_FLAGS --oneshot $COMPILERS
+  sudo -E $EMERGE_CMD $HOST_FLAGS --select=n $COMPILERS
 
   # Setup needed symlinks for cross-compilers.
   sudo mkdir -p $BOARD_ROOT/usr/local/portage
