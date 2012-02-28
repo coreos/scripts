@@ -245,21 +245,38 @@ regen_manifest_and_sync() {
       return
   fi
 
+  local need_repo_sync=
   local pkgname
   for pkgname in $(show_live_ebuilds); do
-    eval $(${EBUILDCMD} $(${EQUERYCMD} which ${pkgname}) info)
+    local pkgpath="$(${EQUERYCMD} which "${pkgname}")"
+    local pkginfo="$(${EBUILDCMD} "${pkgpath}" info |
+                   grep -v 'pkg_info() is not defined')"
+    if [ -z "${pkginfo}" ]; then
+      continue  # No package information available
+    fi
+
+    eval "${pkginfo}"
     local srcdir=$(readlink -m ${CROS_WORKON_SRCDIR})
     local trunkdir=$(readlink -m ${CHROOT_TRUNK_DIR})
     local project_path=${srcdir#${trunkdir}/}
 
     loman add --workon "${CROS_WORKON_PROJECT}" "${project_path}"
+    need_repo_sync='yes'
   done
-  echo "Please run \"repo sync\" now."
+  if [ -n "${need_repo_sync}" ]; then
+    echo "Please run \"repo sync\" now."
+  fi
 }
 
 chrome_to_live () {
   # Switch to using repo manifest checkout of chromium src.
   # Run chrome_set_ver to set DEPS
+
+  # No chromium directory checked out in this repo; probably a minilayout.
+  if [ ! -d "${CHROOT_TRUNK_DIR}/chromium" ]; then
+    return
+  fi
+
   info "Setting Chrome dependencies to the correct revision."
   ${CHROME_SET_VER}
   if [ -n "${CHROME_ORIGIN}" ] && [ "${CHROME_ORIGIN}" != GERRIT_SOURCE ]; then
