@@ -394,10 +394,15 @@ print_board_binhost_config() {
   local chrome_binhost="$binhost_dir/$BOARD-$chrome_binhost_suffix"
   if [[ $ARCH = x86 && ! -f "$preflight_binhost" ]]; then
     preflight_binhost="$binhost_dir/x86-generic-PREFLIGHT_BINHOST.conf"
+  elif [[ $ARCH = amd64 && ! -f "$preflight_binhost" ]]; then
+    preflight_binhost="$binhost_dir/amd64-generic-PREFLIGHT_BINHOST.conf"
   fi
   if [[ $ARCH = x86 && ! -f "$chrome_binhost" ]]; then
     chrome_binhost="$binhost_dir/x86-generic-$chrome_binhost_suffix"
+  elif [[ $ARCH = amd64 && ! -f "$chrome_binhost" ]]; then
+    chrome_binhost="$binhost_dir/amd64-generic-$chrome_binhost_suffix"
   fi
+
   local partner_overlay="$SRC_ROOT/private-overlays/chromeos-partner-overlay"
   local internal_binhost_dir="$partner_overlay/chromeos/binhost/target"
   local internal_binhost="$internal_binhost_dir/$BOARD-PREFLIGHT_BINHOST.conf"
