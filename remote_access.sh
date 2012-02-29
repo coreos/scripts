@@ -105,57 +105,69 @@ function learn_arch() {
   info "Target reports arch is ${FLAGS_arch}"
 }
 
-# Checks to see if pid $1 is running.
-function is_pid_running() {
-  ps -p ${1} 2>&1 > /dev/null
+# Checks whether a remote device has rebooted successfully.
+#
+# This uses a rapidly-retried SSH connection, which will wait for at most
+# about ten seconds. If the network returns an error (e.g. host unreachable)
+# the actual delay may be shorter.
+#
+# Return values:
+#   0: The device has rebooted successfully
+#   1: The device has not yet rebooted
+#   255: Unable to communicate with the device
+function _check_if_rebooted() {
+  (
+    # In my tests SSH seems to be waiting rather longer than would be expected
+    # from these parameters. These values produce a ~10 second wait.
+    # (in a subshell to avoid clobbering the global settings)
+    SSH_CONNECT_SETTINGS="$(sed \
+      -e 's/\(ConnectTimeout\)=[0-9]*/\1=2/' \
+      -e 's/\(ConnectionAttempts\)=[0-9]*/\1=2/' \
+      <<<"${SSH_CONNECT_SETTINGS}")"
+    remote_sh_allow_changed_host_key -q -- '[ ! -e /tmp/awaiting_reboot ]'
+  )
 }
 
-# Wait function given an additional timeout argument.
-# $1 - pid to wait on.
-# $2 - timeout to wait for.
-function wait_with_timeout() {
-  local pid=$1
-  local timeout=$2
-  local -r TIMEOUT_INC=1
-  local current_timeout=0
-  while is_pid_running ${pid} && [ ${current_timeout} -lt ${timeout} ]; do
-    sleep ${TIMEOUT_INC}
-    current_timeout=$((current_timeout + TIMEOUT_INC))
-  done
-  ! is_pid_running ${pid}
-}
-
-# Checks to see if a machine has rebooted using the presence of a tmp file.
-function check_if_rebooted() {
-  local output_file="${TMP}/output"
-  while true; do
-    REMOTE_OUT=""
-    # This may fail while the machine is down so generate output and a
-    # boolean result to distinguish between down/timeout and real failure
-    ! remote_sh_allow_changed_host_key \
-        "echo 0; [ -e /tmp/awaiting_reboot ] && echo '1'; true"
-    echo "${REMOTE_OUT}" > "${output_file}"
-    if grep -q "0" "${output_file}"; then
-      if grep -q "1" "${output_file}"; then
-        info "Not yet rebooted"
-        sleep .5
-      else
-        info "Rebooted and responding"
-        break
-      fi
-    fi
-  done
-}
-
+# Triggers a reboot on a remote device and waits for it to complete.
+#
+# This function will not return until the SSH server on the remote device
+# is available after the reboot.
+#
 function remote_reboot() {
-  info "Rebooting."
+  info "Rebooting ${FLAGS_remote}..."
   remote_sh "touch /tmp/awaiting_reboot; reboot"
-  while true; do
-    check_if_rebooted &
-    local pid=$!
-    wait_with_timeout ${pid} 30 && break
-    ! kill -9 ${pid} 2> /dev/null
+  local start_time=${SECONDS}
+
+  # Wait for five seconds before we start polling
+  sleep 5
+
+  # Add a hard timeout of 5 minutes before giving up.
+  local timeout=300
+  local timeout_expiry=$(( start_time + timeout ))
+  while [ ${SECONDS} -lt ${timeout_expiry} ]; do
+    # Used to throttle the loop -- see step_remaining_time at the bottom.
+    local step_start_time=${SECONDS}
+
+    local status=0
+    _check_if_rebooted || status=$?
+
+    local elapsed=$(( SECONDS - start_time ))
+    case ${status} in
+      0) printf '   %4ds: reboot complete\n' ${elapsed} >&2 ; return 0 ;;
+      1) printf '   %4ds: device has not yet shut down\n' ${elapsed} >&2 ;;
+      255) printf '   %4ds: can not connect to device\n' ${elapsed} >&2 ;;
+      *) die "  internal error" ;;
+    esac
+
+    # To keep the loop from spinning too fast, delay until it has taken at
+    # least five seconds. When we are actively trying SSH connections this
+    # should never happen.
+    local step_remaining_time=$(( step_start_time + 5 - SECONDS ))
+    if [ ${step_remaining_time} -gt 0 ]; then
+      sleep ${step_remaining_time}
+   fi
   done
+  die "Reboot has not completed after ${timeout} seconds; giving up."
 }
 
 # Called by clients before exiting.
