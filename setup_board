@@ -70,9 +70,7 @@ DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean skip_chroot_upgrade $FLAGS_FALSE \
-  "Don't run the chroot upgrade automatically. \
-This should only be called by version hook scripts that need to call \
-setup_board."
+  "Don't run the chroot upgrade automatically; use with care."
 
 # The --reuse_pkgs_from_local_boards flag tells Portage to share binary
 # packages between boards that are built locally, so that the total time

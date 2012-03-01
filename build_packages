@@ -72,6 +72,8 @@ DEFINE_boolean oldchromebinary "${FLAGS_FALSE}" \
   "Use the last prebuilt binary for Chrome produced by the buildbot."
 DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
   "Don't update toolchain automatically."
+DEFINE_boolean skip_chroot_upgrade "${FLAGS_FALSE}" \
+  "Don't run the chroot upgrade automatically; use with care."
 
 # The --reuse_pkgs_from_local_boards flag tells Portage to share binary
 # packages between boards that are built locally, so that the total time
@@ -80,7 +82,6 @@ DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
 # packages are usually more up to date than anything you have locally.
 DEFINE_boolean reuse_pkgs_from_local_boards $FLAGS_FALSE \
   "Bootstrap from local packages instead of remote packages."
-
 
 # Parse command line
 FLAGS_HELP="usage: $0 [flags]"
@@ -150,6 +151,10 @@ fi
 if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=" --skip_toolchain_update"
 fi
+if [ "${FLAGS_skip_chroot_upgrade}" -eq "${FLAGS_TRUE}" ]; then
+  UPDATE_ARGS+=" --skip_chroot_upgrade"
+fi
+
 ${SCRIPTS_DIR}/setup_board --quiet --board=${FLAGS_board} ${UPDATE_ARGS}
 
 if [ "${FLAGS_noworkon}" -eq "${FLAGS_FALSE}" ]; then
