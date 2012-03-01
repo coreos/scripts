@@ -721,7 +721,7 @@ else
   #
   # Emerge the kernel headers into the board build root.
   #
-  EMERGE_FLAGS="--select"
+  EMERGE_FLAGS="--select --quiet"
   if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
     EMERGE_FLAGS+=" --getbinpkg --usepkg"
   fi
