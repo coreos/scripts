@@ -7,8 +7,6 @@
 
 # All scripts should die on error unless commands are specifically excepted
 # by prefixing with '!' or surrounded by 'set +e' / 'set -e'.
-# TODO: Re-enable this once shflags is less prone to dying.
-#set -e
 
 # The number of jobs to pass to tools that can run in parallel (such as make
 # and dpkg-buildpackage
@@ -52,21 +50,115 @@ if tput colors >/dev/null 2>&1; then
   V_VIDOFF="$(tput sgr0)"
 fi
 
+# Stubs for sh compatibility.
+function _dump_trace() { :; }
+function _escaped_echo() {
+  printf '%b\n' "$*"
+}
+
+# Bash awareness, including stacktraces if possible.
+if [ -n "${BASH_VERSION-}" ]; then
+  function _escaped_echo() {
+    echo -e "$@"
+  }
+  # Turn on bash debug support if available.
+  if shopt -s extdebug 2> /dev/null; then
+    # Pull the path relative to this lib; SCRIPT_ROOT should always be set,
+    # but has never been formally required.
+    if [ -n "${SOURCE_ROOT-}" ]; then
+      . "${SOURCE_ROOT}"/common_bash_backtraces.sh
+    else
+      x=$(readlink -f "${BASH_SOURCE[0]}")
+      . "${x%/*}"/common_bash_backtraces.sh
+      unset x
+    fi
+  fi
+fi
+
 # Declare these asap so that code below can safely assume they exist.
+function _message {
+  local prefix="${1}"
+  shift
+  if [ $# -eq 0 ]; then
+    _escaped_echo >&2 "${prefix}${CROS_LOG_PREFIX:-""}:${V_VIDOFF}"
+    return
+  fi
+  (
+    # Handle newlines in the message, prefixing each chunk correctly.
+    # Do this in a subshell to avoid having to track IFS/set -f state.
+    IFS="
+"
+    set +f
+    set -- $*
+    IFS=' '
+    if [ $# -eq 0 ]; then
+      # Empty line was requested.
+      set -- ''
+    fi
+    for line in "$@"; do
+      _escaped_echo >&2 "${prefix}${CROS_LOG_PREFIX:-}: ${line}${V_VIDOFF}"
+    done
+  )
+}
+
 function info {
-  echo -e >&2  "${V_BOLD_GREEN}INFO    ${CROS_LOG_PREFIX:-""}: $@${V_VIDOFF}"
+  _message "${V_BOLD_GREEN}INFO    " "$*"
 }
 
 function warn {
-  echo -e >&2 "${V_BOLD_YELLOW}WARNING ${CROS_LOG_PREFIX:-""}: $@${V_VIDOFF}"
+  _message "${V_BOLD_YELLOW}WARNING " "$*"
 }
 
 function error {
-  echo -e >&2    "${V_BOLD_RED}ERROR   ${CROS_LOG_PREFIX:-""}: $@${V_VIDOFF}"
+  _message "${V_BOLD_RED}ERROR   " "$*"
 }
 
+
+# For all die functions, they must explicitly force set +eu;
+# no reason to have them cause their own crash if we're inthe middle
+# of reporting an error condition then exiting.
+
+function die_err_trap {
+  local command="$1" result="$2"
+  set +e +u
+
+  # Per the message, bash misreports 127 as 1 during err trap sometimes.
+  # Note this fact to ensure users don't place too much faith in the
+  # exit code in that case.
+  set -- "Command '${command}' exited with nonzero code: ${result}"
+  if [ -n "${BASH_VERSION-}" ]; then
+    if [ "$result" = 1 ] && [ -z "$(type -t $command)" ]; then
+      set -- "$@" \
+         '(Note bash sometimes misreports "command not found" as exit code 1 '\
+'instead of 127)'
+    fi
+  fi
+  _dump_trace
+  error
+  error "Command failed:"
+  DIE_PREFIX='  '
+  die_notrace "$@"
+}
+
+# Exit this script due to a failure, outputting a backtrace in the process.
 function die {
-  error "$@"
+  set +e +u
+  _dump_trace
+  error
+  error "Error was:"
+  DIE_PREFIX='  '
+  die_notrace "$@"
+}
+
+# Exit this script w/out a backtrace.
+function die_notrace {
+  set +e +u
+  if [ $# -eq 0 ]; then
+    set -- '(no error message given)'
+  fi
+  for line in "$@"; do
+    error "${DIE_PREFIX}$line"
+  done
   exit 1
 }
 
@@ -137,7 +229,7 @@ CHROMEOS_DEV_SETTINGS="${CHROMEOS_DEV_SETTINGS:-$SCRIPTS_DIR/.chromeos_dev}"
 if [ -f "$CHROMEOS_DEV_SETTINGS" ]; then
   # Turn on exit-on-error during custom settings processing
   SAVE_OPTS=$(set +o)
-  set -e
+  switch_to_strict_mode
 
   # Read settings
   . "$CHROMEOS_DEV_SETTINGS"
@@ -863,3 +955,16 @@ function show_help_if_requested() {
     fi
   done
 }
+
+function switch_to_strict_mode() {
+  # Set up strict execution mode; note that the trap
+  # must follow switch_to_strict_mode, else it will have no effect.
+  set -e
+  trap 'die_err_trap "${BASH_COMMAND:-command unknown}" "$?"' ERR
+  if [ $# -ne 0 ]; then
+    set "$@"
+  fi
+}
+
+# TODO: Re-enable this once shflags is set -e safe.
+#switch_to_strict_mode

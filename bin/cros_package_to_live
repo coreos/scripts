@@ -68,7 +68,7 @@ if [ -z "${FLAGS_board}" ]; then
     exit 1
 fi
 
-set -e
+switch_to_strict_mode
 trap cleanup EXIT
 
 eval set -- "${FLAGS_ARGV}"

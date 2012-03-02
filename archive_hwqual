@@ -34,7 +34,7 @@ function main() {
   # Parse command line
   FLAGS "$@" || exit 1
   eval set -- "${FLAGS_ARGV}"
-  set -e
+  switch_to_strict_mode
 
   if [[ -z "${FLAGS_from}" ]]; then
     echo "Please specify --from directory"

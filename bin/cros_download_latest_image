@@ -42,7 +42,7 @@ eval set -- "$FLAGS_ARGV"
 
 # Check on the board that they are trying to set up.
 if [ -z "$FLAGS_board" ] ; then
-  die "Error: --board required."
+  die_notrace "Error: --board required."
 fi
 
 BUCKET="chromeos-image-archive"

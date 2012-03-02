@@ -51,7 +51,7 @@ DEFINE_string usb_disk /dev/sdb3 \
 # Parse flags
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
-set -e
+switch_to_strict_mode
 
 part_index_to_uuid() {
   local image="$1"

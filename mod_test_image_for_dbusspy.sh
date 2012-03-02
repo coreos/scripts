@@ -42,7 +42,8 @@ cleanup() {
 }
 
 if [ ! -d "$VBOOT_DIR" ]; then
-  die "The required path: $VBOOT_DIR does not exist.  This directory needs"\
+  die_notrace \
+      "The required path: $VBOOT_DIR does not exist.  This directory needs"\
       "to be sync'd into your chroot.\n $ cros_workon start vboot_reference"
 fi
 

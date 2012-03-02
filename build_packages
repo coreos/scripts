@@ -70,7 +70,7 @@ eval set -- "${FLAGS_ARGV}"
 check_flags_only_and_allow_null_arg "$@" && set --
 
 # Die on any errors.
-set -e
+switch_to_strict_mode
 
 # Right now build_packages has to be run from scripts/
 . ${SRC_ROOT}/third_party/chromiumos-overlay/chromeos/config/chromeos_version.sh
@@ -167,7 +167,7 @@ fi
 # backtracking. Only print the output if this step fails.
 if ! OUTPUT=$(emerge-${FLAGS_board} -pe --backtrack=0 ${PACKAGES} 2>&1); then
   printf "%s\n" "${OUTPUT}"
-  die "emerge detected broken ebuilds. See error message above."
+  die_notrace "emerge detected broken ebuilds. See error message above."
 fi
 
 for pkg in ${CROS_WORKON_PKGS}; do

@@ -49,7 +49,7 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 # Die on error
-set -e
+switch_to_strict_mode
 
 # Find the last image built on the board.
 if [ ${FLAGS_most_recent} -eq ${FLAGS_TRUE} ] ; then
@@ -60,7 +60,7 @@ fi
 # If --from is a block device, --image can't also be specified.
 if [ -b "${FLAGS_from}" ]; then
   if [ "${FLAGS_image}" != "chromiumos_image.bin" ]; then
-    die "-i ${FLAGS_image} can't be used with block device ${FLAGS_from}"
+    die_notrace "-i ${FLAGS_image} can't be used with block device ${FLAGS_from}"
   fi
 fi
 
@@ -68,7 +68,7 @@ fi
 if [ -f "${FLAGS_from}" ]; then
   # If --from is specified as a file, --image cannot be also specified.
   if [ "${FLAGS_image}" != "chromiumos_image.bin" ]; then
-    die "-i ${FLAGS_image} can't be used with --from file ${FLAGS_from}"
+    die_notrace "-i ${FLAGS_image} can't be used with --from file ${FLAGS_from}"
   fi
   pathname=$(dirname "${FLAGS_from}")
   filename=$(basename "${FLAGS_from}")
@@ -95,7 +95,7 @@ function unmount_image() {
   fi
   sudo umount "${FLAGS_stateful_mountpt}"
   sudo umount "${FLAGS_rootfs_mountpt}"
-  set -e
+  switch_to_strict_mode
 }
 
 function get_usb_partitions() {

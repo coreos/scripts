@@ -67,10 +67,10 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 # Die on any errors.
-set -e
+switch_to_strict_mode
 
 if [ -z "${FLAGS_board}" ] ; then
-  die "--board is required."
+  die_notrace "--board is required."
 fi
 
 if [ "${FLAGS_full}" -eq "${FLAGS_TRUE}" ] && \
@@ -213,7 +213,7 @@ elif [ "${FLAGS_format}" = "vmware" ]; then
   qemu-img convert -f raw "${TEMP_IMG}" \
     -O vmdk "${FLAGS_to}/${FLAGS_vmdk}"
 else
-  die "Invalid format: ${FLAGS_format}"
+  die_notrace "Invalid format: ${FLAGS_format}"
 fi
 
 rm -rf "${TEMP_DIR}" "${TEMP_IMG}"

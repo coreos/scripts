@@ -33,7 +33,7 @@ DEFINE_integer verity_max_ios 1024 \
 # Parse flags
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
-set -e
+switch_to_strict_mode
 
 # Only let dm-verity block if rootfs verification is configured.
 dev_wait=0

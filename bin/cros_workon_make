@@ -28,4 +28,5 @@ find_common_sh
 . "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
 # --- END COMMON.SH BOILERPLATE ---
 
-die "error: Please run cros_workon_make from chroot:/usr/bin/cros_workon_make"
+die_notrace \
+    "error: Please run cros_workon_make from chroot:/usr/bin/cros_workon_make"

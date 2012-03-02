@@ -471,8 +471,8 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
-# so will die prematurely if 'set -e' is specified before now.
-set -e
+# so will die prematurely if 'switch_to_strict_mode' is specified before now.
+switch_to_strict_mode
 
 if [ -z "$FLAGS_board" ] ; then
   error "--board required."
@@ -516,7 +516,7 @@ ARCH=$(get_board_arch "${BOARD}") || exit 1
 case "$BOARD" in
   *-host)
     if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
-      die "host boards only support --nousepkg"
+      die_notrace "host boards only support --nousepkg"
     fi
     HOST_BOARD=true
     ;;

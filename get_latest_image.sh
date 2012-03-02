@@ -20,7 +20,7 @@ eval set -- "${FLAGS_ARGV}"
 
 # Check on the board that they are trying to set up.
 if [ -z "$FLAGS_board" ] ; then
-  die "Error: --board required."
+  die_notrace "Error: --board required."
 fi
 
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
@@ -28,13 +28,14 @@ IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
 # If there are no images, error out since presumably the
 # caller isn't doing this for fun.
 if [[ ! -d ${IMAGES_DIR} ]] ; then
-  die "${IMAGES_DIR} does not exist; have you run ./build_image?"
+  die_notrace \
+      "${IMAGES_DIR} does not exist; have you run ./build_image?"
 fi
 
 # Use latest link if it exists, otherwise most recently changed dir
 if [ -L ${IMAGES_DIR}/latest ] ; then
   if ! dst=$(readlink "${IMAGES_DIR}"/latest) ; then
-    die "Could not read ${IMAGES_DIR}/latest; have you run ./build_image?"
+    die_notrace "Could not read ${IMAGES_DIR}/latest; have you run ./build_image?"
   fi
   DEFAULT_FROM="${IMAGES_DIR}/${dst}"
 else

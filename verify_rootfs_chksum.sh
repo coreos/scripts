@@ -30,7 +30,7 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 if [ -z $FLAGS_image ] ; then
-  die "Use --image to specify a device or an image file."
+  die_notrace "Use --image to specify a device or an image file."
 fi
 
 # Turn path into an absolute path.
@@ -38,10 +38,10 @@ FLAGS_image=$(eval readlink -f ${FLAGS_image})
 
 # Abort early if we can't find the image
 if [ ! -b ${FLAGS_image} ] && [ ! -f $FLAGS_image ] ; then
-  die "No image found at $FLAGS_image"
+  die_notrace "No image found at $FLAGS_image"
 fi
 
-set -e
+switch_to_strict_mode
 
 function get_partitions() {
   if [ -b ${FLAGS_image} ] ; then
@@ -99,7 +99,7 @@ cleanup
 if [ "${expected_hash}" != "${generated_hash}" ]; then
   warn "expected hash = ${expected_hash}"
   warn "actual hash = ${generated_hash}"
-  die "Root filesystem has been modified unexpectedly!"
+  die_notrace "Root filesystem has been modified unexpectedly!"
 else
   info "Root filesystem checksum match!"
 fi

@@ -75,9 +75,9 @@ fi
   FLAGS_distfiles="${FLAGS_trunk}/distfiles"
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
-# so will die prematurely if 'set -e' is specified before now.
+# so will die prematurely if 'switch_to_strict_mode' is specified before now.
 # TODO: replace shflags with something less error-prone, or contribute a fix.
-set -e
+switch_to_strict_mode
 
 INNER_CHROME_ROOT=$FLAGS_chrome_root_mount  # inside chroot
 CHROME_ROOT_CONFIG="/var/cache/chrome_root"  # inside chroot

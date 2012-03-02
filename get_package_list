@@ -23,11 +23,11 @@ DEFINE_string board "$DEFAULT_BOARD" \
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
-[[ -z "${FLAGS_board}" ]] && die "A board must be specified."
+[[ -z "${FLAGS_board}" ]] && die_notrace "A board must be specified."
 
 if [[ -z "${FLAGS_ARGV}" ]]; then
-  warn "Please specify package."
-  die "Usage:  ./get_package_list.sh chromeos-base/chromeos > package.list"
+  warn "Usage:  ./get_package_list.sh chromeos-base/chromeos > package.list"
+  die_notrace "Please specify a package."
 fi
 
 emerge-$FLAGS_board --emptytree --usepkgonly -p -v --columns \

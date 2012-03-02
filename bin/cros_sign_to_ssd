@@ -50,7 +50,7 @@ failure() {
 }
 
 # Abort on error
-set -e
+switch_to_strict_mode
 
 trap "failure" EXIT
 
@@ -68,18 +68,19 @@ fi
 
 VBOOT_DIR="${SRC_ROOT}/platform/vboot_reference"
 if [ ! -d "${VBOOT_DIR}" ]; then
-  die "VBOOT DIR NOT FOUND at \'${VBOOT_DIR}\' .."
+  die_notrace "VBOOT DIR NOT FOUND at \'${VBOOT_DIR}\' .."
 fi
 
 TMP_IMAGE=$(mktemp)
 VBOOT_KEYS="${VBOOT_DIR}/tests/devkeys"
 if [ ! -d "${VBOOT_KEYS}" ]; then
-  die "VBOOT KEYS NOT FOUND at \'${VBOOT_KEYS}\' .."
+  die_notrace "VBOOT KEYS NOT FOUND at \'${VBOOT_KEYS}\' .."
 fi
 
 VBOOT_SIGN="${VBOOT_DIR}/scripts/image_signing/sign_official_build.sh"
 if [ ! -x "${VBOOT_SIGN}" ]; then
-  die "VBOOT TOOL sign_official_build.sh NOT FOUND at \'${VBOOT_SIGN}\' .."
+  die_notrace \
+      "VBOOT TOOL sign_official_build.sh NOT FOUND at \'${VBOOT_SIGN}\' .."
 fi
 
 cp "${FLAGS_from}" "${TMP_IMAGE}"

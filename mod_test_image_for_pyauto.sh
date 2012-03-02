@@ -47,19 +47,19 @@ VBOOT_DIR="${CHROOT_TRUNK_DIR}/src/platform/vboot_reference/scripts/"\
 "image_signing"
 
 if [ ! -d $PYAUTO_DEP ]; then
-  die "The required path: $PYAUTO_DEP does not exist.  Did you mean to pass \
---build_root and the path to the autotest bundle?"
+  die_notrace  "The required path: $PYAUTO_DEP does not exist.  Did you mean \
+to pass --build_root and the path to the autotest bundle?"
 fi
 
 if [ ! -d $CHROME_DEP ]; then
-  die "The required path: $CHROME_DEP does not exist.  Did you mean to pass \
---build_root and the path to the autotest bundle?"
+  die_notrace "The required path: $CHROME_DEP does not exist.  Did you mean \
+to pass --build_root and the path to the autotest bundle?"
 fi
 
 if [ ! -d $VBOOT_DIR ]; then
-  die "The required path: $VBOOT_DIR does not exist.  This directory needs to \
-be sync'd into your chroot.\n $ cros_workon start vboot_reference --board \
-${FLAGS_board}"
+  die_notrace "The required path: $VBOOT_DIR does not exist.  This directory \
+needs to be sync'd into your chroot.\n $ cros_workon start vboot_reference \
+--board ${FLAGS_board}"
 fi
 
 if [ ! -d "${FLAGS_build_root}/client/cros" ]; then

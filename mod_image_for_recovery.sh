@@ -51,8 +51,8 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
-# so will die prematurely if 'set -e' is specified before now.
-set -e
+# so will die prematurely if 'switch_to_strict_mode' is specified before now.
+switch_to_strict_mode
 
 if [ $FLAGS_verbose -eq $FLAGS_TRUE ]; then
   # Make debugging with -v easy.
@@ -79,7 +79,7 @@ get_install_vblock() {
 
   sudo umount "$stateful_mnt"
   rmdir "$stateful_mnt"
-  set -e
+  switch_to_strict_mode
   echo "$out"
 }
 
@@ -245,7 +245,7 @@ install_recovery_kernel() {
     sudo cp "$vmlinuz" "$esp_mnt/syslinux/vmlinuz.A" || failed=1
     sudo umount "$esp_mnt"
     rmdir "$esp_mnt"
-    set -e
+    switch_to_strict_mode
   fi
 
   if [ $failed -eq 1 ]; then
@@ -325,7 +325,7 @@ maybe_resize_stateful() {
   sudo mkdir "$new_stateful_mnt/var"
   sudo umount "$new_stateful_mnt"
   rmdir "$new_stateful_mnt"
-  set -e
+  switch_to_strict_mode
 
   # Create a recovery image of the right size
   # TODO(wad) Make the developer script case create a custom GPT with
@@ -358,7 +358,7 @@ FLAGS_image=$(readlink -f "$FLAGS_image")
 
 # Abort early if we can't find the image.
 if [ ! -f "$FLAGS_image" ]; then
-  die "Image not found: $FLAGS_image"
+  die_notrace "Image not found: $FLAGS_image"
 fi
 
 IMAGE_DIR="$(dirname "$FLAGS_image")"
@@ -380,12 +380,12 @@ SCRIPTS_DIR=${SCRIPT_ROOT}
 
 if [ $FLAGS_kernel_image_only -eq $FLAGS_TRUE -a \
      -n "$FLAGS_kernel_image" ]; then
-  die "Cannot use --kernel_image_only with --kernel_image"
+  die_notrace "Cannot use --kernel_image_only with --kernel_image"
 fi
 
 if [ $FLAGS_modify_in_place -eq $FLAGS_TRUE ]; then
   if [ $FLAGS_minimize_image -eq $FLAGS_TRUE ]; then
-    die "Cannot use --modify_in_place and --minimize_image together."
+    die_notrace "Cannot use --modify_in_place and --minimize_image together."
   fi
   RECOVERY_IMAGE="${FLAGS_image}"
 fi

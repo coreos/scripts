@@ -57,7 +57,7 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 # Abort on error
-set -e
+switch_to_strict_mode
 
 if [ -z $FLAGS_from ] || [ ! -f $FLAGS_from ] ; then
   echo "Error: invalid flag --from"

@@ -65,14 +65,15 @@ parse_build_image_args() {
   get_images_to_build ${FLAGS_ARGV}
   if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
     if should_build_image "${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"; then
-      die "Cannot build both the test and factory_test images."
+      die_notrace "Cannot build both the test and factory_test images."
     fi
   fi
   if should_build_image ${CHROMEOS_BASE_IMAGE_NAME} \
       ${CHROMEOS_DEVELOPER_IMAGE_NAME} ${CHROMEOS_TEST_IMAGE_NAME} \
       ${CHROMEOS_FACTORY_TEST_IMAGE_NAME} &&
       should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-    die "Can't build ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME} with any other" \
+    die_notrace \
+        "Can't build ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME} with any other" \
         "image."
   fi
   if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then

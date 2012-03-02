@@ -54,9 +54,9 @@ assert_not_root_user
 umask 022
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
-# so will die prematurely if 'set -e' is specified before now.
+# so will die prematurely if 'switch_to_strict_mode' is specified before now.
 # TODO: replace shflags with something less error-prone, or contribute a fix.
-set -e
+switch_to_strict_mode
 
 . "${SCRIPT_ROOT}"/sdk_lib/make_conf_util.sh
 

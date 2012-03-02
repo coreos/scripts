@@ -59,7 +59,7 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 if [ $# -gt 0 ]; then
-  die "Arguments aren't currently supported in image_to_usb."
+  die_notrace "Arguments aren't currently supported in image_to_usb."
 fi
 
 # Generates a descriptive string of a removable device. Includes the
@@ -92,7 +92,7 @@ function are_you_sure() {
 # Prohibit mutually exclusive factory/install flags.
 if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} -a \
      ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ] ; then
-  die "Factory test image is incompatible with factory install shim"
+  die_notrace "Factory test image is incompatible with factory install shim"
 fi
 
 # Allow --from /foo/file.bin
@@ -117,7 +117,7 @@ fi
 
 
 # Die on any errors.
-set -e
+switch_to_strict_mode
 
 # No board, no default and no image set then we can't find the image
 if [ -z ${FLAGS_from} ] && [ -z ${FLAGS_board} ] ; then
@@ -137,7 +137,7 @@ if [ -z "${FLAGS_from}" ]; then
 fi
 
 if [ ! -d "${FLAGS_from}" ] ; then
-  die "Cannot find image directory ${FLAGS_from}"
+  die_notrace "Cannot find image directory ${FLAGS_from}"
 fi
 
 # No target provided, attempt autodetection.
@@ -192,7 +192,7 @@ if [ "${FLAGS_to}" == "/dev/sdX" ]; then
 
   FLAGS_to="${disk_string%%:*}"
 elif [ -n "${FLAGS_to_product}" ]; then
-  die "Cannot specify both --to and --to_product"
+  die_notrace "Cannot specify both --to and --to_product"
 fi
 
 # Guess ARCH if it's unset
@@ -217,7 +217,7 @@ if [ -b "${FLAGS_to}" ]; then
     disk_string=$(get_disk_string ${FLAGS_to})
   elif [ ${FLAGS_force_non_usb} -ne ${FLAGS_TRUE} ]; then
     # Safeguard against writing to a real non-USB disk or non-SD disk
-    die "${FLAGS_to} does not appear to be a USB/MMC disk," \
+    die_notrace "${FLAGS_to} does not appear to be a USB/MMC disk," \
         "use --force_non_usb to override"
   fi
 fi
@@ -295,7 +295,7 @@ fi
 
 # Make sure that the selected image exists.
 if [ ! -f "${SRC_IMAGE}" ]; then
-  die "Image not found: ${SRC_IMAGE}"
+  die_notrace "Image not found: ${SRC_IMAGE}"
 fi
 
 # Let's do it.

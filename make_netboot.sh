@@ -28,7 +28,7 @@ DEFINE_string image "" "Path to the image to use"
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
-set -e
+switch_to_strict_mode
 # build_packages artifact output.
 SYSROOT="${GCLIENT_ROOT}/chroot/build/${FLAGS_board}"
 # build_image artifact output.

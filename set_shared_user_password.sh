@@ -11,7 +11,7 @@
 . "/usr/lib/crosutils/common.sh" || exit 1
 
 # Die on any errors.
-set -e
+switch_to_strict_mode
 
 SHARED_USER_PASSWD_FILE="/etc/shared_user_passwd.txt"
 

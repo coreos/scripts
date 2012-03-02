@@ -16,16 +16,16 @@ function usage() {
 
 if [ -z "$1" ] ; then
   usage
-  die "The URL or path to symbols tarball (debug.tgz) is required"
+  die_notrace "The URL or path to symbols tarball (debug.tgz) is required"
 fi
 
 if [ -z "$2" ] ; then
   usage
-  die "The URL to BVT test results is required"
+  die_notrace "The URL to BVT test results is required"
 fi
 
 # Die on any errors.
-set -e
+switch_to_strict_mode
 
 BREAKPAD_DIR="debug/breakpad"
 STACKS_GENERATED=""

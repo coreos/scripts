@@ -133,7 +133,7 @@ function main() {
     fi
   else
     [ -n "${FLAGS_ARGV}" ] || usage
-    [ -n "${FLAGS_board}" ] || die "--board is required."
+    [ -n "${FLAGS_board}" ] || die_notrace "--board is required."
   fi
 
   local modules_file="${TMP}/modules"

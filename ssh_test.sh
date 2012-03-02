@@ -23,7 +23,7 @@ function main() {
   FLAGS "$@" || exit 1
   eval set -- "${FLAGS_ARGV}"
 
-  set -e
+  switch_to_strict_mode
 
   trap cleanup EXIT
 

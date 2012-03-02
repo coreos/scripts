@@ -87,8 +87,8 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
-# so will die prematurely if 'set -e' is specified before now.
-set -e
+# so will die prematurely if 'switch_to_strict_mode' is specified before now.
+switch_to_strict_mode
 
 # Determine build version.
 OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos"
@@ -161,7 +161,7 @@ fi
 
 if [ $((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) -gt \
      ${FLAGS_rootfs_partition_size} ] ; then
-  die "rootfs ($((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) MiB) is" \
+  die_notrace "rootfs ($((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) MiB) is" \
     "bigger than partition (${FLAGS_rootfs_partition_size} MiB)."
 fi
 
@@ -204,7 +204,8 @@ if [[ -e "${BUILD_DIR}" ]]; then
   else
     error "Directory ${BUILD_DIR} already exists."
     error "Use --build_attempt option to specify an unused attempt."
-    die "Or use --replace if you want to overwrite this directory."
+    error "Or use --replace if you want to overwrite this directory."
+    die "Unwilling to overwrite ${BUILD_DIR}."
   fi
 fi
 

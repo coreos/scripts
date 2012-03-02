@@ -19,14 +19,14 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 # Die on any errors
-set -e
+switch_to_strict_mode
 
 # Check all parts of a pipe
 set -o pipefail
 
 ROOT="$FLAGS_root"
 if [[ ! -d "$ROOT" ]]; then
-  die "Root FS does not exist ($ROOT)"
+  die_notrace "Root FS does not exist ($ROOT)"
 fi
 
 BINARIES="$ROOT/usr/bin/Xorg

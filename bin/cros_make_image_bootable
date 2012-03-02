@@ -36,7 +36,7 @@ assert_inside_chroot
   die "Unable to load /usr/lib/installer/chromeos-common.sh"
 . "${SCRIPTS_DIR}/build_library/build_image_util.sh" || die "No build_image_util"
 
-set -e
+switch_to_strict_mode
 
 if [ $# -lt 2 ]; then
   echo "Usage: ${0} /PATH/TO/IMAGE IMAGE.BIN [shflags overrides]"
@@ -143,8 +143,8 @@ FLAGS "${@}" || exit 1
 [ -z "${FLAGS_verity_salt}" ] && FLAGS_verity_salt=$(make_salt)
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
-# so will die prematurely if 'set -e' is specified before now.
-set -e -u
+# so will die prematurely if 'switch_to_strict_mode' is specified before now.
+switch_to_strict_mode -u
 
 # $1 - Directory where developer rootfs is mounted.
 # $2 - Directory where developer stateful_partition is mounted.

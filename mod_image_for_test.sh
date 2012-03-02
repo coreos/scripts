@@ -42,8 +42,8 @@ FLAGS "$@" || exit 1
 eval set -- "$FLAGS_ARGV"
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
-# so will die prematurely if 'set -e' is specified before now.
-set -e
+# so will die prematurely if 'switch_to_strict_mode' is specified before now.
+switch_to_strict_mode
 
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/mount_gpt_util.sh" || exit 1
