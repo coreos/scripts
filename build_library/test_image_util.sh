@@ -53,17 +53,18 @@ emerge_to_image() {
     "$@" ${EMERGE_JOBS}
 }
 
-
-# Returns 0 if this image was requested to be built, 1 otherwise.
-# $1 The name of the image to build.
+# Returns 0 if any of the images was requested to be built, 1 otherwise.
+# $@ The name(s) of the images to check.
 should_build_image() {
   # Fast pass back if we should build all incremental images.
-  local image_name=$1
+  local images="$@"
+  local image_name
   local image_to_build
-  [ -z "${IMAGES_TO_BUILD}" ] && return 0
 
-  for image_to_build in ${IMAGES_TO_BUILD}; do
-    [ ${image_to_build} = ${image_name} ] && return 0
+  for image_name in ${images}; do
+    for image_to_build in ${IMAGES_TO_BUILD}; do
+      [ ${image_to_build} = ${image_name} ] && return 0
+    done
   done
 
   return 1
@@ -120,7 +121,8 @@ mod_image_for_test () {
     STATEFUL_DIR="${STATEFUL_FS_DIR}" ARCH="${ARCH}" BACKDOOR="${BACKDOOR}" \
     "${mod_test_script}"
 
-  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+  if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ||
+      should_build_image ${CHROMEOS_FACTORY_IMAGE_NAME}; then
     emerge_to_image --root="${ROOT_FS_DIR}" factorytest-init
     INSTALL_MASK="${FACTORY_TEST_INSTALL_MASK}"
     emerge_to_image --root="${ROOT_FS_DIR}/usr/local" \

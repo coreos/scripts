@@ -146,21 +146,13 @@ create_base_image() {
     --strip-components=3 --exclude=usr/include --exclude=sys-include \
     --exclude=*.a --exclude=*.o
 
-  # If it's a developer image, also copy over the libc debug info so that gdb
-  # works with threads and also for a better debugging experience.
-  if [[ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]] ; then
-    sudo mkdir -p "${ROOT_FS_DIR}/usr/local/lib/debug"
-    sudo tar jxpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}/usr/local/lib/debug" \
-    ./usr/lib/debug/usr/${CHOST} --strip-components=6
-  fi
-
   . "${SRC_ROOT}/platform/dev/toolchain_utils.sh"
   board_ctarget=$(get_ctarget_from_board "${BOARD}")
   for atom in $(portageq match / cross-$board_ctarget/gcc); do
     copy_gcc_libs "${ROOT_FS_DIR}" $atom
   done
 
-  if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
+  if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
     # Install our custom factory install kernel with the appropriate use flags
     # to the image.
     emerge_custom_kernel "${ROOT_FS_DIR}"
@@ -186,8 +178,7 @@ create_base_image() {
   # not support verified boot yet (see create_legacy_bootloader_templates.sh)
   # so rootfs verification is disabled if we are building with --factory_install
   local enable_rootfs_verification=
-  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]] &&
-     [[ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]] ; then
+  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
     enable_rootfs_verification="--enable_rootfs_verification"
   fi
 
@@ -198,7 +189,7 @@ create_base_image() {
     ${enable_rootfs_verification}
 
   # Don't test the factory install shim
-  if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]; then
+  if ! should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
     # Check that the image has been correctly created.
     test_image_content "$ROOT_FS_DIR"
   fi
@@ -234,7 +225,7 @@ create_base_image() {
   trap - EXIT
 
   USE_DEV_KEYS=
-  if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
+  if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
     USE_DEV_KEYS="--use_dev_keys"
   fi
 

@@ -27,6 +27,12 @@ install_dev_packages() {
   # Install developer packages described in chromeos-dev.
   emerge_to_image --root="${root_dev_dir}" chromeos-dev
 
+  # Copy over the libc debug info so that gdb
+  # works with threads and also for a better debugging experience.
+  sudo mkdir -p "${ROOT_FS_DIR}/usr/local/lib/debug"
+  sudo tar jxpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}/usr/local/lib/debug" \
+  ./usr/lib/debug/usr/${CHOST} --strip-components=6
+
   # Install the bare necessary files so that the "emerge" command works
   if [ ${FLAGS_statefuldev} -eq ${FLAGS_TRUE} ]; then
     sudo cp -a ${root_dev_dir}/share/portage ${ROOT_FS_DIR}/usr/share
@@ -82,12 +88,6 @@ install_dev_packages() {
     done
   fi
 
-  # Check that the image has been correctly created.  Only do it if not
-  # building a factory install shim, as the INSTALL_MASK for it will make
-  # test_image fail.
-  if [ ${FLAGS_factory_install} -eq ${FLAGS_FALSE} ]; then
-    test_image_content "$ROOT_FS_DIR"
-  fi
   info "Developer image built and stored at ${image_name}"
 
   unmount_image

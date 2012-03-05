@@ -47,79 +47,31 @@ get_images_to_build() {
     esac
   done
 
+  # Set default if none specified.
+  if [ -z "${IMAGES_TO_BUILD}" ]; then
+    IMAGES_TO_BUILD=${CHROMEOS_DEVELOPER_IMAGE_NAME}
+  fi
+
   info "The following images will be built ${IMAGES_TO_BUILD}."
 }
 
 # Look at flags to determine which image types we should build.
 parse_build_image_args() {
-  # If argv is specified, we use the new parsing method to determine exactly
-  # which images we need to build and the flags to set.
-  if [ -n "${FLAGS_ARGV}" ]; then
-    info "Ignoring image flags since image(s) in $FLAGS_ARGV specified."
-    get_images_to_build ${FLAGS_ARGV}
-    # Start at ground zero with all image flags set to False.
-    FLAGS_withdev=${FLAGS_FALSE}
-    FLAGS_test=${FLAGS_FALSE}
-    FLAGS_factory=${FLAGS_FALSE}
-    FLAGS_factory_install=${FLAGS_FALSE}
-    if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME}; then
-      FLAGS_withdev=${FLAGS_TRUE}
+  get_images_to_build ${FLAGS_ARGV}
+  if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
+    if should_build_image "${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"; then
+      die "Cannot build both the test and factory_test images."
     fi
-    if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
-      FLAGS_withdev=${FLAGS_TRUE}
-      FLAGS_test=${FLAGS_TRUE}
-      if should_build_image "${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"; then
-        die "Cannot build both the test and factory_test images."
-      fi
-    fi
-    if should_build_image ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}; then
-      FLAGS_withdev=${FLAGS_TRUE}
-      FLAGS_factory=${FLAGS_TRUE}
-    fi
-    if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-      for image in ${CHROMEOS_BASE_IMAGE_NAME} ${CHROMEOS_DEVELOPER_IMAGE_NAME}\
-          ${CHROMEOS_TEST_IMAGE_NAME} ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}; do
-        should_build_image ${image} && die "Can't build both $image" \
-          "and ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}."
-      done
-      FLAGS_factory_install=${FLAGS_TRUE}
-    fi
-  else
-    # Legacy method for tweaking flags to do the right thing.
-    if [ ${FLAGS_factory_install} -eq ${FLAGS_TRUE} ]; then
-      if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
-        info "Incompatible flags: --factory and --factory_install cannot both" \
-          "be set to True. Resetting --factory to False."
-        FLAGS_factory=${FLAGS_FALSE}
-      fi
-      if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
-        info "Incompatible flags: --test and --factory_install cannot both be" \
-          "set to True. Resetting --test to False."
-        FLAGS_test=${FLAGS_FALSE}
-      fi
-      # Disable --withdev flag when --factory_install is set to True. Otherwise,
-      # the dev image produced will be based on install shim, rather than a
-      # pristine image.
-      if [ ${FLAGS_withdev} -eq ${FLAGS_TRUE} ]; then
-        info "Incompatible flags: --withdev and --factory_install cannot both" \
-          "be set to True. Resetting --withdev to False."
-        FLAGS_withdev=${FLAGS_FALSE}
-      fi
-    fi
-    if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
-      if [ ${FLAGS_test} -eq ${FLAGS_FALSE} ]; then
-        info "Incompatible flags: --factory implies --test. Resetting --test" \
-          "to True."
-        FLAGS_test=${FLAGS_TRUE}
-      fi
-    fi
-    if [ ${FLAGS_test} -eq ${FLAGS_TRUE} ]; then
-      if [ ${FLAGS_withdev} -eq ${FLAGS_FALSE} ]; then
-        info "Incompatible flags: --test implies --withdev. Resetting" \
-          "--withdev to True."
-        FLAGS_withdev=${FLAGS_TRUE}
-      fi
-    fi
+  fi
+  if should_build_image ${CHROMEOS_BASE_IMAGE_NAME} \
+      ${CHROMEOS_DEVELOPER_IMAGE_NAME} ${CHROMEOS_TEST_IMAGE_NAME} \
+      ${CHROMEOS_FACTORY_TEST_IMAGE_NAME} &&
+      should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
+    die "Can't build ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME} with any other" \
+        "image."
+  fi
+  if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
+    FLAGS_enable_rootfs_verification=${FLAGS_FALSE}
   fi
 }
 

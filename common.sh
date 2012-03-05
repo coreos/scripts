@@ -257,7 +257,7 @@ FACTORY_TEST_INSTALL_MASK="
   /usr/local/autotest/client/site_tests/realtimecomm_GTalk*
   "
 
-# Mask for factory install shim (build_image --factory_install)
+# Mask for factory install shim (build_image factory_install)
 FACTORY_SHIM_INSTALL_MASK="
   $DEFAULT_INSTALL_MASK
   /opt/[^g]*
