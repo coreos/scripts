@@ -74,6 +74,15 @@ DEFINE_boolean skip_chroot_upgrade $FLAGS_FALSE \
 This should only be called by version hook scripts that need to call \
 setup_board."
 
+# The --reuse_pkgs_from_local_boards flag tells Portage to share binary
+# packages between boards that are built locally, so that the total time
+# required to build several boards is reduced. This flag is only useful
+# when you are not able to use remote binary packages, since remote binary
+# packages are usually more up to date than anything you have locally.
+DEFINE_boolean reuse_pkgs_from_local_boards $FLAGS_FALSE \
+  "Bootstrap from local packages instead of remote packages."
+
+
 # builds wrappers like equery-arm-generic.
 # args:
 #   $1:  command to wrap
@@ -394,7 +403,15 @@ print_board_make_conf() {
   echo
 }
 
-print_board_binhost_config() {
+print_binhost_config() {
+  if [ "$1" == "--local" ]; then
+    cros_generate_local_binhosts --board "${BOARD_VARIANT}"
+    echo 'PORTAGE_BINHOST="$LOCAL_BINHOST"'
+    return 0
+  elif [ $# -ne 0 ]; then
+    die "Invalid arguments for print_binhost_config: $@"
+  fi
+
   local binhost_dir="$CHROMIUMOS_OVERLAY/chromeos/binhost/target"
   local preflight_binhost="$binhost_dir/$BOARD-PREFLIGHT_BINHOST.conf"
   local chrome_binhost_suffix="LATEST_RELEASE_CHROME_BINHOST.conf"
@@ -449,6 +466,14 @@ EOF
 EOF
     echo source "$chrome_binhost"
     echo 'PORTAGE_BINHOST="$PORTAGE_BINHOST $LATEST_RELEASE_CHROME_BINHOST"'
+  fi
+}
+
+print_board_binhost_config() {
+  if [ "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]; then
+    print_binhost_config --local
+  else
+    print_binhost_config
   fi
 }
 
@@ -571,8 +596,8 @@ if [ -d "$BOARD_ROOT" ] ; then
     sudo rm -rf $TEMP_DIR &
   else
     if ! $HOST_BOARD; then
-      print_board_make_conf | sudo_clobber $BOARD_ETC/make.conf.board
-      print_board_binhost_config | sudo_append $BOARD_ETC/make.conf.board
+      { print_board_make_conf; print_board_binhost_config; } | \
+        sudo_clobber $BOARD_ETC/make.conf.board
     fi
     if [[ $FLAGS_quiet -eq $FLAGS_FALSE ]]; then
       warn "Board output directory '$BOARD_ROOT' already exists."
@@ -631,7 +656,6 @@ if ! ${HOST_BOARD}; then
   sudo ln -sf "${CHROMIUMOS_CONFIG}/make.conf.${ARCH}-target" \
     "${BOARD_ETC}/make.conf"
   print_board_make_conf | sudo_clobber $BOARD_ETC/make.conf.board
-  print_board_binhost_config | sudo_append $BOARD_ETC/make.conf.board
 
   # We install the toolchain related bits after the BOARD_ROOT, BOARD_PROFILE
   # and BOARD_ETC directories have been created.
@@ -728,15 +752,23 @@ if ${HOST_BOARD}; then
   sudo find $BOARD_ROOT -type f -name '*.la' | xargs sudo \
       sed -i -e "s|$BOARD_ROOT/|/|g"
 else
+  # Now that the portageq-* wrappers have been created, we can add the binhost
+  # config to make.conf.board.
+  print_board_binhost_config | sudo_append $BOARD_ETC/make.conf.board
+
   #
   # Emerge the kernel headers into the board build root.
   #
-  EMERGE_FLAGS="--select --quiet"
-  if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
-    EMERGE_FLAGS+=" --getbinpkg --usepkg"
+  KERNEL_EMERGE_FLAGS="--select --quiet"
+  if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
+        "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]]; then
+    KERNEL_EMERGE_FLAGS+=" --getbinpkg --usepkg"
   fi
 
-  sudo -E "${EMERGE_WRAPPER}" ${EMERGE_FLAGS} chromeos-base/kernel-headers
+  sudo -E "${EMERGE_WRAPPER}" ${KERNEL_EMERGE_FLAGS} \
+    chromeos-base/kernel-headers
+
+  unset KERNEL_EMERGE_FLAGS
 fi
 
 if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then
