@@ -206,16 +206,6 @@ toolchain_needs_update() {
       fi
     fi
 
-    # HACK: Older crossdev did not generate a gdb even when given
-    # --ex-gdb if it did not build all previous stages.  So need
-    # to skip gdb for these targets until the binpkgs get posted
-    # otherwise users end up hitting problems when they setup_board.
-    if [[ ${FLAGS_usepkg} -eq ${FLAGS_TRUE} ]] &&
-       [[ ${toolchain} == "arm-none-eabi" ]] &&
-       [[ ${pn} == "gdb" ]] ; then
-      continue
-    fi
-
     pkgs+=( "${atom}" )
   done
 
@@ -271,16 +261,8 @@ build_toolchain() {
   CROSS_ARGS+=(
     --overlays "${CHROMIUMOS_OVERLAY} /usr/local/portage/stable"
     --ov-output "${CROSSDEV_OVERLAY}"
+    --ex-gdb
   )
-
-  # HACK: Older crossdev did not generate a gdb even when given
-  # --ex-gdb if it did not build all previous stages.  So need
-  # to skip gdb for these targets until the binpkgs get posted
-  # otherwise users end up hitting problems when they setup_board.
-  if [[ ${FLAGS_usepkg} -ne ${FLAGS_TRUE} ]] ||
-     [[ ${toolchain} != "arm-none-eabi" ]] ; then
-    CROSS_ARGS+=( --ex-gdb )
-  fi
 
   sudo -E FEATURES="splitdebug ${FEATURES}" crossdev "${CROSS_ARGS[@]}"
 }
