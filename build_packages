@@ -201,6 +201,7 @@ if [[ "${FLAGS_showoutput}" -eq "${FLAGS_TRUE}" && \
   # Only parallel_emerge supports --show-output.
   EMERGE_FLAGS+=" --show-output"
 fi
+info "Merging board packages ${PACKAGES}"
 eretry sudo -E ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES}
 
 echo "Builds complete"
