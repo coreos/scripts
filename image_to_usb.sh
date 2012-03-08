@@ -78,6 +78,10 @@ DEFINE_string arch "" \
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
+if [ $# -gt 0 ]; then
+  die "Arguments aren't currently supported in image_to_usb."
+fi
+
 # Generates a descriptive string of a removable device. Includes the
 # manufacturer (if non-empty), product and a human-readable size.
 function get_disk_string() {
