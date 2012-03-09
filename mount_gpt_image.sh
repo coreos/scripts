@@ -51,6 +51,11 @@ eval set -- "${FLAGS_ARGV}"
 # Die on error
 set -e
 
+# Find the last image built on the board.
+if [ ${FLAGS_most_recent} -eq ${FLAGS_TRUE} ] ; then
+  FLAGS_from="$(${SCRIPT_ROOT}/get_latest_image.sh --board="${FLAGS_board}")"
+fi
+
 # Check for conflicting args.
 # If --from is a block device, --image can't also be specified.
 if [ -b "${FLAGS_from}" ]; then
@@ -188,11 +193,6 @@ function mount_image() {
   info "Image specified by ${FLAGS_from} mounted at"\
     "${FLAGS_rootfs_mountpt} successfully."
 }
-
-# Find the last image built on the board.
-if [ ${FLAGS_most_recent} -eq ${FLAGS_TRUE} ] ; then
-  FLAGS_from="$(${SCRIPT_ROOT}/get_latest_image.sh --board="${FLAGS_board}")"
-fi
 
 # Turn paths into absolute paths.
 FLAGS_from=`eval readlink -f ${FLAGS_from}`
