@@ -25,8 +25,6 @@ DEFINE_boolean replace ${FLAGS_FALSE} \
   "Overwrite existing output, if any."
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
-DEFINE_boolean statefuldev ${FLAGS_TRUE} \
-  "Install development packages on stateful partition rather than the rootfs"
 DEFINE_integer rootfs_partition_size 1024 \
   "rootfs partition size in MiBs."
 DEFINE_integer rootfs_size 850 \
@@ -36,8 +34,6 @@ DEFINE_integer rootfs_hash_pad 8 \
   "MiBs reserved at the end of the rootfs image."
 DEFINE_integer statefulfs_size 1024 \
   "stateful filesystem size in MiBs."
-DEFINE_boolean fast ${DEFAULT_FAST} \
-  "Call many emerges in parallel"
 DEFINE_string boot_args "noinitrd" \
   "Additional boot arguments to pass to the commandline"
 

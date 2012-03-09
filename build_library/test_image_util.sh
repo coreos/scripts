@@ -17,12 +17,9 @@
 # build_image and mod_image_for_test.sh.  The code is not used
 # by the mod_image_for_test function.
 
-EMERGE_BOARD_CMD="emerge-$BOARD"
-if [ $FLAGS_fast -eq $FLAGS_TRUE ]; then
-  echo "Using alternate emerge"
-  EMERGE_BOARD_CMD="$GCLIENT_ROOT/chromite/bin/parallel_emerge"
-  EMERGE_BOARD_CMD="$EMERGE_BOARD_CMD --board=$BOARD"
-fi
+EMERGE_BOARD_CMD="$GCLIENT_ROOT/chromite/bin/parallel_emerge"
+EMERGE_BOARD_CMD="$EMERGE_BOARD_CMD --board=$BOARD"
+
 if [ $FLAGS_jobs -ne -1 ]; then
   EMERGE_JOBS="--jobs=$FLAGS_jobs"
 fi

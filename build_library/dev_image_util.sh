@@ -20,9 +20,7 @@ install_dev_packages() {
     "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 
   # Determine the root dir for developer packages.
-  local root_dev_dir="${ROOT_FS_DIR}"
-  [ ${FLAGS_statefuldev} -eq ${FLAGS_TRUE} ] &&
-    root_dev_dir="${ROOT_FS_DIR}/usr/local"
+  local root_dev_dir="${ROOT_FS_DIR}/usr/local"
 
   # Install developer packages described in chromeos-dev.
   emerge_to_image --root="${root_dev_dir}" chromeos-dev
@@ -34,11 +32,10 @@ install_dev_packages() {
   ./usr/lib/debug/usr/${CHOST} --strip-components=6
 
   # Install the bare necessary files so that the "emerge" command works
-  if [ ${FLAGS_statefuldev} -eq ${FLAGS_TRUE} ]; then
-    sudo cp -a ${root_dev_dir}/share/portage ${ROOT_FS_DIR}/usr/share
-    sudo sed -i s,/usr/bin/wget,wget, \
-      ${ROOT_FS_DIR}/usr/share/portage/config/make.globals
-  fi
+  sudo cp -a ${root_dev_dir}/share/portage ${ROOT_FS_DIR}/usr/share
+  sudo sed -i s,/usr/bin/wget,wget, \
+    ${ROOT_FS_DIR}/usr/share/portage/config/make.globals
+
   sudo mkdir -p ${ROOT_FS_DIR}/etc/make.profile
 
   # Re-run ldconfig to fix /etc/ldconfig.so.cache.
