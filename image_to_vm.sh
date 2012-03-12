@@ -18,8 +18,6 @@ assert_inside_chroot
 . /usr/lib/installer/chromeos-common.sh || exit 1
 . "${SCRIPT_ROOT}/lib/cros_vm_constants.sh" || exit 1
 
-get_default_board
-
 # Flags
 DEFINE_string board "${DEFAULT_BOARD}" \
   "Board for which the image was built"

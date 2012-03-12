@@ -17,8 +17,6 @@ MINIDUMP_DUMP=/usr/bin/minidump_dump
 MINIDUMP_STACKWALK=/usr/bin/minidump_stackwalk
 USING_REMOTE=0
 
-get_default_board
-
 DEFINE_string board "${DEFAULT_BOARD}" \
     "The board for which you are building autotest"
 DEFINE_string breakpad_root "" \

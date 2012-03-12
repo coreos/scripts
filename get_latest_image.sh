@@ -9,8 +9,6 @@
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
-get_default_board
-
 DEFINE_string board "$DEFAULT_BOARD" \
   "The name of the board to check for images."
 

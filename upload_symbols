@@ -16,8 +16,6 @@ if [[ "$1" != "--testing" ]]; then
   restart_in_chroot_if_needed "$@"
 fi
 
-get_default_board
-
 # Flags
 DEFINE_string board "$DEFAULT_BOARD" "The board to build packages for."
 DEFINE_string breakpad_root "" "Root directory for breakpad symbols."

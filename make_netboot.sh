@@ -18,8 +18,6 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 # Script must be run inside the chroot.
 restart_in_chroot_if_needed "$@"
 
-get_default_board
-
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
 DEFINE_string image "" "Path to the image to use"

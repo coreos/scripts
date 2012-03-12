@@ -28,8 +28,6 @@ find_common_sh
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 # --- END COMMON.SH BOILERPLATE ---
 
-get_default_board
-
 DEFINE_string board "$DEFAULT_BOARD" \
   "The name of the board to check for images."
 DEFINE_boolean incremental "$FLAGS_FALSE" "Download incremental build"

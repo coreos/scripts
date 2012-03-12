@@ -19,8 +19,6 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 # In case chromeos-common.sh doesn't support MMC yet
 declare -F list_mmc_disks >/dev/null || list_mmc_disks() { true; }
 
-get_default_board
-
 # Flags
 DEFINE_string board "${DEFAULT_BOARD}" \
   "board for which the image was built"

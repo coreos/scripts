@@ -21,8 +21,6 @@ fi
 
 locate_gpt
 
-get_default_board
-
 # Flags.
 DEFINE_string board "$DEFAULT_BOARD" \
   "The board for which the image was built." b

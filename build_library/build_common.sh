@@ -19,4 +19,3 @@ INSTALLER_ROOT=/usr/lib/installer
 
 BUILD_LIBRARY_DIR=${SCRIPTS_DIR}/build_library
 locate_gpt
-get_default_board

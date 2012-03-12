@@ -278,9 +278,20 @@ if [ -d "$SRC_ROOT/overlays" ]; then
 fi
 # Strip CR
 ALL_BOARDS=$(echo $ALL_BOARDS)
-# Set a default BOARD
-#DEFAULT_BOARD=x86-generic # or...
-DEFAULT_BOARD=$(echo $ALL_BOARDS | awk '{print $NF}')
+
+# Sets the default board variable for calling script.
+if [ -f "$GCLIENT_ROOT/src/scripts/.default_board" ] ; then
+  DEFAULT_BOARD=$(cat "$GCLIENT_ROOT/src/scripts/.default_board")
+  # Check for user typos like whitespace.
+  if [[ -n ${DEFAULT_BOARD//[a-zA-Z0-9-_]} ]] ; then
+    die ".default_board: invalid name detected; please fix:" \
+        "'${DEFAULT_BOARD}'"
+  fi
+fi
+# Stub to get people to upgrade.
+get_default_board() {
+  warn "please upgrade your script, and make sure to run build_packages"
+}
 
 # Enable --fast by default.
 DEFAULT_FAST=${FLAGS_TRUE}
@@ -393,22 +404,6 @@ setup_board_warning() {
   echo "*** or echo |board_name| > $GCLIENT_ROOT/src/scripts/.default_board"
   echo
 }
-
-
-# Sets the default board variable for calling script
-get_default_board() {
-  DEFAULT_BOARD=
-
-  if [ -f "$GCLIENT_ROOT/src/scripts/.default_board" ] ; then
-    DEFAULT_BOARD=$(cat "$GCLIENT_ROOT/src/scripts/.default_board")
-    # Check for user typos like whitespace.
-    if [[ -n ${DEFAULT_BOARD//[a-zA-Z0-9-_]} ]] ; then
-      die ".default_board: invalid name detected; please fix:" \
-          "'${DEFAULT_BOARD}'"
-    fi
-  fi
-}
-
 
 # Enter a chroot and restart the current script if needed
 restart_in_chroot_if_needed() {

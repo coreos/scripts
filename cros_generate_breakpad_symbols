@@ -15,8 +15,6 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 # Script must be run inside the chroot
 restart_in_chroot_if_needed "$@"
 
-get_default_board
-
 # Flags
 DEFINE_string board "$DEFAULT_BOARD" "The board to build packages for."
 DEFINE_string minidump_symbol_root "" \

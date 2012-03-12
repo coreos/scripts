@@ -15,7 +15,6 @@
 assert_not_root_user
 
 # Script must be run inside the chroot
-get_default_board
 
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to set package keywords for."

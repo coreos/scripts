@@ -9,8 +9,6 @@
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
-get_default_board
-
 # Flags.
 DEFINE_string arch "x86" \
   "The boot architecture: arm, x86, or amd64. (Default: x86)"

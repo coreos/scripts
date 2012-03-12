@@ -17,8 +17,6 @@ cleanup() {
 # Need to be inside the chroot to load chromeos-common.sh
 assert_inside_chroot
 
-get_default_board
-
 DEFINE_string board "$DEFAULT_BOARD" "Board for which the image was built" b
 DEFINE_string image "$FLAGS_image" "Location of the test image file" i
 DEFINE_boolean scrub "$FLAGS_FALSE" "Don't include pyauto tests and data" s

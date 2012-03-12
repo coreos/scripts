@@ -13,8 +13,6 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 # Script must be run inside the chroot.
 assert_inside_chroot
 
-get_default_board
-
 # Flags.
 DEFINE_string board "$DEFAULT_BOARD" \
   "The board for which the image was built." b

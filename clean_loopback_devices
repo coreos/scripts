@@ -14,8 +14,6 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 # Script must be run inside the chroot.
 assert_inside_chroot
 
-get_default_board
-
 DEFINE_string output_root "$DEFAULT_BUILD_ROOT/images" \
   "Directory in which to place image result directories (named by version)"
 DEFINE_string board "$DEFAULT_BOARD" \

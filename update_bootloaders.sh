@@ -16,8 +16,6 @@ assert_inside_chroot
 # Load functions and constants for chromeos-install
 . /usr/lib/installer/chromeos-common.sh || exit 1
 
-get_default_board
-
 # Flags.
 DEFINE_string arch "x86" \
   "The boot architecture: arm or x86. (Default: x86)"
