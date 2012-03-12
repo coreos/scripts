@@ -206,7 +206,7 @@ toolchain_needs_update() {
     pkgs+=( "${atom}" )
   done
 
-  local flags=( --pretend --quiet --update )
+  local flags=( --pretend --quiet --update --nodeps )
   if [[ ${FLAGS_usepkg} -eq ${FLAGS_TRUE} ]] ; then
     flags+=( --getbinpkg --usepkgonly )
   fi
