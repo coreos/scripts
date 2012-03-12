@@ -29,6 +29,8 @@ show_help_if_requested "$@"
 DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
+DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
+  "Don't update the toolchains."
 
 # Parse command line flags
 FLAGS "$@" || exit 1
@@ -80,18 +82,14 @@ fi
 
 # In first pass, update portage and toolchains. Lagged updates of both
 # can cause serious issues later.
-export CHOST="$(portageq envvar CHOST)"
-LATEST=$(gcc-config -l | awk -v chost="${CHOST}" '$2 ~ chost { print $2 }' | \
-         sort -V | tail -n 1)
-CURRENT="$(gcc-config -c)" || true # This fails if current profile is invalid.
-sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
-    sys-devel/gcc sys-devel/binutils sys-libs/glibc sys-apps/portage
-# If the latest toolchain wasn't already selected before we updated, do nothing,
-# otherwise autoselect the latest. Also fix if the current profile is invalid.
-if [ "${LATEST}" != "${CURRENT}" ] || ! gcc-config -c &> /dev/null; then
-  LATEST=$(gcc-config -l | awk -v chost="${CHOST}" '$2 ~ chost { print $2 }' | \
-           sort -V | tail -n 1 )
-  sudo -E gcc-config "${LATEST}"
+if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" ]; then
+  TOOLCHAIN_FLAGS=""
+  # This should really only be skipped while bootstrapping.
+  if [ "${FLAGS_usepkg}" -eq "${FLAGS_FALSE}" ]; then
+    TOOLCHAIN_FLAGS="--nousepkg"
+  fi
+  # Expand the path before sudo, as root doesn't have the same path magic.
+  sudo $(type -p cros_setup_toolchains) ${TOOLCHAIN_FLAGS}
 fi
 
 # Second pass, update everything else.
