@@ -118,8 +118,11 @@ mod_image_for_test () {
     STATEFUL_DIR="${STATEFUL_FS_DIR}" ARCH="${ARCH}" BACKDOOR="${BACKDOOR}" \
     "${mod_test_script}"
 
+  # Legacy parameter (used by mod_image_for_test.sh --factory)
+  [ -n "${FLAGS_factory}" ] || FLAGS_factory=${FLAGS_FALSE}
+
   if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ] ||
-      should_build_image ${CHROMEOS_FACTORY_IMAGE_NAME}; then
+      should_build_image "${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"; then
     emerge_to_image --root="${ROOT_FS_DIR}" factorytest-init
     INSTALL_MASK="${FACTORY_TEST_INSTALL_MASK}"
     emerge_to_image --root="${ROOT_FS_DIR}/usr/local" \
