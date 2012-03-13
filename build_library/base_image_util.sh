@@ -202,8 +202,15 @@ create_base_image() {
   # Create EFI System Partition to boot stock EFI BIOS (but not
   # ChromeOS EFI BIOS).  ARM uses this space to determine which
   # partition is bootable.  NOTE: The size argument for mkfs.vfat is
-  # in 1024-byte blocks.  We'll hard-code it to 16M for now.
-  /usr/sbin/mkfs.vfat -C "${ESP_FS_IMG}" 16384
+  # in 1024-byte blocks.  We'll hard-code it to 16M for now, unless
+  # we are building a factory shim, in which case a larger room is
+  # needed to allow two kernel blobs (each including initramfs) in
+  # one EFI partition.
+  if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
+    /usr/sbin/mkfs.vfat -C "${ESP_FS_IMG}" 32768
+  else
+    /usr/sbin/mkfs.vfat -C "${ESP_FS_IMG}" 16384
+  fi
 
   # Zero rootfs free space to make it more compressible so auto-update
   # payloads become smaller
