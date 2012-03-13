@@ -73,12 +73,10 @@ fi
 WORKON_DIR=${CHROOT_TRUNK_DIR}/.config/cros_workon
 KEYWORDS_DIR=${BOARD_DIR}/etc/portage/package.keywords
 UNMASK_DIR=${BOARD_DIR}/etc/portage/package.unmask
-CHROMITE_DIR=${CHROOT_TRUNK_DIR}/chromite
 WORKON_FILE=${WORKON_DIR}/${FLAGS_board:-host}
 KEYWORDS_FILE=${KEYWORDS_DIR}/cros-workon
 UNMASK_FILE=${UNMASK_DIR}/cros-workon
 CHROME_ATOM=chromeos-base/chromeos-chrome
-CHROME_SET_VER=${CHROMITE_DIR}/bin/chrome_set_ver.py
 
 mkdir -p "${WORKON_DIR}" || die "mkdir -p ${WORKON_DIR}"
 touch "${WORKON_FILE}" || die "touch ${WORKON_FILE}"
@@ -278,7 +276,7 @@ chrome_to_live () {
   fi
 
   info "Setting Chrome dependencies to the correct revision."
-  ${CHROME_SET_VER}
+  chrome_set_ver
   if [ -n "${CHROME_ORIGIN}" ] && [ "${CHROME_ORIGIN}" != GERRIT_SOURCE ]; then
     warn "CHROME_ORIGIN is already set to ${CHROME_ORIGIN}"
     warn "To use the new GERRIT_SOURCE workflow, please unset it."
