@@ -24,7 +24,7 @@ find_common_sh() {
 }
 
 cleanup() {
-  "${SCRIPTS_DIR}/mount_gpt_image.sh" -u -r "$ROOT_FS_DIR"
+  "${SCRIPTS_DIR}/mount_gpt_image.sh" -u -r "$ROOT_FS_DIR" -s "$STATEFUL_FS_DIR"
 }
 
 find_common_sh
@@ -56,6 +56,7 @@ FLAGS_image=$(eval readlink -f "${FLAGS_image}")
 IMAGE_DIR=$(dirname "${FLAGS_image}")
 IMAGE_NAME=$(basename "${FLAGS_image}")
 ROOT_FS_DIR="${IMAGE_DIR}/rootfs"
+STATEFUL_FS_DIR="${IMAGE_DIR}/stateful"
 
 PYAUTO_DEP="${FLAGS_build_root}/client/deps/pyauto_dep"
 CHROME_DEP="${FLAGS_build_root}/client/deps/chrome_test"
@@ -78,36 +79,58 @@ be sync'd into your chroot.\n $ cros_workon start vboot_reference --board \
 ${FLAGS_board}"
 fi
 
-trap cleanup EXIT
-
-# Mounts gpt image and sets up var, /usr/local and symlinks.
-"$SCRIPTS_DIR/mount_gpt_image.sh" -i "$IMAGE_NAME" -f "$IMAGE_DIR" \
-  -r "$ROOT_FS_DIR"
-
-ROOT_FS_AUTOTEST_DIR="${ROOT_FS_DIR}/usr/local/autotest"
-
-# Copy all of the needed pyauto deps onto the image
-sudo mkdir "${ROOT_FS_AUTOTEST_DIR}"
-sudo mkdir "${ROOT_FS_DIR}/usr/local/autotest/deps/"
-
 if [ ! -d "${FLAGS_build_root}/client/cros" ]; then
   die "The required path: ${FLAGS_build_root}/client/cros does not exist."
 fi
-sudo cp -r "${FLAGS_build_root}/client/cros" \
-  "${ROOT_FS_DIR}/usr/local/autotest/"
 
-sudo cp -r $CHROME_DEP "${ROOT_FS_DIR}/usr/local/autotest/deps"
-sudo cp -r $PYAUTO_DEP "${ROOT_FS_DIR}/usr/local/autotest/deps"
+trap cleanup EXIT
+
+cleanup EXIT
+
+# Mounts gpt image and sets up var, /usr/local and symlinks.
+"$SCRIPTS_DIR/mount_gpt_image.sh" -i "$IMAGE_NAME" -f "$IMAGE_DIR" \
+  -r "$ROOT_FS_DIR" -s "$STATEFUL_FS_DIR"
+
+STATEFUL_FS_AUTOTEST_DIR="${STATEFUL_FS_DIR}/dev_image/autotest"
+IMAGE_TEST_SRC_DIR="${STATEFUL_FS_AUTOTEST_DIR}/deps/chrome_test/test_src"
+IMAGE_RELEASE_DIR="${IMAGE_TEST_SRC_DIR}/out/Release"
+
+sudo mkdir -p "${STATEFUL_FS_AUTOTEST_DIR}"
+sudo mkdir -p "${IMAGE_TEST_SRC_DIR}"
+sudo mkdir -p "${IMAGE_RELEASE_DIR}"
+
+sudo cp -f -r "${FLAGS_build_root}/client/cros" "${STATEFUL_FS_AUTOTEST_DIR}"
+
+# We want to copy everything that is in this directory except the out folder
+# since it has very large test binaries that we don't need for pyauto.
+info "Copying test source depedencies..."
+for item in base chrome content net pdf third_party; do
+  info "Copying $item to ${IMAGE_TEST_SRC_DIR}"
+  sudo cp -f -r "${CHROME_DEP}/test_src/$item" "${IMAGE_TEST_SRC_DIR}"
+done
+
+info "Copying release binaries..."
+binaries=( chromedriver pyautolib.py _pyautolib.so pyproto setup_test_links.sh \
+           test_data )
+for item in "${binaries[@]}"; do
+  info "Copying $item to ${IMAGE_RELEASE_DIR}"
+  sudo cp -f -r "${CHROME_DEP}/test_src/out/Release/$item" \
+    "${IMAGE_RELEASE_DIR}/"
+done
+
+info "Copying pyauto dependencies..."
+sudo cp -r $PYAUTO_DEP "${STATEFUL_FS_AUTOTEST_DIR}/deps"
 
 if [ $FLAGS_scrub -eq $FLAGS_TRUE ]; then
+  IMAGE_TEST_DIR="${IMAGE_TEST_SRC_DIR}/chrome"
   sudo rm -rf \
-    "${ROOT_FS_AUTOTEST_DIR}/deps/chrome_test/test_src/chrome/test/data/" \
-    "${ROOT_FS_AUTOTEST_DIR}/deps/chrome_test/test_src/chrome/test/functional/"
+    "${IMAGE_TEST_DIR}/data/" \
+    "${IMAGE_TEST_DIR}/functional/"
   sudo mkdir \
-    "${ROOT_FS_AUTOTEST_DIR}/deps/chrome_test/test_src/chrome/test/data/" \
-    "${ROOT_FS_AUTOTEST_DIR}/deps/chrome_test/test_src/chrome/test/functional/"
+    "${IMAGE_TEST_DIR}/data/" \
+    "${IMAGE_TEST_DIR}/functional/"
   sudo cp "${CHROME_DEP}/test_src/chrome/test/functional/pyauto_functional.py" \
-    "${ROOT_FS_AUTOTEST_DIR}/deps/chrome_test/test_src/chrome/test/functional/"
+    "${IMAGE_TEST_DIR}/functional/"
   # Create an example pyauto test.
   echo -e "#!/usr/bin/python\n\
 # Copyright (c) 2011 The Chromium Authors. All rights reserved.\n\
@@ -140,23 +163,23 @@ class ChromeosDemo(pyauto.PyUITest):\n\
 if __name__ == '__main__':\n\
   pyauto_functional.Main()" > "/tmp/example.py"
   sudo cp "/tmp/example.py" \
-    "${ROOT_FS_AUTOTEST_DIR}/deps/chrome_test/test_src/\
+    "${STATEFUL_FS_AUTOTEST_DIR}/deps/chrome_test/test_src/\
 chrome/test/functional/example.py"
 fi
 
 # In some chroot configurations chronos is not configured, so we use 1000
-sudo chown -R 1000 "${ROOT_FS_DIR}/usr/local/autotest"
-sudo chgrp -R 1000 "${ROOT_FS_DIR}/usr/local/autotest"
+sudo chown -R 1000 "${STATEFUL_FS_AUTOTEST_DIR}"
+sudo chgrp -R 1000 "${STATEFUL_FS_AUTOTEST_DIR}"
 
 # Based on how the autotest package is extracted, the user running in the chroot
 # may not have access to navigate into this folder because only the owner
 # (chronos) has access.  This fixes that so anyone can access.
-sudo chmod 747 -R "${ROOT_FS_DIR}/usr/local/autotest"
+sudo chmod 747 -R "${STATEFUL_FS_AUTOTEST_DIR}"
 
 # Setup permissions and symbolic links
 for item in chrome_test pyauto_dep; do
   pushd .
-  cd "${ROOT_FS_DIR}/usr/local/autotest/deps/$item/test_src/out/Release"
+  cd "${STATEFUL_FS_AUTOTEST_DIR}/deps/$item/test_src/out/Release"
   sudo cp "${ROOT_FS_DIR}/usr/local/bin/python2.6" suid-python
   sudo chown root:root suid-python
   sudo chmod 4755 suid-python
