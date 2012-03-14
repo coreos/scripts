@@ -293,7 +293,7 @@ ebuild_to_live () {
 
   for atom in ${atoms}; do
     if ! grep -qx "=${atom}-9999" "${WORKON_FILE}" ; then
-      if sudo bash -c "echo \"=${atom}-9999\" >> \"${WORKON_FILE}\""; then
+      if echo "=${atom}-9999" >> "${WORKON_FILE}" ; then
         atoms_success="${atoms_success} ${atom}"
         if [ "${atom}" = "${CHROME_ATOM}" ]; then
           chrome_to_live
@@ -315,7 +315,7 @@ ebuild_to_stable () {
 
   for atom in ${atoms}; do
     if grep -qx "=${atom}-9999" "${WORKON_FILE}" ; then
-      if sudo sed -e "/^=${atom/\//\\/}-9999\$/d" -i "${WORKON_FILE}"; then
+      if sed -i -e "/^=${atom/\//\\/}-9999\$/d" "${WORKON_FILE}" ; then
         atoms_success="${atoms_success} ${atom}"
       fi
     else
