@@ -93,10 +93,9 @@ cmds=(
   # as well as any possible future renames of WORKON_FILE.
   # In particular, chroot is usually built as "amd64-host" but becomes
   # just "host" after installation. crosbug.com/23096
-  "rm -f '${KEYWORDS_FILE}' '${MASK_FILE}' '${UNMASK_FILE}'"
-  "ln -s '${WORKON_FILE}' '${KEYWORDS_FILE}'"
-  "ln -s '${MASK_WORKON_FILE}' '${MASK_FILE}'"
-  "ln -s '${WORKON_FILE}' '${UNMASK_FILE}'"
+  "ln -sf '${WORKON_FILE}' '${KEYWORDS_FILE}'"
+  "ln -sf '${MASK_WORKON_FILE}' '${MASK_FILE}'"
+  "ln -sf '${WORKON_FILE}' '${UNMASK_FILE}'"
 )
 sudo_multi "${cmds[@]}"
 
