@@ -71,25 +71,31 @@ else
 fi
 
 WORKON_DIR=${CHROOT_TRUNK_DIR}/.config/cros_workon
-KEYWORDS_DIR=${BOARD_DIR}/etc/portage/package.keywords
-UNMASK_DIR=${BOARD_DIR}/etc/portage/package.unmask
+CONFIG_DIR=${BOARD_DIR}/etc/portage
+KEYWORDS_DIR=${CONFIG_DIR}/package.keywords
+MASK_DIR=${CONFIG_DIR}/package.mask
+UNMASK_DIR=${CONFIG_DIR}/package.unmask
 WORKON_FILE=${WORKON_DIR}/${FLAGS_board:-host}
+MASK_WORKON_FILE=${WORKON_FILE}.mask
 KEYWORDS_FILE=${KEYWORDS_DIR}/cros-workon
+MASK_FILE=${MASK_DIR}/cros-workon
 UNMASK_FILE=${UNMASK_DIR}/cros-workon
 CHROME_ATOM=chromeos-base/chromeos-chrome
 
 mkdir -p "${WORKON_DIR}" || die "mkdir -p ${WORKON_DIR}"
-touch "${WORKON_FILE}" || die "touch ${WORKON_FILE}"
+touch "${WORKON_FILE}" "${MASK_WORKON_FILE}" || \
+  die "touch ${WORKON_FILE} ${MASK_WORKON_FILE}"
 cmds=(
-  "mkdir -p '${KEYWORDS_DIR}' '${UNMASK_DIR}'"
+  "mkdir -p '${KEYWORDS_DIR}' '${MASK_DIR}' '${UNMASK_DIR}'"
 
   # Clobber and re-create the WORKON_FILE symlinks every time. This
   # is a trivial operation and eliminates all kinds of corner cases
   # as well as any possible future renames of WORKON_FILE.
   # In particular, chroot is usually built as "amd64-host" but becomes
   # just "host" after installation. crosbug.com/23096
-  "rm -f '${KEYWORDS_FILE}' '${UNMASK_FILE}'"
+  "rm -f '${KEYWORDS_FILE}' '${MASK_FILE}' '${UNMASK_FILE}'"
   "ln -s '${WORKON_FILE}' '${KEYWORDS_FILE}'"
+  "ln -s '${MASK_WORKON_FILE}' '${MASK_FILE}'"
   "ln -s '${WORKON_FILE}' '${UNMASK_FILE}'"
 )
 sudo_multi "${cmds[@]}"
@@ -288,42 +294,46 @@ chrome_to_live () {
 # src_unpack step fetches the package source for local development.
 ebuild_to_live () {
   local atoms=$1
-  local atoms_success=""
+  local atoms_success=()
   local atom
 
   for atom in ${atoms}; do
     if ! grep -qx "=${atom}-9999" "${WORKON_FILE}" ; then
-      if echo "=${atom}-9999" >> "${WORKON_FILE}" ; then
-        atoms_success="${atoms_success} ${atom}"
-        if [ "${atom}" = "${CHROME_ATOM}" ]; then
-          chrome_to_live
-        fi
+      echo "=${atom}-9999" >> "${WORKON_FILE}" || \
+        die "Could not update ${WORKON_FILE} with ${atom}"
+      echo "<${atom}-9999" >> "${MASK_WORKON_FILE}" || \
+        die "Could not update ${MASK_WORKON_FILE} with ${atom}"
+      atoms_success+=( ${atom} )
+      if [ "${atom}" = "${CHROME_ATOM}" ]; then
+        chrome_to_live
       fi
     else
       warn "Already working on ${atom}"
     fi
   done
-  [ -n "${atoms_success}" ] && regen_manifest_and_sync && \
-    info "Started working on '${atoms_success/ /}' for '${BOARD_STR}'"
+  [ ${#atoms_success[@]} -gt 0 ] && regen_manifest_and_sync && \
+    info "Started working on '${atoms_success[*]}' for '${BOARD_STR}'"
 }
 
 # Move a live development ebuild back to stable.
 ebuild_to_stable () {
   local atoms=$1
-  local atoms_success=""
+  local atoms_success=()
   local atom
 
   for atom in ${atoms}; do
-    if grep -qx "=${atom}-9999" "${WORKON_FILE}" ; then
-      if sed -i -e "/^=${atom/\//\\/}-9999\$/d" "${WORKON_FILE}" ; then
-        atoms_success="${atoms_success} ${atom}"
-      fi
+    if grep -qx "=${atom}-9999" "${WORKON_FILE}" "${MASK_WORKON_FILE}" ; then
+      sed -i -e "/^=${atom/\//\\/}-9999\$/d" "${WORKON_FILE}" || \
+        die "Could not update ${WORKON_FILE} with ${atom}"
+      sed -i -e "/^<${atom/\//\\/}-9999\$/d" "${MASK_WORKON_FILE}" || \
+        die "Could not update ${WORKON_FILE} with ${atom}"
+      atoms_success+=( ${atom} )
     else
       warn "Not working on ${atom}"
     fi
   done
-  [ -n "${atoms_success}" ] && \
-    info "Stopped working on '${atoms_success/ /}' for '${BOARD_STR}'"
+  [ ${#atoms_success[@]} -gt 0 ] && \
+    info "Stopped working on '${atoms_success[*]}' for '${BOARD_STR}'"
 }
 
 # Run a command on all or a set of repos.
