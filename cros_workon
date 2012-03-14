@@ -80,19 +80,19 @@ CHROME_ATOM=chromeos-base/chromeos-chrome
 
 mkdir -p "${WORKON_DIR}" || die "mkdir -p ${WORKON_DIR}"
 touch "${WORKON_FILE}" || die "touch ${WORKON_FILE}"
-sudo mkdir -p "${KEYWORDS_DIR}" "${UNMASK_DIR}" || \
-  die "mkdir -p ${KEYWORDS_DIR} ${UNMASK_DIR}"
+cmds=(
+  "mkdir -p '${KEYWORDS_DIR}' '${UNMASK_DIR}'"
 
-# Clobber and re-create the WORKON_FILE symlinks every time. This
-# is a trivial operation and eliminates all kinds of corner cases
-# as well as any possible future renames of WORKON_FILE.
-# In particular, chroot is usually built as "amd64-host" but becomes
-# just "host" after installation. crosbug.com/23096
-sudo rm -f "${KEYWORDS_FILE}" "${UNMASK_FILE}"
-sudo ln -s "${WORKON_FILE}" "${KEYWORDS_FILE}" || \
-  die "ln -s ${WORKON_FILE} ${KEYWORDS_FILE}"
-sudo ln -s "${WORKON_FILE}" "${UNMASK_FILE}" || \
-  die "ln -s ${WORKON_FILE} ${UNMASK_FILE}"
+  # Clobber and re-create the WORKON_FILE symlinks every time. This
+  # is a trivial operation and eliminates all kinds of corner cases
+  # as well as any possible future renames of WORKON_FILE.
+  # In particular, chroot is usually built as "amd64-host" but becomes
+  # just "host" after installation. crosbug.com/23096
+  "rm -f '${KEYWORDS_FILE}' '${UNMASK_FILE}'"
+  "ln -s '${WORKON_FILE}' '${KEYWORDS_FILE}'"
+  "ln -s '${WORKON_FILE}' '${UNMASK_FILE}'"
+)
+sudo_multi "${cmds[@]}"
 
 
 find_keyword_workon_ebuilds() {
