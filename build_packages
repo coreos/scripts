@@ -4,11 +4,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Script to build the set of binary packages needed by Chrome OS. It will
-# cross compile all of the packages into the given targets root and build
-# binary packages as a side-effect. The output packages will be picked up
-# by the build_image script to put together a bootable Chrome OS image.
-
 . "$(dirname "$0")/common.sh" || exit 1
 
 # Script must run inside the chroot
@@ -16,46 +11,52 @@ restart_in_chroot_if_needed "$@"
 
 get_default_board
 
-# Flags
+# Developer-visible flags.
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build packages for."
-# Deprecate chrome* options below once we have cbuild not passing these options
-DEFINE_boolean chromefromsource "${FLAGS_FALSE}" \
-  "Deprecated"
-DEFINE_string chromebuild "" \
-  "Deprecated"
-DEFINE_string chromebase "" \
-  "Deprecated"
 DEFINE_boolean usepkg "${FLAGS_TRUE}" \
   "Use binary packages to bootstrap when possible."
-DEFINE_boolean withdev "${FLAGS_TRUE}" \
-  "Build useful developer friendly utilities."
-DEFINE_boolean withautotest "${FLAGS_TRUE}" \
-  "Build autotest client code."
-DEFINE_integer jobs -1 \
-  "How many packages to build in parallel at maximum."
-DEFINE_integer retries -1 \
-  "On build failure, the number of times to retry."
-DEFINE_boolean withtest "${FLAGS_TRUE}" \
-  "Build packages required for testing."
-DEFINE_boolean withfactory "${FLAGS_TRUE}" \
-  "Build factory installer."
-DEFINE_boolean fast "${DEFAULT_FAST}" \
-  "Call many emerges in parallel."
-DEFINE_boolean norebuild "${FLAGS_FALSE}" \
-  "Don't automatically rebuild dependencies."
-DEFINE_boolean showoutput "${FLAGS_FALSE}" \
-  "Show all output from parallel_emerge."
 DEFINE_boolean noworkon "${FLAGS_FALSE}" \
   "Don't force-build workon packages."
-DEFINE_boolean withdebug "${FLAGS_TRUE}" \
-  "Build debug versions of Chromium-OS-specific packages."
+DEFINE_boolean showoutput "${FLAGS_FALSE}" \
+  "Show all output from parallel_emerge."
+DEFINE_boolean withautotest "${FLAGS_TRUE}" \
+  "Build autotest client code."
+
+FLAGS_HELP="usage: $(basename $0) [flags]
+
+build_packages updates the set of binary packages needed by Chrome OS. It will
+cross compile all packages that have been updated into the given target's root
+and build binary packages as a side-effect. The output packages will be picked
+up by the build_image script to put together a bootable Chrome OS image.
+
+For the fastest builds, use --nowithautotest --noworkon.
+"
+show_help_if_requested "$@"
+
+# The following options are advanced options, only available to those willing
+# to read the source code. They are not shown in help output, since they are
+# not needed for the typical developer workflow.
+DEFINE_boolean fast "${DEFAULT_FAST}" \
+  "Call many emerges in parallel."
+DEFINE_integer jobs -1 \
+  "How many packages to build in parallel at maximum."
+DEFINE_boolean norebuild "${FLAGS_FALSE}" \
+  "Don't automatically rebuild dependencies."
 DEFINE_boolean oldchromebinary "${FLAGS_FALSE}" \
   "Use the last prebuilt binary for Chrome produced by the buildbot."
-DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
-  "Don't update toolchain automatically."
 DEFINE_boolean skip_chroot_upgrade "${FLAGS_FALSE}" \
   "Don't run the chroot upgrade automatically; use with care."
+DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
+  "Don't update toolchain automatically."
+DEFINE_boolean withdev "${FLAGS_TRUE}" \
+  "Build useful developer friendly utilities."
+DEFINE_boolean withdebug "${FLAGS_TRUE}" \
+  "Build debug versions of Chromium-OS-specific packages."
+DEFINE_boolean withfactory "${FLAGS_TRUE}" \
+  "Build factory installer."
+DEFINE_boolean withtest "${FLAGS_TRUE}" \
+  "Build packages required for testing."
 
 # The --reuse_pkgs_from_local_boards flag tells Portage to share binary
 # packages between boards that are built locally, so that the total time
@@ -66,7 +67,6 @@ DEFINE_boolean reuse_pkgs_from_local_boards $FLAGS_FALSE \
   "Bootstrap from local packages instead of remote packages."
 
 # Parse command line
-FLAGS_HELP="usage: $0 [flags]"
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 check_flags_only_and_allow_null_arg "$@" && set --
@@ -189,7 +189,7 @@ if [[ "${FLAGS_showoutput}" -eq "${FLAGS_TRUE}" && \
   EMERGE_FLAGS+=" --show-output"
 fi
 info "Merging board packages ${PACKAGES}"
-eretry sudo -E ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES}
+sudo -E ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES}
 
 echo "Builds complete"
 print_time_elapsed

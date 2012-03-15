@@ -369,17 +369,6 @@ function check_flags_only_and_allow_null_arg {
   return $do_shift
 }
 
-# Retry an emerge command according to $FLAGS_retries
-function eretry () {
-  local i
-  for i in $(seq $FLAGS_retries); do
-    echo "Retrying $@"
-    "$@" && return 0
-  done
-  "$@" && return 0
-  return 1
-}
-
 # Removes single quotes around parameter
 # Arguments:
 #   $1 - string which optionally has surrounding quotes
@@ -854,4 +843,22 @@ function choose() {
     # Invalid choice, return corresponding value.
     eval ${choose_reply}="${choose_invalid}"
   fi
+}
+
+# Display --help if requested. This is used to hide options from help
+# that are not intended for developer use.
+#
+# How to use:
+#  1) Declare the options that you want to appear in help.
+#  2) Call this function.
+#  3) Declare the options that you don't want to appear in help.
+#
+# See build_packages for example usage.
+function show_help_if_requested() {
+  for opt in "$@"; do
+    if [ "$opt" = "-h" ] || [ "$opt" = "--help" ]; then
+      flags_help
+      exit 0
+    fi
+  done
 }

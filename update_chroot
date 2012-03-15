@@ -4,7 +4,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Performs an update of the chroot.
 
 . "$(dirname "$0")/common.sh" || exit 1
 
@@ -14,12 +13,20 @@ assert_inside_chroot "$@"
 # Do not run as root
 assert_not_root_user
 
-# Flags
+# Developer-visible flags.
 DEFINE_boolean usepkg $FLAGS_TRUE \
   "Use binary packages to bootstrap."
+
+FLAGS_HELP="usage: $(basename $0) [flags]
+Performs an update of the chroot. This script is called as part of
+build_packages, so there is typically no need to call this script directly.
+"
+show_help_if_requested "$@"
+
+# The following options are advanced options, only available to those willing
+# to read the source code. They are not shown in help output, since they are
+# not needed for the typical developer workflow.
 DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
-DEFINE_integer retries -1 \
-  "On build failure, the number of times to retry."
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 
@@ -77,7 +84,7 @@ CHOST="$(portageq envvar CHOST)"
 LATEST="$(gcc-config -l | grep "${CHOST}" | awk '{ print $2 }' | \
           sort -V | tail -n 1 )"
 CURRENT="$(gcc-config -c)" || true # This fails if current profile is invalid.
-eretry sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
+sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
     sys-devel/gcc sys-devel/binutils sys-libs/glibc sys-apps/portage
 # If the latest toolchain wasn't already selected before we updated, do nothing,
 # otherwise autoselect the latest. Also fix if the current profile is invalid.
@@ -89,7 +96,7 @@ fi
 
 # Second pass, update everything else.
 EMERGE_FLAGS+=" --deep"
-eretry sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
+sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
     chromeos-base/hard-host-depends world
 
 # Automatically discard all CONFIG_PROTECT'ed files. Those that are

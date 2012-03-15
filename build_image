@@ -13,52 +13,28 @@ SCRIPT_ROOT=$(dirname "$0")
 . "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
 
 
+# Developer-visible flags.
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
-DEFINE_string build_root "/build" \
-  "The root location for board sysroots."
-DEFINE_integer build_attempt 1 \
-  "The build attempt for this image build."
+DEFINE_string boot_args "noinitrd" \
+  "Additional boot arguments to pass to the commandline"
+DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
+  "Default all bootloaders to use kernel-based root fs integrity checking."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
-DEFINE_boolean replace ${FLAGS_FALSE} \
-  "Overwrite existing output, if any."
-DEFINE_integer jobs -1 \
-  "How many packages to build in parallel at maximum."
+DEFINE_integer rootfs_hash_pad 8 \
+  "MiBs reserved at the end of the rootfs image. \
+ ceil(0.01 * rootfs_size) is a good minimum."
 DEFINE_integer rootfs_partition_size 1024 \
   "rootfs partition size in MiBs."
 DEFINE_integer rootfs_size 850 \
   "rootfs filesystem size in MiBs."
-# ceil(0.1 * rootfs_size) is a good minimum.
-DEFINE_integer rootfs_hash_pad 8 \
-  "MiBs reserved at the end of the rootfs image."
-DEFINE_integer statefulfs_size 1024 \
-  "stateful filesystem size in MiBs."
-DEFINE_string boot_args "noinitrd" \
-  "Additional boot arguments to pass to the commandline"
-
-DEFINE_string usb_disk /dev/sdb3 \
-  "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
-
-DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
-  "Default all bootloaders to use kernel-based root fs integrity checking."
-DEFINE_integer verity_error_behavior 3 \
-  "Kernel verified boot error behavior (0: I/O errors, 1: panic, 2: nothing, \
-3: cros) Default: 3"
-DEFINE_integer verity_max_ios -1 \
-  "Number of outstanding I/O operations dm-verity caps at. Default: -1"
-DEFINE_string verity_algorithm "sha1" \
-  "Cryptographic hash algorithm used for kernel vboot. Default : sha1"
-DEFINE_string verity_salt "" \
-  "Root filesystem salt. Default: randomly generated."
 DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
   "Install standard backdoor credentials for testing"
-DEFINE_string symlink "latest" \
-  "Symlink name to use for this image."
-
-# TODO(clchiou): Remove this flag after buildbot is fixed
-DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_TRUE} \
-  "A dummy this flag for preventing buildbot fail"
+DEFINE_integer statefulfs_size 1024 \
+  "stateful filesystem size in MiBs."
+DEFINE_string usb_disk /dev/sdb3 \
+  "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
 
 FLAGS_HELP="USAGE: build_image [flags] [list of images to build].
 This script is used to build a Chromium OS image. Chromium OS comes in many
@@ -73,12 +49,36 @@ factory_test - Like test but with extra packages and modifications used to
 factory_install - Install shim for bootstrapping the factory test process.
   Cannot be built along with any other image.
 
-Examples
+Examples:
 
 build_image --board=<board> dev test - builds developer and test images.
 build_image --board=<board> factory_install - builds a factory install shim.
 ...
 "
+show_help_if_requested "$@"
+
+# The following options are advanced options, only available to those willing
+# to read the source code. They are not shown in help output, since they are
+# not needed for the typical developer workflow.
+DEFINE_string build_root "/build" \
+  "The root location for board sysroots."
+DEFINE_integer build_attempt 1 \
+  "The build attempt for this image build."
+DEFINE_integer jobs -1 \
+  "How many packages to build in parallel at maximum."
+DEFINE_boolean replace ${FLAGS_FALSE} \
+  "Overwrite existing output, if any."
+DEFINE_string symlink "latest" \
+  "Symlink name to use for this image."
+DEFINE_integer verity_error_behavior 3 \
+  "Kernel verified boot error behavior (0: I/O errors, 1: panic, 2: nothing, \
+3: cros) Default: 3"
+DEFINE_integer verity_max_ios -1 \
+  "Number of outstanding I/O operations dm-verity caps at. Default: -1"
+DEFINE_string verity_algorithm "sha1" \
+  "Cryptographic hash algorithm used for kernel vboot. Default : sha1"
+DEFINE_string verity_salt "" \
+  "Root filesystem salt. Default: randomly generated."
 
 # Parse command line.
 FLAGS "$@" || exit 1

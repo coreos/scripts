@@ -4,8 +4,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# This script sets up a the sysroot for a particular target board.
-
 . "$(dirname "$0")/common.sh" || exit 1
 . "${SRC_ROOT}/platform/dev/toolchain_utils.sh"
 
@@ -14,45 +12,57 @@ restart_in_chroot_if_needed "$@"
 
 get_default_board
 
-# Flags
+# Developer-visible flags.
 DEFINE_string board "$DEFAULT_BOARD" \
   "The name of the board to set up."
+DEFINE_boolean default $FLAGS_FALSE \
+  "Set board to the default board in your chroot"
+DEFINE_boolean force $FLAGS_FALSE \
+  "Force re-creating board root."
+DEFINE_boolean usepkg $FLAGS_TRUE \
+  "Use binary packages to bootstrap."
+
+FLAGS_HELP="usage: $(basename $0) [flags]
+
+setup_board sets up the sysroot for a particular board. This script is called
+automatically when you run build_packages, so there is typically no need to
+call it directly, unless you want to blow away your board (using --force).
+"
+show_help_if_requested "$@"
+
+# The following options are advanced options, only available to those willing
+# to read the source code. They are not shown in help output, since they are
+# not needed for the typical developer workflow.
 DEFINE_string build_root "/build" \
   "The root location for board sysroots."
 DEFINE_string board_overlay "" \
   "Location of the board overlay."
-DEFINE_string variant "" \
-  "Board variant."
-DEFINE_string toolchain "" \
-  "Toolchain.  For example: i686-pc-linux-gnu, armv7a-softfloat-linux-gnueabi"
-DEFINE_boolean usepkg $FLAGS_TRUE \
-  "Use binary packages to bootstrap."
-DEFINE_boolean force $FLAGS_FALSE \
-  "Force re-creating board root."
 DEFINE_string binutils_version "2.21-r4" \
   "Version of binutils to use."
+DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
 DEFINE_string gcc_version "[stable]" \
   "Version of gcc to use."
-DEFINE_string libc_version "[stable]" \
-  "Version of libc to use."
+DEFINE_integer jobs -1 \
+  "How many packages to build in parallel at maximum."
 DEFINE_string kernel_version "[stable]" \
   "Version of kernel headers to use."
 DEFINE_boolean latest_toolchain $FLAGS_FALSE \
   "Use the latest ebuild for all toolchain packages (gcc, binutils, libc, \
 kernel). This overrides the other toolchain version options."
-DEFINE_boolean default $FLAGS_FALSE \
-  "Set board to the default board in your chroot"
-DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
+DEFINE_string libc_version "[stable]" \
+  "Version of libc to use."
 DEFINE_string profile "" \
   "The portage configuration profile to use. Profile must be located in overlay-board/profiles"
 DEFINE_boolean quiet $FLAGS_FALSE \
   "Don't print warnings when board already exists."
 DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
   "Don't update toolchain automatically."
-DEFINE_integer jobs -1 \
-  "How many packages to build in parallel at maximum."
 DEFINE_boolean skip_chroot_upgrade $FLAGS_FALSE \
   "Don't run the chroot upgrade automatically; use with care."
+DEFINE_string toolchain "" \
+  "Toolchain.  For example: i686-pc-linux-gnu, armv7a-softfloat-linux-gnueabi"
+DEFINE_string variant "" \
+  "Board variant."
 
 # The --reuse_pkgs_from_local_boards flag tells Portage to share binary
 # packages between boards that are built locally, so that the total time
