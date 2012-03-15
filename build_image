@@ -60,8 +60,6 @@ show_help_if_requested "$@"
 # The following options are advanced options, only available to those willing
 # to read the source code. They are not shown in help output, since they are
 # not needed for the typical developer workflow.
-DEFINE_string build_root "/build" \
-  "The root location for board sysroots."
 DEFINE_integer build_attempt 1 \
   "The build attempt for this image build."
 DEFINE_integer jobs -1 \

@@ -33,8 +33,6 @@ show_help_if_requested "$@"
 # The following options are advanced options, only available to those willing
 # to read the source code. They are not shown in help output, since they are
 # not needed for the typical developer workflow.
-DEFINE_string build_root "/build" \
-  "The root location for board sysroots."
 DEFINE_string board_overlay "" \
   "Location of the board overlay."
 DEFINE_string binutils_version "2.21-r4" \
@@ -525,7 +523,7 @@ case "$BOARD" in
     HOST_BOARD=false
 esac
 # Locations we will need
-BOARD_ROOT="${FLAGS_build_root}/${BOARD_VARIANT}"
+BOARD_ROOT="/build/${BOARD_VARIANT}"
 CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
 CHROMIUMOS_OVERLAY="/usr/local/portage/chromiumos"
 CHROMIUMOS_CONFIG="${CHROMIUMOS_OVERLAY}/chromeos/config"
@@ -661,7 +659,6 @@ sudo ln -sf /etc/make.conf.user "${BOARD_ROOT}/etc/make.conf.user"
 # cros_choose_profile manually.
 if ! cros_choose_profile \
        --board "${FLAGS_board}" \
-       --build_root "${FLAGS_build_root}" \
        --board_overlay "${FLAGS_board_overlay}" \
        --variant "${FLAGS_variant}" \
        --profile "${FLAGS_profile}"; then

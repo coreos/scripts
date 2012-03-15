@@ -8,7 +8,7 @@ if [ -z "${FLAGS_board}" ]; then
 fi
 
 BOARD="${FLAGS_board}"
-BOARD_ROOT="${FLAGS_build_root}/${BOARD}"
+BOARD_ROOT="/build/${BOARD}"
 
 # What cross-build are we targeting?
 . "${BOARD_ROOT}/etc/make.conf.board_setup"

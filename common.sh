@@ -720,7 +720,7 @@ function reinterpret_path_for_chroot() {
 
 function emerge_custom_kernel() {
   local install_root="$1"
-  local root=${FLAGS_build_root}/${FLAGS_board}
+  local root=/build/${FLAGS_board}
   local tmp_pkgdir=${root}/custom-packages
 
   # Clean up any leftover state in custom directories.

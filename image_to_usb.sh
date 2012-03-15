@@ -67,8 +67,6 @@ DEFINE_boolean test_image "${FLAGS_FALSE}" \
 DEFINE_string image_name "" \
   "image base name (auto-select if empty)" \
   i
-DEFINE_string build_root "/build" \
-  "root location for board sysroots"
 DEFINE_boolean install ${FLAGS_FALSE} \
   "install to the USB/MMC device"
 DEFINE_string arch "" \
@@ -367,7 +365,7 @@ if [ -b "${FLAGS_to}" ]; then
       die "Installation must be done from inside the chroot"
     fi
 
-    "${FLAGS_build_root}/${FLAGS_board}/usr/sbin/chromeos-install" \
+    "/build/${FLAGS_board}/usr/sbin/chromeos-install" \
       --yes \
       --skip_src_removable \
       --skip_dst_removable \

@@ -26,8 +26,6 @@ DEFINE_string image "" "Location of the rootfs raw image file" i
 DEFINE_integer jobs -1 \
     "How many packages to build in parallel at maximum." j
 DEFINE_boolean yes $FLAGS_FALSE "Answer yes to all prompts" y
-DEFINE_string build_root "/build" \
-    "The root location for board sysroots."
 DEFINE_boolean fast $DEFAULT_FAST "Call many emerges in parallel"
 DEFINE_boolean inplace $FLAGS_TRUE \
     "Modify/overwrite the image $CHROMEOS_IMAGE_NAME in place.  \
