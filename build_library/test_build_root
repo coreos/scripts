@@ -29,14 +29,17 @@ if [[ ! -d "$ROOT" ]]; then
   die_notrace "Root FS does not exist ($ROOT)"
 fi
 
-BINARIES="$ROOT/usr/bin/Xorg
-          $ROOT/boot/vmlinuz
-          $ROOT/sbin/session_manager
-          $ROOT/bin/sed
-          $ROOT/opt/google/chrome/chrome"
+ROOT_BINARIES=(
+  /usr/bin/Xorg
+  /boot/vmlinuz
+  /sbin/session_manager
+  /bin/sed
+  /opt/google/chrome/chrome
+)
 
 EXITCODE=0
-for i in $BINARIES; do
+for i in "${BINARIES[@]}"; do
+  i="${ROOT}${i}"
   if ! [[ -f $i ]]; then
     error "cannot find $i"
     EXITCODE=1
