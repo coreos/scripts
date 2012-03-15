@@ -6,10 +6,7 @@
 
 # Performs an update of the chroot.
 
-# Load common CrOS utilities.  Inside the chroot this file is installed in
-# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
-# location.
-. "$(dirname $0)/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+. "$(dirname "$0")/common.sh" || exit 1
 
 # Script must run inside the chroot
 assert_inside_chroot "$@"
