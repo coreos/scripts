@@ -60,14 +60,12 @@ if [ -n "${FLAGS_board}" ]; then
   EBUILDCMD=ebuild-"${FLAGS_board}"
   PORTAGEQCMD=portageq-"${FLAGS_board}"
   BOARD_STR="${FLAGS_board}"
-  BOARD_KEYWORD="$(portageq-${FLAGS_board} envvar ARCH)"
 else
   BOARD_DIR="" # --host specified
   EQUERYCMD=equery
   EBUILDCMD=ebuild
   PORTAGEQCMD=portageq
   BOARD_STR="host"
-  BOARD_KEYWORD="$(portageq envvar ARCH)"
 fi
 
 WORKON_DIR=${CHROOT_TRUNK_DIR}/.config/cros_workon
@@ -110,10 +108,8 @@ find_keyword_workon_ebuilds() {
   local keyword="${1}"
   local overlay
 
-  local cros_overlays=$("${PORTAGEQCMD}" envvar PORTDIR_OVERLAY)
-
   # NOTE: overlay may be a symlink, and we have to use ${overlay}/
-  for overlay in ${cros_overlays}; do
+  for overlay in ${PORTDIR_OVERLAY}; do
     # only look up ebuilds named 9999 to eliminate duplicates
     find ${overlay}/*-* -maxdepth 2 -type f -name '*9999.ebuild' \
       -exec grep -l 'inherit.*cros-workon' {} + 2>/dev/null | \
@@ -176,7 +172,7 @@ canonicalize_name () {
     return 0
   fi
 
-  if ! pkgfile=$(ACCEPT_KEYWORDS="~${BOARD_KEYWORD}" ${EQUERYCMD} which $1); then
+  if ! pkgfile=$(ACCEPT_KEYWORDS="~${ARCH}" ${EQUERYCMD} which $1); then
     warn "error looking up package $1" 1>&2
     return 1
   fi
@@ -353,10 +349,18 @@ ebuild_iterate() {
   done
 }
 
+# Only call portageq when absolutely required, and when we do, only run it
+# once -- it's a slow beast and can easily take hundreds of milliseconds :(.
+if [[ ${WORKON_CMD} != "list" || ${FLAGS_all} != ${FLAGS_FALSE} ]] ; then
+  portageq_vars="ARCH PORTDIR_OVERLAY"
+  unset ${portageq_vars}
+  eval $(${PORTAGEQCMD} envvar -v ${portageq_vars})
+fi
+
 # --all makes commands operate on different lists
 if [ ${FLAGS_all} = "${FLAGS_TRUE}" ]; then
   case ${WORKON_CMD} in
-    start|info) ATOM_LIST=$(show_workon_ebuilds ${BOARD_KEYWORD});;
+    start|info) ATOM_LIST=$(show_workon_ebuilds ${ARCH});;
     stop|iterate) ATOM_LIST=$(show_live_ebuilds);;
     list) ;;
     *) die "--all is invalid for the given command";;
@@ -381,9 +385,9 @@ fi
 case ${WORKON_CMD} in
   start) ebuild_to_live "${ATOM_LIST}" ;;
   stop) ebuild_to_stable "${ATOM_LIST}" ;;
-  info) show_workon_info "${ATOM_LIST}" "${BOARD_KEYWORD}" ;;
+  info) show_workon_info "${ATOM_LIST}" "${ARCH}" ;;
   list) [ ${FLAGS_all} = "${FLAGS_FALSE}" ] && show_live_ebuilds || \
-    show_workon_ebuilds ${BOARD_KEYWORD} ;;
+    show_workon_ebuilds ${ARCH} ;;
   list-all) show_all_live_ebuilds ;;
   iterate) ebuild_iterate "${ATOM_LIST}" ;;
   *)
