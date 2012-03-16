@@ -153,6 +153,12 @@ tpm_tis.force=1
 tpm_tis.interrupts=0
 nmi_watchdog=panic,lapic
 EOF
+  if [[ "${FLAGS_board}" = "link" ]]; then
+    # This is a hack to work around the issue of CF9 reset not properly
+    # causing Link to restart. This is marked for removal on the appropriate
+    # bug record.
+    echo 'reboot=k' >>  "${FLAGS_working_dir}/config.txt"
+  fi
   WORK="${WORK} ${FLAGS_working_dir}/config.txt"
 
   bootloader_path="/lib64/bootstub/bootstub.efi"
