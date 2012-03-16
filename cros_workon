@@ -115,8 +115,8 @@ find_keyword_workon_ebuilds() {
   # NOTE: overlay may be a symlink, and we have to use ${overlay}/
   for overlay in ${cros_overlays}; do
     # only look up ebuilds named 9999 to eliminate duplicates
-    find ${overlay}/ -name '*9999.ebuild' | \
-      xargs grep -l "inherit.*cros-workon" | \
+    find ${overlay}/*-* -maxdepth 2 -type f -name '*9999.ebuild' \
+      -exec grep -l 'inherit.*cros-workon' {} + 2>/dev/null | \
       xargs grep -l "KEYWORDS=.*${keyword}.*"
   done
 }
