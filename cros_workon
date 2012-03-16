@@ -97,7 +97,13 @@ cmds=(
   "ln -sf '${MASK_WORKON_FILE}' '${MASK_FILE}'"
   "ln -sf '${WORKON_FILE}' '${UNMASK_FILE}'"
 )
-sudo_multi "${cmds[@]}"
+# If the board dir doesn't exist yet, we don't want to create it as
+# that'll screw up ./setup_board later on.
+if [[ -d ${BOARD_DIR:-/} ]] ; then
+  sudo_multi "${cmds[@]}"
+else
+  die "${BOARD_STR} has not been setup yet"
+fi
 
 
 find_keyword_workon_ebuilds() {
