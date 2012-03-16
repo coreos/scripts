@@ -9,7 +9,7 @@
 # the given target's root with binary packages turned on. This script will
 # build the Chrome OS image using only pre-built binary packages.
 
-SCRIPT_ROOT=$(dirname "$0")
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
 
 

@@ -9,7 +9,7 @@
 # kernel.  Alternatively, a signed recovery kernel can be used to
 # create a Chromium OS recovery image.
 
-SCRIPT_ROOT=$(dirname "$0")
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
 
 # Default recovery kernel name.

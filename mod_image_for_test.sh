@@ -15,7 +15,7 @@
 #
 # TODO(vlaviano): delete this script.
 
-SCRIPT_ROOT=$(dirname "$0")
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
 
 
