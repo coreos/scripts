@@ -235,7 +235,7 @@ show_live_ebuilds () {
 show_all_live_ebuilds () {
   local workon_file
   for workon_file in ${WORKON_DIR}/*; do
-    if [ -s "${workon_file}" ]; then
+    if [[ -s ${workon_file} && ${workon_file} != *.mask ]] ; then
       echo -e "${V_BOLD_GREEN}$(basename ${workon_file}):${V_VIDOFF}"
       sed -n 's/^=\(.*\)-9999$/    \1/p' "${workon_file}"
       echo ""
