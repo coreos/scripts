@@ -23,6 +23,9 @@ DEFINE_string minidump_symbol_root "" \
   "Symbol root (defaults to /usr/lib/debug/breakpad for board)"
 DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
 
+DUMP_SYMS="dump_syms"
+DUMP_SYMS32="dump_syms.32"
+
 CUMULATIVE_SIZE=0
 ANY_ERRORS=0
 
@@ -49,28 +52,10 @@ function get_debug_for_text() {
   echo ${debug_path}
 }
 
-# Returns true if the file given is a 64-bit ELF file.
-function is_64b_elf() {
+# Returns true if the file given is a 32-bit ELF file.
+function is_32b_elf() {
   local elf="$1"
-  file "${elf}" | grep -q "ELF 64-bit"
-}
-
-# Verify the file given is an ELF file that dump_syms can handle.  A 32-bit
-# dump_syms cannot dump a 64-bit ELF file, and vice versa.
-function verify_not_mismatched_elf() {
-  local elf="$1"
-  if [ ${DUMP_SYMS_IS_64BIT} -ne 0 ]; then
-    if ! is_64b_elf "${elf}"; then
-      warn "Not dumping symbols for file ${elf} because it is not 64-bit"
-      return 1
-    fi
-  else
-    if is_64b_elf "${elf}"; then
-      warn "Not dumping symbols for file ${elf} because it is 64-bit"
-      return 1
-    fi
-  fi
-  return 0
+  file "${elf}" | grep -q "ELF 32-bit"
 }
 
 # Dump given debug and text file.  Returns 1 if any errors, even
@@ -80,14 +65,18 @@ function dump_file() {
   local debug_file="$1"
   local text_file="$2"
   local debug_directory="$(dirname "${debug_file}")"
-  # 32-bit dump_syms cannot dump a 64-bit ELF file, and vice versa
-  verify_not_mismatched_elf "${text_file}" || return 1
+  local dump_syms_prog="${DUMP_SYMS}"
+  # 32-bit dump_syms must be used to dump a 32-bit ELF file
+  if is_32b_elf "${text_file}"; then
+    dump_syms_prog="${DUMP_SYMS32}"
+    info "Using ${dump_syms_prog} for 32-bit file ${text_file}"
+  fi
   # Dump symbols as root in order to read all files.
-  if ! sudo "${DUMP_SYMS}" "${text_file}" "${debug_directory}" > "${SYM_FILE}" \
-       2> "${ERR_FILE}"; then
+  if ! sudo "${dump_syms_prog}" "${text_file}" "${debug_directory}" \
+       > "${SYM_FILE}" 2> "${ERR_FILE}"; then
     # Try dumping just the main file to get public-only symbols.
-    if ! sudo "${DUMP_SYMS}" "${text_file}" > "${SYM_FILE}" 2> "${ERR_FILE}";
-    then
+    if ! sudo "${dump_syms_prog}" "${text_file}" > "${SYM_FILE}" \
+         2> "${ERR_FILE}"; then
       # A lot of files (like kernel files) contain no debug information, do
       # not consider such occurrences as errors.
       if grep -q "file contains no debugging information" "${ERR_FILE}"; then
@@ -145,6 +134,10 @@ function process_file() {
     # Allow files to not exist, for instance if they are in the INSTALL_MASK.
     warn "Binary does not exist: ${text_file}"
     return 0
+  elif [ ! -r "${text_file}" ]; then
+    # Allow files to not be readable, for instance setuid programs like passwd
+    warn "Binary is not readable: ${text_file}"
+    return 0
   fi
 
   dump_file "${debug_file}" "${text_file}"
@@ -161,19 +154,6 @@ function main() {
   set -e
 
   [ -n "$FLAGS_board" ] ||  die "--board is required."
-
-  case "$(portageq-${FLAGS_board} envvar ARCH)" in
-    amd64)
-      echo "Detected amd64 board.."
-      DUMP_SYMS="/build/${FLAGS_board}/usr/bin/dump_syms"
-      DUMP_SYMS_IS_64BIT=1
-      ;;
-    *)
-      DUMP_SYMS="dump_syms"
-      DUMP_SYMS_IS_64BIT=0
-  esac
-
-  echo "Using dump_sys: $DUMP_SYMS"
 
   SYSROOT="/build/${FLAGS_board}"
 
