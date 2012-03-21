@@ -32,6 +32,7 @@ IMAGE_DIR=$(dirname "${FLAGS_image}")
 IMAGE_NAME=$(basename "${FLAGS_image}")
 ROOT_FS_DIR="${IMAGE_DIR}/rootfs"
 DBUS_CONF="$(dirname "$0")/mod_for_dbusspy/dbus.conf"
+SYSTEM_LOCAL_CONF="$(dirname "$0")/mod_for_dbusspy/system-local.conf"
 DEVKEYS_DIR="/usr/share/vboot/devkeys"
 VBOOT_DIR="${CHROOT_TRUNK_DIR}/src/platform/vboot_reference/scripts/"\
 "image_signing"
@@ -59,6 +60,7 @@ trap cleanup EXIT
 sudo cp -a "${ROOT_FS_DIR}/etc/init/dbus.conf" \
   "${ROOT_FS_DIR}/etc/init/realdbus.conf"
 sudo cp "${DBUS_CONF}" "${ROOT_FS_DIR}/etc/init/dbus.conf"
+sudo cp "${SYSTEM_LOCAL_CONF}" "${ROOT_FS_DIR}/etc/dbus-1/system-local.conf"
 
 # Unmount and re-sign. See crosbug.com/18709 for why this isn't using
 # cros_make_image_bootable.
