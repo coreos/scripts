@@ -738,8 +738,10 @@ function emerge_custom_kernel() {
 
   # Verify all dependencies of the kernel are installed. This should be a
   # no-op, but it's good to check in case a developer didn't run
-  # build_packages.
-  local kernel=$(portageq-${FLAGS_board} expand_virtual ${root} virtual/kernel)
+  # build_packages.  We need the expand_virtual call to workaround a bug
+  # in portage where it only installs the virtual pkg.
+  local kernel=$(portageq-${FLAGS_board} expand_virtual ${root} \
+                 virtual/linux-sources)
   sudo -E PKGDIR="${tmp_pkgdir}" $EMERGE_BOARD_CMD --onlydeps \
     ${kernel} || die "Cannot emerge kernel dependencies"
 
