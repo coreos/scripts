@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Add the uinput kernel module into the image for test builds.
+# This is for running trackpad autotest in VM.
+
+echo "Adding the uinput module for test builds."
+MODULES_PATH="/lib/modules"
+KERNEL_RELEASE=$(ls -tr "${ROOT_FS_DIR}${MODULES_PATH}" | tail -n1)
+UINPUT_PATH="${MODULES_PATH}/${KERNEL_RELEASE}"/kernel/drivers/input/misc
+SRC_FILE="${BOARD_ROOT}${UINPUT_PATH}"/uinput.ko
+DST_DIR="${ROOT_FS_DIR}${UINPUT_PATH}"
+if [ -f "${SRC_FILE}" ]; then
+  install -m 644 "${SRC_FILE}" "${DST_DIR}"
+  echo "The uinput module is installed."
+else
+  echo "Cannot install the uinput module."
+fi
