@@ -238,7 +238,6 @@ COMMON_INSTALL_MASK="
 DEFAULT_INSTALL_MASK="
   $COMMON_INSTALL_MASK
   /usr/local/autotest
-  /lib/modules/*/kernel/drivers/input/misc/uinput.ko
   "
 
 # Mask for factory test image (build_image --factory)
