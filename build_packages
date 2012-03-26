@@ -186,9 +186,24 @@ if [[ "${FLAGS_showoutput}" -eq "${FLAGS_TRUE}" && \
   # Only parallel_emerge supports --show-output.
   EMERGE_FLAGS+=" --show-output"
 fi
+
+# Prepare tmp file to capture emerge output from tee.
+tmpfile=$(mktemp -t tmp.build_packages-emerge.XXXXXX)
+trap "rm -f '${tmpfile}'" EXIT
+
 info "Merging board packages ${PACKAGES}"
-sudo -E ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES}
+(
+  set -o pipefail
+  sudo -E ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES} | \
+    tee "${tmpfile}"
+)
+
+# Extract total package count from emerge output.
+package_count=$(awk '$0 ~ /^Total: [0-9]+ packages/ { print $2 }' "${tmpfile}")
+rm "${tmpfile}"
+trap - EXIT
 
 echo "Builds complete"
-print_time_elapsed
+EXTRA_COMMAND_STATS[package_count]=${package_count}
+command_completed
 echo "Done"
