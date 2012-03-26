@@ -1,4 +1,4 @@
-# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -71,6 +71,18 @@ install_dev_packages() {
     sudo bash -c "\
         echo gtk-2.0 > \
         ${ROOT_FS_DIR}/usr/local/lib/python2.6/site-packages/pygtk.pth"
+  fi
+
+  # File searches /usr/share by default, so add a wrapper script so it
+  # can find the right path in /usr/local.
+  local path="${ROOT_FS_DIR}/usr/local/bin/file"
+  if [[ -x ${path} ]]; then
+    sudo mv "${path}" "${path}.bin"
+    sudo_clobber "${path}" <<EOF
+#!/bin/sh
+exec file.bin -m /usr/local/share/misc/magic.mgc "\$@"
+EOF
+    sudo chmod a+rx "${path}"
   fi
 
   # If python is installed on stateful-dev, fix python symlinks.
