@@ -122,6 +122,14 @@ function dump_file() {
 function process_file() {
   local debug_file="$1"
   local text_file="$(get_text_for_debug ${debug_file})"
+  if [ -h "${debug_file}" ]; then
+    # Don't follow symbolic links.  In particular, we don't want to bother
+    # with the *.debug links in the "debug/.build-id/" directory.
+    if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
+      info "Skipping symbolic link: ${debug_file}"
+    fi
+    return 0
+  fi
   if [ "${text_file##*.}" == "ko" ]; then
     # Skip kernel objects.  We can't use their symbols and they sometimes
     # have objects with empty text sections which trigger errors in dump_sym.
@@ -175,7 +183,7 @@ function main() {
     for either_file in ${FLAGS_ARGV}; do
       either_file=${either_file#\'}
       either_file=${either_file%\'}
-      if [ ! -f "${either_file}" ]; then
+      if [ ! -h "${either_file}" -a ! -f "${either_file}" ]; then
         error "Specified file ${either_file} does not exist"
         ANY_ERRORS=1
         continue
