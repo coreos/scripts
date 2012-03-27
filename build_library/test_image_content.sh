@@ -41,5 +41,19 @@ test_image_content() {
     fi
   done
 
+  # Check that /etc/localtime is a symbolic link pointing at
+  # /var/lib/timezone/localtime.
+  local localtime="$root/etc/localtime"
+  if [ ! -L "$localtime" ]; then
+    error "test_image_content: /etc/localtime is not a symbolic link"
+    returncode=1
+  else
+    local dest=$(readlink "$localtime")
+    if [ "$dest" != "/var/lib/timezone/localtime" ]; then
+      error "test_image_content: /etc/localtime points at $dest"
+      returncode=1
+    fi
+  fi
+
   return $returncode
 }
