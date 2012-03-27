@@ -80,18 +80,18 @@ fi
 
 # In first pass, update portage and toolchains. Lagged updates of both
 # can cause serious issues later.
-CHOST="$(portageq envvar CHOST)"
-LATEST="$(gcc-config -l | grep "${CHOST}" | awk '{ print $2 }' | \
-          sort -V | tail -n 1 )"
+export CHOST="$(portageq envvar CHOST)"
+LATEST=$(gcc-config -l | awk -v chost="${CHOST}" '$2 ~ chost { print $2 }' | \
+         sort -V | tail -n 1)
 CURRENT="$(gcc-config -c)" || true # This fails if current profile is invalid.
 sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
     sys-devel/gcc sys-devel/binutils sys-libs/glibc sys-apps/portage
 # If the latest toolchain wasn't already selected before we updated, do nothing,
 # otherwise autoselect the latest. Also fix if the current profile is invalid.
-if [ "${LATEST}" = "${CURRENT}" ] || ! gcc-config -c &> /dev/null; then
-  LATEST="$(gcc-config -l | grep "${CHOST}" | awk '{ print $2 }' | \
-            sort -V | tail -n 1 )"
-  sudo gcc-config "${LATEST}"
+if [ "${LATEST}" != "${CURRENT}" ] || ! gcc-config -c &> /dev/null; then
+  LATEST=$(gcc-config -l | awk -v chost="${CHOST}" '$2 ~ chost { print $2 }' | \
+           sort -V | tail -n 1 )
+  sudo -E gcc-config "${LATEST}"
 fi
 
 # Second pass, update everything else.
