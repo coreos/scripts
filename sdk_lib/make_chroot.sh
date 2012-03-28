@@ -229,16 +229,9 @@ PORTAGE_USERNAME=$USER
 EOF
 
    # TODO(zbehan): Configure stuff that is usually configured in postinst's,
-   # but wasn't. Fix the postinst's. crosbug.com/18036
+   # but wasn't. Fix the postinst's.
    info "Running post-inst configuration hacks"
    early_enter_chroot env-update
-   if [ -f ${FLAGS_chroot}/usr/bin/build-docbook-catalog ]; then
-     # For too ancient chroots that didn't have build-docbook-catalog, this
-     # is not relevant, and will get installed during update.
-     early_enter_chroot build-docbook-catalog
-     # Configure basic stuff needed.
-     early_enter_chroot env-update
-   fi
 
    # This is basically a sanity check of our chroot.  If any of these
    # don't exist, then either bind mounts have failed, an invocation
