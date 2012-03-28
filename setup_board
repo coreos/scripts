@@ -267,15 +267,16 @@ build_toolchain() {
 # Get the version number of a toolchain package.
 cross_get_version() {
   local pkg="$1"
+  local toolchain="${2:-${FLAGS_toolchain}}"
   local cpv=""
-  if [[ "$CHOST" != "$FLAGS_toolchain" ]]; then
+  if [[ "$CHOST" != "${toolchain}" ]]; then
     if [[  "$pkg" = "gcc" ]]; then
       # Users can install multiple versions of gcc at once, so we need to call
       # gcc-config to find out which installed version is selected.
-      local path=$(CTARGET=$FLAGS_toolchain gcc-config -B || true)
+      local path=$(CTARGET=${toolchain} gcc-config -B || true)
       cpv=$(portageq owners / $path | sed -e '/^\t/d')
     else
-      cpv=$(portageq match / cross-$FLAGS_toolchain/$pkg || true)
+      cpv=$(portageq match / cross-${toolchain}/${pkg} || true)
     fi
   else
     if [[ "$pkg" = binutils ]] ; then
@@ -557,8 +558,9 @@ for toolchain in ${all_toolchains[@]} ; do
 
     if [[ "${toolchain}" != arm* ]] ; then
       info "Switching on gold as the default linker."
-      BINUTILS_VERSION=$(cross_get_version binutils | sed 's/-r[0-9]\+//g')
-      sudo binutils-config "${FLAGS_toolchain}-${BINUTILS_VERSION}-gold"
+      BINUTILS_VERSION=$(cross_get_version binutils ${toolchain} | \
+                         sed 's/-r[0-9]\+//g')
+      sudo binutils-config "${toolchain}-${BINUTILS_VERSION}-gold"
     fi
   fi
 
