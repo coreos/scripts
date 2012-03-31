@@ -150,7 +150,7 @@ show_workon_ebuilds() {
 show_workon_info() {
    local atoms="$1"
    local keyword="$2"
-   local sort="sort -u -k1b,1"
+   local sort="sort -k1b,1"
    # Column 1: Package name
    # Column 2: Repo name
    # Column 3: Source directory (if present locally)
