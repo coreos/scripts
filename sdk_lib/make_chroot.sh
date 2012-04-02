@@ -93,9 +93,10 @@ function enter_chroot {
 
 # Invoke enter_chroot running the command as root, and w/out sudo.
 # This should be used prior to sudo being merged.
+early_env=()
 function early_enter_chroot() {
   "$ENTER_CHROOT" --chroot "$FLAGS_chroot" --early_make_chroot \
-    -- "${ENTER_CHROOT_ARGS[@]}" "$@"
+    -- "${ENTER_CHROOT_ARGS[@]}" "${early_env[@]}" "$@"
 }
 
 # Run a command within the chroot.  The main usage of this is to avoid
@@ -373,6 +374,14 @@ if ! [ -f "$CHROOT_STATE" ];then
 fi
 
 
+if ! early_enter_chroot bash -c 'type -P pbzip2' >/dev/null ; then
+  # This chroot lacks pbzip2 early on, so we need to disable it.
+  early_env+=(
+    PORTAGE_BZIP2_COMMAND="bzip2"
+    PORTAGE_BUNZIP2_COMMAND="bunzip2"
+  )
+fi
+
 if [ -z "${INITIALIZE_CHROOT}" ];then
   info "chroot already initialized.  Skipping..."
 else
@@ -408,7 +417,7 @@ early_enter_chroot $EMERGE_CMD --deselect dhcpcd
 
 info "Running emerge ccache curl sudo ..."
 early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
-  ccache net-misc/curl sudo
+  pbzip2 ccache net-misc/curl sudo
 
 if [ -n "${INITIALIZE_CHROOT}" ]; then
   # If we're creating a new chroot, we also want to set it to the latest
