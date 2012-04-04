@@ -26,9 +26,18 @@ DEFINE_integer strip_cfi 300000000 "Strip CFI data for files above this size."
 DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts."
 
+# Number of seconds to wait before retrying an upload.  The delay will double
+# for each subsequent retry of the same symbol file.
+INITIAL_RETRY_DELAY=1
+# Allow up to 5 attempts to upload a symbol file.
+MAX_RETRIES=4
+# Number of total errors, ${TOTAL_ERROR_COUNT}, before retries are no longer
+# attempted.  This is used to avoid lots of errors causing unreasonable delays.
+MAX_TOTAL_ERRORS_FOR_RETRY=3  # don't bother retrying after 3 errors
+
 SYM_UPLOAD="sym_upload"
 
-ANY_ERRORS=0
+TOTAL_ERROR_COUNT=0
 
 OUT_DIR=$(mktemp -d "/tmp/err.XXXX")
 
@@ -76,19 +85,46 @@ ${FLAGS_strip_cfi}."
   if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
     info "Uploading ${symbol_file}"
   fi
-  "${SYM_UPLOAD}" "${upload_file}" "${upload_url}" > "${OUT_DIR}/stdout" \
-    2> "${OUT_DIR}/stderr"
-  if ! grep -q "Successfully sent the symbol file." "${OUT_DIR}/stdout"; then
+
+  # Upload the symbol file, allowing for ${MAX_RETRIES} number of retries
+  # before giving an error.  However, don't retry if the total errors have
+  # reached ${MAX_TOTAL_ERRORS_FOR_RETRY}.
+  local max_retries=${MAX_RETRIES}
+  local success=0
+  local attempts=0
+  local retry_delay=${INITIAL_RETRY_DELAY}
+  if [ ${TOTAL_ERROR_COUNT} -ge ${MAX_TOTAL_ERRORS_FOR_RETRY} ]; then
+    warn "Not retrying to upload symbols in ${symbol_file} \
+due to too many total errors"
+    max_retries=0
+  fi
+  while [ ${attempts} -le ${max_retries} ]; do
+    if [ ${attempts} -gt 0 ]; then
+      warn "Retry #${attempts} to upload symbols in ${symbol_file} \
+(sleeping ${retry_delay} seconds)"
+      sleep "${retry_delay}"
+      let retry_delay=retry_delay*2
+    fi
+    "${SYM_UPLOAD}" "${upload_file}" "${upload_url}" > "${OUT_DIR}/stdout" \
+        2> "${OUT_DIR}/stderr"
+    if grep -q "Successfully sent the symbol file." "${OUT_DIR}/stdout"; then
+      success=1
+      break
+    fi
+    let ++attempts
+  done
+  if [ ${success} -ne 1 ]; then
     error "Unable to upload symbols in ${symbol_file}:"
     cat "${OUT_DIR}/stderr"
-    ANY_ERRORS=1
-    return 1
+    let ++TOTAL_ERROR_COUNT
+    return
   fi
+
   if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
     size=$(wc -c "${upload_file}" | cut -d' ' -f1)
     info "Successfully uploaded ${size}B."
   fi
-  return 0
+  return
 }
 
 function main() {
@@ -135,19 +171,21 @@ function main() {
       [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ] && verbosity="--verbose"
       if ! "${generate_script}" --board=${FLAGS_board} ${verbosity}; then
         error "Some errors while generating symbols; uploading anyway"
-        ANY_ERRORS=1
+        let ++TOTAL_ERROR_COUNT
       fi
     fi
 
     info "Uploading all breakpad symbol files."
     for sym_file in $(find "${FLAGS_breakpad_root}" -name \*.sym); do
-      ! upload_file "${sym_file}" "${upload_url}"
+      upload_file "${sym_file}" "${upload_url}"
     done
   else
     error "Unexpected args ${FLAGS_ARGV}"
   fi
 
-  [ ${ANY_ERRORS} -ne 0 ] && die "Encountered problems"
+  if [ ${TOTAL_ERROR_COUNT} -ne 0 ]; then
+    die "Encountered ${TOTAL_ERROR_COUNT} problem(s)"
+  fi
   return 0
 }
 
