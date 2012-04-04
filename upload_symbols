@@ -225,6 +225,8 @@ function main() {
 
     info "Uploading all breakpad symbol files."
     for sym_file in $(find "${FLAGS_breakpad_root}" -name \*.sym); do
+      # sleep for 200ms to avoid DoS'ing symbol server (crosbug.com/26596)
+      sleep .2
       upload_file "${sym_file}" "${upload_url}"
     done
   else
