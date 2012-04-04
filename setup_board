@@ -249,10 +249,10 @@ build_toolchain() {
   fi
   if [ $FLAGS_latest_toolchain -ne $FLAGS_TRUE ]; then
     CROSS_ARGS+=(
-      --binutils $FLAGS_binutils_version
-      --gcc $FLAGS_gcc_version
-      --kernel $FLAGS_kernel_version
-      --libc $FLAGS_libc_version
+      --binutils "${FLAGS_binutils_version}"
+      --gcc "${FLAGS_gcc_version}"
+      --kernel "${FLAGS_kernel_version}"
+      --libc "${FLAGS_libc_version}"
     )
   fi
   CROSS_ARGS+=(
