@@ -21,7 +21,8 @@ DEFINE_string board "$DEFAULT_BOARD" "The board to build packages for."
 DEFINE_string breakpad_root "" "Root directory for breakpad symbols."
 DEFINE_boolean official_build ${FLAGS_FALSE} "Point to official symbol server."
 DEFINE_boolean regenerate ${FLAGS_FALSE} "Regenerate all symbols."
-DEFINE_integer strip_cfi 100000000 "Strip CFI data for files above this size."
+# Default of 300MB is the current limit that the Crash server enforces.
+DEFINE_integer strip_cfi 300000000 "Strip CFI data for files above this size."
 DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts."
 
@@ -58,16 +59,14 @@ function upload_file() {
   local symbol_file="$1"
   local upload_url="$2"
   local upload_file="${symbol_file}"
+  # If the symbols size is too big, strip out the call frame info.  The CFI is
+  # unnecessary for 32b x86 targets where the frame pointer is used (as all of
+  # ours have) and it accounts for over half the size of the symbols uploaded.
   if [ ${FLAGS_strip_cfi} -ne 0 ]; then
     local symbol_size="$(stat -c%s ${symbol_file})"
     if [ ${symbol_size} -gt ${FLAGS_strip_cfi} ]; then
-      # Call frame info is unnecessary for 32b x86 targets with frame
-      # pointer used (as all of ours have) and it accounts for over
-      # half the size of the symbols uploaded.  To buy us more time
-      # for the server team to increase the current 160MB, remove this
-      # data unless the user requests it.
       if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
-        info "Stripping CFI for ${symbol_file} due to size ${symbol_size} > \
+        warn "Stripping CFI for ${symbol_file} due to size ${symbol_size} > \
 ${FLAGS_strip_cfi}."
       fi
       upload_file="${OUT_DIR}/stripped.sym"
