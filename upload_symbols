@@ -11,8 +11,10 @@
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
 
-# Script must be run inside the chroot
-restart_in_chroot_if_needed "$@"
+# Script must be run inside the chroot if not in "testing" mode.
+if [[ "$1" != "--testing" ]]; then
+  restart_in_chroot_if_needed "$@"
+fi
 
 get_default_board
 
@@ -23,6 +25,8 @@ DEFINE_boolean official_build ${FLAGS_FALSE} "Point to official symbol server."
 DEFINE_boolean regenerate ${FLAGS_FALSE} "Regenerate all symbols."
 # Default of 300MB is the current limit that the Crash server enforces.
 DEFINE_integer strip_cfi 300000000 "Strip CFI data for files above this size."
+DEFINE_boolean testing ${FLAGS_FALSE} \
+    "Run in testing mode (should be first argument)."
 DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
 DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts."
 
@@ -34,6 +38,17 @@ MAX_RETRIES=4
 # Number of total errors, ${TOTAL_ERROR_COUNT}, before retries are no longer
 # attempted.  This is used to avoid lots of errors causing unreasonable delays.
 MAX_TOTAL_ERRORS_FOR_RETRY=3  # don't bother retrying after 3 errors
+
+# Testing parameters.  These are only relevant if the "--testing" command-line
+# option is passed.
+# Specifies how many attempts should pretend to give an error before
+# succeeding.  NOTE: If this number is greater than ${TEST_MAX_RETRIES}, then
+# it will never succeed.
+TEST_ERRORS_FOR_THIS_MANY_ATTEMPTS=3
+# Overrides ${MAX_RETRIES} in "testing" mode.
+TEST_MAX_RETRIES=2
+# Overrides ${MAX_TOTAL_ERRORS_FOR_RETRY} in "testing" mode.
+TEST_MAX_TOTAL_ERRORS_FOR_RETRY=2
 
 SYM_UPLOAD="sym_upload"
 
@@ -89,24 +104,41 @@ ${FLAGS_strip_cfi}."
   # Upload the symbol file, allowing for ${MAX_RETRIES} number of retries
   # before giving an error.  However, don't retry if the total errors have
   # reached ${MAX_TOTAL_ERRORS_FOR_RETRY}.
-  local max_retries=${MAX_RETRIES}
   local success=0
   local attempts=0
   local retry_delay=${INITIAL_RETRY_DELAY}
-  if [ ${TOTAL_ERROR_COUNT} -ge ${MAX_TOTAL_ERRORS_FOR_RETRY} ]; then
-    warn "Not retrying to upload symbols in ${symbol_file} \
-due to too many total errors"
-    max_retries=0
-  fi
-  while [ ${attempts} -le ${max_retries} ]; do
+  while [ ${attempts} -le ${MAX_RETRIES} ]; do
     if [ ${attempts} -gt 0 ]; then
+      if [ ${TOTAL_ERROR_COUNT} -ge ${MAX_TOTAL_ERRORS_FOR_RETRY} ]; then
+        warn "Not retrying to upload symbols in ${symbol_file} \
+due to too many total errors"
+        break
+      fi
       warn "Retry #${attempts} to upload symbols in ${symbol_file} \
 (sleeping ${retry_delay} seconds)"
       sleep "${retry_delay}"
       let retry_delay=retry_delay*2
     fi
-    "${SYM_UPLOAD}" "${upload_file}" "${upload_url}" > "${OUT_DIR}/stdout" \
-        2> "${OUT_DIR}/stderr"
+    # In testing mode show command that would be run.
+    if [ ${FLAGS_testing} -eq ${FLAGS_TRUE} ]; then
+      echo "TEST: ${SYM_UPLOAD}" "${upload_file}" "${upload_url}"
+    fi
+    # Run the sym_upload command, redirecting its output to files so we can
+    # check them.
+    {
+      if [ ${FLAGS_testing} -eq ${FLAGS_FALSE} ]; then
+        "${SYM_UPLOAD}" "${upload_file}" "${upload_url}"
+      elif [ ${attempts} -lt ${TEST_ERRORS_FOR_THIS_MANY_ATTEMPTS} ]; then
+        # Pretend to fail with an error message.
+        (echo "INFO: Testing info message";
+         echo "ERROR: Testing error message" >&2;
+         exit 1)
+      else
+        # Pretend to succeed.
+        (echo "Successfully sent the symbol file.")
+      fi
+    } > "${OUT_DIR}/stdout" 2> "${OUT_DIR}/stderr"
+    # Check if sym_upload command succeeded.
     if grep -q "Successfully sent the symbol file." "${OUT_DIR}/stdout"; then
       success=1
       break
@@ -115,16 +147,16 @@ due to too many total errors"
   done
   if [ ${success} -ne 1 ]; then
     error "Unable to upload symbols in ${symbol_file}:"
-    cat "${OUT_DIR}/stderr"
+    cat "${OUT_DIR}/stderr" >&2
     let ++TOTAL_ERROR_COUNT
-    return
+    return 0
   fi
 
   if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
     size=$(wc -c "${upload_file}" | cut -d' ' -f1)
     info "Successfully uploaded ${size}B."
   fi
-  return
+  return 0
 }
 
 function main() {
@@ -135,7 +167,13 @@ function main() {
   FLAGS "$@" || exit 1
   eval set -- "${FLAGS_ARGV}"
 
-  set -e
+  if [ ${FLAGS_testing} -eq ${FLAGS_TRUE} ]; then
+    info "Running in testing mode:"
+    info "  MAX_RETRIES=${TEST_ERRORS_FOR_THIS_MANY_ATTEMPTS}"
+    MAX_RETRIES=${TEST_MAX_RETRIES}
+    info "  MAX_TOTAL_ERRORS_FOR_RETRY=${TEST_MAX_TOTAL_ERRORS_FOR_RETRY}"
+    MAX_TOTAL_ERRORS_FOR_RETRY=${TEST_MAX_TOTAL_ERRORS_FOR_RETRY}
+  fi
 
   [ -n "$FLAGS_board" ] ||  die "--board is required."
 
