@@ -263,12 +263,17 @@ regen_manifest_and_sync() {
     fi
 
     eval "${pkginfo}"
-    local srcdir=$(readlink -m ${CROS_WORKON_SRCDIR})
-    local trunkdir=$(readlink -m ${CHROOT_TRUNK_DIR})
-    local project_path=${srcdir#${trunkdir}/}
+    local trunkdir=$(readlink -m "${CHROOT_TRUNK_DIR}")
 
-    loman add --workon "${CROS_WORKON_PROJECT}" "${project_path}"
+    local i=0
     need_repo_sync='yes'
+    for S in "${CROS_WORKON_SRCDIR[@]}"; do
+      local srcdir=$(readlink -m "${S}")
+      local project_path=${srcdir#${trunkdir}/}
+
+      loman add --workon "${CROS_WORKON_PROJECT[i]}" "${project_path}"
+      : $(( ++i ))
+    done
   done
   if [ -n "${need_repo_sync}" ]; then
     echo "Please run \"repo sync\" now."
@@ -347,7 +352,9 @@ ebuild_iterate() {
   for atom in ${atoms}; do
     info "Running \"${FLAGS_command}\" on ${atom}"
     eval $(${EBUILDCMD} $(${EQUERYCMD} which ${atom}) info)
-    (cd "${CROS_WORKON_SRCDIR}" && bash -c "${FLAGS_command}")
+    for S in "${CROS_WORKON_SRCDIR[@]}"; do
+      (cd "${S}" && bash -c "${FLAGS_command}")
+    done
   done
 }
 
