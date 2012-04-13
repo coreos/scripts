@@ -131,6 +131,139 @@ board_needs_libc_update() {
   return 0
 }
 
+# Check whether any new toolchain packages are available.
+# Returns true if new toolchain packages are available and false otherwise.
+toolchain_needs_update() {
+  # Skip toolchain updates if requested.
+  if [ $FLAGS_skip_toolchain_update -eq $FLAGS_TRUE ]; then
+    return 1
+  fi
+
+  local toolchain=$1 crossdev_cfg category arch
+
+  # Query crossdev for how it will be laying things out.
+  crossdev_cfg=$(crossdev --show-target-cfg "${toolchain}" --ex-gdb)
+  category=$(eval "${crossdev_cfg}"; echo "${category}")
+  arch=$(eval "${crossdev_cfg}"; echo "${arch}")
+
+  # If toolchain symlinks weren't created yet, we definitely need to update.
+  if [ ! -d ${CROSSDEV_OVERLAY}/${category} ]; then
+    # NOTE: In this branch, the versions have not been resolved, and will
+    # be passed directly to crossdev. That works because crossdev understands
+    # '[stable]'.
+    # We cannot resolve the versions because the cross toolchain category is
+    # not yet set up.
+    return 0
+  fi
+
+  # Unmask any ebuilds previously [un]masked by crossdev. crossdev will
+  # re-setup its masks appropriately the next time we run it.
+  local d
+  for d in package.{mask,keywords} ; do
+    d="/etc/portage/${d}"
+    if [[ -e ${d}/${category} ]] ; then
+      sudo mv -f ${d}/{,.bak.}${category}
+    fi
+  done
+
+  # Now get the atoms out of crossdev for the emerge below.
+  local pfx
+  if [[ ${FLAGS_latest_toolchain} -eq ${FLAGS_TRUE} ]] ; then
+    pfx=""
+  elif [[ ${FLAGS_usepkg} -eq ${FLAGS_TRUE} ]] ; then
+    pfx="<="
+  else
+    pfx="="
+  fi
+
+  local crosspkgs=$(eval "${crossdev_cfg}"; echo "${crosspkgs}")
+  local pkgs=()
+  for pkg in ${crosspkgs} ; do
+    local pn=$(eval "${crossdev_cfg}" \; echo \${${pkg}_pn})
+    local atom="${category}/${pn}"
+
+    if [[ -z ${pn} ]] ; then
+      # Not all toolchains provide all packages
+      # e.g. arm-elf does not have "kernel" headers.
+      continue
+    fi
+
+    if [[ ${FLAGS_latest_toolchain} -ne ${FLAGS_TRUE} ]] ; then
+      local flagname="FLAGS_${pkg}_version"
+
+      # Some packages (like gdb) don't have pinned versions.
+      if [[ -n ${!flagname} ]] ; then
+        if [[ ${!flagname} == "[stable]" ]] ; then
+          # This will return the full cat/pn-ver for us.
+          atom="${pfx}"$(ACCEPT_KEYWORDS="${arch}" \
+                         portageq best_visible / ebuild "${atom}")
+        else
+          atom="${pfx}${atom}-${!flagname}"
+        fi
+      fi
+    fi
+
+    pkgs+=( "${atom}" )
+  done
+
+  local flags=( --pretend --quiet --update --nodeps )
+  if [[ ${FLAGS_usepkg} -eq ${FLAGS_TRUE} ]] ; then
+    flags+=( --getbinpkg --usepkgonly )
+  fi
+
+  ACCEPT_KEYWORDS="~* *" emerge "${flags[@]}" "${pkgs[@]}" | grep ${category}/
+  local ret=$?
+
+  # Restore the masks in case we don't end up running crossdev.
+  for d in package.{mask,keywords} ; do
+    d="/etc/portage/${d}"
+    if [[ -e ${d}/.bak.${category} ]] ; then
+      sudo mv -f ${d}/{.bak.,}${category}
+    fi
+  done
+
+  return ${ret}
+}
+
+uninstall_toolchain() {
+  local toolchain=$1
+  info "Uninstalling the toolchain."
+  # Even if the uninstall fails, keep going. It's likely
+  # that it didn't exist in the first place.
+  sudo crossdev -v --force -C "${toolchain}" || true
+}
+
+# Build the toolchain with crossdev.
+build_toolchain() {
+  local toolchain=$1
+  info "Building the toolchain."
+  local CROSS_ARGS=( --show-fail-log --target "${toolchain}" -P --oneshot )
+  if [ $FLAGS_usepkg -eq $FLAGS_TRUE ]; then
+    # Grab the latest packages from the prebuilt server.
+    #  --getbinpkg: Use packages from the prebuilt server.
+    #  --usepkgonly: Always use prebuilts. Don't build from source.
+    #  --without-headers: Don't build headers-only versions of packages for
+    #                     bootstrapping. Because we use binary packages, this
+    #                     isn't necessary.
+    CROSS_ARGS+=( -P --getbinpkg -P --usepkgonly --without-headers )
+  fi
+  if [ $FLAGS_latest_toolchain -ne $FLAGS_TRUE ]; then
+    CROSS_ARGS+=(
+      --binutils "${FLAGS_binutils_version}"
+      --gcc "${FLAGS_gcc_version}"
+      --kernel "${FLAGS_kernel_version}"
+      --libc "${FLAGS_libc_version}"
+    )
+  fi
+  CROSS_ARGS+=(
+    --overlays "${CHROMIUMOS_OVERLAY} /usr/local/portage/stable"
+    --ov-output "${CROSSDEV_OVERLAY}"
+    --ex-gdb
+  )
+
+  sudo -E FEATURES="splitdebug ${FEATURES}" crossdev "${CROSS_ARGS[@]}"
+}
+
 # Get the version number of a toolchain package.
 cross_get_version() {
   local pkg="$1"
@@ -410,33 +543,62 @@ BOARD_OVERLAY_LIST=$(cros_overlay_list \
 
 eval $(portageq envvar -v CHOST PKGDIR)
 
-if [ -d "${BOARD_ROOT}" ] ; then
-  if [[ ${FLAGS_force} -eq ${FLAGS_TRUE} ]]; then
-    echo "--force set.  Re-creating ${BOARD_ROOT}..."
-    # Removal takes long. Make it asynchronous.
-    TEMP_DIR=`mktemp -d`
-    sudo mv "${BOARD_ROOT}" "${TEMP_DIR}"
-    sudo rm -rf "${TEMP_DIR}" &
-  else
-    if ! ${HOST_BOARD}; then
-      { print_board_make_conf; print_board_binhost_config; } | \
-        sudo_clobber $BOARD_ETC/make.conf.board
+# Update all the toolchains that this board wants.
+for toolchain in ${all_toolchains[@]} ; do
+  [[ "${CHOST}" == "${toolchain}" ]] && continue
+  info "Checking for updates to ${toolchain} ..."
+
+  toolchain_updated=${FLAGS_FALSE}
+  if toolchain_needs_update ${toolchain} ; then
+    toolchain_updated=${FLAGS_TRUE}
+
+    warn "Toolchain needs to be updated! Updating ${toolchain} ..."
+    uninstall_toolchain ${toolchain}
+    build_toolchain ${toolchain}
+
+    if [[ "${toolchain}" != arm* ]] ; then
+      info "Switching on gold as the default linker."
+      BINUTILS_VERSION=$(cross_get_version binutils ${toolchain} | \
+                         sed 's/-r[0-9]\+//g')
+      sudo binutils-config "${toolchain}-${BINUTILS_VERSION}-gold"
     fi
-    if [[ ${FLAGS_quiet} -eq ${FLAGS_FALSE} ]]; then
-      warn "Board output directory '$BOARD_ROOT' already exists."
-      warn "Not setting up board root. "
-      warn "Use --force to clobber the board root and start again."
-    fi
-    if board_needs_libc_update; then
+  fi
+
+  if [[ "${toolchain}" == "${FLAGS_toolchain}" ]] &&
+     [ -d "$BOARD_ROOT" ] && [ "$FLAGS_force" == "$FLAGS_FALSE" ] ; then
+    if [[ "${toolchain_updated}" == "${FLAGS_TRUE}" ]] ; then
+      # If the board root already exists, re-install the toolchain there.
+      install_toolchain_in_board
+    elif board_needs_libc_update; then
       # Update the users libc in their board if needed.
       echo "Updating libc in the board."
       install_toolchain_in_board
+    fi
+  fi
+done
+
+if [ -d "$BOARD_ROOT" ] ; then
+  if [[ $FLAGS_force -eq $FLAGS_TRUE ]]; then
+    echo "--force set.  Re-creating $BOARD_ROOT..."
+    # Removal takes long. Make it asynchronous.
+    TEMP_DIR=`mktemp -d`
+    sudo mv $BOARD_ROOT $TEMP_DIR
+    sudo rm -rf $TEMP_DIR &
+  else
+    if ! $HOST_BOARD; then
+      { print_board_make_conf; print_board_binhost_config; } | \
+        sudo_clobber $BOARD_ETC/make.conf.board
+    fi
+    if [[ $FLAGS_quiet -eq $FLAGS_FALSE ]]; then
+      warn "Board output directory '$BOARD_ROOT' already exists."
+      warn "Not setting up board root. "
+      warn "Use --force to clobber the board root and start again."
     fi
     exit 0
   fi
 fi
 
-sudo mkdir -p "${BOARD_ROOT}" "${BOARD_ETC}" "${BOARD_PROFILE}"
+sudo mkdir -p "$BOARD_ROOT" "${BOARD_ETC}" "${BOARD_PROFILE}"
 
 if [ "${CHOST}" != "$FLAGS_toolchain" ] ; then
   # TODO(cmasone): Do this more cleanly, if we figure out what "cleanly" means.
