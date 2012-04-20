@@ -23,8 +23,8 @@ DEFINE_string board "$DEFAULT_BOARD" "The board to build packages for."
 DEFINE_string breakpad_root "" "Root directory for breakpad symbols."
 DEFINE_boolean official_build ${FLAGS_FALSE} "Point to official symbol server."
 DEFINE_boolean regenerate ${FLAGS_FALSE} "Regenerate all symbols."
-# Default of 300MB is the current limit that the Crash server enforces.
-DEFINE_integer strip_cfi 300000000 "Strip CFI data for files above this size."
+# Default of 290M is relative to current 300M limit the Crash server enforces.
+DEFINE_integer strip_cfi 290000000 "Strip CFI data for files above this size."
 DEFINE_boolean testing ${FLAGS_FALSE} \
     "Run in testing mode (should be first argument)."
 DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
@@ -99,6 +99,15 @@ ${FLAGS_strip_cfi}."
   fi
   if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
     info "Uploading ${symbol_file}"
+  fi
+  local upload_size="$(stat -c%s ${upload_file})"
+  if [ ${upload_size} -gt ${FLAGS_strip_cfi} ]; then
+    # Emit an annotation in order to flag the current step in buildbots.
+    # NOTE: Must be on a line by itself.
+    echo "@@@STEP_WARNINGS@@@" >&2
+    error "Upload file ${upload_file} is awfully large, risking rejection by \
+symbol server (${upload_size} > ${FLAGS_strip_cfi})"
+    let ++TOTAL_ERROR_COUNT
   fi
 
   # Upload the symbol file, allowing for ${MAX_RETRIES} number of retries
