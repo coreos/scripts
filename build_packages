@@ -43,8 +43,6 @@ DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean norebuild "${FLAGS_FALSE}" \
   "Don't automatically rebuild dependencies."
-DEFINE_boolean oldchromebinary "${FLAGS_FALSE}" \
-  "Use the last prebuilt binary for Chrome produced by the buildbot."
 DEFINE_boolean skip_chroot_upgrade "${FLAGS_FALSE}" \
   "Don't run the chroot upgrade automatically; use with care."
 DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
@@ -178,10 +176,6 @@ for pkg in ${CROS_WORKON_PKGS}; do
 done
 if [[ "${FLAGS_norebuild}" -eq "${FLAGS_FALSE}" ]]; then
   EMERGE_FLAGS+=" --rebuild-if-unbuilt"
-fi
-if [[ "${FLAGS_oldchromebinary}" -eq "${FLAGS_TRUE}" ]]; then
-  EMERGE_FLAGS+=" --useoldpkg-atoms=chromeos-chrome"
-  EMERGE_FLAGS+=" --useoldpkg-atoms=libcros"
 fi
 if [[ "${FLAGS_showoutput}" -eq "${FLAGS_TRUE}" && \
       "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
