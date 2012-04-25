@@ -12,7 +12,7 @@
 # /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
 # location.
 find_common_sh() {
-  local common_paths=(/usr/lib/crosutils $(dirname "$(readlink -f "$0")"))
+  local common_paths=(/usr/lib/crosutils "$(dirname "$(readlink -f "$0")")/..")
   local path
 
   SCRIPT_ROOT=
