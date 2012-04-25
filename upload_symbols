@@ -33,8 +33,9 @@ DEFINE_boolean yes ${FLAGS_FALSE} "Answer yes to all prompts."
 # Number of seconds to wait before retrying an upload.  The delay will double
 # for each subsequent retry of the same symbol file.
 INITIAL_RETRY_DELAY=1
-# Allow up to 5 attempts to upload a symbol file.
-MAX_RETRIES=4
+# Allow up to 7 attempts to upload a symbol file (total delay may be
+# 1+2+4+8+16+32=63 seconds).
+MAX_RETRIES=6
 # Number of total errors, ${TOTAL_ERROR_COUNT}, before retries are no longer
 # attempted.  This is used to avoid lots of errors causing unreasonable delays.
 MAX_TOTAL_ERRORS_FOR_RETRY=3  # don't bother retrying after 3 errors
