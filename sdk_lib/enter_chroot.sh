@@ -435,6 +435,23 @@ function setup_env {
     if [ -n "$(find "${FLAGS_chroot}/dev/shm" ! -perm 777)" ] ; then
       sudo chmod -R 777 "${FLAGS_chroot}/dev/shm"
     fi
+
+    # If the private overlays are installed, gsutil can use those credentials.
+    if [ ! -e "${FLAGS_chroot}/home/${USER}/.boto" ]; then
+      boto='src/private-overlays/chromeos-overlay/googlestorage_account.boto'
+      if [ -s "${FLAGS_trunk}/${boto}" ]; then
+        ln -s "trunk/${boto}" "${FLAGS_chroot}/home/${USER}/.boto"
+      fi
+    fi
+
+    # Have found a few chroots where ~/.gsutil is owned by root:root, probably
+    # as a result of old gsutil or tools. This causes permission errors when
+    # gsutil cp tries to create its cache files, so ensure the user can
+    # actually write to their directory.
+    gsutil_dir="${FLAGS_chroot}/home/${USER}/.gsutil"
+    if [ -d "${gsutil_dir}" ] && [ ! -w "${gsutil_dir}" ]; then
+      sudo chown -R "${USER}:$(id -gn)" "${gsutil_dir}"
+    fi
   ) 200>>"$LOCKFILE" || die "setup_env failed"
 }
 
