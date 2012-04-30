@@ -431,9 +431,8 @@ function sub_mounts() {
   # that things were mounted (since it always has and hopefully always
   # will).  As such, we have to unmount in reverse order to cleanly
   # unmount submounts (think /dev/pts and /dev).
-  mount | \
-    awk -v path="$1" -v len="${#1}" \
-      '(substr($3, 1, len) == path) { print $3 }' | \
+  awk -v path="$1" -v len="${#1}" \
+    '(substr($2, 1, len) == path) { print $2 }' /proc/mounts | \
     tac
 }
 
