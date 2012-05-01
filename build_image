@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -29,6 +29,8 @@ DEFINE_integer rootfs_partition_size 1024 \
   "rootfs partition size in MiBs."
 DEFINE_integer rootfs_size 850 \
   "rootfs filesystem size in MiBs."
+DEFINE_integer rootfs_boost_size 0 \
+  "MiBs by which to increase the rootfs allocations."
 DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
   "Install standard backdoor credentials for testing"
 DEFINE_integer statefulfs_size 1024 \
@@ -103,6 +105,27 @@ OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos"
 . "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
 
 parse_build_image_args
+
+# Tweak sizes defaulted or given based on any boost given (or defaulted).
+# This is syntactic sugar to separate concerns in callers, and unify
+# default values here.
+if [[ $FLAGS_rootfs_boost_size -gt 0 ]]; then
+  max() {
+    echo $(( $1 > $2 ? $1 : $2 ))
+  }
+  root_boost() {
+    echo $(( $1 + ( $1 * $FLAGS_rootfs_boost_size + $FLAGS_rootfs_size - 1 ) \
+        / $FLAGS_rootfs_size ))
+  }
+  FLAGS_rootfs_hash_pad=$(root_boost $FLAGS_rootfs_hash_pad)
+  FLAGS_rootfs_partition_size=$(root_boost $FLAGS_rootfs_partition_size)
+  FLAGS_rootfs_size=$(root_boost $FLAGS_rootfs_size)
+  FLAGS_rootfs_boost_size=0
+  # Push up to the recommended minimum if we did not get there.
+  FLAGS_rootfs_hash_pad=$(max $FLAGS_rootfs_hash_pad \
+      $(( ( $FLAGS_rootfs_size + 99 ) / 100 )))
+fi
+
 # Tweak flags, configure extra USE flags, and add packages for the factory
 # install shim.
 EXTRA_PACKAGES=""
