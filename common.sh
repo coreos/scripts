@@ -252,7 +252,6 @@ FACTORY_TEST_INSTALL_MASK="
   /usr/local/autotest/client/deps/piglit
   /usr/local/autotest/client/deps/pyauto_dep
   /usr/local/autotest/client/deps/realtimecomm_*
-  /usr/local/autotest/client/site_tests/desktopui_PageCyclerTests
   /usr/local/autotest/client/site_tests/graphics_WebGLConformance
   /usr/local/autotest/client/site_tests/platform_ToolchainOptions
   /usr/local/autotest/client/site_tests/realtimecomm_GTalk*
