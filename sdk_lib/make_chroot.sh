@@ -396,15 +396,19 @@ sudo sh -c "echo STAGE3=$STAGE3 > $CHROOT_STATE"
 info "Updating portage"
 early_enter_chroot emerge -uNv --quiet portage
 
-info "Updating host toolchain"
-early_enter_chroot emerge -uNv --quiet crossdev
-TOOLCHAIN_ARGS=( --deleteold )
-if [[ ${FLAGS_usepkg} -eq ${FLAGS_FALSE} ]]; then
-  TOOLCHAIN_ARGS+=( --nousepkg )
-fi
-# Note: early_enter_chroot executes as root.
-early_enter_chroot "${CHROOT_TRUNK}/chromite/bin/cros_setup_toolchains" \
-    --hostonly "${TOOLCHAIN_ARGS[@]}"
+info "Updating toolchain"
+early_enter_chroot emerge -uNv --quiet $USEPKG '>=sys-devel/gcc-4.4' \
+  sys-libs/glibc sys-devel/binutils sys-kernel/linux-headers
+
+# HACK: Select the latest toolchain. We're assuming that when this is
+# ran, the chroot has no experimental versions of new toolchains, just
+# one that is very old, and one that was just emerged.
+GCC_ATOM="$(early_enter_chroot portageq best_version / sys-devel/gcc)"
+early_enter_chroot emerge --unmerge "<${GCC_ATOM}"
+CHOST="$(early_enter_chroot portageq envvar CHOST)"
+LATEST="$(early_enter_chroot gcc-config -l | grep "${CHOST}" | tail -n1 | \
+          cut -f3 -d' ')"
+early_enter_chroot gcc-config "${LATEST}"
 
 # dhcpcd is included in 'world' by the stage3 that we pull in for some reason.
 # We have no need to install it in our host environment, so pull it out here.
@@ -423,10 +427,8 @@ if [ -n "${INITIALIZE_CHROOT}" ]; then
 fi
 
 # Update chroot.
-# Skip toolchain update because it already happened above, and the chroot is
-# not ready to emerge all cross toolchains.
-UPDATE_ARGS=( --skip_toolchain_update )
-if [[ ${FLAGS_usepkg} -eq ${FLAGS_TRUE} ]]; then
+UPDATE_ARGS=()
+if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
   UPDATE_ARGS+=( --usepkg )
 else
   UPDATE_ARGS+=( --nousepkg )
@@ -445,11 +447,6 @@ CHROOT_EXAMPLE_OPT=""
 if [[ "$FLAGS_chroot" != "$DEFAULT_CHROOT_DIR" ]]; then
   CHROOT_EXAMPLE_OPT="--chroot=$FLAGS_chroot"
 fi
-
-# As a final pass, build all desired cross-toolchains.
-info "Updating toolchains"
-enter_chroot sudo "${CHROOT_TRUNK}/chromite/bin/cros_setup_toolchains" \
-    "${TOOLCHAIN_ARGS[@]}"
 
 print_time_elapsed
 
