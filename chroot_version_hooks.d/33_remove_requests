@@ -1,0 +1,12 @@
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# We intended to use some extra python modules for autotest in the chroot,
+# but decided against it.  They're removed from hard-host-depends in
+# https://gerrit.chromium.org/gerrit/21816
+
+
+pkgs=( dev-python/requests dev-python/chardet dev-python/certifi )
+sudo CLEAN_DELAY=0 emerge -q --unmerge "${pkgs[@]}"
+exit 0
