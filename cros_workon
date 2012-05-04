@@ -12,6 +12,8 @@
 
 . /usr/lib/crosutils/common.sh || exit 1
 
+assert_not_root_user
+
 # Script must be run inside the chroot
 get_default_board
 
