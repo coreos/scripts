@@ -26,20 +26,80 @@ DEFINE_boolean verbose ${FLAGS_FALSE} "Be verbose."
 DUMP_SYMS="dump_syms"
 DUMP_SYMS32="dump_syms.32"
 
-CUMULATIVE_SIZE=0
 ERROR_COUNT=0
-
-SYM_FILE=$(mktemp "/tmp/sym.XXXX")
-ERR_FILE=$(mktemp "/tmp/err.XXXX")
-
-function cleanup() {
-  rm -f "${SYM_FILE}" "${ERR_FILE}"
-}
 
 function debug() {
   if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
     info "$@"
   fi
+}
+
+# Each job sets this on their own; we declare it
+# globally so the exit trap can always see the last
+# setting of it w/in a job worker.
+SYM_FILE=
+JOB_FILE=
+NOTIFIED=
+
+# The master process sets these up, which each worker
+# than uses for communicating once they've finished.
+CONTROL_PIPE=
+CONTROL_PIPE_FD=
+
+function _worker_finished() {
+  if [ -z "${NOTIFIED}" ]; then
+    debug "Sending notification of $BASHPID ${1-1}"
+    echo "$BASHPID ${1-1}" > /dev/fd/${CONTROL_PIPE_FD}
+    NOTIFIED=1
+  fi
+}
+
+function _cleanup_worker() {
+  rm -f "${SYM_FILE}" "${ERR_FILE}"
+  _worker_finished 1
+}
+
+function _cleanup_master() {
+  set +eu
+  rm -f "${CONTROL_PIPE}"
+  if [ ${#JOBS_ARRAY[@]} != 0 ]; then
+    kill -s SIGINT "${!JOBS_ARRAY[@]}" &> /dev/null
+    wait
+    # Clear the array.
+    JOBS_ARRAY=( )
+  fi
+}
+
+declare -A JOBS_ARRAY
+
+function finish_job() {
+  local finished result
+  read -r -u ${CONTROL_PIPE_FD} finished result
+  # Bash doesn't allow for zombies, but tell it to clean up its intenral
+  # bookkeeping.  Note bash can be buggy here- if a new process has slipped
+  # into that pid, bash doesn't use its internal accounting first, and
+  # can throw an error; doesn't matter, thus this form.
+  ! wait ${finished} &> /dev/null
+  if [ "${result-1}" -ne "0" ]; then
+    (( ERROR_COUNT++ ))
+  fi
+  # Bit of a hack, but it works well enough.
+  debug "finished ${finished} with result ${result-1}"
+  unset JOBS_ARRAY[${finished}]
+}
+
+function run_job() {
+  local debug_file=${1} text_file=${2} newpid
+
+  if [ ${#JOBS_ARRAY[@]} -ge ${NUM_JOBS} ]; then
+    # Reclaim a spot.
+    finish_job
+  fi
+
+  dump_file "${debug_file}" "${text_file}" &
+  newpid=$!
+  debug "Started ${debug_file} ${text_file} at ${newpid}"
+  JOBS_ARRAY[$newpid]=1
 }
 
 # Given path to a debug file, return its text file
@@ -68,6 +128,8 @@ function is_32b_elf() {
 # if they can be ignored, but only sets ERROR_COUNT if the error should not
 # be ignored (and we should not proceed to upload).
 function dump_file() {
+  trap '_cleanup_worker; exit 1' INT TERM
+  trap _cleanup_worker EXIT
   local debug_file="$1"
   local text_file="$2"
   local debug_directory="$(dirname "${debug_file}")"
@@ -77,22 +139,24 @@ function dump_file() {
     dump_syms_prog="${DUMP_SYMS32}"
     debug "Using ${dump_syms_prog} for 32-bit file ${text_file}"
   fi
+  SYM_FILE=$(mktemp -t "breakpad.sym.XXXXXX")
   # Dump symbols as root in order to read all files.
   if ! sudo "${dump_syms_prog}" "${text_file}" "${debug_directory}" \
-       > "${SYM_FILE}" 2> "${ERR_FILE}"; then
+       > "${SYM_FILE}" 2> /dev/null; then
     # Try dumping just the main file to get public-only symbols.
+    ERR_FILE=$(mktemp -t "breakpad.err.XXXXXX")
     if ! sudo "${dump_syms_prog}" "${text_file}" > "${SYM_FILE}" \
          2> "${ERR_FILE}"; then
       # A lot of files (like kernel files) contain no debug information, do
       # not consider such occurrences as errors.
       if grep -q "file contains no debugging information" "${ERR_FILE}"; then
         warn "No symbols found for ${text_file}"
-        return 1
+        _worker_finished 0
+        exit 0
       fi
       error "Unable to dump symbols for ${text_file}:"
-      cat "${ERR_FILE}"
-      (( ERROR_COUNT++ ))
-      return 1
+      error "$(<"${ERR_FILE}")"
+      exit 1
     else
       warn "File ${text_file} did not have debug info, using linkage symbols"
     fi
@@ -106,20 +170,19 @@ function dump_file() {
   # is the same.
   local installed_sym="${DEBUG_ROOT}"/$(basename "${text_file}").sym
   if [ -e "${installed_sym}" ]; then
-    if ! diff "${installed_sym}" "${SYM_FILE}"; then
+    if ! cmp --quiet "${installed_sym}" "${SYM_FILE}"; then
       error "${installed_sym} differ from current sym file:"
-      diff "${installed_sym}" "${SYM_FILE}"
+      error "$(diff "${installed_sym}" "${SYM_FILE}")"
       (( ERROR_COUNT++ ))
-      return 1
+      exit 1
     fi
   fi
-  size=$(wc -c "${SYM_FILE}" | cut -d' ' -f1)
-  CUMULATIVE_SIZE=$((CUMULATIVE_SIZE + $size))
 
   local container_dir="${FLAGS_minidump_symbol_root}/${module_name}/${file_id}"
   sudo mkdir -p "${container_dir}"
   sudo mv "${SYM_FILE}" "${container_dir}/${module_name}.sym"
-  return 0
+  _worker_finished 0
+  exit 0
 }
 
 # Convert the given debug file.  No return value.
@@ -144,15 +207,14 @@ function process_file() {
     return 0
   elif [ ! -r "${text_file}" ]; then
     # Allow files to not be readable, for instance setuid programs like passwd
-    warn "Binary is not readable: ${text_file}"
+    warn "Binary is not user readable: ${text_file}"
     return 0
   fi
 
-  dump_file "${debug_file}" "${text_file}"
+  run_job "${debug_file}" "${text_file}"
 }
 
 function main() {
-  trap cleanup EXIT
 
   # Parse command line
   FLAGS_HELP="usage: $0 [flags] [<files...>]"
@@ -172,12 +234,31 @@ function main() {
   info "Writing minidump symbols to ${FLAGS_minidump_symbol_root}"
 
   DEBUG_ROOT="${SYSROOT}/usr/lib/debug"
-  CUMULATIVE_SIZE=0
   sudo rm -rf "${FLAGS_minidump_symbol_root}"
 
+  # Open our control pipe.
+  trap '_cleanup_master; exit 1' INT TERM
+  trap _cleanup_master EXIT
+  CONTROL_PIPE=$(mktemp -t "breakpad.fifo.XXXXXX")
+  rm "${CONTROL_PIPE}"
+  mkfifo "${CONTROL_PIPE}"
+  exec {CONTROL_PIPE_FD}<>${CONTROL_PIPE}
+
+  # We require our stderr (which error/info/warn go through) to be a
+  # pipe for atomic write reasons; thus if it isn't, abuse cat to make it
+  # so.
+  if [ ! -p /dev/stderr ]; then
+    debug "Replacing stderr with a cat process for pipe requirements..."
+    exec 2> >(cat 1>&2)
+  fi
+
   if [ -z "${FLAGS_ARGV}" ]; then
-    for debug_file in $(find "${DEBUG_ROOT}" -name \*.debug); do
-      ! process_file "${debug_file}"
+    # Sort on size; we want to start the largest first since it's likely going
+    # to be the chrome binary (which can take 98% of the runtime when we're
+    # running with parallelization for 6 or higher).
+    for debug_file in $(find "${DEBUG_ROOT}" -name \*.debug \
+         -type f -exec stat -c '%s %n' {} + | sort -gr | cut -d' ' -f2-); do
+      process_file "${debug_file}"
     done
   else
     for either_file in ${FLAGS_ARGV}; do
@@ -193,11 +274,18 @@ function main() {
       else
         debug_file="$(get_debug_for_text ${either_file})"
       fi
-      ! process_file "${debug_file}"
+      process_file "${debug_file}"
     done
   fi
 
-  info "Generated ${CUMULATIVE_SIZE}B of debug information"
+  while [[ ${#JOBS_ARRAY[@]} != 0 ]]; do
+    finish_job
+  done
+
+  local size=$(sudo find "${FLAGS_minidump_symbol_root}" \
+      -type f -name '*.sym' -exec du -b {} + | \
+      awk '{t += $1} END {print t}')
+  info "Generated ${size:-0}B of unique debug information"
 
   if [[ ${ERROR_COUNT} == 0 ]]; then
     return 0
