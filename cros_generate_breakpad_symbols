@@ -27,7 +27,7 @@ DUMP_SYMS="dump_syms"
 DUMP_SYMS32="dump_syms.32"
 
 CUMULATIVE_SIZE=0
-ANY_ERRORS=0
+ERROR_COUNT=0
 
 SYM_FILE=$(mktemp "/tmp/sym.XXXX")
 ERR_FILE=$(mktemp "/tmp/err.XXXX")
@@ -65,7 +65,7 @@ function is_32b_elf() {
 }
 
 # Dump given debug and text file.  Returns 1 if any errors, even
-# if they can be ignored, but only sets ANY_ERRORS if the error should not
+# if they can be ignored, but only sets ERROR_COUNT if the error should not
 # be ignored (and we should not proceed to upload).
 function dump_file() {
   local debug_file="$1"
@@ -91,7 +91,7 @@ function dump_file() {
       fi
       error "Unable to dump symbols for ${text_file}:"
       cat "${ERR_FILE}"
-      ANY_ERRORS=1
+      (( ERROR_COUNT++ ))
       return 1
     else
       warn "File ${text_file} did not have debug info, using linkage symbols"
@@ -109,7 +109,7 @@ function dump_file() {
     if ! diff "${installed_sym}" "${SYM_FILE}"; then
       error "${installed_sym} differ from current sym file:"
       diff "${installed_sym}" "${SYM_FILE}"
-      ANY_ERRORS=1
+      (( ERROR_COUNT++ ))
       return 1
     fi
   fi
@@ -185,7 +185,7 @@ function main() {
       either_file=${either_file%\'}
       if [ ! -h "${either_file}" -a ! -f "${either_file}" ]; then
         error "Specified file ${either_file} does not exist"
-        ANY_ERRORS=1
+        (( ERROR_COUNT++ ))
         continue
       fi
       if [ "${either_file##*.}" == "debug" ]; then
@@ -199,8 +199,10 @@ function main() {
 
   info "Generated ${CUMULATIVE_SIZE}B of debug information"
 
-  [ ${ANY_ERRORS} -ne 0 ] && die "Encountered problems"
-  return 0
+  if [[ ${ERROR_COUNT} == 0 ]]; then
+    return 0
+  fi
+  die "Encountered ${ERROR_COUNT} problems"
 }
 
 main "$@"
