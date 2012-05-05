@@ -36,6 +36,12 @@ function cleanup() {
   rm -f "${SYM_FILE}" "${ERR_FILE}"
 }
 
+function debug() {
+  if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
+    info "$@"
+  fi
+}
+
 # Given path to a debug file, return its text file
 function get_text_for_debug() {
   local debug_file=$1
@@ -69,7 +75,7 @@ function dump_file() {
   # 32-bit dump_syms must be used to dump a 32-bit ELF file
   if is_32b_elf "${text_file}"; then
     dump_syms_prog="${DUMP_SYMS32}"
-    info "Using ${dump_syms_prog} for 32-bit file ${text_file}"
+    debug "Using ${dump_syms_prog} for 32-bit file ${text_file}"
   fi
   # Dump symbols as root in order to read all files.
   if ! sudo "${dump_syms_prog}" "${text_file}" "${debug_directory}" \
@@ -93,10 +99,8 @@ function dump_file() {
   fi
   local file_id=$(head -1 ${SYM_FILE} | cut -d' ' -f4)
   local module_name=$(head -1 ${SYM_FILE} | cut -d' ' -f5)
-  if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
-    # Show file upload success and symbol info for easier lookup
-    info "Dumped symbols from ${text_file} for ${module_name}|${file_id}."
-  fi
+  # Show file upload success and symbol info for easier lookup
+  debug "Dumped symbols from ${text_file} for ${module_name}|${file_id}."
   # Sanity check: if we've created the same named file in the /usr/lib/debug
   # directory during the src_compile stage of an ebuild, verify our sym file
   # is the same.
@@ -125,17 +129,13 @@ function process_file() {
   if [ -h "${debug_file}" ]; then
     # Don't follow symbolic links.  In particular, we don't want to bother
     # with the *.debug links in the "debug/.build-id/" directory.
-    if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
-      info "Skipping symbolic link: ${debug_file}"
-    fi
+    debug "Skipping symbolic link: ${debug_file}"
     return 0
   fi
   if [ "${text_file##*.}" == "ko" ]; then
     # Skip kernel objects.  We can't use their symbols and they sometimes
     # have objects with empty text sections which trigger errors in dump_sym.
-    if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
-      info "Skipping kernel object: ${text_file}"
-    fi
+    debug "Skipping kernel object: ${text_file}"
     return 0
   fi
   if [ ! -f "${text_file}" ]; then
