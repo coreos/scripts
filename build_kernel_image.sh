@@ -140,7 +140,7 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
   cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
     > "${FLAGS_working_dir}/config.txt"
 quiet
-loglevel=1
+loglevel=0
 console=tty2
 init=/sbin/init
 add_efi_memmap
