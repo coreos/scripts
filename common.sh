@@ -10,7 +10,11 @@
 
 # The number of jobs to pass to tools that can run in parallel (such as make
 # and dpkg-buildpackage
-NUM_JOBS=$(grep -c "^processor" /proc/cpuinfo)
+if [ -z "${NUM_JOBS}" ]; then
+  NUM_JOBS=$(grep -c "^processor" /proc/cpuinfo)
+fi
+# Ensure that any sub scripts we invoke get the max proc count.
+export NUM_JOBS="${NUM_JOBS}"
 
 # True if we have the 'pv' utility - also set up COMMON_PV_CAT for convenience
 COMMON_PV_OK=1
