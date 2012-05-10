@@ -1,0 +1,45 @@
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# For people who have arm builds with softfp, automatically move them
+# away so we can deploy them with hardfp.
+# See also 29_64bit_convert_stumpy.
+
+# In case the dev has no arm boards.
+shopt -s nullglob
+
+for ldso in /build/*/lib/ld-linux.so.3; do
+  # See if this is an ARM softfp ldso.
+  if ! readelf -A "${ldso}" | grep -q Tag_ABI_VFP_args; then
+    build=${ldso%/lib/*}
+    board=${build##*/}
+    info "Migrating ${board} to ${board}.softfp"
+    info "If you don't need it, please run "
+    info "sudo rm -rf ${build}.softfp"
+    sudo mv ${build}{,.softfp}
+    info "Running setup_board --board=${board}"
+    # We run with nousepkg for people who have an old toolchain
+    # and haven't upgraded to the hardfp one yet.  This might
+    # add a little overhead once, but we need this to recover
+    # the builders because they can't produce toolchain binpkgs
+    # until they've upgraded themselves.
+    # Once people's toolchain is up-to-date, this won't cause
+    # any real overhead.
+    ~/trunk/src/scripts/setup_board \
+      --nousepkg \
+      --board=${board} \
+      --skip_chroot_upgrade
+  fi
+done
+
+# Make sure we have a gcc version that was built with USE=hardfp.
+if ! portageq has_version / 'cross-armv7a-cros-linux-gnueabi/gcc[hardfp]'; then
+  info "Making sure your arm toolchain is up-to-date"
+  info "by installing an arm-generic board"
+  ~/trunk/src/scripts/setup_board \
+    --nousepkg \
+    --force \
+    --board=arm-generic \
+    --skip_chroot_upgrade
+fi
