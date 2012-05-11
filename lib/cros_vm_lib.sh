@@ -15,7 +15,7 @@ DEFINE_string vnc "" "VNC Server to display to instead of SDL."
 KVM_PID_FILE=/tmp/kvm.$$.pid
 LIVE_VM_IMAGE=
 
-function get_pid() {
+get_pid() {
   sudo cat "${KVM_PID_FILE}"
 }
 
@@ -27,7 +27,7 @@ function get_pid() {
 # $2 signal to send (-#).
 # $3 max timeout in seconds.
 # Returns 0 on success.
-function blocking_kill() {
+blocking_kill() {
   local timeout=1
   sudo kill -$2 $1
   while ps -p $1 > /dev/null && [ ${timeout} -le $3 ]; do
@@ -37,7 +37,7 @@ function blocking_kill() {
   ! ps -p ${1} > /dev/null
 }
 
-function kvm_version_greater_equal() {
+kvm_version_greater_equal() {
   local test_version="${1}"
   local kvm_version=$(kvm --version | sed -E 's/^.*version ([0-9\.]*) .*$/\1/')
 
@@ -46,7 +46,7 @@ function kvm_version_greater_equal() {
 }
 
 # $1: Path to the virtual image to start.
-function start_kvm() {
+start_kvm() {
   # Override default pid file.
   local start_vm=0
   [ -n "${FLAGS_kvm_pid}" ] && KVM_PID_FILE=${FLAGS_kvm_pid}
@@ -106,7 +106,7 @@ function start_kvm() {
 }
 
 # Checks to see if we can access the target virtual machine with ssh.
-function ssh_ping() {
+ssh_ping() {
   # TODO(sosa): Remove outside chroot use once all callers work inside chroot.
   local cmd
   if [ $INSIDE_CHROOT -ne 1 ]; then
@@ -121,7 +121,7 @@ function ssh_ping() {
 
 # Tries to ssh into live image $1 times.  After first failure, a try involves
 # shutting down and restarting kvm.
-function retry_until_ssh() {
+retry_until_ssh() {
   local can_ssh_into=1
   local max_retries=3
   local retries=0
@@ -137,7 +137,7 @@ function retry_until_ssh() {
   return ${can_ssh_into}
 }
 
-function stop_kvm() {
+stop_kvm() {
   if [ "${FLAGS_persist}" -eq "${FLAGS_TRUE}" ]; then
     echo "Persist requested.  Use --ssh_port ${FLAGS_ssh_port} " \
       "--kvm_pid ${KVM_PID_FILE} to re-connect to it." >&2

@@ -28,7 +28,7 @@ DUMP_SYMS32="dump_syms.32"
 
 ERROR_COUNT=0
 
-function debug() {
+debug() {
   if [ ${FLAGS_verbose} -eq ${FLAGS_TRUE} ]; then
     info "$@"
   fi
@@ -46,7 +46,7 @@ NOTIFIED=
 CONTROL_PIPE=
 CONTROL_PIPE_FD=
 
-function _worker_finished() {
+_worker_finished() {
   if [ -z "${NOTIFIED}" ]; then
     debug "Sending notification of $BASHPID ${1-1}"
     echo "$BASHPID ${1-1}" > /dev/fd/${CONTROL_PIPE_FD}
@@ -54,12 +54,12 @@ function _worker_finished() {
   fi
 }
 
-function _cleanup_worker() {
+_cleanup_worker() {
   rm -f "${SYM_FILE}" "${ERR_FILE}"
   _worker_finished 1
 }
 
-function _cleanup_master() {
+_cleanup_master() {
   set +eu
   rm -f "${CONTROL_PIPE}"
   if [ ${#JOBS_ARRAY[@]} != 0 ]; then
@@ -72,7 +72,7 @@ function _cleanup_master() {
 
 declare -A JOBS_ARRAY
 
-function finish_job() {
+finish_job() {
   local finished result
   read -r -u ${CONTROL_PIPE_FD} finished result
   # Bash doesn't allow for zombies, but tell it to clean up its intenral
@@ -88,7 +88,7 @@ function finish_job() {
   unset JOBS_ARRAY[${finished}]
 }
 
-function run_job() {
+run_job() {
   local debug_file=${1} text_file=${2} newpid
 
   if [ ${#JOBS_ARRAY[@]} -ge ${NUM_JOBS} ]; then
@@ -103,7 +103,7 @@ function run_job() {
 }
 
 # Given path to a debug file, return its text file
-function get_text_for_debug() {
+get_text_for_debug() {
   local debug_file=$1
   local text_dir=$(dirname "${debug_file#$DEBUG_ROOT}")
   local text_path=${SYSROOT}${text_dir}/$(basename "${debug_file}" .debug)
@@ -111,7 +111,7 @@ function get_text_for_debug() {
 }
 
 # Given path to a text file, return its debug file
-function get_debug_for_text() {
+get_debug_for_text() {
   local text_file=$1
   local text_path=${text_file#${SYSROOT}}
   local debug_path=${DEBUG_ROOT}${text_path}.debug
@@ -119,7 +119,7 @@ function get_debug_for_text() {
 }
 
 # Returns true if the file given is a 32-bit ELF file.
-function is_32b_elf() {
+is_32b_elf() {
   local elf="$1"
   file "${elf}" | grep -q "ELF 32-bit"
 }
@@ -127,7 +127,7 @@ function is_32b_elf() {
 # Dump given debug and text file.  Returns 1 if any errors, even
 # if they can be ignored, but only sets ERROR_COUNT if the error should not
 # be ignored (and we should not proceed to upload).
-function dump_file() {
+dump_file() {
   trap '_cleanup_worker; exit 1' INT TERM
   trap _cleanup_worker EXIT
   local debug_file="$1"
@@ -186,7 +186,7 @@ function dump_file() {
 }
 
 # Convert the given debug file.  No return value.
-function process_file() {
+process_file() {
   local debug_file="$1"
   local text_file="$(get_text_for_debug ${debug_file})"
   if [ -h "${debug_file}" ]; then
@@ -214,7 +214,7 @@ function process_file() {
   run_job "${debug_file}" "${text_file}"
 }
 
-function main() {
+main() {
 
   # Parse command line
   FLAGS_HELP="usage: $0 [flags] [<files...>]"

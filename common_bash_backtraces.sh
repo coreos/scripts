@@ -8,7 +8,7 @@
 # Output a backtrace all the way back to the raw invocation, suppressing
 # only the _dump_trace frame itself.
 
-function _dump_trace {
+_dump_trace() {
   local j n p func src line args
   p=${#BASH_ARGV[@]}
   for (( n = ${#FUNCNAME[@]}; n > 1; n-- )); do

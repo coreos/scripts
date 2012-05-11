@@ -27,12 +27,12 @@ eval set -- "${FLAGS_ARGV}"
 # so will die prematurely if 'switch_to_strict_mode' is specified before now.
 switch_to_strict_mode
 
-function cleanup {
+cleanup() {
   cleanup_remote_access
   rm -rf "${TMP}"
 }
 
-function learn_device() {
+learn_device() {
   [ -n "${FLAGS_device}" ] && return
   remote_sh df /mnt/stateful_partition
   FLAGS_device=$(echo "${REMOTE_OUT}" | awk '/dev/ {print $1}' | sed s/1\$//)
@@ -40,7 +40,7 @@ function learn_device() {
 }
 
 # Ask the target what the kernel partition is
-function learn_partition_and_ro() {
+learn_partition_and_ro() {
   [ -n "${FLAGS_partition}" ] && return
   ! remote_sh rootdev
   if [ "${REMOTE_OUT}" == "/dev/dm-0" ]; then
@@ -64,7 +64,7 @@ function learn_partition_and_ro() {
   info "Target reports kernel partition is ${FLAGS_partition}"
 }
 
-function make_kernelimage() {
+make_kernelimage() {
   local bootloader_path
   local kernel_image
   if [[ "${FLAGS_arch}" == "arm" ]]; then
@@ -85,7 +85,7 @@ function make_kernelimage() {
     --arch "${FLAGS_arch}"
 }
 
-function copy_kernelimage() {
+copy_kernelimage() {
   if [ "${FLAGS_arch}" == "arm" -a ${REMOTE_VERITY} -eq ${FLAGS_FALSE} ]; then
     remote_cp_to /build/${FLAGS_board}/boot/vmlinux.uimg /boot
   fi
@@ -95,7 +95,7 @@ function copy_kernelimage() {
   remote_sh dd if=/tmp/new_kern.bin of="${FLAGS_partition}"
 }
 
-function main() {
+main() {
   trap cleanup EXIT
 
   TMP=$(mktemp -d /tmp/update_kernel.XXXXXX)

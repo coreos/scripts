@@ -14,7 +14,7 @@ CHOST="$(portageq envvar CHOST)"
 # This is the lowest we want to go in this particular case.
 MINIMUM_GCC="4.4.6"
 
-function env_setup() {
+env_setup() {
   GCC_VERSIONS="$(gcc-config -l | grep "${CHOST}" | \
                   cut -f3 -d' ')"
   GCC_LATEST="$(gcc-config -l | grep "${CHOST}" | tail -n1 | \

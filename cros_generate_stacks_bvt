@@ -10,7 +10,7 @@
 . "$(dirname $0)/common.sh" || { echo "Unable to load common.sh"; exit 1; }
 assert_inside_chroot "$@"
 
-function usage() {
+usage() {
     echo "Usage: $0 url_or_path_to_debug_tgz url_to_bvt_test_results"
 }
 
@@ -31,25 +31,25 @@ BREAKPAD_DIR="debug/breakpad"
 STACKS_GENERATED=""
 OUTPUT_DIR="$(mktemp -d)"
 
-function extract_tarball() {
+extract_tarball() {
   info "Extracting breakpad symbols from $1..."
   tar zxf "$1" -C "${OUTPUT_DIR}" "${BREAKPAD_DIR}"
 }
 
-function generate_stacktrace() {
+generate_stacktrace() {
   echo "$1.txt"
   minidump_stackwalk "$1" "${OUTPUT_DIR}/${BREAKPAD_DIR}" \
       >"$1.txt" 2>/dev/null
 }
 
-function find_and_generate_stacktraces() {
+find_and_generate_stacktraces() {
   find "${OUTPUT_DIR}" -name "*.dmp" |
     while read filename ; do
       generate_stacktrace "${filename}"
     done
 }
 
-function cleanup() {
+cleanup() {
   if [ -n "${OUTPUT_DIR}" -a -z "${STACKS_GENERATED}" ] ; then
     rm -rf "${OUTPUT_DIR}"
   fi

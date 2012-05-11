@@ -77,7 +77,7 @@ if [ -f "${FLAGS_from}" ]; then
 fi
 
 # Common unmounts for either a device or directory
-function unmount_image() {
+unmount_image() {
   info "Unmounting image from ${FLAGS_stateful_mountpt}" \
       "and ${FLAGS_rootfs_mountpt}"
   # Don't die on error to force cleanup
@@ -98,7 +98,7 @@ function unmount_image() {
   switch_to_strict_mode
 }
 
-function get_usb_partitions() {
+get_usb_partitions() {
   local ro_flag=""
   local safe_flag=""
   [ ${FLAGS_read_only} -eq ${FLAGS_TRUE} ] && ro_flag="-o ro"
@@ -112,7 +112,7 @@ function get_usb_partitions() {
   fi
 }
 
-function get_gpt_partitions() {
+get_gpt_partitions() {
   local filename="${FLAGS_image}"
 
   # Mount the rootfs partition using a loopback device.
@@ -163,7 +163,7 @@ function get_gpt_partitions() {
 }
 
 # Mount a gpt based image.
-function mount_image() {
+mount_image() {
   mkdir -p "${FLAGS_rootfs_mountpt}"
   mkdir -p "${FLAGS_stateful_mountpt}"
   if [[ -n "${FLAGS_esp_mountpt}" ]]; then

@@ -87,14 +87,14 @@ ENTER_CHROOT_ARGS=(
 )
 
 # Invoke enter_chroot.  This can only be used after sudo has been installed.
-function enter_chroot {
+enter_chroot() {
   "$ENTER_CHROOT" --chroot "$FLAGS_chroot" -- "${ENTER_CHROOT_ARGS[@]}" "$@"
 }
 
 # Invoke enter_chroot running the command as root, and w/out sudo.
 # This should be used prior to sudo being merged.
 early_env=()
-function early_enter_chroot() {
+early_enter_chroot() {
   "$ENTER_CHROOT" --chroot "$FLAGS_chroot" --early_make_chroot \
     -- "${ENTER_CHROOT_ARGS[@]}" "${early_env[@]}" "$@"
 }
@@ -106,12 +106,12 @@ sudo_chroot() {
   sudo chroot "${FLAGS_chroot}" "$@"
 }
 
-function cleanup {
+cleanup() {
   # Clean up mounts
   safe_umount_tree "${FLAGS_chroot}"
 }
 
-function delete_existing {
+delete_existing() {
   # Delete old chroot dir.
   if [[ ! -e "$FLAGS_chroot" ]]; then
     return
@@ -123,7 +123,7 @@ function delete_existing {
   info "Done."
 }
 
-function init_users () {
+init_users () {
    info "Set timezone..."
    # date +%Z has trouble with daylight time, so use host's info.
    sudo rm -f "${FLAGS_chroot}/etc/localtime"
@@ -147,7 +147,7 @@ function init_users () {
    sudo sed -e '1{h;d};$!{H;d};$G' -i "${FLAGS_chroot}/etc/passwd"
 }
 
-function init_setup () {
+init_setup () {
    info "Running init_setup()..."
    sudo mkdir -p -m 755 "${FLAGS_chroot}/usr" \
      "${FLAGS_chroot}/usr/local/portage" \

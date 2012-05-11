@@ -18,7 +18,7 @@ SSH_CONNECT_SETTINGS="-o Protocol=2 -o ConnectTimeout=30 \
   -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no"
 
 # Copies $1 to $2 on remote host
-function remote_cp_to() {
+remote_cp_to() {
   REMOTE_OUT=$(scp -P ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
     -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY $1 \
     root@$FLAGS_remote:$2)
@@ -27,13 +27,13 @@ function remote_cp_to() {
 
 # Copies a list of remote files specified in file $1 to local location
 # $2.  Directory paths in $1 are collapsed into $2.
-function remote_rsync_from() {
+remote_rsync_from() {
   rsync -e "ssh -p ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
              -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY" \
     --no-R --files-from=$1 root@${FLAGS_remote}:/ $2
 }
 
-function _remote_sh() {
+_remote_sh() {
   REMOTE_OUT=$(ssh -p ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
     -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY \
     root@$FLAGS_remote "$@")
@@ -42,7 +42,7 @@ function _remote_sh() {
 
 # Wrapper for ssh that runs the commmand given by the args on the remote host
 # If an ssh error occurs, re-runs the ssh command.
-function remote_sh() {
+remote_sh() {
   local ssh_status=0
   _remote_sh "$@" || ssh_status=$?
   # 255 indicates an ssh error.
@@ -53,19 +53,19 @@ function remote_sh() {
   fi
 }
 
-function remote_sh_raw() {
+remote_sh_raw() {
   ssh -p ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
     -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY \
     $EXTRA_REMOTE_SH_ARGS root@$FLAGS_remote "$@"
   return $?
 }
 
-function remote_sh_allow_changed_host_key() {
+remote_sh_allow_changed_host_key() {
   rm -f $TMP_KNOWN_HOSTS
   remote_sh "$@"
 }
 
-function set_up_remote_access() {
+set_up_remote_access() {
   cp $FLAGS_private_key $TMP_PRIVATE_KEY
   chmod 0400 $TMP_PRIVATE_KEY
 
@@ -83,7 +83,7 @@ function set_up_remote_access() {
 }
 
 # Ask the target what board it is
-function learn_board() {
+learn_board() {
   [ -n "${FLAGS_board}" ] && return
   remote_sh grep CHROMEOS_RELEASE_BOARD /etc/lsb-release
   FLAGS_board=$(echo "${REMOTE_OUT}" | cut -d '=' -f 2)
@@ -94,7 +94,7 @@ function learn_board() {
   info "Target reports board is ${FLAGS_board}"
 }
 
-function learn_arch() {
+learn_arch() {
   [ -n "${FLAGS_arch}" ] && return
   remote_sh uname -m
   FLAGS_arch=$(echo "${REMOTE_OUT}" | sed -e s/armv7l/arm/ -e s/i686/x86/ )
@@ -115,7 +115,7 @@ function learn_arch() {
 #   0: The device has rebooted successfully
 #   1: The device has not yet rebooted
 #   255: Unable to communicate with the device
-function _check_if_rebooted() {
+_check_if_rebooted() {
   (
     # In my tests SSH seems to be waiting rather longer than would be expected
     # from these parameters. These values produce a ~10 second wait.
@@ -133,7 +133,7 @@ function _check_if_rebooted() {
 # This function will not return until the SSH server on the remote device
 # is available after the reboot.
 #
-function remote_reboot() {
+remote_reboot() {
   info "Rebooting ${FLAGS_remote}..."
   remote_sh "touch /tmp/awaiting_reboot; reboot"
   local start_time=${SECONDS}
@@ -172,11 +172,11 @@ function remote_reboot() {
 
 # Called by clients before exiting.
 # Part of the remote_access.sh interface but now empty.
-function cleanup_remote_access() {
+cleanup_remote_access() {
   true
 }
 
-function remote_access_init() {
+remote_access_init() {
   TMP_PRIVATE_KEY=$TMP/private_key
   TMP_KNOWN_HOSTS=$TMP/known_hosts
   if [ -z "$FLAGS_remote" ]; then

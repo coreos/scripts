@@ -12,12 +12,12 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
 . "${SCRIPT_ROOT}/remote_access.sh" || die "Unable to load remote_access.sh"
 
-function cleanup {
+cleanup() {
   cleanup_remote_access
   rm -rf "${TMP}"
 }
 
-function main() {
+main() {
   cd "${SCRIPTS_DIR}"
 
   FLAGS "$@" || exit 1

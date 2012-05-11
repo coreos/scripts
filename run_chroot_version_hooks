@@ -27,7 +27,7 @@ FLAGS "$@" || exit 1
 VERSION_FILE=/etc/cros_chroot_version
 UPGRADE_D="$(dirname ${0})/chroot_version_hooks.d"
 
-function update_version() {
+update_version() {
   sudo touch ${VERSION_FILE}
   sudo chown ${USER} ${VERSION_FILE}
   echo "${1}" > "${VERSION_FILE}"

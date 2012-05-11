@@ -55,8 +55,8 @@ if tput colors >/dev/null 2>&1; then
 fi
 
 # Stubs for sh compatibility.
-function _dump_trace() { :; }
-function _escaped_echo() {
+_dump_trace() { :; }
+_escaped_echo() {
   printf '%b\n' "$*"
 }
 
@@ -80,7 +80,7 @@ if [ -n "${BASH_VERSION-}" ]; then
 fi
 
 # Declare these asap so that code below can safely assume they exist.
-function _message {
+_message() {
   local prefix="${1}"
   shift
   if [ $# -eq 0 ]; then
@@ -105,15 +105,15 @@ function _message {
   )
 }
 
-function info {
+info() {
   _message "${V_BOLD_GREEN}INFO    " "$*"
 }
 
-function warn {
+warn() {
   _message "${V_BOLD_YELLOW}WARNING " "$*"
 }
 
-function error {
+error() {
   _message "${V_BOLD_RED}ERROR   " "$*"
 }
 
@@ -122,7 +122,7 @@ function error {
 # no reason to have them cause their own crash if we're inthe middle
 # of reporting an error condition then exiting.
 
-function die_err_trap {
+die_err_trap() {
   local command="$1" result="$2"
   set +e +u
 
@@ -145,7 +145,7 @@ function die_err_trap {
 }
 
 # Exit this script due to a failure, outputting a backtrace in the process.
-function die {
+die() {
   set +e +u
   _dump_trace
   error
@@ -155,7 +155,7 @@ function die {
 }
 
 # Exit this script w/out a backtrace.
-function die_notrace {
+die_notrace() {
   set +e +u
   if [ $# -eq 0 ]; then
     set -- '(no error message given)'
@@ -169,7 +169,7 @@ function die_notrace {
 # Construct a list of possible locations for the source tree.  This list is
 # based on various environment variables and globals that may have been set
 # by the calling script.
-function get_gclient_root_list() {
+get_gclient_root_list() {
   if [ $INSIDE_CHROOT -eq 1 ]; then
     echo "/home/${USER}/trunk"
 
@@ -183,7 +183,7 @@ function get_gclient_root_list() {
 # Based on the list of possible source locations we set GCLIENT_ROOT if it is
 # not already defined by looking for a src directory in each seach path
 # location.  If we do not find a valid looking root we error out.
-function get_gclient_root() {
+get_gclient_root() {
   if [ -n "${GCLIENT_ROOT}" ]; then
     return
   fi
@@ -379,7 +379,7 @@ FACTORY_SHIM_INSTALL_MASK="
 # -----------------------------------------------------------------------------
 # Functions
 
-function setup_board_warning {
+setup_board_warning() {
   echo
   echo "$V_REVERSE=================  WARNING  ======================$V_VIDOFF"
   echo
@@ -392,7 +392,7 @@ function setup_board_warning {
 
 
 # Sets the default board variable for calling script
-function get_default_board {
+get_default_board() {
   DEFAULT_BOARD=
 
   if [ -f "$GCLIENT_ROOT/src/scripts/.default_board" ] ; then
@@ -407,7 +407,7 @@ function get_default_board {
 
 
 # Enter a chroot and restart the current script if needed
-function restart_in_chroot_if_needed {
+restart_in_chroot_if_needed() {
   # NB:  Pass in ARGV:  restart_in_chroot_if_needed "$@"
   if [ $INSIDE_CHROOT -ne 1 ]; then
     # Get inside_chroot path for script.
@@ -418,7 +418,7 @@ function restart_in_chroot_if_needed {
 
 # Fail unless we're inside the chroot.  This guards against messing up your
 # workstation.
-function assert_inside_chroot {
+assert_inside_chroot() {
   if [ $INSIDE_CHROOT -ne 1 ]; then
     echo "This script must be run inside the chroot.  Run this first:"
     echo "    cros_sdk"
@@ -428,14 +428,14 @@ function assert_inside_chroot {
 
 # Fail if we're inside the chroot.  This guards against creating or entering
 # nested chroots, among other potential problems.
-function assert_outside_chroot {
+assert_outside_chroot() {
   if [ $INSIDE_CHROOT -ne 0 ]; then
     echo "This script must be run outside the chroot."
     exit 1
   fi
 }
 
-function assert_not_root_user {
+assert_not_root_user() {
   if [ $(id -u) = 0 ]; then
     echo "This script must be run as a non-root user."
     exit 1
@@ -450,7 +450,7 @@ function assert_not_root_user {
 # then change this function.
 #
 # Usage: check_flags_only_and_allow_null_arg "$@" && set --
-function check_flags_only_and_allow_null_arg {
+check_flags_only_and_allow_null_arg() {
   do_shift=1
   if [[ $# == 1 && -z "$@" ]]; then
     echo "$0: warning: ignoring null argument" >&2
@@ -470,21 +470,21 @@ function check_flags_only_and_allow_null_arg {
 #   $1 - string which optionally has surrounding quotes
 # Returns:
 #   None, but prints the string without quotes.
-function remove_quotes() {
+remove_quotes() {
   echo "$1" | sed -e "s/^'//; s/'$//"
 }
 
 # Writes stdin to the given file name as root using sudo in overwrite mode.
 #
 # $1 - The output file name.
-function sudo_clobber() {
+sudo_clobber() {
   sudo tee "$1" > /dev/null
 }
 
 # Writes stdin to the given file name as root using sudo in append mode.
 #
 # $1 - The output file name.
-function sudo_append() {
+sudo_append() {
   sudo tee -a "$1" > /dev/null
 }
 
@@ -494,7 +494,7 @@ function sudo_append() {
 # but hopefully no one will ever try that many at once.
 #
 # $@ - The commands to execute, one per arg.
-function sudo_multi() {
+sudo_multi() {
   local i cmds
 
   # Construct the shell code to execute. It'll be of the form:
@@ -521,7 +521,7 @@ function sudo_multi() {
 # Locate all mounts below a specified directory.
 #
 # $1 - The root tree.
-function sub_mounts() {
+sub_mounts() {
   # Assume that `mount` outputs a list of mount points in the order
   # that things were mounted (since it always has and hopefully always
   # will).  As such, we have to unmount in reverse order to cleanly
@@ -534,7 +534,7 @@ function sub_mounts() {
 # Unmounts a directory, if the unmount fails, warn, and then lazily unmount.
 #
 # $1 - The path to unmount.
-function safe_umount_tree {
+safe_umount_tree() {
   local mounts=$(sub_mounts "$1")
 
   # Hmm, this shouldn't normally happen, but anything is possible.
@@ -788,7 +788,7 @@ check_for_tool() {
 # Reinterprets path from outside the chroot for use inside.
 # Returns "" if "" given.
 # $1 - The path to reinterpret.
-function reinterpret_path_for_chroot() {
+reinterpret_path_for_chroot() {
   if [ $INSIDE_CHROOT -ne 1 ]; then
     if [ -z "${1}" ]; then
       echo ""
@@ -813,7 +813,7 @@ function reinterpret_path_for_chroot() {
   fi
 }
 
-function emerge_custom_kernel() {
+emerge_custom_kernel() {
   local install_root="$1"
   local root=/build/${FLAGS_board}
   local tmp_pkgdir=${root}/custom-packages
@@ -851,7 +851,7 @@ function emerge_custom_kernel() {
     --root=${install_root} ${kernel} || die "Cannot emerge kernel to root"
 }
 
-function enable_strict_sudo {
+enable_strict_sudo() {
   if [ -z "$CROS_SUDO_KEEP_ALIVE" ]; then
     echo "$0 was somehow invoked in a way that the sudo keep alive could"
     echo "not be found.  Failing due to this.  See crosbug.com/18393."
@@ -866,11 +866,11 @@ function enable_strict_sudo {
 # If so, we assume that there is a live user we can interact with.
 # This check can be overridden by setting the CROS_NO_PROMPT environment
 # variable to a non-empty value.
-function is_interactive() {
+is_interactive() {
   [ -z "${CROS_NO_PROMPT}" -a -t 0 -a -t 2 ]
 }
 
-function assert_interactive() {
+assert_interactive() {
   if ! is_interactive; then
     die "Script ${0##*/} tried to get user input on a non-interactive terminal."
   fi
@@ -902,7 +902,7 @@ function assert_interactive() {
 # 1, 2 or 3, the return value will be "foo", "bar" or "foobar", respectively.
 # If it is empty (i.e. the user clicked Enter) it will be "foo".  Anything else
 # will return "ERROR".
-function choose() {
+choose() {
   typeset -i choose_i=1
 
   # Retrieve output variable name and default return value.
@@ -951,7 +951,7 @@ function choose() {
 #  3) Declare the options that you don't want to appear in help.
 #
 # See build_packages for example usage.
-function show_help_if_requested() {
+show_help_if_requested() {
   for opt in "$@"; do
     if [ "$opt" = "-h" ] || [ "$opt" = "--help" ]; then
       flags_help
@@ -960,7 +960,7 @@ function show_help_if_requested() {
   done
 }
 
-function switch_to_strict_mode() {
+switch_to_strict_mode() {
   # Set up strict execution mode; note that the trap
   # must follow switch_to_strict_mode, else it will have no effect.
   set -e

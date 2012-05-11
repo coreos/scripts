@@ -43,7 +43,7 @@ fi
 
 switch_to_strict_mode
 
-function get_partitions() {
+get_partitions() {
   if [ -b ${FLAGS_image} ] ; then
     KERNEL_IMG=$(make_partition_dev "${FLAGS_image}" 2)
     ROOTFS_IMG=$(make_partition_dev "${FLAGS_image}" 3)
@@ -64,7 +64,7 @@ function get_partitions() {
       count=${rootfs_count} &>/dev/null
 }
 
-function cleanup() {
+cleanup() {
   for i in ${KERNEL_IMG} ${ROOTFS_IMG}; do
     if [ ! -b ${i} ]; then
       rm -f ${i}

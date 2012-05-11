@@ -64,7 +64,7 @@ fi
 
 # Generates a descriptive string of a removable device. Includes the
 # manufacturer (if non-empty), product and a human-readable size.
-function get_disk_string() {
+get_disk_string() {
   local disk="${1##*/}"
   local manufacturer_string=$(get_disk_info $disk manufacturer)
   local product_string=$(get_disk_info $disk product)
@@ -79,7 +79,7 @@ function get_disk_string() {
 
 # Prompt for user confirmation. Default is no, which will gracefully terminate
 # the script.
-function are_you_sure() {
+are_you_sure() {
   local sure
   read -p "Are you sure (y/N)? " sure
   if [ "${sure}" != "y" ]; then

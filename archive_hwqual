@@ -23,11 +23,11 @@ DEFINE_string output_tag "chromeos-hwqual" "Name used in tar"
 
 TMP=$(mktemp -d "/tmp/image.XXXX")
 
-function cleanup() {
+cleanup() {
   rm -rf "${TMP}"
 }
 
-function main() {
+main() {
   assert_outside_chroot
   assert_not_root_user
 

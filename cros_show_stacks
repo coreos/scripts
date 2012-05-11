@@ -26,7 +26,7 @@ DEFINE_string breakpad_root "" \
 DEFINE_boolean clean ${FLAGS_FALSE} \
     "Remove crash reports from remote system after showing stacks"
 
-function usage() {
+usage() {
   echo "usage: $(basename $0) [--remote=<IP>] [dump...]"
   echo "Specify either a remote IP of a ChromeOS device to gather "
   echo "all crash reports from, or list crash reports"
@@ -34,13 +34,13 @@ function usage() {
 }
 
 # Clean up remote access and temp files.
-function cleanup() {
+cleanup() {
   [ ${USING_REMOTE} -eq 1 ] && cleanup_remote_access
   rm -rf "${TMP}"
 }
 
 # Echoes kind of crash (minidump or kcrash).
-function get_kind() {
+get_kind() {
   local kind="${1##*.}"
   if [ "${kind}" = "dmp" ]; then
     kind="minidump"
@@ -52,7 +52,7 @@ function get_kind() {
 # Args:
 #   $1 - file with a "module" per line.  A module is the full target's
 #   path to a DSO or executable that was loaded during a crash.
-function generate_symbols() {
+generate_symbols() {
   local modules_file="$1"
   local modules=""
   local any_missing=0
@@ -78,7 +78,7 @@ function generate_symbols() {
   fi
 }
 
-function main() {
+main() {
   FLAGS "$@" || usage
   local basename=$(basename "$0")
   TMP=$(mktemp -d /tmp/${basename}.XXXX)

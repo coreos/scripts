@@ -57,11 +57,11 @@ TOTAL_ERROR_COUNT=0
 
 OUT_DIR=$(mktemp -d "/tmp/err.XXXX")
 
-function cleanup() {
+cleanup() {
   rm -rf "${OUT_DIR}"
 }
 
-function really_upload() {
+really_upload() {
   if [ ${FLAGS_yes} -eq ${FLAGS_TRUE} ]; then
     return 0
   fi
@@ -80,7 +80,7 @@ function really_upload() {
 }
 
 # Upload the given symbol file to given URL.
-function upload_file() {
+upload_file() {
   local symbol_file="$1"
   local upload_url="$2"
   local upload_file="${symbol_file}"
@@ -169,7 +169,7 @@ due to too many total errors"
   return 0
 }
 
-function main() {
+main() {
   trap cleanup EXIT
 
   # Parse command line

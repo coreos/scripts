@@ -57,7 +57,7 @@ Otherwise, provides an interactive shell.
 "
 
 # Version of info from common.sh that only echos if --verbose is set.
-function debug {
+debug() {
   if [ $FLAGS_verbose -eq $FLAGS_TRUE ]; then
     info "$*"
   fi
@@ -96,11 +96,11 @@ SYNCERPIDFILE="${FLAGS_chroot}/var/tmp/enter_chroot_sync.pid"
 
 
 MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
-function mount_queue_init {
+mount_queue_init() {
   MOUNT_QUEUE=()
 }
 
-function queue_mount {
+queue_mount() {
   # If necessary, mount $source in the host FS at $target inside the
   # chroot directory with $mount_args.
   local source="$1"
@@ -123,7 +123,7 @@ function queue_mount {
   esac
 }
 
-function process_mounts {
+process_mounts() {
   if [[ ${#MOUNT_QUEUE[@]} -eq 0 ]]; then
     return 0
   fi
@@ -131,7 +131,7 @@ function process_mounts {
   mount_queue_init
 }
 
-function env_sync_proc {
+env_sync_proc() {
   # This function runs and performs periodic updates to the chroot env, if
   # necessary.
 
@@ -161,7 +161,7 @@ function env_sync_proc {
   done
 }
 
-function copy_ssh_config {
+copy_ssh_config() {
   # Copy user .ssh/config into the chroot filtering out strings not supported
   # by the chroot ssh. The chroot .ssh directory is passed in as the first
   # parameter.
@@ -195,13 +195,13 @@ function copy_ssh_config {
   sed "/^.*\(${filter}\).*$/d" "${sshc}" > "${chroot_ssh_dir}/config"
 }
 
-function copy_into_chroot_if_exists {
+copy_into_chroot_if_exists() {
   # $1 is file path outside of chroot to copy to path $2 inside chroot.
   [ -e "$1" ] || return
   cp "$1" "${FLAGS_chroot}/$2"
 }
 
-function setup_env {
+setup_env() {
   # Validate sudo timestamp before entering the critical section so that we
   # don't stall for a password while we have the lockfile.
   # Don't use sudo -v since that has issues on machines w/ no password.
@@ -455,7 +455,7 @@ function setup_env {
   ) 200>>"$LOCKFILE" || die "setup_env failed"
 }
 
-function teardown_env {
+teardown_env() {
   # Validate sudo timestamp before entering the critical section so that we
   # don't stall for a password while we have the lockfile.
   # Don't use sudo -v since that has issues on machines w/ no password.

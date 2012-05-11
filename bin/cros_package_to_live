@@ -42,7 +42,7 @@ FLAGS "$@" || exit 1
 
 TMP=$(mktemp -d /tmp/cros_package_to_live.XXXX)
 
-function cleanup {
+cleanup() {
     if [ "${root_mount_type}" = ro ]; then
         remote_sh "mount -o remount,ro /" || /bin/true
     fi
