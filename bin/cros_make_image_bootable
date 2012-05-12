@@ -228,6 +228,16 @@ make_image_bootable() {
     --keys_dir="${FLAGS_keys_dir}" \
     ${use_dev_keys}
 
+  # Check the size of kernel image and issue warning when image size is
+  # near the limit.
+  local kernel_image_size=$(stat -c '%s' ${FLAGS_output_dir}/vmlinuz.image)
+  info "Kernel image size is ${kernel_image_size} bytes."
+  if [[ ${kernel_image_size} -gt $((16 * 1024 * 1024)) ]]; then
+    die "Kernel image is larger than 16 MB."
+  elif [[ ${kernel_image_size} -gt $((14 * 1024 * 1024)) ]]; then
+    warn "Kernel image is larger than 14 MB. Limit is 16 MB."
+  fi
+
   local rootfs_hash_size=$(stat -c '%s' ${FLAGS_rootfs_hash})
   info "Appending rootfs.hash (${rootfs_hash_size} bytes) to the root fs"
   if [[ ${rootfs_hash_size} -gt $((FLAGS_rootfs_hash_pad * 1024 * 1024)) ]]
