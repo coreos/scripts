@@ -185,8 +185,6 @@ main() {
     MAX_TOTAL_ERRORS_FOR_RETRY=${TEST_MAX_TOTAL_ERRORS_FOR_RETRY}
   fi
 
-  switch_to_strict_mode
-
   [ -n "$FLAGS_board" ] || die_notrace "--board is required."
 
   SYSROOT="/build/${FLAGS_board}"
