@@ -138,12 +138,16 @@ env_sync_proc() {
   local poll_interval=10
   local sync_files=( etc/resolv.conf etc/hosts )
 
-  # Make sure the synced files are writable by normal user, so that we
-  # don't have to sudo inside the loop.
-  local chmods=$(find ${sync_files[@]/#/${FLAGS_chroot}/} '!' -user ${USER})
-  if [ -n "${chmods}" ]; then
-    sudo -- chown ${USER} ${chmods} 1>&2
-  fi
+  # Make sure the files exist before the find -- they might not in a
+  # fresh chroot which results in warnings in the build output.
+  local chown_cmd=(
+    # Make sure the files exists first -- they might not in a fresh chroot.
+    "touch ${sync_files[*]/#/${FLAGS_chroot}/}"
+    # Make sure the files are writable by normal user so that we don't have
+    # to execute sudo in the main loop below.
+    "chown ${USER} ${sync_files[*]/#/${FLAGS_chroot}/}"
+  )
+  sudo_multi "${chown_cmd[@]}"
 
   # Drop stdin, stderr, stdout, and chroot lock.
   # This is needed for properly daemonizing the process.
