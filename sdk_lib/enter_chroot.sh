@@ -109,8 +109,8 @@ queue_mount() {
 
   local mounted_path="${MOUNTED_PATH}$target"
 
-  case ${MOUNT_CACHE} in
-  *" on ${mounted_path} "*)
+  case " ${MOUNT_CACHE} " in
+  *" ${mounted_path} "*)
     # Already mounted!
     ;;
   *)
@@ -251,7 +251,7 @@ setup_env() {
     fi
 
     debug "Mounting chroot environment."
-    MOUNT_CACHE=$(mount)
+    MOUNT_CACHE=$(echo $(awk '{print $2}' /proc/mounts))
     mount_queue_init
     queue_mount none "-t proc" /proc
     queue_mount none "-t sysfs" /sys
