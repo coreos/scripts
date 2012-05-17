@@ -7,12 +7,13 @@
 echo "Configuring for backchannel network device"
 
 testif=eth_test
+modemif=pseudomodem0p
 
 # Prevent flimflam from taking control of the backchannel network device.
 ORIG_CONF=${ROOT_FS_DIR}/etc/init/flimflam.conf
 TEMP_CONF=${ORIG_CONF}.tmp
-sed -e "s,flimflamd,flimflamd -I ${testif}," \
-    -e "s,SHILL_TEST_ARGS=\"\",SHILL_TEST_ARGS=\"--device-black-list=${testif}\"," \
+sed -e "s,flimflamd,flimflamd -I ${testif} -I ${modemif}," \
+    -e "s@SHILL_TEST_ARGS=\"\"@SHILL_TEST_ARGS=\"--device-black-list=${testif},${modemif}\"@" \
     ${ORIG_CONF} > ${TEMP_CONF}
 mv -f ${TEMP_CONF} ${ORIG_CONF}
 
