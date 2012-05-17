@@ -411,9 +411,9 @@ early_enter_chroot "${CHROOT_TRUNK}/chromite/bin/cros_setup_toolchains" \
 info "Deselecting dhcpcd"
 early_enter_chroot $EMERGE_CMD --deselect dhcpcd
 
-info "Running emerge ccache curl sudo ..."
+info "Running emerge curl sudo ..."
 early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
-  pbzip2 ccache net-misc/curl sudo
+  pbzip2 net-misc/curl sudo
 
 if [ -n "${INITIALIZE_CHROOT}" ]; then
   # If we're creating a new chroot, we also want to set it to the latest
