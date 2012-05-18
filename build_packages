@@ -11,6 +11,8 @@ restart_in_chroot_if_needed "$@"
 
 get_default_board
 
+assert_not_root_user
+
 # Developer-visible flags.
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build packages for."
