@@ -399,7 +399,7 @@ fi
 
 # Build the recovery kernel.
 FACTORY_ROOT="${BOARD_ROOT}/factory-root"
-USE="fbconsole initramfs" emerge_custom_kernel "$FACTORY_ROOT" ||
+USE="fbconsole initramfs vfat" emerge_custom_kernel "$FACTORY_ROOT" ||
   failboat "Cannot emerge custom kernel"
 
 if [ -z "$FLAGS_kernel_image" ]; then

@@ -150,7 +150,7 @@ if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
   # network, so we don't require initramfs, but we do require fbconsole to fix
   # a display driver bug.
   if [ "${ARCH}" = "x86" -o "${ARCH}" = "amd64" ] ; then
-    export USE="${USE} initramfs"
+    export USE="${USE} initramfs vfat"
   fi
   # CONFIG_BLK_DEV_RAM is disabled by default.
   # But tftp install needs it to mount rootfs in ram
