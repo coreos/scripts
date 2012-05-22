@@ -117,7 +117,7 @@ else
   # and thus we only build kernel here. If this script is run against install
   # shim with different kernel version, this might not work. But as we don't
   # upgrade kernel so often, this is probably fine.
-  export USE='netboot'
+  export USE='vfat blkdevram fbconsole'
   export EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
   emerge_custom_kernel ${temp_build_path}
 
