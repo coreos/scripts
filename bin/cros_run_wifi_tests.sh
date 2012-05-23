@@ -51,7 +51,7 @@ DEFINE_boolean cleanup ${FLAGS_FALSE} "Clean up temp directory"
 DEFINE_string iterations "" "Iterations to run every top level test" i
 DEFINE_boolean use_emerged ${FLAGS_FALSE} \
     "Force use of emerged autotest pacakges"
-DEFINE_string prepackaged_autotest "" "Use this prepackaged autotest dir"
+DEFINE_string autotest_dir "" "Use this prepackaged autotest dir"
 DEFINE_string results_dir_root "" "alternate root results directory"
 DEFINE_boolean verbose ${FLAGS_FALSE} "Show verbose autoserv output" v
 
@@ -98,8 +98,8 @@ if [ "${FLAGS_use_emerged}" -eq ${FLAGS_TRUE} ]; then
   append_flag --use_emerged
 fi
 
-if [ -n "${FLAGS_prepackaged_autotest}" ]; then
-  append_flag --prepackaged_autotest "'${FLAGS_prepackaged_autotest}'"
+if [ -n "${FLAGS_autotest_dir}" ]; then
+  append_flag --autotest_dir "'${FLAGS_autotest_dir}'"
 fi
 
 if [ -n "${FLAGS_results_dir_root}" ]; then
