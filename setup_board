@@ -363,6 +363,9 @@ fi
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   UPDATE_ARGS+=" --jobs=${FLAGS_jobs}"
 fi
+if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_TRUE}" ]; then
+  UPDATE_ARGS+=" --skip_toolchain_update"
+fi
 if [ "${FLAGS_skip_chroot_upgrade}" -eq "${FLAGS_FALSE}" ] ; then
   "${SRC_ROOT}/scripts"/update_chroot ${UPDATE_ARGS}
 fi
