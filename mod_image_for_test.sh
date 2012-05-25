@@ -49,6 +49,10 @@ switch_to_strict_mode
 . "${BUILD_LIBRARY_DIR}/mount_gpt_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/test_image_util.sh" || exit 1
 
+warn "THIS SCRIPT HAS BEEN DEPRECATED. IT MAY PRODUCE AN UN-BOOTABLE TEST" \
+  "IMAGE. TO BUILD A TEST IMAGE, USE build_image [FLAGS] test"
+
+sleep 5
 
 # No image was provided.  Use the standard latest image
 if [ -z "$FLAGS_image" ]; then
