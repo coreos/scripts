@@ -351,8 +351,8 @@ then
   info "STAGE3 already set up.  Skipping..."
 else
   info "Unpacking STAGE3..."
-  sudo tar -xp -I $(type -p pbzip2 || echo bzip2) \
-    -C "${FLAGS_chroot}" -f "${STAGE3}"
+  $(type -p pbzip2 || echo bzip2) -dc "${STAGE3}" | \
+    sudo tar -xp -C "${FLAGS_chroot}"
   sudo rm -f "$FLAGS_chroot/etc/"make.{globals,conf.user}
 fi
 
