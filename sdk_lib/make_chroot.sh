@@ -351,7 +351,12 @@ then
   info "STAGE3 already set up.  Skipping..."
 else
   info "Unpacking STAGE3..."
-  $(type -p pbzip2 || echo bzip2) -dc "${STAGE3}" | \
+  case ${STAGE3} in
+    *.tbz2|*.tar.bz2) DECOMPRESS=$(type -p pbzip2 || echo bzip2) ;;
+    *.tar.xz) DECOMPRESS="xz" ;;
+    *) die "Unknown tarball compression: ${STAGE3}";;
+  esac
+  ${DECOMPRESS} -dc "${STAGE3}" | \
     sudo tar -xp -C "${FLAGS_chroot}"
   sudo rm -f "$FLAGS_chroot/etc/"make.{globals,conf.user}
 fi
