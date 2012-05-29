@@ -298,6 +298,10 @@ EOF
      echo "Copying ~/.gitconfig into chroot"
      cp $HOME/.gitconfig "$FLAGS_chroot/home/$USER/"
    fi
+
+   if [[ -f $HOME/.cros_chroot_init ]]; then
+     /bin/bash $HOME/.cros_chroot_init "${FLAGS_chroot}"
+   fi
 }
 
 # Handle deleting an existing environment.
