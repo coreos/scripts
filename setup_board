@@ -37,15 +37,9 @@ show_help_if_requested "$@"
 # not needed for the typical developer workflow.
 DEFINE_string board_overlay "" \
   "Location of the board overlay."
-DEFINE_string binutils_version "2.21-r4" \
-  "Version of binutils to use."
 DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
-DEFINE_string gcc_version "[stable]" \
-  "Version of gcc to use."
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
-DEFINE_string kernel_version "[stable]" \
-  "Version of kernel headers to use."
 DEFINE_boolean latest_toolchain $FLAGS_FALSE \
   "Use the latest ebuild for all toolchain packages (gcc, binutils, libc, \
 kernel). This overrides the other toolchain version options."
