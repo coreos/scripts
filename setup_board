@@ -582,17 +582,16 @@ else
   # config to make.conf.board.
   print_board_binhost_config | sudo_append $BOARD_ETC/make.conf.board
 
-  #
-  # Emerge the kernel headers into the board build root.
-  #
-  KERNEL_EMERGE_FLAGS="--select --quiet"
+  # Emerge the kernel headers into the board build root.  Use rdeps to
+  # avoid pulling any spurious DEPEND things in that we don't care about.
+  KERNEL_EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
   if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
         "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]]; then
     KERNEL_EMERGE_FLAGS+=" --getbinpkg --usepkg"
   fi
 
   sudo -E "${EMERGE_WRAPPER}" ${KERNEL_EMERGE_FLAGS} \
-    chromeos-base/kernel-headers
+    sys-kernel/linux-headers
 
   unset KERNEL_EMERGE_FLAGS
 fi
