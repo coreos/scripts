@@ -83,6 +83,9 @@ fi
 # In first pass, update portage and toolchains. Lagged updates of both
 # can cause serious issues later.
 if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" ]; then
+  # First update crossdev.
+  sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} crossdev
+
   TOOLCHAIN_FLAGS=""
   # This should really only be skipped while bootstrapping.
   if [ "${FLAGS_usepkg}" -eq "${FLAGS_FALSE}" ]; then
