@@ -81,7 +81,7 @@ finish_job() {
   # can throw an error; doesn't matter, thus this form.
   ! wait ${finished} &> /dev/null
   if [ "${result-1}" -ne "0" ]; then
-    (( ERROR_COUNT++ ))
+    : $(( ++ERROR_COUNT ))
   fi
   # Bit of a hack, but it works well enough.
   debug "finished ${finished} with result ${result-1}"
@@ -173,7 +173,7 @@ dump_file() {
     if ! cmp --quiet "${installed_sym}" "${SYM_FILE}"; then
       error "${installed_sym} differ from current sym file:"
       error "$(diff "${installed_sym}" "${SYM_FILE}")"
-      (( ERROR_COUNT++ ))
+      : $(( ++ERROR_COUNT ))
       exit 1
     fi
   fi
@@ -266,7 +266,7 @@ main() {
       either_file=${either_file%\'}
       if [ ! -h "${either_file}" -a ! -f "${either_file}" ]; then
         error "Specified file ${either_file} does not exist"
-        (( ERROR_COUNT++ ))
+        : $(( ++ERROR_COUNT ))
         continue
       fi
       if [ "${either_file##*.}" == "debug" ]; then
@@ -290,7 +290,7 @@ main() {
   if [[ ${ERROR_COUNT} == 0 ]]; then
     return 0
   fi
-  die "Encountered ${ERROR_COUNT} problems"
+  die_notrace "Encountered ${ERROR_COUNT} problems"
 }
 
 main "$@"
