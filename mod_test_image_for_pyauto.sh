@@ -92,14 +92,9 @@ for item in base chrome content net pdf third_party; do
   sudo cp -f -r "${CHROME_DEP}/test_src/$item" "${IMAGE_TEST_SRC_DIR}"
 done
 
-info "Copying release binaries..."
-binaries=( chromedriver pyautolib.py _pyautolib.so pyproto setup_test_links.sh \
-           test_data )
-for item in "${binaries[@]}"; do
-  info "Copying $item to ${IMAGE_RELEASE_DIR}"
-  sudo cp -f -r "${CHROME_DEP}/test_src/out/Release/$item" \
+info "Copying chrome dep components..."
+sudo cp -f -r "${CHROME_DEP}/test_src/out/Release/setup_test_links.sh" \
     "${IMAGE_RELEASE_DIR}/"
-done
 
 info "Copying pyauto dependencies..."
 sudo cp -r $PYAUTO_DEP "${STATEFUL_FS_AUTOTEST_DIR}/deps"
@@ -166,7 +161,6 @@ for item in chrome_test pyauto_dep; do
   sudo cp "${ROOT_FS_DIR}/usr/local/bin/python2.6" suid-python
   sudo chown root:root suid-python
   sudo chmod 4755 suid-python
-  sudo sh setup_test_links.sh
   popd
 done
 
@@ -174,6 +168,11 @@ done
  sudo ln -f -s \
   "/usr/local/autotest/deps/chrome_test/test_src/chrome/test/functional" \
   "${ROOT_FS_DIR}/pyauto"
+
+info "Setting up pyauto required symbolic links..."
+SETUP_LINKS="/usr/local/autotest/deps/chrome_test/test_src/out/\
+Release/setup_test_links.sh"
+sudo chroot "${ROOT_FS_DIR}" sudo bash "${SETUP_LINKS}"
 
 cleanup
 
