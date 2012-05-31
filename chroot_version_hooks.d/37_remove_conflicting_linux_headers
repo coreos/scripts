@@ -1,0 +1,21 @@
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# This fixes a problem, where some chroots have old cross linux-headers
+# installed with invalid slot settings, conflicting with the proper new
+# ones.
+
+TARGETS="arm-none-eabi
+armv7a-cros-linux-gnueabi
+i686-pc-linux-gnu
+x86_64-cros-linux-gnu
+x86_64-pc-linux-gnu"
+
+VERSION=3.4
+
+ATOMS=(
+  $(printf "<cross-%s/linux-headers-${VERSION} " $TARGETS)
+)
+
+sudo emerge --unmerge "${ATOMS[@]}"
