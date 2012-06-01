@@ -553,10 +553,8 @@ if ${HOST_BOARD}; then
   # The new chroot should have gcc for each target. Make sure that
   # the latest one is correctly selected. Ignore cat errors as not
   # all overlays will have a toolchain.conf.
-  ALL_OVERLAYS=$(cros_overlay_list --all_boards)
-  TARGETS=$(sed 's:#.*::' $(printf '%s/toolchain.conf ' ${ALL_OVERLAYS}) \
-            2>/dev/null | sort -u)
-  for target in ${TARGETS}; do
+  ALL_TARGETS=$(cros_setup_toolchains --show-board-cfg=all)
+  for target in ${ALL_TARGETS//,/ }; do
     libc=$(eval $(crossdev --show-target-cfg "${target}"); echo ${libc_pn})
     if [[ ${libc} == "glibc" ]] ; then
       # Install needed glibc tarball.
