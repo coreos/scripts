@@ -31,6 +31,8 @@ DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
   "Don't update the toolchains."
+DEFINE_string toolchain_boards "" \
+  "Extra toolchains to setup for the specified boards."
 
 # Parse command line flags
 FLAGS "$@" || exit 1
@@ -87,7 +89,7 @@ if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" ]; then
   # First update crossdev.
   sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} crossdev
 
-  TOOLCHAIN_FLAGS=""
+  TOOLCHAIN_FLAGS="--include-boards=${FLAGS_toolchain_boards}"
   # This should really only be skipped while bootstrapping.
   if [ "${FLAGS_usepkg}" -eq "${FLAGS_FALSE}" ]; then
     TOOLCHAIN_FLAGS="--nousepkg"

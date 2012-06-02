@@ -342,8 +342,10 @@ if [ -z "$FLAGS_board" ] ; then
   exit 1
 fi
 
+get_board_and_variant $FLAGS_board $FLAGS_variant
+
 # Before we can run any tools, we need to update chroot
-UPDATE_ARGS=""
+UPDATE_ARGS="--toolchain_boards=${BOARD}"
 if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=" --fast"
 else
@@ -363,8 +365,6 @@ fi
 if [ "${FLAGS_skip_chroot_upgrade}" -eq "${FLAGS_FALSE}" ] ; then
   "${SRC_ROOT}/scripts"/update_chroot ${UPDATE_ARGS}
 fi
-
-get_board_and_variant $FLAGS_board $FLAGS_variant
 
 #
 # Fetch the toolchain from the board overlay.
