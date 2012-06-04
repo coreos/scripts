@@ -2,16 +2,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Migrate to userpriv for building things.  We need to clean out old
-# dirs that might have files owned by root:root.
-
-eval $(portageq envvar -v PORTAGE_{TMPDIR,USERNAME,GRPNAME} DISTDIR PKGDIR)
-: ${PORTAGE_TMPDIR:=/var/tmp/portage}
-: ${PORTAGE_USERNAME:=${USER}}
-: ${PORTAGE_GRPNAME:=portage}
-: ${DISTDIR:=/var/cache/distfiles/host}
-: ${PKGDIR:=/var/lib/portage/pkgs}
-
-exec sudo find "${PORTAGE_TMPDIR}" "${DISTDIR}" "${PKGDIR}" \
-  '(' -uid 0 -o -gid 0 ')' \
-  -exec chown -h "${PORTAGE_USERNAME}:${PORTAGE_GRPNAME}" {} +
+# The previous one had a bug, so we moved it to 39 and fixed the bug
+# (missing -H flag to find).
+exit 0
