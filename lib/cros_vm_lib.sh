@@ -89,7 +89,7 @@ start_kvm() {
       cache_type="unsafe"
     fi
 
-    sudo kvm -m 1024 \
+    sudo kvm -m 2G \
       -smp 4 \
       -vga std \
       -pidfile "${KVM_PID_FILE}" \
