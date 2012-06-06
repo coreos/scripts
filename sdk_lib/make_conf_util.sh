@@ -46,14 +46,16 @@ _make_conf_prebuilt() {
 # Include configuration settings for building private overlay
 # packages, if the overlay is present.
 #
-# N.B. The test for the presence of the private overlay uses a path
-# that only exists inside the chroot.  When this function is invoked
-# during bootstrapping, the test will fail, meaning the private
-# overlay won't be used during bootstrapping.  This is OK for
-# current requirements.  If you're reading this comment because you
-# can't get the private overlay included during bootstrapping, this
-# is your bug.  :-)
+# N.B.  We explicitly disallow creating content for the private
+# overlay during bootstrapping, as it's not currently required,
+# and at least a minor nuisance to implement.  Note also that the
+# use of an inside-the-chroot path is based on the (currently true)
+# assumption that bootstrapping use is outside the chroot, and
+# non-bootstrapping use is inside the chroot.
 _make_conf_private() {
+  if [ "$1" = "wget" ] ; then
+    return
+  fi
   local chromeos_overlay="src/private-overlays/chromeos-overlay"
   chromeos_overlay="$CHROOT_TRUNK_DIR/$chromeos_overlay"
   if [ -d "$chromeos_overlay" ]; then
@@ -83,7 +85,7 @@ _create_host_setup() {
   ( echo "# Automatically generated.  EDIT THIS AND BE SORRY."
     echo
     _make_conf_fetchcommand "$fetchtype"
-    _make_conf_private
+    _make_conf_private "$fetchtype"
     _make_conf_prebuilt
     echo 'MAKEOPTS="-j'${NUM_JOBS}'"' ) | sudo_clobber "$host_setup"
   sudo chmod 644 "$host_setup"
