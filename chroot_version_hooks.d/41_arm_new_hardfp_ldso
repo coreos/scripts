@@ -1,0 +1,28 @@
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# For people who have arm builds with the old hardfp ldso name,
+# automatically move them away so we can deploy them with the
+# right path.  This works in tandem with 34_arm_softfp_to_hardfp
+# to make sure we don't rebuild multiple times.
+
+# In case the dev has no arm boards.
+shopt -s nullglob
+
+# Old name: ld-linux.so.3
+# New name: ld-linux-armhf.so.3
+for ldso in /build/*/lib/ld-linux.so.3; do
+  # See if this is an ARM ldso (sanity check).
+  if LC_ALL=C readelf -h "${ldso}" | awk \
+     '$1 == "Machine:" && $2 == "ARM" { found=1 } END { exit !found }'; then
+    build=${ldso%/lib/*}
+    board=${build##*/}
+    info "Migrating ${board} to ${board}.old.ldso"
+    info "If you don't need it, please run "
+    info "sudo rm -rf ${build}.old.ldso"
+    sudo mv ${build}{,.old.ldso}
+    info "Running setup_board --board=${board}"
+    ~/trunk/src/scripts/setup_board --board=${board} --skip_chroot_upgrade
+  fi
+done
