@@ -76,8 +76,9 @@ fi
 
 # Perform an update of hard-host-depends and world in the chroot.
 EMERGE_CMD="emerge"
+CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
 if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
-  EMERGE_CMD="${GCLIENT_ROOT}/chromite/bin/parallel_emerge"
+  EMERGE_CMD="${CHROMITE_BIN}/parallel_emerge"
 fi
 
 # In first pass, update portage and toolchains. Lagged updates of both
@@ -94,6 +95,11 @@ if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" ]; then
   # Expand the path before sudo, as root doesn't have the same path magic.
   sudo $(type -p cros_setup_toolchains) ${TOOLCHAIN_FLAGS}
 fi
+
+# Build cros_workon packages when they are changed.
+for pkg in $("${CHROMITE_BIN}/cros_list_modified_packages" --host); do
+  EMERGE_FLAGS+=" --reinstall-atoms=${pkg} --usepkg-exclude=${pkg}"
+done
 
 # Second pass, update everything else.
 EMERGE_FLAGS+=" --deep"
