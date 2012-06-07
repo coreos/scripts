@@ -86,8 +86,9 @@ EMERGE_FLAGS="--backtrack=30 --select"
 
 EMERGE_CMD="emerge"
 EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
+CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
 if [[ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
-  EMERGE_CMD="${GCLIENT_ROOT}/chromite/bin/parallel_emerge"
+  EMERGE_CMD="${CHROMITE_BIN}/parallel_emerge"
   EMERGE_BOARD_CMD="${EMERGE_CMD} --board=${FLAGS_board}"
 fi
 if [[ -n "${EXTRA_BOARD_FLAGS}" ]]; then
@@ -140,8 +141,9 @@ fi
 ${SCRIPTS_DIR}/setup_board --quiet --board=${FLAGS_board} ${UPDATE_ARGS}
 
 if [ "${FLAGS_noworkon}" -eq "${FLAGS_FALSE}" ]; then
-  # Always build cros-workon packages
-  CROS_WORKON_PKGS=$(cros_workon --board="${FLAGS_board}" list)
+  # Build cros_workon packages when they are changed.
+  LIST_MODIFIED_PACKAGES="${CHROMITE_BIN}/cros_list_modified_packages"
+  CROS_WORKON_PKGS=$("${LIST_MODIFIED_PACKAGES}" --board=${FLAGS_board})
 fi
 
 # TODO(anush): Make chrome a fake cros-workon package.
