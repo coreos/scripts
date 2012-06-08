@@ -27,9 +27,12 @@ install_dev_packages() {
 
   # Copy over the libc debug info so that gdb
   # works with threads and also for a better debugging experience.
-  sudo mkdir -p "${ROOT_FS_DIR}/usr/local/lib/debug"
-  sudo tar jxpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}/usr/local/lib/debug" \
-  ./usr/lib/debug/usr/${CHOST} --strip-components=6
+  sudo mkdir -p "${ROOT_FS_DIR}/usr/local/usr/lib/debug"
+  sudo tar jxpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}/usr/local/usr/lib/debug" \
+    ./usr/lib/debug/usr/${CHOST} --strip-components=6
+  # Since gdb only looks in /usr/lib/debug, symlink the /usr/local
+  # path so that it is found automatically.
+  sudo ln -s /usr/local/usr/lib/debug "${ROOT_FS_DIR}/usr/lib/debug"
 
   # Install the bare necessary files so that the "emerge" command works
   sudo cp -a ${root_dev_dir}/share/portage ${ROOT_FS_DIR}/usr/share
