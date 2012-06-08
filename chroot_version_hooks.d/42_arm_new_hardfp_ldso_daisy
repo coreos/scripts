@@ -1,0 +1,14 @@
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Like 41_arm_new_hardfp_ldso, but specifically for daisy.  The daisy
+# PFQ did not regenerate its binpkgs properly, so some people still have
+# old ldso's in /build/ as they pulled down stale binpkgs.
+
+if scanelf -qRiy /build/daisy/ 2>/dev/null | grep -q '^/lib/ld-linux.so.3'; then
+  info "You have a stale daisy build; punting!"
+  sudo rm -rf /build/daisy/
+  info "Running setup_board --board=daisy"
+  ~/trunk/src/scripts/setup_board --board=daisy --skip_chroot_upgrade
+fi
