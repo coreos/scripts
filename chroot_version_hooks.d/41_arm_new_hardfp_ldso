@@ -18,9 +18,16 @@ for ldso in /build/*/lib/ld-linux.so.3; do
      '$1 == "Machine:" && $2 == "ARM" { found=1 } END { exit !found }'; then
     build=${ldso%/lib/*}
     board=${build##*/}
+    if [[ ${board} == *.* ]]; then
+      # For older dirs that have been migrated, skip them.
+      continue
+    fi
     info "Migrating ${board} to ${board}.old.ldso"
     info "If you don't need it, please run "
     info "sudo rm -rf ${build}.old.ldso"
+    if [[ -e ${build}.old.ldso ]]; then
+      sudo rm -rf ${build}.old.ldso
+    fi
     sudo mv ${build}{,.old.ldso}
     info "Running setup_board --board=${board}"
     ~/trunk/src/scripts/setup_board --board=${board} --skip_chroot_upgrade
