@@ -276,6 +276,14 @@ setup_env() {
       repo.reference)
     if [ -n "${REFERENCE_DIR}" ]; then
 
+      ALTERNATES="${FLAGS_trunk}/.repo/alternates"
+
+      # Ensure this directory exists ourselves, and has the correct ownership.
+      [ -d "${ALTERNATES}" ] || mkdir "${ALTERNATES}"
+      [ -w "${ALTERNATES}" ] || sudo chown -R "${USER}" "${ALTERNATES}"
+
+      unset ALTERNATES
+
       IFS=$'\n';
       required=( $( "${FLAGS_trunk}/chromite/lib/rewrite_git_alternates.py" \
         "${FLAGS_trunk}" "${REFERENCE_DIR}" "${CHROOT_TRUNK_DIR}" ) )
