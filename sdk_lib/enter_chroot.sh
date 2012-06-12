@@ -380,21 +380,11 @@ setup_env() {
         warn "-- Note: modprobe fuse failed.  gmergefs will not work"
     fi
 
-    # Turn off automounting of external media when we enter the
-    # chroot; thus we don't have to worry about being able to unmount
-    # from inside.
-    if SAVED_PREF=$(gconftool-2 -g ${AUTOMOUNT_PREF} 2>/dev/null); then
-      if [ "${SAVED_PREF}" != "false" ]; then
-        if [ $(gconftool-2 -s --type=boolean ${AUTOMOUNT_PREF} false) ]; then
-          warn "-- Note: USB sticks may be automounted by your host OS."
-          warn "-- Note: If you plan to burn bootable media, you may need to"
-          warn "-- Note: unmount these devices manually, or run image_to_usb.sh"
-          warn "-- Note: outside the chroot."
-        fi
-      fi
-    fi
-    # Always write the temp file so we can read it when exiting
-    echo "${SAVED_PREF:-false}" > "${FLAGS_chroot}${SAVED_AUTOMOUNT_PREF_FILE}"
+    # Turn off automounting of external media when we enter the chroot by
+    # stopping the gvfs-gdu-volume-monitor. This is currently the most
+    # reliable way to disable automounting.
+    # See https://bugzilla.gnome.org/show_bug.cgi?id=677648
+    sudo killall -STOP gvfs-gdu-volume-monitor 2>/dev/null || true
 
     # Configure committer username and email in chroot .gitconfig.  Change
     # to the root directory first so that random $PWD/.git/config settings
@@ -497,12 +487,6 @@ teardown_env() {
     # Remove any dups from lock file while installing new one
     sort -u -n "$TMP_LOCKFILE" > "$LOCKFILE"
 
-    SAVED_PREF=$(<"${FLAGS_chroot}${SAVED_AUTOMOUNT_PREF_FILE}")
-    if [ "${SAVED_PREF}" != "false" ]; then
-      gconftool-2 -s --type=boolean ${AUTOMOUNT_PREF} ${SAVED_PREF} || \
-        warn "could not re-set your automount preference."
-    fi
-
     if [ -s "$LOCKFILE" ]; then
       debug "At least one other pid is running in the chroot, so not"
       debug "tearing down env."
@@ -529,6 +513,9 @@ teardown_env() {
 
       debug "Unmounting chroot environment."
       safe_umount_tree "${MOUNTED_PATH}/"
+
+      # Now that we've exited the chroot, allow automounting again.
+      sudo killall -CONT gvfs-gdu-volume-monitor 2>/dev/null || true
     fi
   ) 200>>"$LOCKFILE" || die "teardown_env failed"
 }
