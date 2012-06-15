@@ -26,13 +26,13 @@ get_default_board
 DEFINE_string board "${DEFAULT_BOARD}" \
   "board for which the image was built"
 DEFINE_string from "" \
-  "directory containing the image, or image full pathname"
-DEFINE_string to "/dev/sdX" \
-  "write to a specific disk or image file"
+  "directory containing the image, or image full pathname (empty: latest found)"
+DEFINE_string to "" \
+  "write to a specific disk or image file (empty: auto-detect)"
 DEFINE_string to_product "" \
   "find target device with product name matching a string (accepts wildcards)"
 DEFINE_boolean yes ${FLAGS_FALSE} \
-  "answer yes to all prompts" \
+  "don't ask questions, just write to the target device specified by --to" \
   y
 DEFINE_boolean force_copy ${FLAGS_FALSE} \
   "always rebuild test image"
@@ -47,7 +47,7 @@ DEFINE_boolean copy_kernel ${FLAGS_FALSE} \
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
   "copy normal image to ${CHROMEOS_TEST_IMAGE_NAME} and modify it for test"
 DEFINE_string image_name "" \
-  "image base name (auto-select if empty)" \
+  "image base name (empty: auto-detect)" \
   i
 DEFINE_boolean install ${FLAGS_FALSE} \
   "install to the USB/MMC device"
@@ -131,6 +131,11 @@ if [ -z "${FLAGS_board}" ] && [ ${FLAGS_install} -eq ${FLAGS_TRUE} ]; then
   exit 1
 fi
 
+# Install can only be done from inside the chroot.
+if [ ${FLAGS_install} -eq ${FLAGS_TRUE} ] && [ ${INSIDE_CHROOT} -ne 1 ]; then
+  die_notrace "--install can only be used inside the chroot"
+fi
+
 # We have a board name but no image set.  Use image at default location
 if [ -z "${FLAGS_from}" ]; then
   FLAGS_from="$($SCRIPT_ROOT/get_latest_image.sh --board=${FLAGS_board})"
@@ -141,7 +146,11 @@ if [ ! -d "${FLAGS_from}" ] ; then
 fi
 
 # No target provided, attempt autodetection.
-if [ "${FLAGS_to}" == "/dev/sdX" ]; then
+if [ -z "${FLAGS_to}" ]; then
+  if [ ${FLAGS_yes} -eq ${FLAGS_TRUE} ]; then
+    die_notrace "For your own safety, --yes can only be used with --to"
+  fi
+
   if [ -z "${FLAGS_to_product}" ]; then
     echo "No target device specified, autodetecting..."
   else
@@ -170,9 +179,9 @@ if [ "${FLAGS_to}" == "/dev/sdX" ]; then
   # If no (matching) devices found, quit.
   if (( ! ${#disk_string_list[*]} )); then
     if [ -z "${FLAGS_to_product}" ]; then
-      die "No USB/MMC devices could be detected"
+      die_notrace "No USB/MMC devices could be detected"
     else
-      die "No matching USB/MMC devices could be detected"
+      die_notrace "No matching USB/MMC devices could be detected"
     fi
   fi
 
@@ -181,7 +190,7 @@ if [ "${FLAGS_to}" == "/dev/sdX" ]; then
     PS3="Select a target device: "
     select disk_string in "${disk_string_list[@]}"; do
       if [ -z "${disk_string}" ]; then
-        die "Invalid selection"
+        die_notrace "Invalid selection"
       fi
       break
     done
@@ -272,7 +281,7 @@ else
     # Figure out what to do with the resulting list of images.
     declare -i num_images=${#image_list[*]}
     if (( num_images == 0 )); then
-      die "No candidate images could be detected"
+      die_notrace "No candidate images could be detected"
     elif (( num_images == 1 )) && [ ${is_got_default} == 1 ]; then
       # Found a single image that is the default image, just select it.
       image="${image_list[0]}"
@@ -282,7 +291,7 @@ else
       PS3="Select an image [1]: "
       choose image "${image_list[0]}" "ERROR" "${image_list[@]}"
       if [ "${image}" == "ERROR" ]; then
-        die "Invalid selection"
+        die_notrace "Invalid selection"
       fi
     fi
 
@@ -315,7 +324,7 @@ if [ -b "${FLAGS_to}" ]; then
     fi
   fi
 
-  # Make sure this is really what the user wants, before nuking the device
+  # Make sure this is really what the user wants, before nuking the device.
   if [ ${FLAGS_yes} -ne ${FLAGS_TRUE} ]; then
     warning_str="this will erase all data on ${FLAGS_to}"
     if [ -n "${disk_string}" ]; then
@@ -332,7 +341,7 @@ if [ -b "${FLAGS_to}" ]; then
     echo "Attempting to unmount any mounts on the target device..."
     for i in ${mount_list}; do
       if sudo umount "$i" 2>&1 >/dev/null | grep "not found"; then
-        die "Device ${FLAGS_to} needs to be unmounted outside the chroot"
+        die_notrace "$i needs to be unmounted outside the chroot"
       fi
     done
     sleep 3
@@ -343,10 +352,6 @@ if [ -b "${FLAGS_to}" ]; then
       sudo dd of="${FLAGS_to}" bs=4M oflag=sync status=noxfer
     sync
   else
-    if [ ${INSIDE_CHROOT} -ne 1 ]; then
-      die "Installation must be done from inside the chroot"
-    fi
-
     "/build/${FLAGS_board}/usr/sbin/chromeos-install" \
       --yes \
       --skip_src_removable \
@@ -357,7 +362,7 @@ if [ -b "${FLAGS_to}" ]; then
   fi
 elif [[ "${FLAGS_to}" == /dev/* ]]; then
   # Did the user attempt to write to a non-existent block device?
-  die "Target device ${FLAGS_to} does not exist"
+  die_notrace "Target device ${FLAGS_to} does not exist"
 else
   # Output to a file, so just make a copy.
   if [ "${SRC_IMAGE}" != "${FLAGS_to}" ]; then
