@@ -145,6 +145,15 @@ if [ ! -d "${FLAGS_from}" ] ; then
   die_notrace "Cannot find image directory ${FLAGS_from}"
 fi
 
+# TODO(garnold) This code reinstates the previous default value for --to, which
+# some users relied upon to trigger target device auto-detection. It should be
+# removed once we're sure that all users have adapted to simply not specifying
+# --to. The instructions emitted by build_image were changed accordingly.
+if [ "${FLAGS_to}" == "/dev/sdX" ]; then
+  warn "the use of --to=/dev/sdX is deprecated, just omit --to instead"
+  FLAGS_to=""
+fi
+
 # No target provided, attempt autodetection.
 if [ -z "${FLAGS_to}" ]; then
   if [ ${FLAGS_yes} -eq ${FLAGS_TRUE} ]; then
