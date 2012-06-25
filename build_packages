@@ -111,8 +111,6 @@ if [[ "${FLAGS_withdebug}" -eq "${FLAGS_FALSE}" ]]; then
   export USE="${USE} -cros-debug"
 fi
 
-${EMERGE_CMD} --info
-
 # Before we can run any tools, we need to update chroot or setup_board.
 UPDATE_ARGS=""
 if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
