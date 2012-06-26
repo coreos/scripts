@@ -245,4 +245,15 @@ create_base_image() {
                                                 ${image_name} \
                                                 ${USE_DEV_KEYS}
   fi
+
+  # Setup hybrid MBR if it was enabled
+  if [[ ${FLAGS_hybrid_mbr_hack} -eq ${FLAGS_TRUE} ]]; then
+    info "Creating hybrid MBR"
+    sudo sfdisk "${BUILD_DIR}/${image_name}" <<EOF
+unit: sectors
+
+disk1 : start=   $START_ESP, size=    $NUM_ESP_SECTORS, Id= c, bootable
+disk2 : start=   1, size=    1, Id= ee
+EOF
+  fi
 }

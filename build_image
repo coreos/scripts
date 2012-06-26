@@ -64,8 +64,8 @@ show_help_if_requested "$@"
 # not needed for the typical developer workflow.
 DEFINE_integer build_attempt 1 \
   "The build attempt for this image build."
-DEFINE_string version "" \
-  "Overrides version number in name to this version."
+DEFINE_boolean hybrid_mbr ${FLAGS_FALSE} \
+  "Creates a hybrid MBR rather than a protective one"
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean replace ${FLAGS_FALSE} \
@@ -81,6 +81,8 @@ DEFINE_string verity_algorithm "sha1" \
   "Cryptographic hash algorithm used for kernel vboot. Default : sha1"
 DEFINE_string verity_salt "" \
   "Root filesystem salt. Default: randomly generated."
+DEFINE_string version "" \
+  "Overrides version number in name to this version."
 
 # Parse command line.
 FLAGS "$@" || exit 1
