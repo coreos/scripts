@@ -557,6 +557,10 @@ safe_umount_tree() {
   fi
 }
 
+get_git_id() {
+  git var GIT_COMMITTER_IDENT | sed -e 's/^.*<\(\S\+\)>.*$/\1/'
+}
+
 # Fixes symlinks that are incorrectly prefixed with the build root ${1}
 # rather than the real running root '/'.
 # TODO(sosa) - Merge setup - cleanup below with this method.
@@ -664,13 +668,79 @@ enable_rw_mount() {
 # Get current timestamp. Assumes common.sh runs at startup.
 start_time=$(date +%s)
 
-# Print time elsapsed since start_time.
-print_time_elapsed() {
+# Get time elapsed since start_time in seconds.
+get_elapsed_seconds() {
   local end_time=$(date +%s)
   local elapsed_seconds=$(($end_time - $start_time))
+  echo ${elapsed_seconds}
+}
+
+# Print time elapsed since start_time.
+print_time_elapsed() {
+  # Optional first arg to specify elapsed_seconds.  If not given, will
+  # recalculate elapsed time to now.  Optional second arg to specify
+  # command name associated with elapsed time.
+  local elapsed_seconds=${1:-$(get_elapsed_seconds)}
+  local cmd_base=${2:-}
+
   local minutes=$(($elapsed_seconds / 60))
   local seconds=$(($elapsed_seconds % 60))
-  echo "Elapsed time: ${minutes}m${seconds}s"
+
+  if [ -n "${cmd_base}" ]; then
+    info "Elapsed time (${cmd_base}): ${minutes}m${seconds}s"
+  else
+    info "Elapsed time: ${minutes}m${seconds}s"
+  fi
+}
+
+# Associative array for filling in extra command-specific stats before
+# calling command_completed.
+declare -A EXTRA_COMMAND_STATS
+
+# Save original command line.
+command_line_arr=( "$0" "$@" )
+
+command_completed() {
+  # Call print_elapsed_time regardless.
+  local run_time=$(get_elapsed_seconds)
+  local cmd_base=$(basename "${command_line_arr[0]}")
+  print_time_elapsed ${run_time} ${cmd_base}
+
+  # Prepare command stats in an associative array.  Additonal command-specific
+  # stats can be added through EXTRA_COMMAND_STATS associative array.
+  declare -A stats
+  stats=(
+    [cmd_line]=${command_line_arr[*]}
+    [cmd_base]=${cmd_base}
+    [cmd_args]=${command_line_arr[*]:1}
+    [run_time]=${run_time}
+    [username]=$(get_git_id)
+    [board]=${FLAGS_board}
+    [host]=$(hostname -f)
+    [cpu_count]=$(grep -c processor /proc/cpuinfo)
+    [cpu_type]=$(uname -p)
+  )
+
+  local attr
+  for attr in "${!EXTRA_COMMAND_STATS[@]}"; do
+    stats[${attr}]=${EXTRA_COMMAND_STATS[${attr}]}
+  done
+
+  # Prepare temporary file for stats.
+  local tmpfile=$(mktemp -t tmp.stats.XXXXXX)
+  trap "rm -f '${tmpfile}'" EXIT
+
+  # Write stats out to temporary file.
+  echo "Chromium OS Build Command Stats - Version 1" > "${tmpfile}"
+  for attr in "${!stats[@]}"; do
+    echo "${attr} ${stats[${attr}]}"
+  done >> "${tmpfile}"
+
+  # Call upload_command_stats on the stats file.  If it fails do not stop.
+  "${GCLIENT_ROOT}"/chromite/bin/upload_command_stats "${tmpfile}" || true
+
+  rm "${tmpfile}"
+  trap - EXIT
 }
 
 # The board and variant command line options can be used in a number of ways

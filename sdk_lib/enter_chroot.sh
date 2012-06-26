@@ -79,6 +79,13 @@ fi
 # TODO: replace shflags with something less error-prone, or contribute a fix.
 switch_to_strict_mode
 
+# These config files are to be copied into chroot if they exist in home dir.
+FILES_TO_COPY_TO_CHROOT=(
+  .gdata_cred.txt             # User/password for Google Docs on chromium.org
+  .gdata_token                # Auth token for Google Docs on chromium.org
+  .disable_build_stats_upload # Presence of file disables command stats upload
+)
+
 INNER_CHROME_ROOT=$FLAGS_chrome_root_mount  # inside chroot
 CHROME_ROOT_CONFIG="/var/cache/chrome_root"  # inside chroot
 INNER_DEPOT_TOOLS_ROOT="/home/$USER/depot_tools"  # inside chroot
@@ -397,9 +404,8 @@ setup_env() {
     git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all \
       user.email "${ident_email}" || true
 
-    # Copy ~/.gdata_cred.txt and ~/.gdata_token to chroot if they exist.  These
-    # files contain credentials for reading/writing Google Docs on chromium.org.
-    for fn in ".gdata_cred.txt" ".gdata_token"; do
+    # Certain files get copied into the chroot when entering.
+    for fn in "${FILES_TO_COPY_TO_CHROOT[@]}"; do
       copy_into_chroot_if_exists "${HOME}/${fn}" "/home/${USER}/${fn}"
     done
 
