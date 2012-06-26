@@ -247,7 +247,7 @@ create_base_image() {
   fi
 
   # Setup hybrid MBR if it was enabled
-  if [[ ${FLAGS_hybrid_mbr_hack} -eq ${FLAGS_TRUE} ]]; then
+  if [[ ${FLAGS_hybrid_mbr} -eq ${FLAGS_TRUE} ]]; then
     info "Creating hybrid MBR"
     sudo sfdisk "${BUILD_DIR}/${image_name}" <<EOF
 unit: sectors
