@@ -393,6 +393,17 @@ setup_env() {
     # See https://bugzilla.gnome.org/show_bug.cgi?id=677648
     sudo killall -STOP gvfs-gdu-volume-monitor gvfsd-trash 2>/dev/null || true
 
+    # Fix permissions on ccache tree.  If this is a fresh chroot, then they
+    # might not be set up yet.  Or if the user manually `rm -rf`-ed things,
+    # we need to reset it.  Otherwise, gcc itself takes care of fixing things
+    # on demand, but only when it updates.
+    ccache_dir="${FLAGS_chroot}/var/cache/distfiles/ccache"
+    if [[ ! -d ${ccache_dir} ]]; then
+      sudo mkdir -p -m 2775 "${ccache_dir}"
+    fi
+    sudo find -H "${ccache_dir}" -type d -exec chmod 2775 {} + &
+    sudo find -H "${ccache_dir}" -gid 0 -exec chgrp 250 {} + &
+
     # Configure committer username and email in chroot .gitconfig.  Change
     # to the root directory first so that random $PWD/.git/config settings
     # do not get picked up.  We want to stick to ~/.gitconfig only.
