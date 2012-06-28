@@ -35,7 +35,7 @@ class LocalManifest:
     """Parse the manifest."""
     self._root = ElementTree.fromstring(self._text)
 
-  def AddProjectElement(self, element, workon='False'):
+  def AddProjectElement(self, element, workon='False', remote=None):
     """Add a new project element to the manifest tree.
 
     Returns:
@@ -50,24 +50,32 @@ class LocalManifest:
           else:
             return False
     element.attrib['workon'] = workon
+    if remote is not None:
+      element.attrib['remote'] = remote
     element.tail = '\n'
     self._root.append(element)
     return True
 
-  def AddProject(self, name, path, workon='False'):
+  def AddProject(self, name, path, workon='False', remote=None):
     """Add a workon project if it is not already in the manifest.
 
     Returns:
       True on success.
     """
     element = ElementTree.Element('project', name=name, path=path)
-    return self.AddProjectElement(element, workon=workon)
+    return self.AddProjectElement(element, workon=workon, remote=remote)
 
   def AddWorkonProjectElement(self, element):
     return self.AddProjectElement(element, workon='True')
 
   def AddWorkonProject(self, name, path):
     return self.AddProject(name, path, workon='True')
+
+  def AddNonWorkonProjectElement(self, element, remote):
+    return self.AddProjectElement(element, workon='False', remote=remote)
+
+  def AddNonWorkonProject(self, name, path, remote):
+    return self.AddProject(name, path, workon='False', remote=remote)
 
   def GetProject(self, name):
     """Accessor method for getting a project node from the manifest tree.
@@ -90,7 +98,7 @@ def main(argv):
   if not repo_dir:
     Die("Unable to find repo dir.")
 
-  usage = 'usage: %prog add [options] <name>'
+  usage = 'usage: %prog add [options] <name> <path>'
   parser = optparse.OptionParser(usage=usage)
   parser.add_option('-w', '--workon', action='store_true', dest='workon',
                     default=False, help='Is this a workon package?')
@@ -103,13 +111,15 @@ def main(argv):
   parser.add_option('-d', '--default', dest='full_manifest',
                     default='%s/manifests/full.xml' % repo_dir,
                     help='Default manifest file to read.')
+  parser.add_option('-r', '--remote', dest='remote',
+                    default=None)
   (options, args) = parser.parse_args(argv[2:])
   if len(args) < 1:
       parser.error('Not enough arguments')
   if argv[1] not in ['add']:
       parser.error('Unsupported command: %s.' % argv[1])
-  if not options.workon:
-      parser.error('Adding of non-workon projects is currently unsupported.')
+  if not options.workon and options.remote is None:
+      parser.error('Adding non-workon projects requires a remote.')
   name = args[0]
 
   local_tree = _ReadManifest(options.local_manifest)
@@ -117,13 +127,18 @@ def main(argv):
   full_tree = _ReadManifest(options.full_manifest)
 
   # Only add this project to local_manifest.xml if not in manifest.xml
-  if main_tree.GetProject(name) == None:
-    project_element = full_tree.GetProject(name)
-    if project_element == None:
-      Die('No project named, %s, in the default manifest.' % name)
-    success = local_tree.AddWorkonProjectElement(project_element)
+  if options.workon:
+    if main_tree.GetProject(name) is None:
+      project_element = full_tree.GetProject(name)
+      if project_element is None:
+        Die('No project named %s, in the default manifest.' % name)
+      success = local_tree.AddWorkonProjectElement(project_element)
+      if not success:
+        Die('Name "%s" already exists with a different path.' % name)
+  else:
+    success = local_tree.AddNonWorkonProject(name, args[1], options.remote)
     if not success:
-      Die('name "%s" already exits with a different path.' % name)
+      Die('Name "%s" already exists with a different path.' % name)
 
   try:
     print >> open(options.local_manifest, 'w'), local_tree.ToString()
