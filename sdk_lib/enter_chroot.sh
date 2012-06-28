@@ -261,6 +261,13 @@ setup_env() {
       disown $!
     fi
 
+    # Turn off automounting of external media when we enter the chroot by
+    # stopping the gvfs-gdu-volume-monitor and gvfsd-trash daemons. This is
+    # currently the most reliable way to disable automounting.
+    # See https://bugzilla.gnome.org/show_bug.cgi?id=677648
+    sudo killall -STOP -r '^gvfs-gdu-volume.*$|^gvfsd-trash$' 2>/dev/null \
+      || true
+
     debug "Mounting chroot environment."
     MOUNT_CACHE=$(echo $(awk '{print $2}' /proc/mounts))
     mount_queue_init
@@ -386,12 +393,6 @@ setup_env() {
       sudo modprobe fuse 2> /dev/null ||\
         warn "-- Note: modprobe fuse failed.  gmergefs will not work"
     fi
-
-    # Turn off automounting of external media when we enter the chroot by
-    # stopping the gvfs-gdu-volume-monitor and gvfsd-trash daemons. This is
-    # currently the most reliable way to disable automounting.
-    # See https://bugzilla.gnome.org/show_bug.cgi?id=677648
-    sudo killall -STOP gvfs-gdu-volume-monitor gvfsd-trash 2>/dev/null || true
 
     # Fix permissions on ccache tree.  If this is a fresh chroot, then they
     # might not be set up yet.  Or if the user manually `rm -rf`-ed things,
@@ -532,7 +533,8 @@ teardown_env() {
       safe_umount_tree "${MOUNTED_PATH}/"
 
       # Now that we've exited the chroot, allow automounting again.
-      sudo killall -CONT gvfs-gdu-volume-monitor gvfsd-trash 2>/dev/null || true
+      sudo killall -CONT -r '^gvfs-gdu-volume.*$|^gvfsd-trash$' 2>/dev/null \
+        || true
     fi
   ) 200>>"$LOCKFILE" || die "teardown_env failed"
 }
