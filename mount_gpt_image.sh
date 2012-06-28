@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -180,7 +180,7 @@ mount_image() {
   fi
 
   # Mount directories and setup symlinks.
-  sudo mount --bind "${FLAGS_stateful_mountpt}/var" \
+  sudo mount --bind "${FLAGS_stateful_mountpt}/var_overlay" \
     "${FLAGS_rootfs_mountpt}/var"
   sudo mount --bind "${FLAGS_stateful_mountpt}/dev_image" \
     "${FLAGS_rootfs_mountpt}/usr/local"
@@ -188,7 +188,7 @@ mount_image() {
 
   if [ ${FLAGS_read_only} -eq ${FLAGS_FALSE} ]; then
     setup_symlinks_on_root "${FLAGS_stateful_mountpt}/dev_image" \
-      "${FLAGS_stateful_mountpt}/var" "${FLAGS_stateful_mountpt}"
+      "${FLAGS_stateful_mountpt}/var_overlay" "${FLAGS_stateful_mountpt}"
   fi
   info "Image specified by ${FLAGS_from} mounted at"\
     "${FLAGS_rootfs_mountpt} successfully."

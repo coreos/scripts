@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -53,7 +53,7 @@ cp ./part_* ./orig_partitions
 sudo mount -o loop part_3 rootfs
 sudo mount -o loop part_1 stateful_part
 sudo mount --bind stateful_part/dev_image rootfs/usr/local
-sudo mount --bind stateful_part/var rootfs/var
+sudo mount --bind stateful_part/var_overlay rootfs/var
 
 emerge-${BOARD} --root="./rootfs" \
    --root-deps=rdeps --nodeps --usepkgonly ${PKGS}

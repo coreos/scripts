@@ -1,4 +1,4 @@
-# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -117,11 +117,11 @@ create_base_image() {
 
   # Prepare stateful partition with some pre-created directories.
   sudo mkdir -p "${DEV_IMAGE_ROOT}"
-  sudo mkdir -p "${STATEFUL_FS_DIR}/var"
+  sudo mkdir -p "${STATEFUL_FS_DIR}/var_overlay"
 
   # Create symlinks so that /usr/local/usr based directories are symlinked to
   # /usr/local/ directories e.g. /usr/local/usr/bin -> /usr/local/bin, etc.
-  setup_symlinks_on_root "${DEV_IMAGE_ROOT}" "${STATEFUL_FS_DIR}/var" \
+  setup_symlinks_on_root "${DEV_IMAGE_ROOT}" "${STATEFUL_FS_DIR}/var_overlay" \
     "${STATEFUL_FS_DIR}"
 
   # Perform binding rather than symlinking because directories must exist
@@ -130,7 +130,7 @@ create_base_image() {
   sudo mkdir -p "${ROOT_FS_DIR}/usr/local"
   sudo mount --bind "${DEV_IMAGE_ROOT}" "${ROOT_FS_DIR}/usr/local"
   sudo mkdir -p "${ROOT_FS_DIR}/var"
-  sudo mount --bind "${STATEFUL_FS_DIR}/var" "${ROOT_FS_DIR}/var"
+  sudo mount --bind "${STATEFUL_FS_DIR}/var_overlay" "${ROOT_FS_DIR}/var"
   sudo mkdir -p "${ROOT_FS_DIR}/dev"
 
   # We need to install libc manually from the cross toolchain.
