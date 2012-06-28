@@ -49,7 +49,7 @@ zero_free_space() {
   # dd is a silly thing and will produce a "No space left on device" message
   # that cannot be turned off and is confusing to unsuspecting victims.
   ( sudo dd if=/dev/zero of="${fs_mount_point}/filler" bs=4096 conv=fdatasync \
-    || true ) 2>&1 | grep -v "No space left on device"
+      status=noxfer || true ) 2>&1 | grep -v "No space left on device"
   sudo rm "${fs_mount_point}/filler"
 }
 
@@ -69,7 +69,7 @@ create_base_image() {
   info "Padding the rootfs image by ${ROOT_HASH_PAD} bytes for hash data"
 
   dd if=/dev/zero of="${ROOT_FS_IMG}" bs=1 count=1 \
-     seek=$((ROOT_SIZE_BYTES + ROOT_HASH_PAD - 1))
+     seek=$((ROOT_SIZE_BYTES + ROOT_HASH_PAD - 1)) status=noxfer
 
   ROOT_LOOP_DEV=$(sudo losetup --show -f "${ROOT_FS_IMG}")
   if [ -z "${ROOT_LOOP_DEV}" ] ; then
@@ -78,7 +78,7 @@ create_base_image() {
   fi
 
   # Specify a block size and block count to avoid using the hash pad.
-  sudo mkfs.ext2 -b 4096 "${ROOT_LOOP_DEV}" "$((ROOT_SIZE_BYTES / 4096))"
+  sudo mkfs.ext2 -q -b 4096 "${ROOT_LOOP_DEV}" "$((ROOT_SIZE_BYTES / 4096))"
 
   # Tune and mount rootfs.
   DISK_LABEL="C-ROOT"
@@ -99,7 +99,7 @@ create_base_image() {
   # Create stateful partition of the same size as the rootfs.
   STATEFUL_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_statefulfs_size}))
   dd if=/dev/zero of="${STATEFUL_FS_IMG}" bs=1 count=1 \
-      seek=$((STATEFUL_SIZE_BYTES - 1))
+      seek=$((STATEFUL_SIZE_BYTES - 1)) status=noxfer
 
   # Tune and mount the stateful partition.
   UUID=$(uuidgen)
@@ -109,7 +109,7 @@ create_base_image() {
     die_notrace \
         "No free loop device.  Free up a loop device or reboot.  exiting. "
   fi
-  sudo mkfs.ext4 "${STATEFUL_LOOP_DEV}"
+  sudo mkfs.ext4 -q "${STATEFUL_LOOP_DEV}"
   sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${STATEFUL_LOOP_DEV}"
   sudo mount -t ext4 "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"
 
