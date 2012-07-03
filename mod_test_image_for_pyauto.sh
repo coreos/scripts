@@ -162,17 +162,15 @@ for item in chrome_test pyauto_dep; do
   sudo chown root:root suid-python
   sudo chmod 4755 suid-python
   popd
+  info "Setting up pyauto required symbolic links in $item..."
+  sudo chroot "${ROOT_FS_DIR}" sudo bash "/usr/local/autotest/deps/\
+$item/test_src/out/Release/setup_test_links.sh"
 done
 
 # Add an easy link to get to the functional folder
  sudo ln -f -s \
   "/usr/local/autotest/deps/chrome_test/test_src/chrome/test/functional" \
   "${ROOT_FS_DIR}/pyauto"
-
-info "Setting up pyauto required symbolic links..."
-SETUP_LINKS="/usr/local/autotest/deps/chrome_test/test_src/out/\
-Release/setup_test_links.sh"
-sudo chroot "${ROOT_FS_DIR}" sudo bash "${SETUP_LINKS}"
 
 cleanup
 
