@@ -193,8 +193,10 @@ create_base_image() {
 
   # Don't test the factory install shim
   if ! should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-    # Check that the image has been correctly created.
-    test_image_content "$ROOT_FS_DIR"
+    if [[ ${skip_test_image_content} -ne 1 ]]; then
+      # Check that the image has been correctly created.
+      test_image_content "$ROOT_FS_DIR"
+    fi
   fi
 
   # Clean up symlinks so they work on a running target rooted at "/".

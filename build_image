@@ -109,6 +109,13 @@ OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos"
 
 parse_build_image_args
 
+for overlay in $(cros_overlay_list --board "$BOARD"); do
+  setup_sh="${overlay}/scripts/board_specific_setup.sh"
+  if [[ -e ${setup_sh} ]]; then
+    source "${setup_sh}"
+  fi
+done
+
 # Tweak sizes defaulted or given based on any boost given (or defaulted).
 # This is syntactic sugar to separate concerns in callers, and unify
 # default values here.
@@ -190,10 +197,14 @@ DEV_IMAGE_ROOT="${STATEFUL_FS_DIR}/dev_image"
 
 eclean-$BOARD -d packages
 
-check_blacklist
+if [[ ${skip_blacklist_check} -ne 1 ]]; then
+  check_blacklist
+fi
 
 # Check that the build root is sane.
-"${BUILD_LIBRARY_DIR}/test_build_root" --root="${BOARD_ROOT}"
+if [[ ${skip_test_build_root} -ne 1 ]]; then
+  "${BUILD_LIBRARY_DIR}/test_build_root" --root="${BOARD_ROOT}"
+fi
 
 # Hack to fix bug where x86_64 CHOST line gets incorrectly added.
 # ToDo(msb): remove this hack.
@@ -235,6 +246,11 @@ fi
 if should_build_image "${PRISTINE_IMAGE_NAME}"; then
   load_kernel_test "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}" \
     "${DEVKEYSDIR}/recovery_key.vbpubk" ${BOOT_FLAG}
+fi
+
+# Running board-specific setup if any exists.
+if type board_setup &>/dev/null; then
+  board_setup "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
 fi
 
 # Create a developer image if an image that is based on it is requested.
