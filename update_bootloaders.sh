@@ -161,16 +161,19 @@ fi
 
 ESP_FS_DIR=$(mktemp -d /tmp/esp.XXXXXX)
 cleanup() {
-  local failed=()
-  if [[ -n "${ESP_FS_DIR}" ]]; then
-    sudo umount "${ESP_FS_DIR}" && rm -rf "${ESP_FS_DIR}" || failed+=( umount )
+  set +e
+  if ! sudo umount "${ESP_FS_DIR}"; then
+      # There is a race condition possible on some ubuntu setups
+      # with mounting and unmounting a device very quickly
+      # Doing a quick sleep/retry as a temporary workaround
+      warn "Initial unmount failed. Possibly crosbug.com/23443. Retrying"
+      sleep 5
+      sudo umount "${ESP_FS_DIR}"
   fi
   if [[ -n "${ESP_DEV}" && -z "${ESP_DEV//\/dev\/loop*}" ]]; then
-    sudo losetup -d "${ESP_DEV}" || failed+=( losetup )
+    sudo losetup -d  "${ESP_DEV}"
   fi
-  if [[ -n "${failed[*]}" ]]; then
-    die "Cleanup failed in ${failed[*]}"
-  fi
+  rm -rf "${ESP_FS_DIR}"
 }
 trap cleanup EXIT
 sudo mount "${ESP_DEV}" "${ESP_FS_DIR}"
@@ -212,9 +215,9 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
   # we cut over from rootfs booting (extlinux).
   if [[ ${FLAGS_install_syslinux} -eq ${FLAGS_TRUE} ]]; then
     sudo umount "${ESP_FS_DIR}"
-    rm -rf "${ESP_FS_DIR}"
-    ESP_FS_DIR=
     sudo syslinux -d /syslinux "${ESP_DEV}"
+    # mount again for cleanup to free resource gracefully
+    sudo mount -o ro "${ESP_DEV}" "${ESP_FS_DIR}"
   fi
 elif [[ "${FLAGS_arch}" = "arm" ]]; then
   # Copy u-boot script to ESP partition
