@@ -9,7 +9,7 @@
 # to only upload the symbols for those executables involved).
 
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
 # Script must be run inside the chroot if not in "testing" mode.
 if [[ "$1" != "--testing" ]]; then

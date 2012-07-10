@@ -7,15 +7,14 @@
 # Script to verify integrity of root file system for a GPT-based image
 
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
 # Load functions and constants for chromeos-install
 [ -f /usr/lib/installer/chromeos-common.sh ] && \
   INSTALLER_ROOT=/usr/lib/installer || \
   INSTALLER_ROOT=$(dirname "$(readlink -f "$0")")
 
-. "${INSTALLER_ROOT}/chromeos-common.sh" || \
-  die "Unable to load chromeos-common.sh"
+. "${INSTALLER_ROOT}/chromeos-common.sh" || exit 1
 
 # Needed for partoffset and partsize calls
 locate_gpt

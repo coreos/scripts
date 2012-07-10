@@ -9,17 +9,14 @@
 
 # Helper scripts should be run from the same location as this script.
 SCRIPT_ROOT=$(dirname "$(readlink -f "$0")")
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
 # Need to be inside the chroot to load chromeos-common.sh
 assert_inside_chroot
 
 # Load functions and constants for chromeos-install
-. "/usr/lib/installer/chromeos-common.sh" || \
-  die "Unable to load /usr/lib/installer/chromeos-common.sh"
-
-. "${SCRIPT_ROOT}/lib/cros_vm_constants.sh" || \
-  die "Unable to load ${SCRIPT_ROOT}/lib/cros_vm_constants.sh"
+. /usr/lib/installer/chromeos-common.sh || exit 1
+. "${SCRIPT_ROOT}/lib/cros_vm_constants.sh" || exit 1
 
 get_default_board
 

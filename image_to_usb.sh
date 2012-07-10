@@ -7,15 +7,14 @@
 # Script to convert the output of build_image.sh to a usb or SD image.
 
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
 # Load functions and constants for chromeos-install
 [ -f /usr/lib/installer/chromeos-common.sh ] && \
   INSTALLER_ROOT=/usr/lib/installer || \
   INSTALLER_ROOT=$(dirname "$(readlink -f "$0")")
 
-. "${INSTALLER_ROOT}/chromeos-common.sh" || \
-  die "Unable to load chromeos-common.sh"
+. "${INSTALLER_ROOT}/chromeos-common.sh" || exit 1
 
 # In case chromeos-common.sh doesn't support MMC yet
 declare -F list_mmc_disks >/dev/null || list_mmc_disks() { true; }

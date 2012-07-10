@@ -6,14 +6,8 @@
 
 # Script to take an archived build result and prepare a hwqual release.
 
-# --- BEGIN COMMON.SH BOILERPLATE ---
-# Load common CrOS utilities.  Inside the chroot this file is installed in
-# /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
-# location.
-
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
-# --- END COMMON.SH BOILERPLATE ---
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
 # Flags
 DEFINE_string from "" "Directory with build archive (zipname)"

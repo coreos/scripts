@@ -7,7 +7,7 @@
 # Prints the path to the most recently built image to stdout.
 
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
 get_default_board
 

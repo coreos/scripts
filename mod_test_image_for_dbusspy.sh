@@ -16,7 +16,7 @@
 # Dbusspy-instrumented systems are only intended for narrow use cases, like
 # corpus collection for fuzzing, where the above trade-offs are acceptable.
 
-. "/usr/lib/crosutils/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+. "$(dirname "$0")/common.sh" || exit 1
 
 assert_inside_chroot
 

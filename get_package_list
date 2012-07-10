@@ -8,7 +8,7 @@
 # all packages depended on by chromeos and chromeos-dev.
 
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
 # Script must be run inside the chroot.
 assert_inside_chroot

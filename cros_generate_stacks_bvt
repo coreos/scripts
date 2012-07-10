@@ -7,7 +7,7 @@
 # Script to generate stackdumps from BVT failures.
 
 # This can only run inside the chroot since we need minidump_stackwalk.
-. "$(dirname $0)/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+. "$(dirname $0)/common.sh" || exit 1
 assert_inside_chroot "$@"
 
 usage() {

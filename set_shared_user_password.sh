@@ -8,7 +8,7 @@
 # password to a file inside chroot, for use by build_image.
 
 # This can only run inside the chroot.
-. "/usr/lib/crosutils/common.sh" || exit 1
+. "$(dirname "$0")/common.sh" || exit 1
 
 # Die on any errors.
 switch_to_strict_mode

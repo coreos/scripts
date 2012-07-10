@@ -9,7 +9,7 @@
 
 # Helper scripts should be run from the same location as this script.
 SCRIPT_ROOT=$(dirname "$(readlink -f "$0")")
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
 if [ $INSIDE_CHROOT -ne 1 ]; then
   INSTALL_ROOT="$SRC_ROOT/platform/installer/"
@@ -17,8 +17,7 @@ else
   INSTALL_ROOT=/usr/lib/installer/
 fi
 # Load functions and constants for chromeos-install
-. "${INSTALL_ROOT}/chromeos-common.sh" || \
-  die "Unable to load ${INSTALL_ROOT}/chromeos-common.sh"
+. "${INSTALL_ROOT}/chromeos-common.sh" || exit 1
 
 locate_gpt
 

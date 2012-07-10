@@ -6,7 +6,7 @@
 # Start the Dev Server after making sure we are running under a chroot.
 
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
 # Script must be run inside the chroot if not in 'always serve' mode.
 if [[ "$1" != "--archive_dir" ]]; then

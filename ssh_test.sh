@@ -9,8 +9,8 @@
 # scripts.
 
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
-. "${SCRIPT_ROOT}/common.sh" || { echo "Unable to load common.sh"; exit 1; }
-. "${SCRIPT_ROOT}/remote_access.sh" || die "Unable to load remote_access.sh"
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+. "${SCRIPT_ROOT}/remote_access.sh" || exit 1
 
 cleanup() {
   cleanup_remote_access

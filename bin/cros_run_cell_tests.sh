@@ -14,20 +14,20 @@
 # /usr/lib/crosutils.  Outside the chroot we find it relative to the script's
 # location.
 find_common_sh() {
-  local common_paths=(/usr/lib/crosutils "$(dirname "$(readlink -f "$0")")/..")
+  local common_paths=("$(dirname "$(readlink -f "$0")")/.." /usr/lib/crosutils)
   local path
 
-  SCRIPT_ROOT=
+  SCRIPT_ROOT="${common_paths[0]}"
   for path in "${common_paths[@]}"; do
     if [ -r "${path}/common.sh" ]; then
-      SCRIPT_ROOT=${path}
+      SCRIPT_ROOT="${path}"
       break
     fi
   done
 }
 
 find_common_sh
-. "${SCRIPT_ROOT}/common.sh" || (echo "Unable to load common.sh" && exit 1)
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 # --- END COMMON.SH BOILERPLATE ---
 
 # Figure out the default chromelab server name.  In order for this to
