@@ -249,7 +249,12 @@ regen_manifest_and_sync() {
   # Nothing to do unless you are working on the minilayout
   local manifest=${CHROOT_TRUNK_DIR}/.repo/manifest.xml
   if [ $(basename $(readlink -f ${manifest})) != "minilayout.xml" ]; then
+    if [ -z "$(git config -f "${CHROOT_TRUNK_DIR}/.repo/manifests.git/config" \
+               --get manifest.groups)" ]; then
+      # Reaching here means that it's a full manifest w/out any groups set-
+      # literal full manifest.
       return
+    fi
   fi
 
   local need_repo_sync=
