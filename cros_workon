@@ -1,0 +1,406 @@
+#!/bin/bash
+
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# This script moves ebuilds between 'stable' and 'live' states.
+# By default 'stable' ebuilds point at and build from source at the
+# last known good commit. Moving an ebuild to 'live' (via cros_workon start)
+# is intended to support development. The current source tip is fetched,
+# source modified and built using the unstable 'live' (9999) ebuild.
+
+. "$(dirname "$0")/common.sh" || exit 1
+
+assert_not_root_user
+
+# Script must be run inside the chroot
+get_default_board
+
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "The board to set package keywords for."
+DEFINE_boolean host "${FLAGS_FALSE}" \
+  "Uses the host instead of board"
+DEFINE_string command "git status" \
+  "The command to be run by forall."
+DEFINE_boolean all "${FLAGS_FALSE}" \
+  "Apply to all possible packages for the given command"
+
+FLAGS_HELP="usage: $0 <command> [flags] [<list of packages>|.|--all]
+commands:
+  start:     Moves an ebuild to live (intended to support development)
+  stop:      Moves an ebuild to stable (use last known good)
+  info:      Print package name, repo name, and source directory.
+  list:      List of live ebuilds (workon ebuilds if --all)
+  list-all:  List all of the live ebuilds for all setup boards
+  iterate:   For each ebuild, cd to the source dir and run a command"
+FLAGS "$@" || { [ "${FLAGS_help}" = "${FLAGS_TRUE}" ]  && exit 0; } || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+
+# eat the workon command keywords: start, stop or list.
+WORKON_CMD=$1
+shift
+
+# Board dir config
+
+# If both are specified, just use host, because board does not
+# have to be specified and may come from default, in which case
+# there's no way to override.
+[ -n "${FLAGS_board}" ] && [ "${FLAGS_host}" = ${FLAGS_TRUE} ] && \
+  FLAGS_board="" # kill board
+if [ -z "${FLAGS_board}" ] && \
+   [ "${FLAGS_host}" = ${FLAGS_FALSE} ] && \
+   [ "${WORKON_CMD}" != "list-all" ]; then
+  flags_help
+  die "You must specify either --host or --board="
+fi
+
+if [ -n "${FLAGS_board}" ]; then
+  BOARD_DIR=/build/"${FLAGS_board}" # --board specified
+  EQUERYCMD=equery-"${FLAGS_board}"
+  EBUILDCMD=ebuild-"${FLAGS_board}"
+  PORTAGEQCMD=portageq-"${FLAGS_board}"
+  BOARD_STR="${FLAGS_board}"
+else
+  BOARD_DIR="" # --host specified
+  EQUERYCMD=equery
+  EBUILDCMD=ebuild
+  PORTAGEQCMD=portageq
+  BOARD_STR="host"
+fi
+
+WORKON_DIR=${CHROOT_TRUNK_DIR}/.config/cros_workon
+CONFIG_DIR=${BOARD_DIR}/etc/portage
+KEYWORDS_DIR=${CONFIG_DIR}/package.keywords
+MASK_DIR=${CONFIG_DIR}/package.mask
+UNMASK_DIR=${CONFIG_DIR}/package.unmask
+WORKON_FILE=${WORKON_DIR}/${FLAGS_board:-host}
+MASK_WORKON_FILE=${WORKON_FILE}.mask
+KEYWORDS_FILE=${KEYWORDS_DIR}/cros-workon
+MASK_FILE=${MASK_DIR}/cros-workon
+UNMASK_FILE=${UNMASK_DIR}/cros-workon
+CHROME_ATOM=chromeos-base/chromeos-chrome
+
+mkdir -p "${WORKON_DIR}" || die "mkdir -p ${WORKON_DIR}"
+touch "${WORKON_FILE}" "${MASK_WORKON_FILE}" || \
+  die "touch ${WORKON_FILE} ${MASK_WORKON_FILE}"
+cmds=(
+  "mkdir -p '${KEYWORDS_DIR}' '${MASK_DIR}' '${UNMASK_DIR}'"
+
+  # Clobber and re-create the WORKON_FILE symlinks every time. This
+  # is a trivial operation and eliminates all kinds of corner cases
+  # as well as any possible future renames of WORKON_FILE.
+  # In particular, chroot is usually built as "amd64-host" but becomes
+  # just "host" after installation. crosbug.com/23096
+  "ln -sf '${WORKON_FILE}' '${KEYWORDS_FILE}'"
+  "ln -sf '${MASK_WORKON_FILE}' '${MASK_FILE}'"
+  "ln -sf '${WORKON_FILE}' '${UNMASK_FILE}'"
+)
+# If the board dir doesn't exist yet, we don't want to create it as
+# that'll screw up ./setup_board later on.
+if [[ -d ${BOARD_DIR:-/} ]] ; then
+  sudo_multi "${cmds[@]}"
+else
+  die "${BOARD_STR} has not been setup yet"
+fi
+
+
+find_keyword_workon_ebuilds() {
+  local keyword="${1}"
+  local overlay
+
+  # NOTE: overlay may be a symlink, and we have to use ${overlay}/
+  for overlay in ${PORTDIR_OVERLAY}; do
+    # only look up ebuilds named 9999 to eliminate duplicates
+    find ${overlay}/*-* -maxdepth 2 -type f -name '*9999.ebuild' \
+      -exec grep -l 'inherit.*cros-workon' {} + 2>/dev/null | \
+      xargs grep -l "KEYWORDS=.*${keyword}.*"
+  done
+}
+
+ebuild_to_package() {
+  # This changes the absolute path to ebuilds into category/package.
+  sed -e 's/.*\/\([^/]*\)\/\([^/]*\)\/.*\.ebuild/\1\/\2/'
+}
+
+show_project_ebuild_map() {
+  local keyword="$1"
+
+  # Column 1: Repo name
+  # Column 2: Package name
+  for EBUILD in $(find_keyword_workon_ebuilds ${keyword}); do
+    (
+      eval $(grep -E '^CROS_WORKON' "${EBUILD}")
+      CP=$(echo "$EBUILD" | ebuild_to_package)
+      echo "${CROS_WORKON_PROJECT}" "${CP}"
+    )
+  done
+}
+
+show_project_path_map() {
+  # Column 1: Repo name
+  # Column 2: Source directory
+  repo list | awk -F ' : ' '{ print $2, $1 }'
+}
+
+show_workon_ebuilds() {
+  local keyword="$1"
+  find_keyword_workon_ebuilds "${keyword}" | ebuild_to_package | sort -u
+}
+
+show_workon_info() {
+   local atoms="$1"
+   local keyword="$2"
+   local sort="sort -k1b,1"
+   # Column 1: Package name
+   # Column 2: Repo name
+   # Column 3: Source directory (if present locally)
+   join \
+     <(echo "${atoms}" | sed -e 's/ /\n/g' | ${sort}) \
+     <(join -a 1 -e - -o 1.2,1.1,2.2 \
+       <(show_project_ebuild_map "${keyword}" | ${sort}) \
+       <(show_project_path_map | ${sort}) \
+       | ${sort})
+}
+
+# Canonicalize package name to category/package.
+canonicalize_name () {
+  local pkgfile
+  local pkgname
+
+  if grep -qx "=$1-9999" "${WORKON_FILE}" ; then
+    echo $1
+    return 0
+  fi
+
+  if ! pkgfile=$(ACCEPT_KEYWORDS="~${ARCH}" ${EQUERYCMD} which $1); then
+    warn "error looking up package $1" 1>&2
+    return 1
+  fi
+
+  pkgname=$(echo "${pkgfile}" |awk -F '/' '{ print $(NF-2) "/" $(NF-1) }')
+
+  # TODO(rcui): remove special casing of chromeos-chrome here when we make it
+  # inherit from cros-workon class.  Tracked in chromium-os:19259.
+  if [ "${pkgname}" != "${CHROME_ATOM}" ] && \
+     ! grep -q "cros-workon" ${pkgfile}; then
+    warn "${pkgname} is not a cros-workon package" 1>&2
+    return 1
+  fi
+  echo "${pkgname}"
+  return 0
+}
+
+# Canonicalize a list of names.
+canonicalize_names () {
+  local atoms=$1
+  local names=""
+  local atom
+
+  for atom in ${atoms}; do
+    local name=$(canonicalize_name "${atom}")
+    [ -n "${name}" ] || return 1
+    names+=" ${name}"
+  done
+
+  echo "${names}"
+}
+
+# Locate the package name based on the current directory
+locate_package () {
+  local projectname=$(git config --get remote.cros.projectname ||
+                      git config --get remote.cros-internal.projectname)
+  if [ -z "${projectname}" ]; then
+    die "No project in git config: Can not cros_workon . here"
+  fi
+  local reponame=$(show_project_ebuild_map |
+                   grep "^${projectname} " | cut -d" " -f2)
+  if [ -z "${reponame}" ]; then
+    die "No matching package for ${projectname}: Can not cros_workon . here"
+  else
+    echo "${reponame}"
+  fi
+}
+
+# Display ebuilds currently part of the live branch and open for development.
+show_live_ebuilds () {
+  sed -n 's/^=\(.*\)-9999$/\1/p' "${WORKON_FILE}"
+}
+
+# Display ebuilds currently part of the live branch and open for development
+# for any board that currently has live ebuilds.
+show_all_live_ebuilds () {
+  local workon_file
+  for workon_file in ${WORKON_DIR}/*; do
+    if [[ -s ${workon_file} && ${workon_file} != *.mask ]] ; then
+      echo -e "${V_BOLD_GREEN}$(basename ${workon_file}):${V_VIDOFF}"
+      sed -n 's/^=\(.*\)-9999$/    \1/p' "${workon_file}"
+      echo ""
+    fi
+  done
+}
+
+# This is called only for "cros-workon start". We dont handle the
+# "stop" case since the local changes are ignored anyway since the
+# 9999.ebuild is masked and we dont want to deal with what to do with
+# the user's local changes.
+regen_manifest_and_sync() {
+  # Nothing to do unless you are working on the minilayout
+  local manifest=${CHROOT_TRUNK_DIR}/.repo/manifest.xml
+  if [ $(basename $(readlink -f ${manifest})) != "minilayout.xml" ]; then
+      return
+  fi
+
+  local need_repo_sync=
+  local pkgname
+  for pkgname in $(show_live_ebuilds); do
+    local pkgpath="$(${EQUERYCMD} which "${pkgname}")"
+    local pkginfo="$(${EBUILDCMD} "${pkgpath}" info |
+                   grep -v 'pkg_info() is not defined')"
+    if [ -z "${pkginfo}" ]; then
+      continue  # No package information available
+    fi
+
+    eval "${pkginfo}"
+    local trunkdir=$(readlink -m "${CHROOT_TRUNK_DIR}")
+
+    local i=0
+    need_repo_sync='yes'
+    for S in "${CROS_WORKON_SRCDIR[@]}"; do
+      local srcdir=$(readlink -m "${S}")
+      local project_path=${srcdir#${trunkdir}/}
+
+      loman add --workon "${CROS_WORKON_PROJECT[i]}" "${project_path}"
+      : $(( ++i ))
+    done
+  done
+  if [ -n "${need_repo_sync}" ]; then
+    echo "Please run \"repo sync\" now."
+  fi
+}
+
+chrome_to_live () {
+  # Switch to using repo manifest checkout of chromium src.
+  # Run chrome_set_ver to set DEPS
+
+  # No chromium directory checked out in this repo; probably a minilayout.
+  if [ ! -d "${CHROOT_TRUNK_DIR}/chromium" ]; then
+    return
+  fi
+
+  info "Setting Chrome dependencies to the correct revision."
+  chrome_set_ver
+  if [ -n "${CHROME_ORIGIN}" ] && [ "${CHROME_ORIGIN}" != GERRIT_SOURCE ]; then
+    warn "CHROME_ORIGIN is already set to ${CHROME_ORIGIN}"
+    warn "To use the new GERRIT_SOURCE workflow, please unset it."
+    warn "Run 'unset CHROME_ORIGIN' to reset to the default source location."
+  fi
+}
+
+# Move a stable ebuild to the live development catgeory.  The ebuild
+# src_unpack step fetches the package source for local development.
+ebuild_to_live () {
+  local atoms=$1
+  local atoms_success=()
+  local atom
+
+  for atom in ${atoms}; do
+    if ! grep -qx "=${atom}-9999" "${WORKON_FILE}" ; then
+      echo "=${atom}-9999" >> "${WORKON_FILE}" || \
+        die "Could not update ${WORKON_FILE} with ${atom}"
+      echo "<${atom}-9999" >> "${MASK_WORKON_FILE}" || \
+        die "Could not update ${MASK_WORKON_FILE} with ${atom}"
+      atoms_success+=( ${atom} )
+      if [ "${atom}" = "${CHROME_ATOM}" ]; then
+        chrome_to_live
+      fi
+    else
+      warn "Already working on ${atom}"
+    fi
+  done
+  [ ${#atoms_success[@]} -gt 0 ] && regen_manifest_and_sync && \
+    info "Started working on '${atoms_success[*]}' for '${BOARD_STR}'"
+}
+
+# Move a live development ebuild back to stable.
+ebuild_to_stable () {
+  local atoms=$1
+  local atoms_success=()
+  local atom
+
+  for atom in ${atoms}; do
+    if grep -qx "=${atom}-9999" "${WORKON_FILE}" "${MASK_WORKON_FILE}" ; then
+      sed -i -e "/^=${atom/\//\\/}-9999\$/d" "${WORKON_FILE}" || \
+        die "Could not update ${WORKON_FILE} with ${atom}"
+      sed -i -e "/^<${atom/\//\\/}-9999\$/d" "${MASK_WORKON_FILE}" || \
+        die "Could not update ${WORKON_FILE} with ${atom}"
+      atoms_success+=( ${atom} )
+    else
+      warn "Not working on ${atom}"
+    fi
+  done
+  [ ${#atoms_success[@]} -gt 0 ] && \
+    info "Stopped working on '${atoms_success[*]}' for '${BOARD_STR}'"
+}
+
+# Run a command on all or a set of repos.
+ebuild_iterate() {
+  local atoms=$1
+  local atom
+
+  for atom in ${atoms}; do
+    info "Running \"${FLAGS_command}\" on ${atom}"
+    eval $(${EBUILDCMD} $(${EQUERYCMD} which ${atom}) info)
+    for S in "${CROS_WORKON_SRCDIR[@]}"; do
+      (cd "${S}" && bash -c "${FLAGS_command}")
+    done
+  done
+}
+
+# Only call portageq when absolutely required, and when we do, only run it
+# once -- it's a slow beast and can easily take hundreds of milliseconds :(.
+if [[ ${WORKON_CMD} != "list" || ${FLAGS_all} != ${FLAGS_FALSE} ]] ; then
+  portageq_vars="ARCH PORTDIR_OVERLAY"
+  unset ${portageq_vars}
+  eval $(${PORTAGEQCMD} envvar -v ${portageq_vars})
+fi
+
+# --all makes commands operate on different lists
+if [ ${FLAGS_all} = "${FLAGS_TRUE}" ]; then
+  case ${WORKON_CMD} in
+    start|info) ATOM_LIST=$(show_workon_ebuilds ${ARCH});;
+    stop|iterate) ATOM_LIST=$(show_live_ebuilds);;
+    list) ;;
+    *) die "--all is invalid for the given command";;
+  esac
+else # not selected --all
+  case ${WORKON_CMD} in
+    start|stop|info|iterate)
+      ATOM_LIST=$@
+      if [ -z "${ATOM_LIST}" ]; then
+        die "${WORKON_CMD}: No packages specified"
+      fi
+      if [ "${ATOM_LIST}" = "." ]; then
+        ATOM_LIST=$(locate_package)
+      fi
+      if ! ATOM_LIST=$(canonicalize_names "${ATOM_LIST}"); then
+        die "Error parsing package list"
+      fi;;
+    *) ;;
+  esac
+fi
+
+case ${WORKON_CMD} in
+  start) ebuild_to_live "${ATOM_LIST}" ;;
+  stop) ebuild_to_stable "${ATOM_LIST}" ;;
+  info) show_workon_info "${ATOM_LIST}" "${ARCH}" ;;
+  list) [ ${FLAGS_all} = "${FLAGS_FALSE}" ] && show_live_ebuilds || \
+    show_workon_ebuilds ${ARCH} ;;
+  list-all) show_all_live_ebuilds ;;
+  iterate) ebuild_iterate "${ATOM_LIST}" ;;
+  *)
+    flags_help
+    die "$(basename $0): command '${WORKON_CMD}' not recognized"
+    ;;
+esac
