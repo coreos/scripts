@@ -57,7 +57,7 @@ def _SplitAndStrip(data):
   return return_list
 
 
-def DepsToCopy(ldd_files, black_list):
+def DepsToCopy(ldd_files, black_list=[]):
   """Returns a list of deps for a given dynamic executables list.
     Args:
       ldd_files: List of dynamic files that needs to have the deps evaluated
@@ -113,23 +113,6 @@ def CopyRequiredFiles(dest_files_root):
   # We need directories to be copied recursively to a destination within tempdir
   recurse_dirs = {'~/trunk/src/scripts/lib/shflags': 'lib/shflags'}
 
-  # Feel free to delete any file here if the chroot version is newer than
-  # the goobuntu workstation version. Otherwise delta generator will break
-  # when used by the release team to generate a delta.
-  black_list = [
-    'linux-vdso.so',
-    'libgcc_s.so',
-    'libgthread-2.0.so',
-    'libpthread.so',
-    'librt.so',
-    'libgcc_s.so',
-    'libc.so',
-    'ld-linux-x86-64',
-    'libm.so',
-    'libdl.so',
-    'libresolv.so',
-    ]
-
   all_files = ldd_files + static_files
   all_files = map(os.path.expanduser, all_files)
 
@@ -139,7 +122,7 @@ def CopyRequiredFiles(dest_files_root):
       sys.exit(1)
 
   logging.debug('Given files that need to be copied = %s' % '' .join(all_files))
-  all_files += DepsToCopy(ldd_files=ldd_files,black_list=black_list)
+  all_files += DepsToCopy(ldd_files=ldd_files)
   for file_name in all_files:
     logging.debug('Copying file  %s to %s', file_name, dest_files_root)
     shutil.copy2(file_name, dest_files_root)
