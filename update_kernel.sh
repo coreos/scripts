@@ -158,6 +158,10 @@ main() {
 
   copy_kernelimage
 
+  # An early kernel panic can prevent the normal sync on reboot.  Explicitly
+  # sync for safety to avoid random file system corruption.
+  remote_sh sync
+
   if [ "${FLAGS_reboot}" -eq ${FLAGS_TRUE} ]; then
     echo "rebooting"
 
