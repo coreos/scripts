@@ -21,6 +21,8 @@ DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to set package keywords for."
 DEFINE_boolean host "${FLAGS_FALSE}" \
   "Uses the host instead of board"
+DEFINE_string remote "" \
+  "For non-workon projects, the git remote to use."
 DEFINE_string command "git status" \
   "The command to be run by forall."
 DEFINE_boolean all "${FLAGS_FALSE}" \
@@ -275,8 +277,12 @@ regen_manifest_and_sync() {
     for S in "${CROS_WORKON_SRCDIR[@]}"; do
       local srcdir=$(readlink -m "${S}")
       local project_path=${srcdir#${trunkdir}/}
-
-      loman add --workon "${CROS_WORKON_PROJECT[i]}" "${project_path}"
+      local name_path="${CROS_WORKON_PROJECT[i]} ${project_path}"
+      if [ -z "${FLAGS_remote}" ]; then
+        loman add --workon ${name_path}
+      else
+        loman add ${name_path} --remote="${FLAGS_remote}"
+      fi
       : $(( ++i ))
     done
   done
