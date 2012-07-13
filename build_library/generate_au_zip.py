@@ -113,6 +113,12 @@ def CopyRequiredFiles(dest_files_root):
   # We need directories to be copied recursively to a destination within tempdir
   recurse_dirs = {'~/trunk/src/scripts/lib/shflags': 'lib/shflags'}
 
+  black_list = [
+    # This library does not exist on disk, but is inserted into the
+    # executable's memory space when the executable is loaded by the kernel.
+    'linux-vdso.so',
+    ]
+
   all_files = ldd_files + static_files
   all_files = map(os.path.expanduser, all_files)
 
@@ -122,7 +128,7 @@ def CopyRequiredFiles(dest_files_root):
       sys.exit(1)
 
   logging.debug('Given files that need to be copied = %s' % '' .join(all_files))
-  all_files += DepsToCopy(ldd_files=ldd_files)
+  all_files += DepsToCopy(ldd_files=ldd_files,black_list=black_list)
   for file_name in all_files:
     logging.debug('Copying file  %s to %s', file_name, dest_files_root)
     shutil.copy2(file_name, dest_files_root)
@@ -179,6 +185,10 @@ def _ExcludeBlacklist(library_list, black_list=[]):
     Returns:
       Filtered library_list
   """
+
+  if not black_list:
+    return library_list
+
   return_list = []
   pattern = re.compile(r'|'.join(black_list))
 
