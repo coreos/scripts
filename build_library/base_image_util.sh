@@ -221,6 +221,10 @@ create_base_image() {
   loopback_cleanup
   trap delete_prompt EXIT
 
+  if [[ ${FLAGS_full} -eq ${FLAGS_TRUE} ]]; then
+    dd if=/dev/zero of="${BUILD_DIR}/${image_name}" bs=1M count=3584
+  fi
+
   # Create the GPT-formatted image.
   build_gpt "${BUILD_DIR}/${image_name}" \
             "${ROOT_FS_IMG}" \

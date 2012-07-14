@@ -54,11 +54,14 @@ build_gpt() {
     return 1
   fi
 
+  GPT_FULL="false"
+  [ "${FLAGS_full}" -eq "${FLAGS_TRUE}" ] && GPT_FULL="true"
+
   # Create the GPT. This has the side-effect of setting some global vars
   # describing the partition table entries (see the comments in the source).
   install_gpt "$outdev" $(numsectors "$rootfs_img") \
     $(numsectors "$stateful_img") $pmbr_img $(numsectors "$esp_img") \
-    false $FLAGS_rootfs_partition_size
+    $GPT_FULL $FLAGS_rootfs_partition_size
 
   local sudo=
   if [ ! -w "$outdev" ] ; then

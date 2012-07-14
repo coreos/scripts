@@ -20,6 +20,7 @@ DEFINE_string boot_args "noinitrd" \
   "Additional boot arguments to pass to the commandline"
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
+DEFINE_boolean full "${FLAGS_FALSE}" "Build full image with all partitions."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
 DEFINE_integer rootfs_hash_pad 8 \
