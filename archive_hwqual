@@ -60,8 +60,8 @@ main() {
     TAR_BZIP2="tar --bzip2"
   fi
 
-  echo "Extracting autotest from build artifacts..."
-  ${TAR_BZIP2} -xf autotest.tar.bz2
+  echo "Extracting autotest from archived autotest tarball..."
+  ${TAR_BZIP2} -xf "${FLAGS_from}/autotest.tar.bz2"
 
   cd "${TMP}"
 
