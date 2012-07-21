@@ -331,16 +331,16 @@ CHROOT_TRUNK_DIR="/home/$USER/trunk"
 COMMON_INSTALL_MASK="
   *.a
   *.la
+  *.h
+  *.hpp
   /etc/init.d
   /etc/runlevels
   /firmware
   /lib/rc
   /usr/bin/Xnest
   /usr/bin/Xvfb
-  /usr/include
   /usr/lib/debug
   /usr/lib/gcc
-  /usr/lib/gtk-2.0/include
   /usr/lib*/pkgconfig
   /usr/local/autotest-chrome
   /usr/man
