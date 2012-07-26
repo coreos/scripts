@@ -1,0 +1,30 @@
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Move users of CHROME_ORIGIN=GERRIT_SOURCE to the new gerrit-source.xml
+# manifest, as well as setting up the chromium/src repository properly for
+# submodules. crosbug.com/32963.
+
+# We only want to run this hook once.  Since this also gets called from
+# enter_chroot, look for the marker.
+MARKER="/tmp/44_fix_gerrit_chrome"
+if [ -e "${MARKER}" ]; then
+  exit 0
+fi
+
+chrome_workon="=chromeos-base/chromeos-chrome-9999"
+cros_workon_dir="${HOME}/trunk/.config/cros_workon/*"
+
+if grep -q "${chrome_workon}" ${cros_workon_dir} &> /dev/null; then
+  repo selfupdate && repo init -m gerrit-source.xml
+fi
+
+(
+  cd "${HOME}/trunk/chromium/src"
+  ignore_cmd='git config -f $toplevel/.git/config submodule.$name.ignore all'
+  git submodule foreach "${ignore_cmd}" &> /dev/null
+)
+
+touch "${MARKER}"
+exit 0
