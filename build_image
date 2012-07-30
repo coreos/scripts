@@ -283,7 +283,7 @@ if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
   echo "Test image created as ${CHROMEOS_TEST_IMAGE_NAME}"
 fi
 
-print_time_elapsed
+command_completed
 
 cat << EOF
 To copy the image to a USB key, use:

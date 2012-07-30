@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -598,6 +598,7 @@ if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then
   echo $BOARD_VARIANT > "$GCLIENT_ROOT/src/scripts/.default_board"
 fi
 
+command_completed
 echo "Done!"
 echo "The SYSROOT is: ${BOARD_ROOT}"
 

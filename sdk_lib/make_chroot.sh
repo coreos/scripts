@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -460,7 +460,7 @@ info "Updating toolchains"
 enter_chroot sudo "${CHROOT_TRUNK}/chromite/bin/cros_setup_toolchains" \
     "${TOOLCHAIN_ARGS[@]}"
 
-print_time_elapsed
+command_completed
 
 cat <<EOF
 

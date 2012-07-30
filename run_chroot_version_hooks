@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -151,3 +151,5 @@ if [ "${LATEST_VERSION}" -gt "${CHROOT_VERSION}" ]; then
   done
   popd 1> /dev/null
 fi
+
+command_completed
