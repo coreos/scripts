@@ -161,7 +161,6 @@ elif [[ "${FLAGS_arch}" = "arm" ]]; then
   cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
     > "${FLAGS_working_dir}/config.txt"
 earlyprintk
-vmalloc=234MB
 EOF
   WORK="${WORK} ${FLAGS_working_dir}/config.txt"
 
