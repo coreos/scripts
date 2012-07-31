@@ -15,16 +15,22 @@ fi
 
 chrome_workon="=chromeos-base/chromeos-chrome-9999"
 cros_workon_dir="${HOME}/trunk/.config/cros_workon/*"
+manifest="${HOME}/trunk/.repo/manifest.xml"
 
 if grep -q "${chrome_workon}" ${cros_workon_dir} &> /dev/null; then
-  repo selfupdate && repo init -m gerrit-source.xml
+  if [ $(readlink "${manifest}") != "manifests/minilayout.xml" ]; then
+    repo selfupdate && repo init -m gerrit-source.xml
+  fi
 fi
 
-(
-  cd "${HOME}/trunk/chromium/src"
-  ignore_cmd='git config -f $toplevel/.git/config submodule.$name.ignore all'
-  git submodule foreach "${ignore_cmd}" &> /dev/null
-)
+chromium_dir="${HOME}/trunk/chromium/src"
+if [ -d "${chromium_dir}" ]; then
+  (
+    cd "${chromium_dir}"
+    ignore_cmd='git config -f $toplevel/.git/config submodule.$name.ignore all'
+    git submodule foreach "${ignore_cmd}" &> /dev/null
+  )
+fi
 
 touch "${MARKER}"
 exit 0
