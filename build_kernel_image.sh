@@ -132,23 +132,27 @@ EOF
 WORK="${WORK} ${FLAGS_working_dir}/boot.config"
 info "Emitted cross-platform boot params to ${FLAGS_working_dir}/boot.config"
 
-if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
-  # Legacy BIOS will use the kernel in the rootfs (via syslinux), as will
-  # standard EFI BIOS (via grub, from the EFI System Partition). Chrome OS
-  # BIOS will use a separate signed kernel partition, which we'll create now.
-  # FIXME: remove serial output, debugging messages.
-  cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
-    > "${FLAGS_working_dir}/config.txt"
+# Add common boot options first.
+cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
+  > "${FLAGS_working_dir}/config.txt"
 quiet
 loglevel=0
 console=tty2
 init=/sbin/init
+cros_secure
+EOF
+
+if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
+  # Legacy BIOS will use the kernel in the rootfs (via syslinux), as will
+  # standard EFI BIOS (via grub, from the EFI System Partition). Chrome OS
+  # BIOS will use a separate signed kernel partition, which we'll create now.
+  cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
+    >> "${FLAGS_working_dir}/config.txt"
 add_efi_memmap
 boot=local
 noresume
 noswap
 i915.modeset=1
-cros_secure
 tpm_tis.force=1
 tpm_tis.interrupts=0
 nmi_watchdog=panic,lapic
@@ -158,10 +162,6 @@ EOF
   bootloader_path="/lib64/bootstub/bootstub.efi"
   kernel_image="${FLAGS_vmlinuz}"
 elif [[ "${FLAGS_arch}" = "arm" ]]; then
-  cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
-    > "${FLAGS_working_dir}/config.txt"
-earlyprintk
-EOF
   WORK="${WORK} ${FLAGS_working_dir}/config.txt"
 
   # arm does not need/have a bootloader in kernel partition
