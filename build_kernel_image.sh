@@ -146,8 +146,7 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
   # Legacy BIOS will use the kernel in the rootfs (via syslinux), as will
   # standard EFI BIOS (via grub, from the EFI System Partition). Chrome OS
   # BIOS will use a separate signed kernel partition, which we'll create now.
-  cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
-    >> "${FLAGS_working_dir}/config.txt"
+  cat <<EOF >> "${FLAGS_working_dir}/config.txt"
 add_efi_memmap
 boot=local
 noresume
