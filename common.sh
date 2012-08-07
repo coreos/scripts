@@ -307,6 +307,7 @@ COMMON_INSTALL_MASK="
   *.la
   /etc/init.d
   /etc/runlevels
+  /firmware
   /lib/rc
   /usr/bin/Xnest
   /usr/bin/Xvfb
