@@ -315,7 +315,7 @@ COMMON_INSTALL_MASK="
   /usr/lib/debug
   /usr/lib/gcc
   /usr/lib/gtk-2.0/include
-  /usr/lib/pkgconfig
+  /usr/lib*/pkgconfig
   /usr/local/autotest-chrome
   /usr/man
   /usr/share/aclocal
