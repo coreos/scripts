@@ -121,7 +121,7 @@ get_debug_for_text() {
 # Returns true if the file given is a 32-bit ELF file.
 is_32b_elf() {
   local elf="$1"
-  file "${elf}" | grep -q "ELF 32-bit"
+  sudo file "${elf}" | grep -q "ELF 32-bit"
 }
 
 # Dump given debug and text file.  Returns 1 if any errors, even
@@ -204,10 +204,6 @@ process_file() {
   if [ ! -f "${text_file}" ]; then
     # Allow files to not exist, for instance if they are in the INSTALL_MASK.
     warn "Binary does not exist: ${text_file}"
-    return 0
-  elif [ ! -r "${text_file}" ]; then
-    # Allow files to not be readable, for instance setuid programs like passwd
-    warn "Binary is not user readable: ${text_file}"
     return 0
   fi
 
