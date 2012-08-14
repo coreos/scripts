@@ -95,6 +95,16 @@ copy_kernelimage() {
   remote_sh dd if=/tmp/new_kern.bin of="${FLAGS_partition}"
 }
 
+check_kernelbuildtime() {
+  local version=$(readlink "/build/${FLAGS_board}/boot/vmlinuz" | cut -d- -f2-)
+  local build_dir="/build/${FLAGS_board}/lib/modules/${version}/build"
+  if [ "${build_dir}/Makefile" -nt "/build/${FLAGS_board}/boot/vmlinuz" ]; then
+    warn "Your build directory has been built more recently than"
+    warn "the installed kernel being updated to.  Did you forget to"
+    warn "run 'cros_workon_make chromeos-kernel --install'?"
+  fi
+}
+
 main() {
   trap cleanup EXIT
 
@@ -113,6 +123,8 @@ main() {
   remote_sh uname -r -v
 
   old_kernel="${REMOTE_OUT}"
+
+  check_kernelbuildtime
 
   make_kernelimage
 
