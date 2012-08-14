@@ -167,7 +167,6 @@ install_toolchain_in_provided() {
   local glibc_ver="$3"
   # Tell portage that toolchain packages are already installed in the sysroot.
   (
-    echo sys-devel/binutils-$binutils_ver
     echo sys-devel/gcc-$gcc_ver
     echo sys-libs/glibc-$glibc_ver
   ) | sudo_clobber "$BOARD_PROFILE/package.provided"
