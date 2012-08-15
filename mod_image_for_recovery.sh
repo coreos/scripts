@@ -322,7 +322,6 @@ maybe_resize_stateful() {
   set +e
   sudo mount -o loop $small_stateful $new_stateful_mnt
   sudo cp "$INSTALL_VBLOCK" "$new_stateful_mnt/vmlinuz_hd.vblock"
-  sudo mkdir "$new_stateful_mnt/var"
   sudo umount "$new_stateful_mnt"
   rmdir "$new_stateful_mnt"
   switch_to_strict_mode
