@@ -11,6 +11,7 @@
 
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
+. "${SCRIPT_ROOT}/build_library/disk_layout_util.sh" || exit 1
 
 # Default recovery kernel name.
 RECOVERY_KERNEL_NAME=recovery_vmlinuz.image
@@ -126,8 +127,8 @@ BOAT
 create_recovery_kernel_image() {
   local sysroot="$FACTORY_ROOT"
   local vmlinuz="$sysroot/boot/vmlinuz"
-  local root_offset=$(partoffset "$FLAGS_image" 3)
-  local root_size=$(partsize "$FLAGS_image" 3)
+  local root_offset=$(partoffset "${RECOVERY_IMAGE}" 3)
+  local root_size=$(partsize "${RECOVERY_IMAGE}" 3)
 
   local enable_rootfs_verification_flag=--noenable_rootfs_verification
   if grep -q enable_rootfs_verification "${IMAGE_DIR}/boot.desc"; then
@@ -144,12 +145,12 @@ create_recovery_kernel_image() {
   # recovery image generation.  (Alternately, it means an image can be created,
   # modified for recovery, then passed to a signer which can then sign both
   # partitions appropriately without needing any external dependencies.)
-  local kern_offset=$(partoffset "$FLAGS_image" 2)
-  local kern_size=$(partsize "$FLAGS_image" 2)
+  local kern_offset=$(partoffset "${RECOVERY_IMAGE}" 2)
+  local kern_size=$(partsize "${RECOVERY_IMAGE}" 2)
   local kern_tmp=$(mktemp)
   local kern_hash=
 
-  dd if="$FLAGS_image" bs=512 count=$kern_size \
+  dd if="${RECOVERY_IMAGE}" bs=512 count=$kern_size \
      skip=$kern_offset of="$kern_tmp" 1>&2
   # We're going to use the real signing block.
   if [ $FLAGS_sync_keys -eq $FLAGS_TRUE ]; then
@@ -170,24 +171,23 @@ create_recovery_kernel_image() {
     --keys_dir="${FLAGS_keys_dir}" \
     ${enable_rootfs_verification_flag} \
     --nouse_dev_keys 1>&2 || failboat "build_kernel_image"
-  sudo mount | sed 's/^/16651 /'
-  sudo losetup -a | sed 's/^/16651 /'
+  #sudo mount | sed 's/^/16651 /'
+  #sudo losetup -a | sed 's/^/16651 /'
   trap - RETURN
 
   # Update the EFI System Partition configuration so that the kern_hash check
   # passes.
-  local efi_offset=$(partoffset "$FLAGS_image" 12)
-  local efi_size=$(partsize "$FLAGS_image" 12)
+  local block_size=$(get_block_size)
 
-  local efi_dev=$(sudo losetup --show -f \
-                  -o $((efi_offset * 512)) \
-                  --sizelimit $((efi_size * 512)) \
-                  "$FLAGS_image")
+  local efi_offset=$(partoffset "${RECOVERY_IMAGE}" 12)
+  local efi_size=$(partsize "${RECOVERY_IMAGE}" 12)
+  local efi_offset_bytes=$(( $efi_offset * $block_size ))
+  local efi_size_bytes=$(( $efi_size * $block_size ))
+
   local efi_dir=$(mktemp -d)
-  trap "sudo losetup -d $efi_dev && rmdir \"$efi_dir\"" EXIT
-  echo "16651 mount: $efi_dev -> $efi_dir"
-  sudo mount "$efi_dev" "$efi_dir"
-  sudo mount | sed 's/^/16651 /'
+  sudo mount -o loop,offset=${efi_offset_bytes},sizelimit=${efi_size_bytes} \
+    "${RECOVERY_IMAGE}" "${efi_dir}"
+
   sudo sed  -i -e "s/cros_legacy/cros_legacy kern_b_hash=$kern_hash/g" \
     "$efi_dir/syslinux/usb.A.cfg" || true
   # This will leave the hash in the kernel for all boots, but that should be
@@ -195,8 +195,6 @@ create_recovery_kernel_image() {
   sudo sed  -i -e "s/cros_efi/cros_efi kern_b_hash=$kern_hash/g" \
     "$efi_dir/efi/boot/grub.cfg" || true
   safe_umount "$efi_dir"
-  sudo losetup -a | sed 's/^/16651 /'
-  sudo losetup -d "$efi_dev"
   rmdir "$efi_dir"
   trap - EXIT
 }
@@ -269,48 +267,59 @@ update_partition_table() {
   local resized_sectors=$3  # number of sectors in resized stateful partition
   local temp_img=$4
 
-  local kern_a_offset=$(partoffset ${src_img} 2)
+  local kern_a_dst_offset=$(partoffset ${temp_img} 2)
+  local kern_a_src_offset=$(partoffset ${src_img} 2)
   local kern_a_count=$(partsize ${src_img} 2)
-  local kern_b_offset=$(partoffset ${src_img} 4)
+
+  local kern_b_dst_offset=$(partoffset ${temp_img} 4)
+  local kern_b_src_offset=$(partoffset ${src_img} 4)
   local kern_b_count=$(partsize ${src_img} 4)
-  local rootfs_offset=$(partoffset ${src_img} 3)
+
+  local rootfs_dst_offset=$(partoffset ${temp_img} 3)
+  local rootfs_src_offset=$(partoffset ${src_img} 3)
   local rootfs_count=$(partsize ${src_img} 3)
-  local oem_offset=$(partoffset ${src_img} 8)
+
+  local oem_dst_offset=$(partoffset ${temp_img} 8)
+  local oem_src_offset=$(partoffset ${src_img} 8)
   local oem_count=$(partsize ${src_img} 8)
-  local esp_offset=$(partoffset ${src_img} 12)
+
+  local esp_dst_offset=$(partoffset ${temp_img} 12)
+  local esp_src_offset=$(partoffset ${src_img} 12)
   local esp_count=$(partsize ${src_img} 12)
+
+  local state_dst_offset=$(partoffset ${temp_img} 1)
 
   local temp_pmbr=$(mktemp "/tmp/pmbr.XXXXXX")
   dd if="${src_img}" of="${temp_pmbr}" bs=512 count=1 &>/dev/null
 
   trap "rm -rf \"${temp_pmbr}\"" EXIT
   # Set up a new partition table
-  install_gpt "${temp_img}" "${rootfs_count}" "${resized_sectors}" \
-    "${temp_pmbr}" "${esp_count}" false \
-    $(((rootfs_count * 512)/(1024 * 1024)))
+  PARTITION_SCRIPT_PATH=$( tempfile )
+  write_partition_script "recovery" "${PARTITION_SCRIPT_PATH}"
+  . "${PARTITION_SCRIPT_PATH}"
+  write_partition_table "${temp_img}" "${temp_pmbr}"
+  echo "${PARTITION_SCRIPT_PATH}"
+  #rm "${PARTITION_SCRIPT_PATH}"
 
   # Copy into the partition parts of the file
   dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
-    seek="${START_ROOTFS_A}" skip=${rootfs_offset} count=${rootfs_count}
+    seek=${kern_a_dst_offset} skip=${kern_a_src_offset} count=${rootfs_count}
   dd if="${temp_state}" of="${temp_img}" conv=notrunc bs=512 \
-    seek="${START_STATEFUL}"
+    seek=${state_dst_offset}
   # Copy the full kernel (i.e. with vboot sections)
   dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
-    seek="${START_KERN_A}" skip=${kern_a_offset} count=${kern_a_count}
+    seek=${kern_a_dst_offset} skip=${kern_a_src_offset} count=${kern_a_count}
   dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
-    seek="${START_KERN_B}" skip=${kern_b_offset} count=${kern_b_count}
+    seek=${kern_b_dst_offset} skip=${kern_b_src_offset} count=${kern_b_count}
   dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
-    seek="${START_OEM}" skip=${oem_offset} count=${oem_count}
+    seek=${oem_dst_offset} skip=${oem_src_offset} count=${oem_count}
   dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
-    seek="${START_ESP}" skip=${esp_offset} count=${esp_count}
+    seek=${esp_dst_offset} skip=${esp_src_offset} count=${esp_count}
 }
 
 maybe_resize_stateful() {
   # If we're not minimizing, then just copy and go.
   if [ $FLAGS_minimize_image -eq $FLAGS_FALSE ]; then
-    if [ "$FLAGS_image" != "$RECOVERY_IMAGE" ]; then
-      cp "$FLAGS_image" "$RECOVERY_IMAGE"
-    fi
     return 0
   fi
 
@@ -337,7 +346,7 @@ maybe_resize_stateful() {
   # Create a recovery image of the right size
   # TODO(wad) Make the developer script case create a custom GPT with
   # just the kernel image and stateful.
-  update_partition_table "$FLAGS_image" "$small_stateful" 4096 \
+  update_partition_table "${RECOVERY_IMAGE}" "$small_stateful" 4096 \
                          "$RECOVERY_IMAGE" 1>&2
   return $err
 }
@@ -395,6 +404,10 @@ if [ $FLAGS_modify_in_place -eq $FLAGS_TRUE ]; then
     die_notrace "Cannot use --modify_in_place and --minimize_image together."
   fi
   RECOVERY_IMAGE="${FLAGS_image}"
+else
+  if [[ ${FLAGS_modify_in_place} -eq ${FLAGS_FALSE} ]]; then
+    cp "${FLAGS_image}" "${RECOVERY_IMAGE}"
+  fi
 fi
 
 echo "Creating recovery image from ${FLAGS_image}"
@@ -420,10 +433,6 @@ if [ $FLAGS_kernel_image_only -eq $FLAGS_TRUE ]; then
   echo "Kernel emitted. Stopping there."
   rm "$INSTALL_VBLOCK"
   exit 0
-fi
-
-if [ $FLAGS_modify_in_place -eq $FLAGS_FALSE ]; then
-  rm "$RECOVERY_IMAGE" || true  # Start fresh :)
 fi
 
 trap cleanup EXIT

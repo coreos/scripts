@@ -1,0 +1,152 @@
+{
+  "metadata":{
+    "block_size": 512,
+    "fs_block_size": 4096
+  },
+  "layouts":{
+    "base":[
+      {
+        "num": 11,
+        "label":"RWFW",
+        "type":"firmware",
+        "blocks":"16384"
+      },
+      {
+        "num": 6,
+        "label":"KERN-C",
+        "type":"kernel",
+        "blocks":"1"
+      },
+      {
+        "num": 7,
+        "label":"ROOT-C",
+        "type":"rootfs",
+        "blocks":"1"
+      },
+      {
+        "num": 9,
+        "type":"reserved",
+        "label":"reserved",
+        "blocks":"1"
+      },
+      {
+        "num": 10,
+        "type":"reserved",
+        "label":"reserved",
+        "blocks":"1"
+      },
+      {
+        "type":"blank",
+        "blocks":"4028"
+      },
+      {
+        "num": 2,
+        "label":"KERN-A",
+        "type":"kernel",
+        "blocks":"32768"
+      },
+      {
+        "num": 4,
+        "label":"KERN-B",
+        "type":"kernel",
+        "blocks":"32768"
+      },
+      {
+        "num": 8,
+        "label":"OEM",
+        "type":"data",
+        "blocks":"32768"
+      },
+      {
+        "type":"blank",
+        "blocks":"131072"
+      },
+      {
+        "num": 12,
+        "label":"EFI-SYSTEM",
+        "type":"efi",
+        "blocks":"32768"
+      },
+      {
+        "num": 1,
+        "label":"STATE",
+        "type":"data",
+        "blocks":"2097152",
+        "features":["expand"]
+      },
+      {
+        "num": 5,
+        "label":"ROOT-B",
+        "type":"rootfs",
+        "blocks":"1"
+      },
+      {
+        "num": 3,
+        "label":"ROOT-A",
+        "type":"rootfs",
+        "blocks":"1757184",
+        "fs_blocks":"217600"
+      }
+    ],
+    "factory_install": [
+      {
+        "num": 1,
+        "label":"STATE",
+        "type":"data",
+        "blocks":"286720"
+      },
+      {
+        "num": 3,
+        "label":"ROOT-A",
+        "type":"rootfs",
+        "blocks":"860160",
+        "fs_blocks":"102400"
+      },
+      {
+        "num": 12,
+        "label":"EFI-SYSTEM",
+        "type":"efi",
+        "blocks":"65536"
+      }
+    ],
+    "vm": [
+      {
+        "num": 1,
+        "label":"STATE",
+        "type":"data",
+        "blocks":"6291456"
+      },
+      {
+        "num": 3,
+        "label":"ROOT-A",
+        "type":"rootfs",
+        "blocks":"2097152",
+        "fs_blocks":"217600"
+      },
+      {
+        "num": 5,
+        "label":"ROOT-B",
+        "type":"rootfs",
+        "blocks":"2097152",
+        "fs_blocks":"217600"
+      }
+    ],
+    "recovery": [
+      {
+        "num": 1,
+        "label":"STATE",
+        "type":"data",
+        "blocks":"4096"
+      }
+    ],
+    "pgo": [
+      {
+        "num": 3,
+        "label":"ROOT-A",
+        "type":"rootfs",
+        "blocks":"2662400",
+        "fs_blocks":"320000"
+      }
+    ]
+  }
+}

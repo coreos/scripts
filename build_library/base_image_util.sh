@@ -2,54 +2,29 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Shell function library and global variable initialization for
-# creating an initial base image.  The main function for export in
-# this library is 'create_base_image'; the remainder of the code is
-# not used outside this file.
+. "${SRC_ROOT}/platform/dev/toolchain_utils.sh" || exit 1
 
+cleanup_mounts() {
+  # Disable die on error.
+  set +e
 
-ROOT_LOOP_DEV=
-STATEFUL_LOOP_DEV=
-
-ROOT_FS_IMG="${BUILD_DIR}/rootfs.image"
-STATEFUL_FS_IMG="${BUILD_DIR}/stateful_partition.image"
-ESP_FS_IMG=${BUILD_DIR}/esp.image
-
-cleanup_rootfs_loop() {
   # See if we ran out of space.
-  local df=$(df -B 1M "${ROOT_FS_DIR}")
+  local df=$(df -B 1M "${root_fs_dir}")
   if [[ ${df} == *100%* ]]; then
     error "Here are the biggest files (by disk usage):"
     # Send final output to stderr to match `error` behavior.
-    sudo find "${ROOT_FS_DIR}" -xdev -type f -printf '%b %P\n' | \
+    sudo find "${root_fs_dir}" -xdev -type f -printf '%b %P\n' | \
       awk '$1 > 16 { $1 = $1 * 512; print }' | sort -n | tail -100 1>&2
     error "Target image has run out of space:"
     error "${df}"
   fi
-  sudo umount -d "${ROOT_FS_DIR}"
-}
 
-cleanup_stateful_fs_loop() {
-  sudo umount "${ROOT_FS_DIR}/usr/local"
-  sudo umount "${ROOT_FS_DIR}/var"
-  sudo umount -d "${STATEFUL_FS_DIR}"
-}
+  echo "Cleaning up mounts"
+  safe_umount_tree "${root_fs_dir}"
+  safe_umount_tree "${stateful_fs_dir}"
+  safe_umount_tree "${esp_fs_dir}"
 
-loopback_cleanup() {
-  # Disable die on error.
-  set +e
-
-  if [[ -n "${STATEFUL_LOOP_DEV}" ]]; then
-    cleanup_stateful_fs_loop
-    STATEFUL_LOOP_DEV=
-  fi
-
-  if [[ -n "${ROOT_LOOP_DEV}" ]]; then
-    cleanup_rootfs_loop
-    ROOT_LOOP_DEV=
-  fi
-
-  # Turn die on error back on.
+   # Turn die on error back on.
   set -e
 }
 
@@ -58,43 +33,62 @@ zero_free_space() {
   info "Zeroing freespace in ${fs_mount_point}"
   # dd is a silly thing and will produce a "No space left on device" message
   # that cannot be turned off and is confusing to unsuspecting victims.
+  info "${fs_mount_point}/filler"
   ( sudo dd if=/dev/zero of="${fs_mount_point}/filler" bs=4096 conv=fdatasync \
       status=noxfer || true ) 2>&1 | grep -v "No space left on device"
   sudo rm "${fs_mount_point}/filler"
 }
 
-# Takes as an arg the name of the image to be created.
 create_base_image() {
   local image_name=$1
+  local rootfs_verification_enabled=$2
+  local image_type="base"
 
-  trap "loopback_cleanup && delete_prompt" EXIT
-
-  # Create and format the root file system.
-
-  # Create root file system disk image.
-  ROOT_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_rootfs_size}))
-
-  # Pad out for the hash tree.
-  ROOT_HASH_PAD=$((FLAGS_rootfs_hash_pad * 1024 * 1024))
-  info "Padding the rootfs image by ${ROOT_HASH_PAD} bytes for hash data"
-
-  dd if=/dev/zero of="${ROOT_FS_IMG}" bs=1 count=1 \
-     seek=$((ROOT_SIZE_BYTES + ROOT_HASH_PAD - 1)) status=noxfer
-
-  ROOT_LOOP_DEV=$(sudo losetup --show -f "${ROOT_FS_IMG}")
-  if [ -z "${ROOT_LOOP_DEV}" ] ; then
-    die_notrace \
-        "No free loop device.  Free up a loop device or reboot.  exiting. "
+  if [[ "${FLAGS_disk_layout}" != "default" ]]; then
+      image_type="${FLAGS_disk_layout}"
+  else
+    if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
+      image_type="factory_install"
+    fi
   fi
 
-  # Specify a block size and block count to avoid using the hash pad.
-  sudo mkfs.ext2 -q -b 4096 "${ROOT_LOOP_DEV}" "$((ROOT_SIZE_BYTES / 4096))"
+  info "Using image type ${image_type}"
 
-  # Tune and mount rootfs.
-  DISK_LABEL="C-ROOT"
-  # Disable checking and minimize metadata differences across builds
-  # and wasted reserved space.
-  sudo tune2fs -L "${DISK_LABEL}" \
+  root_fs_dir="${BUILD_DIR}/rootfs"
+  stateful_fs_dir="${BUILD_DIR}/stateful"
+  esp_fs_dir="${BUILD_DIR}/esp"
+  oem_fs_dir="${BUILD_DIR}/oem"
+
+  trap "cleanup_mounts && delete_prompt" EXIT
+  cleanup_mounts &> /dev/null
+
+  local root_fs_img="${BUILD_DIR}/rootfs.image"
+  local root_fs_bytes=$(get_filesystem_size ${image_type} 3)
+  local root_fs_label=$(get_label ${image_type} 3)
+
+  local stateful_fs_img="${BUILD_DIR}/stateful.image"
+  local stateful_fs_bytes=$(get_filesystem_size ${image_type} 1)
+  local stateful_fs_label=$(get_label ${image_type} 1)
+  local stateful_fs_uuid=$(uuidgen)
+
+  local esp_fs_img="${BUILD_DIR}/esp.image"
+  local esp_fs_bytes=$(get_filesystem_size ${image_type} 12)
+  local esp_fs_label=$(get_label ${image_type} 12)
+
+  local oem_fs_img="${BUILD_DIR}/oem.image"
+  local oem_fs_bytes=$(get_filesystem_size ${image_type} 8)
+  local oem_fs_label=$(get_label ${image_type} 8)
+  local oem_fs_uuid=$(uuidgen)
+
+  local block_size=$(get_fs_block_size)
+
+  # Build root FS image.
+  info "Building ${root_fs_img}"
+  dd if=/dev/zero of="${root_fs_img}" bs=1 count=1 \
+    seek=$((root_fs_bytes - 1)) status=noxfer
+  sudo mkfs.ext2 -F -q -b $block_size "${root_fs_img}" \
+    "$((root_fs_bytes / block_size))"
+  sudo tune2fs -L "${root_fs_label}" \
                -U clear \
                -T 20091119110000 \
                -c 0 \
@@ -102,46 +96,59 @@ create_base_image() {
                -m 0 \
                -r 0 \
                -e remount-ro \
-                "${ROOT_LOOP_DEV}"
-  # TODO(wad) call tune2fs prior to finalization to set the mount count to 0.
-  sudo mount -t ext2 "${ROOT_LOOP_DEV}" "${ROOT_FS_DIR}"
+                "${root_fs_img}"
+  mkdir -p "${root_fs_dir}"
+  sudo mount -o loop "${root_fs_img}" "${root_fs_dir}"
 
-  # Create stateful partition of the same size as the rootfs.
-  STATEFUL_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_statefulfs_size}))
-  dd if=/dev/zero of="${STATEFUL_FS_IMG}" bs=1 count=1 \
-      seek=$((STATEFUL_SIZE_BYTES - 1)) status=noxfer
+  df -h "${root_fs_dir}"
 
-  # Tune and mount the stateful partition.
-  UUID=$(uuidgen)
-  DISK_LABEL="C-STATE"
-  STATEFUL_LOOP_DEV=$(sudo losetup --show -f "${STATEFUL_FS_IMG}")
-  if [ -z "${STATEFUL_LOOP_DEV}" ] ; then
-    die_notrace \
-        "No free loop device.  Free up a loop device or reboot.  exiting. "
-  fi
-  sudo mkfs.ext4 -q "${STATEFUL_LOOP_DEV}"
-  sudo tune2fs -L "${DISK_LABEL}" -U "${UUID}" -c 0 -i 0 "${STATEFUL_LOOP_DEV}"
-  sudo mount -t ext4 "${STATEFUL_LOOP_DEV}" "${STATEFUL_FS_DIR}"
+  # Build stateful FS disk image.
+  info "Building ${stateful_fs_img}"
+  dd if=/dev/zero of="${stateful_fs_img}" bs=1 count=1 \
+    seek=$((stateful_fs_bytes - 1)) status=noxfer
+  sudo mkfs.ext4 -F -q "${stateful_fs_img}"
+  sudo tune2fs -L "${stateful_fs_label}" -U "${stateful_fs_uuid}" \
+               -c 0 -i 0 "${stateful_fs_img}"
+  mkdir -p "${stateful_fs_dir}"
+  sudo mount -o loop "${stateful_fs_img}" "${stateful_fs_dir}"
 
-  # -- Install packages into the root file system --
+  # Build ESP disk image.
+  info "Building ${esp_fs_img}"
+  dd if=/dev/zero of="${esp_fs_img}" bs=1 count=1 \
+    seek=$((esp_fs_bytes - 1)) status=noxfer
+  sudo mkfs.vfat "${esp_fs_img}"
+
+  # Build OEM FS disk image.
+  info "Building ${oem_fs_img}"
+  dd if=/dev/zero of="${oem_fs_img}" bs=1 count=1 \
+    seek=$((oem_fs_bytes - 1)) status=noxfer
+  sudo mkfs.ext4 -F -q "${oem_fs_img}"
+  sudo tune2fs -L "${oem_fs_label}" -U "${oem_fs_uuid}" \
+               -c 0 -i 0 "${oem_fs_img}"
+  mkdir -p "${oem_fs_dir}"
+  sudo mount -o loop "${oem_fs_img}" "${oem_fs_dir}"
 
   # Prepare stateful partition with some pre-created directories.
-  sudo mkdir -p "${DEV_IMAGE_ROOT}"
-  sudo mkdir -p "${STATEFUL_FS_DIR}/var_overlay"
+  sudo mkdir "${stateful_fs_dir}/dev_image"
+  sudo mkdir "${stateful_fs_dir}/var_overlay"
 
   # Create symlinks so that /usr/local/usr based directories are symlinked to
   # /usr/local/ directories e.g. /usr/local/usr/bin -> /usr/local/bin, etc.
-  setup_symlinks_on_root "${DEV_IMAGE_ROOT}" "${STATEFUL_FS_DIR}/var_overlay" \
-    "${STATEFUL_FS_DIR}"
+  setup_symlinks_on_root "${stateful_fs_dir}/dev_image" \
+    "${stateful_fs_dir}/var_overlay" "${stateful_fs_dir}"
 
   # Perform binding rather than symlinking because directories must exist
   # on rootfs so that we can bind at run-time since rootfs is read-only.
   info "Binding directories from stateful partition onto the rootfs"
-  sudo mkdir -p "${ROOT_FS_DIR}/usr/local"
-  sudo mount --bind "${DEV_IMAGE_ROOT}" "${ROOT_FS_DIR}/usr/local"
-  sudo mkdir -p "${ROOT_FS_DIR}/var"
-  sudo mount --bind "${STATEFUL_FS_DIR}/var_overlay" "${ROOT_FS_DIR}/var"
-  sudo mkdir -p "${ROOT_FS_DIR}/dev"
+  sudo mkdir -p "${root_fs_dir}/usr/local"
+  sudo mount --bind "${stateful_fs_dir}/dev_image" "${root_fs_dir}/usr/local"
+  sudo mkdir -p "${root_fs_dir}/var"
+  sudo mount --bind "${stateful_fs_dir}/var_overlay" "${root_fs_dir}/var"
+  sudo mkdir -p "${root_fs_dir}/dev"
+
+  info "Binding directories from OEM partition onto the rootfs"
+  sudo mkdir -p "${root_fs_dir}/usr/share/oem"
+  sudo mount --bind "${oem_fs_dir}" "${root_fs_dir}/usr/share/oem"
 
   # We need to install libc manually from the cross toolchain.
   # TODO: Improve this? It would be ideal to use emerge to do this.
@@ -150,37 +157,47 @@ create_base_image() {
   LIBC_PATH="${PKGDIR}/cross-${CHOST}/${LIBC_TAR}"
 
   if ! [[ -e ${LIBC_PATH} ]]; then
-    die_notrace \
-      "${LIBC_PATH} does not exist. Try running ./setup_board" \
-      "--board=${BOARD} to update the version of libc installed on that board."
+  die_notrace \
+    "${LIBC_PATH} does not exist. Try running ./setup_board" \
+    "--board=${BOARD} to update the version of libc installed on that board."
   fi
 
-  sudo tar jxpf "${LIBC_PATH}" -C "${ROOT_FS_DIR}" ./usr/${CHOST} \
-    --strip-components=3 --exclude=usr/include --exclude=sys-include \
-    --exclude=*.a --exclude=*.o
+  sudo tar jxpf "${LIBC_PATH}" -C "${root_fs_dir}" ./usr/${CHOST} \
+  --strip-components=3 --exclude=usr/include --exclude=sys-include \
+  --exclude=*.a --exclude=*.o
 
-  . "${SRC_ROOT}/platform/dev/toolchain_utils.sh"
   board_ctarget=$(get_ctarget_from_board "${BOARD}")
   for atom in $(portageq match / cross-$board_ctarget/gcc); do
-    copy_gcc_libs "${ROOT_FS_DIR}" $atom
+    copy_gcc_libs "${root_fs_dir}" $atom
   done
 
   if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
     # Install our custom factory install kernel with the appropriate use flags
     # to the image.
-    emerge_custom_kernel "${ROOT_FS_DIR}"
+    emerge_custom_kernel "${root_fs_dir}"
   fi
 
-  # We "emerge --root=${ROOT_FS_DIR} --root-deps=rdeps --usepkgonly" all of the
+  # We "emerge --root=${root_fs_dir} --root-deps=rdeps --usepkgonly" all of the
   # runtime packages for chrome os. This builds up a chrome os image from
   # binary packages with runtime dependencies only.  We use INSTALL_MASK to
   # trim the image size as much as possible.
-  emerge_to_image --root="${ROOT_FS_DIR}" chromeos ${EXTRA_PACKAGES}
+  emerge_to_image --root="${root_fs_dir}" chromeos ${EXTRA_PACKAGES}
 
   # Set /etc/lsb-release on the image.
   "${OVERLAY_CHROMEOS_DIR}/scripts/cros_set_lsb_release" \
-    --root="${ROOT_FS_DIR}" \
-    --board="${BOARD}"
+  --root="${root_fs_dir}" \
+  --board="${BOARD}"
+
+  # Create the boot.desc file which stores the build-time configuration
+  # information needed for making the image bootable after creation with
+  # cros_make_image_bootable.
+  create_boot_desc "${image_type}"
+
+  # Write out the GPT creation script.
+  # This MUST be done before writing bootloader templates else we'll break
+  # the hash on the root FS.
+  write_partition_script "${image_type}" \
+    "${root_fs_dir}/${PARTITION_SCRIPT_PATH}"
 
   # Populates the root filesystem with legacy bootloader templates
   # appropriate for the platform.  The autoupdater and installer will
@@ -191,64 +208,45 @@ create_base_image() {
   # not support verified boot yet (see create_legacy_bootloader_templates.sh)
   # so rootfs verification is disabled if we are building with --factory_install
   local enable_rootfs_verification=
-  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-    enable_rootfs_verification="--enable_rootfs_verification"
+  if [[ ${rootfs_verification_enabled} -eq 1 ]]; then
+  enable_rootfs_verification="--enable_rootfs_verification"
   fi
 
   ${BUILD_LIBRARY_DIR}/create_legacy_bootloader_templates.sh \
     --arch=${ARCH} \
-    --to="${ROOT_FS_DIR}"/boot \
-    --boot_args="${FLAGS_boot_args}" \
-    ${enable_rootfs_verification}
+    --to="${root_fs_dir}"/boot \
+      ${enable_rootfs_verification}
 
   # Don't test the factory install shim
   if ! should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-    if [[ ${skip_test_image_content} -ne 1 ]]; then
+      if [[ ${skip_test_image_content} -ne 1 ]]; then
       # Check that the image has been correctly created.
-      test_image_content "$ROOT_FS_DIR"
+      test_image_content "$root_fs_dir"
     fi
   fi
 
   # Clean up symlinks so they work on a running target rooted at "/".
   # Here development packages are rooted at /usr/local.  However, do not
   # create /usr/local or /var on host (already exist on target).
-  setup_symlinks_on_root "/usr/local" "/var" "${STATEFUL_FS_DIR}"
-
-  # Create EFI System Partition to boot stock EFI BIOS (but not
-  # ChromeOS EFI BIOS).  ARM uses this space to determine which
-  # partition is bootable.  NOTE: The size argument for mkfs.vfat is
-  # in 1024-byte blocks.  We'll hard-code it to 16M for now, unless
-  # we are building a factory shim, in which case a larger room is
-  # needed to allow two kernel blobs (each including initramfs) in
-  # one EFI partition.
-  if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-    /usr/sbin/mkfs.vfat -C "${ESP_FS_IMG}" 32768
-  else
-    /usr/sbin/mkfs.vfat -C "${ESP_FS_IMG}" 16384
-  fi
+  setup_symlinks_on_root "/usr/local" "/var" "${stateful_fs_dir}"
 
   # Zero rootfs free space to make it more compressible so auto-update
   # payloads become smaller
-  zero_free_space "${ROOT_FS_DIR}"
-  loopback_cleanup
-  trap delete_prompt EXIT
+  zero_free_space "${root_fs_dir}"
 
-  if [[ ${FLAGS_full} -eq ${FLAGS_TRUE} ]]; then
-    dd if=/dev/zero of="${BUILD_DIR}/${image_name}" bs=1M count=3584
-  fi
+  cleanup_mounts
 
   # Create the GPT-formatted image.
   build_gpt "${BUILD_DIR}/${image_name}" \
-            "${ROOT_FS_IMG}" \
-            "${STATEFUL_FS_IMG}" \
-            "${ESP_FS_IMG}"
+          "${root_fs_img}" \
+          "${stateful_fs_img}" \
+          "${esp_fs_img}"
+
   # Clean up temporary files.
-  rm -f "${ROOT_FS_IMG}" "${STATEFUL_FS_IMG}" "${ESP_FS_IMG}"
+  rm -f "${root_fs_img}" "${stateful_fs_img}" "${esp_fs_img}" "{oem_fs_img}"
 
   # Emit helpful scripts for testers, etc.
   emit_gpt_scripts "${BUILD_DIR}/${image_name}" "${BUILD_DIR}"
-
-  trap - EXIT
 
   USE_DEV_KEYS=
   if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
@@ -256,14 +254,7 @@ create_base_image() {
   fi
 
   # Place flags before positional args.
-  if should_build_image ${image_name}; then
-    ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
-                                                ${image_name} \
-                                                ${USE_DEV_KEYS}
-  fi
-
-  # Setup hybrid MBR if it was enabled
-  if [[ ${FLAGS_hybrid_mbr} -eq ${FLAGS_TRUE} ]]; then
-    install_hybrid_mbr "${BUILD_DIR}/${image_name}"
-  fi
+  ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
+                                              ${image_name} \
+                                              ${USE_DEV_KEYS}
 }

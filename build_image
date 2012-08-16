@@ -12,7 +12,6 @@
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
 
-
 # Developer-visible flags.
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
@@ -20,22 +19,12 @@ DEFINE_string boot_args "noinitrd" \
   "Additional boot arguments to pass to the commandline"
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
-DEFINE_boolean full "${FLAGS_FALSE}" "Build full image with all partitions."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
-DEFINE_integer rootfs_hash_pad 8 \
-  "MiBs reserved at the end of the rootfs image. \
- ceil(0.01 * rootfs_size) is a good minimum."
-DEFINE_integer rootfs_partition_size 1024 \
-  "rootfs partition size in MiBs."
-DEFINE_integer rootfs_size 850 \
-  "rootfs filesystem size in MiBs."
-DEFINE_integer rootfs_boost_size 0 \
-  "MiBs by which to increase the rootfs allocations."
+DEFINE_string disk_layout "default" \
+  "The board to build an image for."
 DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
   "Install standard backdoor credentials for testing"
-DEFINE_integer statefulfs_size 1024 \
-  "stateful filesystem size in MiBs."
 DEFINE_string usb_disk /dev/sdb3 \
   "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
 
@@ -65,23 +54,12 @@ show_help_if_requested "$@"
 # not needed for the typical developer workflow.
 DEFINE_integer build_attempt 1 \
   "The build attempt for this image build."
-DEFINE_boolean hybrid_mbr ${FLAGS_FALSE} \
-  "Creates a hybrid MBR rather than a protective one"
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean replace ${FLAGS_FALSE} \
   "Overwrite existing output, if any."
 DEFINE_string symlink "latest" \
   "Symlink name to use for this image."
-DEFINE_integer verity_error_behavior 3 \
-  "Kernel verified boot error behavior (0: I/O errors, 1: panic, 2: nothing, \
-3: cros) Default: 3"
-DEFINE_integer verity_max_ios -1 \
-  "Number of outstanding I/O operations dm-verity caps at. Default: -1"
-DEFINE_string verity_algorithm "sha1" \
-  "Cryptographic hash algorithm used for kernel vboot. Default : sha1"
-DEFINE_string verity_salt "" \
-  "Root filesystem salt. Default: randomly generated."
 DEFINE_string version "" \
   "Overrides version number in name to this version."
 
@@ -99,7 +77,7 @@ OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos"
 # N.B.  Ordering matters for some of the libraries below, because
 # some of the files contain initialization used by later files.
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
-. "${BUILD_LIBRARY_DIR}/build_gpt.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/disk_layout_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/mount_gpt_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/base_image_util.sh" || exit 1
@@ -116,25 +94,7 @@ for overlay in $(cros_overlay_list --board "$BOARD"); do
   fi
 done
 
-# Tweak sizes defaulted or given based on any boost given (or defaulted).
-# This is syntactic sugar to separate concerns in callers, and unify
-# default values here.
-if [[ $FLAGS_rootfs_boost_size -gt 0 ]]; then
-  max() {
-    echo $(( $1 > $2 ? $1 : $2 ))
-  }
-  root_boost() {
-    echo $(( $1 + ( $1 * $FLAGS_rootfs_boost_size + $FLAGS_rootfs_size - 1 ) \
-        / $FLAGS_rootfs_size ))
-  }
-  FLAGS_rootfs_hash_pad=$(root_boost $FLAGS_rootfs_hash_pad)
-  FLAGS_rootfs_partition_size=$(root_boost $FLAGS_rootfs_partition_size)
-  FLAGS_rootfs_size=$(root_boost $FLAGS_rootfs_size)
-  FLAGS_rootfs_boost_size=0
-  # Push up to the recommended minimum if we did not get there.
-  FLAGS_rootfs_hash_pad=$(max $FLAGS_rootfs_hash_pad \
-      $(( ( $FLAGS_rootfs_size + 99 ) / 100 )))
-fi
+# TODO: <prebuild hook>
 
 # Tweak flags, configure extra USE flags, and add packages for the factory
 # install shim.
@@ -142,16 +102,6 @@ EXTRA_PACKAGES=""
 if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
   # TODO: Build a separated ebuild for the install shim to reduce size.
   INSTALL_MASK="${FACTORY_SHIM_INSTALL_MASK}"
-
-  # Reduce the size of factory install shim. Note that 400M is too much, it
-  # should be smaller, see http://crosbug.com/34167
-  FLAGS_rootfs_size=400
-  FLAGS_rootfs_partition_size=420
-  FLAGS_statefulfs_size=140
-  info "Fixing the rootfs size at ${FLAGS_rootfs_partition_size} MiB " \
-    "for install shim"
-  info "Fixing the statefulfs size at ${FLAGS_statefulfs_size} MiB " \
-    "for install shim"
 
   # Add the cros_factory_install boot arg.
   FLAGS_boot_args="${FLAGS_boot_args} cros_factory_install"
@@ -172,11 +122,7 @@ if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
   fi
 fi
 
-if [ $((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) -gt \
-     ${FLAGS_rootfs_partition_size} ] ; then
-  die_notrace "rootfs ($((FLAGS_rootfs_size + FLAGS_rootfs_hash_pad)) MiB) is" \
-    "bigger than partition (${FLAGS_rootfs_partition_size} MiB)."
-fi
+# TODO: </prebuild hook>
 
 # If we are creating a developer image, also create a pristine image with a
 # different name.
@@ -187,16 +133,7 @@ else
   PRISTINE_IMAGE_NAME=${CHROMEOS_BASE_IMAGE_NAME}
 fi
 
-ROOT_FS_DIR="${BUILD_DIR}/rootfs"
-STATEFUL_FS_DIR="${BUILD_DIR}/stateful_partition"
-ESP_FS_DIR=${BUILD_DIR}/esp
-
 DEVKEYSDIR="/usr/share/vboot/devkeys"
-
-# ${DEV_IMAGE_ROOT} specifies the location of where developer packages will
-# be installed on the stateful dir.  On a Chromium OS system, this will
-# translate to /usr/local.
-DEV_IMAGE_ROOT="${STATEFUL_FS_DIR}/dev_image"
 
 eclean-$BOARD -d packages
 
@@ -228,28 +165,9 @@ fi
 
 # Create the output directory and temporary mount points.
 mkdir -p "${BUILD_DIR}"
-mkdir -p "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
 
-# Create the boot.desc file which stores the build-time configuration
-# information needed for making the image bootable after creation with
-# cros_make_image_bootable.
-create_boot_desc
-
+# Create the base image.
 create_base_image ${PRISTINE_IMAGE_NAME}
-
-
-BOOT_FLAG=
-if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-  BOOT_FLAG="-b 1"  # BOOT_FLAG_DEVELOPER value defined in load_kernel_fw.h
-  info "--factory_install set, pass BOOT_FLAG_DEVELOPER flag to" \
-    "load_kernel_test"
-fi
-
-# Verify pristine image if we built it.
-if should_build_image "${PRISTINE_IMAGE_NAME}"; then
-  load_kernel_test "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}" \
-    "${DEVKEYSDIR}/recovery_key.vbpubk" ${BOOT_FLAG}
-fi
 
 # Running board-specific setup if any exists.
 if type board_setup &>/dev/null; then
@@ -274,8 +192,6 @@ if should_build_image ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}; then
   mod_image_for_test  ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}
 fi
 
-rmdir "${ROOT_FS_DIR}" "${STATEFUL_FS_DIR}" "${ESP_FS_DIR}"
-
 # Generating AU generator zip file to run outside chroot
 generate_au_zip || echo "Failed generating AU zip file - ignoring Error..."
 
@@ -283,7 +199,7 @@ generate_au_zip || echo "Failed generating AU zip file - ignoring Error..."
 LINK_NAME="${FLAGS_output_root}/${BOARD}/${FLAGS_symlink}"
 ln -sfT $(basename ${BUILD_DIR}) ${LINK_NAME}
 
-echo "Done.  Image(s) created in ${BUILD_DIR}"
+echo "Done. Image(s) created in ${BUILD_DIR}"
 
 # Print out the images we generated.
 if should_build_image ${CHROMEOS_BASE_IMAGE_NAME}; then

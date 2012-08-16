@@ -33,7 +33,8 @@ assert_inside_chroot
 
 # Load functions and constants for chromeos-install
 . /usr/lib/installer/chromeos-common.sh || exit 1
-. "${SCRIPTS_DIR}/build_library/build_image_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/disk_layout_util.sh" || exit 1
 
 switch_to_strict_mode
 
@@ -70,7 +71,10 @@ locate_gpt
 set +e
 
 # Now parse the build settings from ${OUTPUT_DIR}/boot.desc
-
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "Board we're building for."
+DEFINE_string image_type "base" \
+  "Type of image we're building for (base/factory_install)."
 DEFINE_string output_dir "/tmp" \
   "Directory to place output in."
 DEFINE_string image "chromiumos_base.img" \
@@ -140,6 +144,8 @@ eval set -- "${BOOT_DESC} ${FLAG_OVERRIDES}"
 FLAGS "${@}" || exit 1
 
 [ -z "${FLAGS_verity_salt}" ] && FLAGS_verity_salt=$(make_salt)
+
+. "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
 # so will die prematurely if 'switch_to_strict_mode' is specified before now.
@@ -238,10 +244,15 @@ make_image_bootable() {
   fi
 
   local rootfs_hash_size=$(stat -c '%s' ${FLAGS_rootfs_hash})
+  local rootfs_fs_size=$(get_filesystem_size ${FLAGS_image_type} 3)
+  local rootfs_partition_size=$(get_partition_size ${FLAGS_image_type} 3)
+  local rootfs_hash_pad=$(( rootfs_partition_size - rootfs_fs_size ))
   info "Appending rootfs.hash (${rootfs_hash_size} bytes) to the root fs"
-  if [[ ${rootfs_hash_size} -gt $((FLAGS_rootfs_hash_pad * 1024 * 1024)) ]]
+  if [[ ${rootfs_hash_size} -gt ${rootfs_hash_pad} ]]
   then
-    die "--rootfs_hash_pad reserves less than the needed ${rootfs_hash_size}"
+    die "rootfs_partition_size - rootfs_fs_size is less than the needed " \
+        "rootfs_hash_size (${rootfs_hash_size}), update your disk layout " \
+        "configuration"
   fi
   # Unfortunately, mount_gpt_image uses mount and not losetup to create the
   # loop devices.  This means that they are not the correct size.  We have to
@@ -251,7 +262,7 @@ make_image_bootable() {
     rootfs_file_size=$(stat -c '%s' ${root_dev})
     hash_offset=$((hash_offset + (${rootfs_file_size} / 512)))
   else
-    hash_offset=$((hash_offset + ((1024 * 1024 * ${FLAGS_rootfs_size}) / 512)))
+    hash_offset=$((hash_offset + (${rootfs_fs_size} / 512)))
   fi
   sudo dd bs=512 \
           seek=${hash_offset} \
@@ -267,7 +278,6 @@ make_image_bootable() {
   sudo cp "${FLAGS_output_dir}/vmlinuz_hd.vblock" \
           "${FLAGS_statefulfs_mountpoint}"
 
-  # START_KERN_A is set by the first call to install the gpt.
   local koffset="$(partoffset ${image} 2)"
   sudo dd if="${FLAGS_output_dir}/vmlinuz.image" of="${image}" \
     conv=notrunc bs=512 seek=${koffset}

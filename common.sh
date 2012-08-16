@@ -225,6 +225,7 @@ GCLIENT_ROOT=$(readlink -f "$GCLIENT_ROOT")
 SRC_ROOT="$GCLIENT_ROOT/src"
 SRC_INTERNAL="$GCLIENT_ROOT/src-internal"
 SCRIPTS_DIR="$SRC_ROOT/scripts"
+BUILD_LIBRARY_DIR=${SCRIPTS_DIR}/build_library
 
 # Load developer's custom settings.  Default location is in scripts dir,
 # since that's available both inside and outside the chroot.  By convention,

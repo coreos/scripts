@@ -10,6 +10,8 @@
 # Helper scripts should be run from the same location as this script.
 SCRIPT_ROOT=$(dirname "$(readlink -f "$0")")
 . "${SCRIPT_ROOT}/common.sh" || exit 1
+. "${SCRIPT_ROOT}/build_library/disk_layout_util.sh" || exit 1
+. "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
 
 # Need to be inside the chroot to load chromeos-common.sh
 assert_inside_chroot
@@ -33,29 +35,33 @@ DEFINE_string format "qemu" \
   "Output format, either qemu, vmware or virtualbox"
 DEFINE_string from "" \
   "Directory containing rootfs.image and mbr.image"
-DEFINE_boolean full "${FLAGS_FALSE}" "Build full image with all partitions."
 DEFINE_boolean make_vmx ${FLAGS_TRUE} \
   "Create a vmx file for use with vmplayer (vmware only)."
 DEFINE_integer mem "${DEFAULT_MEM}" \
   "Memory size for the vm config in MBs (vmware only)."
-DEFINE_integer rootfs_partition_size 1024 \
-  "rootfs parition size in MBs."
 DEFINE_string state_image "" \
   "Stateful partition image (defaults to creating new statful partition)"
-DEFINE_integer statefulfs_size 2048 \
-  "Stateful partition size in MBs."
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
   "Copies normal image to ${CHROMEOS_TEST_IMAGE_NAME}, modifies it for test."
 DEFINE_string to "" \
   "Destination folder for VM output file(s)"
 DEFINE_string vbox_disk "${DEFAULT_VBOX_DISK}" \
   "Filename for the output disk (virtualbox only)."
-DEFINE_integer vdisk_size 3072 \
-  "virtual disk size in MBs."
 DEFINE_string vmdk "${DEFAULT_VMDK}" \
   "Filename for the vmware disk image (vmware only)."
 DEFINE_string vmx "${DEFAULT_VMX}" \
   "Filename for the vmware config (vmware only)."
+
+# The following arguments are ignored.
+# They are here as part of a transition for CL #29931 beacuse the buildbots
+# specify these arguments.
+DEFINE_integer vdisk_size 3072 \
+  "virtual disk size in MBs."
+DEFINE_boolean full "${FLAGS_FALSE}" "Build full image with all partitions."
+DEFINE_integer rootfs_partition_size 1024 \
+  "rootfs parition size in MBs."
+DEFINE_integer statefulfs_size 2048 \
+  "Stateful partition size in MBs."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -68,15 +74,7 @@ if [ -z "${FLAGS_board}" ] ; then
   die_notrace "--board is required."
 fi
 
-if [ "${FLAGS_full}" -eq "${FLAGS_TRUE}" ] && \
-   [[ ${FLAGS_vdisk_size} < ${MIN_VDISK_SIZE_FULL} || \
-      ${FLAGS_statefulfs_size} < ${MIN_STATEFUL_FS_SIZE_FULL} ]]; then
-  warn "Disk is too small for full, using minimum:  vdisk size equal to \
-${MIN_VDISK_SIZE_FULL} and statefulfs size equal to \
-${MIN_STATEFUL_FS_SIZE_FULL}."
-  FLAGS_vdisk_size=${MIN_VDISK_SIZE_FULL}
-  FLAGS_statefulfs_size=${MIN_STATEFUL_FS_SIZE_FULL}
-fi
+BOARD="$FLAGS_board"
 
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
 # Default to the most recent image
@@ -125,20 +123,17 @@ TEMP_KERN="${TEMP_DIR}"/part_2
 if [ -n "${FLAGS_state_image}" ]; then
   TEMP_STATE="${FLAGS_state_image}"
 else
-  # If we have a stateful fs size specified create a new state partition
-  # of the specified size.
-  if [ "${FLAGS_statefulfs_size}" -ne -1 ]; then
-    STATEFUL_SIZE_BYTES=$((1024 * 1024 * ${FLAGS_statefulfs_size}))
-    original_image_size=$(stat -c%s "${TEMP_STATE}")
-    if [ "${original_image_size}" -gt "${STATEFUL_SIZE_BYTES}" ]; then
-      die "Cannot resize stateful image to smaller than original. Exiting."
-    fi
-
-    echo "Resizing stateful partition to ${FLAGS_statefulfs_size}MB"
-    # Extend the original file size to the new size.
-    sudo e2fsck -pf "${TEMP_STATE}"
-    sudo resize2fs "${TEMP_STATE}" ${FLAGS_statefulfs_size}M
+  STATEFUL_SIZE_BYTES=$(get_filesystem_size vm 1)
+  STATEFUL_SIZE_MEGABYTES=$(( STATEFUL_SIZE_BYTES / 1024 / 1024 ))
+  original_image_size=$(stat -c%s "${TEMP_STATE}")
+  if [ "${original_image_size}" -gt "${STATEFUL_SIZE_BYTES}" ]; then
+    die "Cannot resize stateful image to smaller than original. Exiting."
   fi
+
+  echo "Resizing stateful partition to ${STATEFUL_SIZE_MEGABYTES}MB"
+  # Extend the original file size to the new size.
+  sudo e2fsck -pf "${TEMP_STATE}"
+  sudo resize2fs "${TEMP_STATE}" ${STATEFUL_SIZE_MEGABYTES}M
 fi
 TEMP_PMBR="${TEMP_DIR}"/pmbr
 dd if="${SRC_IMAGE}" of="${TEMP_PMBR}" bs=512 count=1
@@ -164,26 +159,22 @@ sudo sed -i -e 's/sdb3/sda3/g' "${TEMP_MNT}/boot/syslinux/usb.A.cfg"
 trap - INT TERM EXIT
 cleanup
 
-# TOOD(adlr): pick a size that will for sure accomodate the partitions.
-dd if=/dev/zero of="${TEMP_IMG}" bs=1 count=1 \
-  seek=$((${FLAGS_vdisk_size} * 1024 * 1024 - 1))
+# Set up a new partition table
+PARTITION_SCRIPT_PATH=$( tempfile )
+write_partition_script "vm" "${PARTITION_SCRIPT_PATH}"
+. "${PARTITION_SCRIPT_PATH}"
+write_partition_table "${TEMP_IMG}" "${TEMP_PMBR}"
+rm "${PARTITION_SCRIPT_PATH}"
 
-GPT_FULL="false"
-[ "${FLAGS_full}" -eq "${FLAGS_TRUE}" ] && GPT_FULL="true"
-
-# Set up the partition table
-install_gpt "${TEMP_IMG}" "$(numsectors $TEMP_ROOTFS)" \
-  "$(numsectors $TEMP_STATE)" "${TEMP_PMBR}" "$(numsectors $TEMP_ESP)" \
-  "${GPT_FULL}" ${FLAGS_rootfs_partition_size}
 # Copy into the partition parts of the file
 dd if="${TEMP_ROOTFS}" of="${TEMP_IMG}" conv=notrunc bs=512 \
-  seek="${START_ROOTFS_A}"
+  seek=$(partoffset ${TEMP_IMG} 3)
 dd if="${TEMP_STATE}"  of="${TEMP_IMG}" conv=notrunc bs=512 \
-  seek="${START_STATEFUL}"
+  seek=$(partoffset ${TEMP_IMG} 1)
 dd if="${TEMP_KERN}"   of="${TEMP_IMG}" conv=notrunc bs=512 \
-  seek="${START_KERN_A}"
+  seek=$(partoffset ${TEMP_IMG} 2)
 dd if="${TEMP_ESP}"    of="${TEMP_IMG}" conv=notrunc bs=512 \
-  seek="${START_ESP}"
+  seek=$(partoffset ${TEMP_IMG} 12)
 
 # Make the built-image bootable and ensure that the legacy default usb boot
 # uses /dev/sda instead of /dev/sdb3.

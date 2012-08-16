@@ -22,6 +22,14 @@ BUILD_DIR="${FLAGS_output_root}/${BOARD}/${IMAGE_SUBDIR}"
 OUTSIDE_OUTPUT_DIR="../build/images/${BOARD}/${IMAGE_SUBDIR}"
 IMAGES_TO_BUILD=
 
+EMERGE_BOARD_CMD="$GCLIENT_ROOT/chromite/bin/parallel_emerge"
+EMERGE_BOARD_CMD="$EMERGE_BOARD_CMD --board=$BOARD"
+
+export INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
+
+if [[ $FLAGS_jobs -ne -1 ]]; then
+  EMERGE_JOBS="--jobs=$FLAGS_jobs"
+fi
 
 # Populates list of IMAGES_TO_BUILD from args passed in.
 # Arguments should be the shortnames of images we want to build.
@@ -106,9 +114,9 @@ make_salt() {
   xxd -l 32 -p -c 32 /dev/urandom
 }
 
-# Takes no arguments and populates the configuration for
-# cros_make_image_bootable.
 create_boot_desc() {
+  local image_type=$1
+
   local enable_rootfs_verification_flag=""
   if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
     enable_rootfs_verification_flag="--enable_rootfs_verification"
@@ -116,17 +124,13 @@ create_boot_desc() {
 
   [ -z "${FLAGS_verity_salt}" ] && FLAGS_verity_salt=$(make_salt)
   cat <<EOF > ${BUILD_DIR}/boot.desc
+  --board=${BOARD}
+  --image_type=${image_type}
   --arch="${ARCH}"
-  --boot_args="${FLAGS_boot_args}"
-  --rootfs_size="${FLAGS_rootfs_size}"
-  --rootfs_hash_pad="${FLAGS_rootfs_hash_pad}"
-  --verity_error_behavior="${FLAGS_verity_error_behavior}"
-  --verity_max_ios="${FLAGS_verity_max_ios}"
-  --verity_algorithm="${FLAGS_verity_algorithm}"
-  --verity_salt="${FLAGS_verity_salt}"
   --keys_dir="${DEVKEYSDIR}"
   --usb_disk="${FLAGS_usb_disk}"
   --nocleanup_dirs
+  --verity_algorithm=sha1
   ${enable_rootfs_verification_flag}
 EOF
 }
@@ -158,4 +162,12 @@ generate_au_zip () {
   test ! -d "${BUILD_DIR}" && mkdir -p "${BUILD_DIR}"
   info "Running ${lgenerateauzip} ${largs} for generating AU updater zip file"
   $lgenerateauzip $largs
+}
+
+# Basic command to emerge binary packages into the target image.
+# Arguments to this command are passed as addition options/arguments
+# to the basic emerge command.
+emerge_to_image() {
+  sudo -E ${EMERGE_BOARD_CMD} --root-deps=rdeps --usepkgonly -v \
+    "$@" ${EMERGE_JOBS}
 }
