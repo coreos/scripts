@@ -16,6 +16,11 @@ ENTER_CHROOT=$(readlink -f $(dirname "$0")/enter_chroot.sh)
 
 enable_strict_sudo
 
+if [ -n "${USE}" ]; then
+  echo "$SCRIPT_NAME: Building with a non-empty USE: ${USE}"
+  echo "This modifies the expected behaviour and can fail."
+fi
+
 # Check if the host machine architecture is supported.
 ARCHITECTURE="$(uname -m)"
 if [[ "$ARCHITECTURE" != "x86_64" ]]; then
@@ -457,7 +462,7 @@ fi
 
 # As a final pass, build all desired cross-toolchains.
 info "Updating toolchains"
-enter_chroot sudo "${CHROOT_TRUNK}/chromite/bin/cros_setup_toolchains" \
+enter_chroot sudo -E "${CHROOT_TRUNK}/chromite/bin/cros_setup_toolchains" \
     "${TOOLCHAIN_ARGS[@]}"
 
 command_completed

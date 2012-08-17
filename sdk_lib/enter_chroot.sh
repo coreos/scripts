@@ -586,8 +586,11 @@ CHROOT_PASSTHRU=(
   "SSH_AUTH_SOCK=${SSH_AUTH_SOCK}"
 )
 
+# Some vars we want to keep.
+KEEP_VARS="USE GCC_GITHASH"
 # Pass proxy variables into the environment.
-for type in http_proxy ftp_proxy all_proxy GIT_PROXY_COMMAND GIT_SSH; do
+PROXY_VARS="http_proxy ftp_proxy all_proxy GIT_PROXY_COMMAND GIT_SSH"
+for type in ${KEEP_VARS} ${PROXY_VARS}; do
   if [ -n "${!type}" ]; then
     CHROOT_PASSTHRU+=( "${type}=${!type}" )
   fi
