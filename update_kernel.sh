@@ -134,14 +134,6 @@ main() {
     tar -C /build/"${FLAGS_board}"/boot -cjf $TMP/new_boot.tar .
 
     remote_sh mount -o remount,rw /
-    echo "copying modules"
-    remote_cp_to $TMP/new_modules.tar /tmp/
-    remote_sh tar -C /lib/modules -xjf /tmp/new_modules.tar
-
-    echo "copying firmware"
-    remote_cp_to $TMP/new_firmware.tar /tmp/
-    remote_sh tar -C /lib/firmware -xjf /tmp/new_firmware.tar
-
     echo "copying kernel"
     remote_cp_to $TMP/new_boot.tar /tmp/
     remote_sh tar -C /boot -xjf /tmp/new_boot.tar
@@ -164,6 +156,14 @@ main() {
         remote_sh umount /tmp/12
         remote_sh rmdir /tmp/12
     fi
+
+    echo "copying modules"
+    remote_cp_to $TMP/new_modules.tar /tmp/
+    remote_sh tar -C /lib/modules -xjf /tmp/new_modules.tar
+
+    echo "copying firmware"
+    remote_cp_to $TMP/new_firmware.tar /tmp/
+    remote_sh tar -C /lib/firmware -xjf /tmp/new_firmware.tar
   fi
 
   echo "copying kernel image"
