@@ -22,6 +22,8 @@ DEFINE_boolean host "${FLAGS_FALSE}" \
   "Uses the host instead of board"
 DEFINE_string remote "" \
   "For non-workon projects, the git remote to use."
+DEFINE_string revision "" \
+  "Use to override the manifest defined default revision used for a project"
 DEFINE_string command "git status" \
   "The command to be run by forall."
 DEFINE_boolean all "${FLAGS_FALSE}" \
@@ -275,11 +277,12 @@ regen_manifest_and_sync() {
     need_repo_sync='yes'
     for S in "${CROS_WORKON_SRCDIR[@]}"; do
       local srcdir=$(readlink -m "${S}")
+      local revision="${FLAGS_revision:+--revision=${FLAGS_revision}}"
       if [ -z "${FLAGS_remote}" ]; then
-        loman add --workon "${CROS_WORKON_PROJECT[i]}"
+        loman add --workon "${CROS_WORKON_PROJECT[i]}" "${revision}"
       else
-        loman add --remote "${FLAGS_remote}" "${CROS_WORKON_PROJECT[i]}" \
-          "${srcdir#${trunkdir}/}"
+        loman add --remote "${FLAGS_remote}" "${revision}" \
+          "${CROS_WORKON_PROJECT[i]}" "${srcdir#${trunkdir}/}"
       fi
       : $(( ++i ))
     done
