@@ -69,8 +69,8 @@ if [ -z "${FLAGS_board}" ] ; then
 fi
 
 if [ "${FLAGS_full}" -eq "${FLAGS_TRUE}" ] && \
-    ( [[ ${FLAGS_vdisk_size} < ${MIN_VDISK_SIZE_FULL} ]] || \
-      [[ ${FLAGS_statefulfs_size} < ${MIN_STATEFUL_FS_SIZE_FULL} ]]); then
+   [[ ${FLAGS_vdisk_size} < ${MIN_VDISK_SIZE_FULL} || \
+      ${FLAGS_statefulfs_size} < ${MIN_STATEFUL_FS_SIZE_FULL} ]]; then
   warn "Disk is too small for full, using minimum:  vdisk size equal to \
 ${MIN_VDISK_SIZE_FULL} and statefulfs size equal to \
 ${MIN_STATEFUL_FS_SIZE_FULL}."
@@ -113,8 +113,9 @@ FLAGS_to=`eval readlink -f $FLAGS_to`
 
 # Split apart the partitions and make some new ones
 TEMP_DIR=$(mktemp -d)
-(cd "${TEMP_DIR}" &&
-  "${FLAGS_from}/unpack_partitions.sh" "${SRC_IMAGE}")
+pushd "${TEMP_DIR}" >/dev/null
+"${FLAGS_from}/unpack_partitions.sh" "${SRC_IMAGE}"
+popd >/dev/null
 
 # Fix the kernel command line
 TEMP_ESP="${TEMP_DIR}"/part_12
