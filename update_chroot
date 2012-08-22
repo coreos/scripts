@@ -89,13 +89,13 @@ if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" ]; then
   # First update crossdev.
   sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} crossdev
 
-  TOOLCHAIN_FLAGS="--include-boards=${FLAGS_toolchain_boards}"
+  TOOLCHAIN_FLAGS=( "--include-boards=${FLAGS_toolchain_boards}" )
   # This should really only be skipped while bootstrapping.
   if [ "${FLAGS_usepkg}" -eq "${FLAGS_FALSE}" ]; then
-    TOOLCHAIN_FLAGS="--nousepkg"
+    TOOLCHAIN_FLAGS+=( --nousepkg )
   fi
   # Expand the path before sudo, as root doesn't have the same path magic.
-  sudo $(type -p cros_setup_toolchains) ${TOOLCHAIN_FLAGS}
+  sudo $(type -p cros_setup_toolchains) "${TOOLCHAIN_FLAGS[@]}"
 fi
 
 # Build cros_workon packages when they are changed.
