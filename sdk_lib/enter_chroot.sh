@@ -611,16 +611,6 @@ else
   cmd=( sudo -i -u "$USER" )
 fi
 
-# TODO(rcui): Remove this hook on 8/26/2012.
-# crosbug.com/32963
-if [ $FLAGS_early_make_chroot -eq $FLAGS_FALSE ]; then
-  chroot_script_root="\${HOME}/trunk/src/scripts"
-  hook_rel_path="chroot_version_hooks.d/44_fix_gerrit_chrome"
-  gerrit_chrome_hook="${chroot_script_root}/${hook_rel_path}"
-  sudo -- chroot "${FLAGS_chroot}" "${cmd[@]}" "${CHROOT_PASSTHRU[@]}" \
-                 bash -c "source \"${gerrit_chrome_hook}\""
-fi
-
 sudo -- chroot "${FLAGS_chroot}" "${cmd[@]}" "${CHROOT_PASSTHRU[@]}" "$@"
 
 # Remove trap and explicitly unmount
