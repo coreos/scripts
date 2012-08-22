@@ -133,9 +133,8 @@ info "Emitted cross-platform boot params to ${FLAGS_working_dir}/boot.config"
 # Add common boot options first.
 cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
   > "${FLAGS_working_dir}/config.txt"
-quiet
-loglevel=0
-console=tty2
+loglevel=7
+console=
 init=/sbin/init
 cros_secure
 EOF
