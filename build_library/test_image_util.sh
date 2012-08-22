@@ -127,7 +127,8 @@ mod_image_for_test () {
     emerge_to_image --root="${ROOT_FS_DIR}" factorytest-init
     INSTALL_MASK="${FACTORY_TEST_INSTALL_MASK}"
     emerge_to_image --root="${ROOT_FS_DIR}/usr/local" \
-      chromeos-base/autotest chromeos-base/autotest-all
+      chromeos-base/autotest chromeos-base/autotest-all \
+      chromeos-base/chromeos-factory
     prepare_hwid_for_factory "${BUILD_DIR}"
 
     local mod_factory_script
