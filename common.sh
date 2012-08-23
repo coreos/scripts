@@ -299,6 +299,20 @@ DEFAULT_FAST=${FLAGS_TRUE}
 # Directory to store built images.  Should be set by sourcing script when used.
 BUILD_DIR=
 
+# List of variables to proxy into the chroot from the host, and to
+# have sudo export if existent.
+# Anytime this list is modified, to make that change active a new
+# chroot_version_hooks.d upgrade script that symlinks to 45_rewrite_sudoers.d
+# is required.
+ENVIRONMENT_WHITELIST=(
+  CHROMEOS_OFFICIAL
+  {http{,s},ftp,all,no}_proxy
+  RSYNC_PROXY
+  GIT_{PROXY_COMMAND,SSH}
+  SSH_AGENT_PID
+  SSH_AUTH_SOCK
+)
+
 # Standard filenames
 CHROMEOS_BASE_IMAGE_NAME="chromiumos_base_image.bin"
 CHROMEOS_IMAGE_NAME="chromiumos_image.bin"

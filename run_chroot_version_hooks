@@ -25,7 +25,7 @@ DEFINE_boolean skipfirst "${FLAGS_FALSE}" \
 FLAGS "$@" || exit 1
 
 VERSION_FILE=/etc/cros_chroot_version
-UPGRADE_D="$(dirname ${0})/chroot_version_hooks.d"
+VERSION_HOOKS_DIR="$(dirname "$(readlink -f "${0}")")/chroot_version_hooks.d"
 
 update_version() {
   sudo touch ${VERSION_FILE}
@@ -55,9 +55,8 @@ fi
 # Versions must be -n sorted, that is, the first continuous sequence
 # of numbers is what counts. 12_ is before 111_, etc.
 LATEST_VERSION=$(
-  ls "${UPGRADE_D}" | grep "^[0-9]*_" | \
-  sort -n | tail -n 1 | cut -f1 -d'_'
-)
+  cd "${VERSION_HOOKS_DIR}"
+  ls [0-9]*_* | cut -d_ -f1 | sort -rn | head -n1)
 
 if [ "${FLAGS_force_latest}" == "${FLAGS_TRUE}" ]; then
   update_version "${LATEST_VERSION}"
@@ -71,7 +70,7 @@ if ! [ -f "${VERSION_FILE}" ]; then
   update_version 0
 fi
 
-CHROOT_VERSION=$(cat "${VERSION_FILE}")
+CHROOT_VERSION=$(<"${VERSION_FILE}")
 # Check if version is a number.
 if ! [ "${CHROOT_VERSION}" -ge "0" ] &> /dev/null; then
   error "Your chroot version file ${VERSION_FILE} is bogus: ${CHROOT_VERSION}"
@@ -108,7 +107,7 @@ fi
 if [ "${LATEST_VERSION}" -gt "${CHROOT_VERSION}" ]; then
   info "Old chroot version (${CHROOT_VERSION}) found, running upgrade hooks"
 
-  pushd "${UPGRADE_D}" 1> /dev/null
+  pushd "${VERSION_HOOKS_DIR}" 1> /dev/null
   for n in $(seq "$(expr ${CHROOT_VERSION} + 1)" "${LATEST_VERSION}"); do
     hook=(${n}_*)
 
@@ -138,9 +137,9 @@ if [ "${LATEST_VERSION}" -gt "${CHROOT_VERSION}" ]; then
     # NOTE: We source the upgrade scripts because:
     # 1) We can impose set -something on them.
     # 2) They can reuse local variables and functions (fe. from common.sh)
-    # Side effect is that the scripts have to be internally enclosed in
-    # a code block, otherwise simply running "exit" in any of them would
-    # terminate the master script, so we call it in a subshell.
+    # 3) They're allowed to use VERSION_HOOKS_DIR and VERSION_FILE.
+    # Note that the upgrade scripts have to be subshelled to protect ourselves,
+    # else a script running exit would stop the upgrade process entirely.
     if ! ( source ${hook} ); then
       error "Fatal: failed to upgrade ${n}!"
       exit 1

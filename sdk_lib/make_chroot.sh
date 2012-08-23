@@ -172,17 +172,11 @@ init_setup () {
    # the user's already typed in one sudo password...)
    # Make sure the sudoers.d subdir exists as older stage3 base images lack it.
    sudo mkdir -p "${FLAGS_chroot}/etc/sudoers.d"
-   sudo_clobber "${FLAGS_chroot}/etc/sudoers.d/90_cros" <<EOF
-Defaults env_keep += CROS_WORKON_SRCROOT
-Defaults env_keep += CHROMEOS_OFFICIAL
-Defaults env_keep += PORTAGE_USERNAME
-Defaults env_keep += http_proxy
-Defaults env_keep += ftp_proxy
-Defaults env_keep += all_proxy
-%adm ALL=(ALL) ALL
-root ALL=(ALL) ALL
-$USER ALL=NOPASSWD: ALL
-EOF
+
+   # Use the standardized upgrade script to setup proxied vars.
+   sudo bash -e "${SCRIPT_ROOT}/chroot_version_hooks.d/45_rewrite_sudoers.d" \
+     "${FLAGS_chroot}" "${USER}" "${ENVIRONMENT_WHITELIST[@]}"
+
    sudo find "${FLAGS_chroot}/etc/"sudoers* -type f -exec chmod 0440 {} +
    # Fix bad group for some.
    sudo chown -R root:root "${FLAGS_chroot}/etc/"sudoers*

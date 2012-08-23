@@ -570,30 +570,20 @@ setup_env
 
 CHROOT_PASSTHRU=(
   "BUILDBOT_BUILD=$FLAGS_build_number"
-  "CHROMEOS_OFFICIAL=$CHROMEOS_OFFICIAL"
   "CHROMEOS_RELEASE_APPID=${CHROMEOS_RELEASE_APPID:-{DEV-BUILD}}"
-
-  # Set CHROMEOS_VERSION_TRACK, CHROMEOS_VERSION_AUSERVER,
-  # CHROMEOS_VERSION_DEVSERVER as environment variables to override the default
-  # assumptions (local AU server). These are used in cros_set_lsb_release, and
-  # are used by external Chromium OS builders.
-
-  "CHROMEOS_VERSION_TRACK=${CHROMEOS_VERSION_TRACK}"
-  "CHROMEOS_VERSION_AUSERVER=${CHROMEOS_VERSION_AUSERVER}"
-  "CHROMEOS_VERSION_DEVSERVER=${CHROMEOS_VERSION_DEVSERVER}"
   "EXTERNAL_TRUNK_PATH=${FLAGS_trunk}"
-  "SSH_AGENT_PID=${SSH_AGENT_PID}"
-  "SSH_AUTH_SOCK=${SSH_AUTH_SOCK}"
 )
 
-# Some vars we want to keep.
-KEEP_VARS="USE GCC_GITHASH"
-# Pass proxy variables into the environment.
-PROXY_VARS="http_proxy ftp_proxy all_proxy GIT_PROXY_COMMAND GIT_SSH"
-for type in ${KEEP_VARS} ${PROXY_VARS}; do
-  if [ -n "${!type}" ]; then
-    CHROOT_PASSTHRU+=( "${type}=${!type}" )
-  fi
+# Add the standard proxied variables, and a few we specifically
+# export for script usage; USE/GCC_GITHASH are for ebuilds/portage,
+# CHROMEOS_VERSION_* is for cros_set_lsb_release and local AU server
+# (builders export this for marking reasons).
+KEEP_VARS=(
+  CHROMEOS_VERSION_{TRACK,AUSERVER,DEVSERVER}
+  USE GCC_GITHASH
+)
+for var in "${ENVIRONMENT_WHITELIST[@]}" "${KEEP_VARS[@]}"; do
+  [ "${!var+set}" = "set" ] && CHROOT_PASSTHRU+=( "${var}=${!var}" )
 done
 
 # Run command or interactive shell.  Also include the non-chrooted path to
