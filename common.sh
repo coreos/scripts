@@ -380,6 +380,7 @@ FACTORY_TEST_INSTALL_MASK="
   /usr/local/autotest/client/site_tests/platform_ToolchainOptions
   /usr/local/autotest/client/site_tests/realtimecomm_GTalk*
   /usr/local/autotest/client/tests
+  /usr/local/factory/bundle
   "
 
 # Mask for factory install shim (build_image factory_install)
