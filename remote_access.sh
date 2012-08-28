@@ -12,14 +12,33 @@ DEFINE_string private_key "$DEFAULT_PRIVATE_KEY" \
   "Private key of root account on remote host"
 DEFINE_integer ssh_port 22 \
   "SSH port of the remote machine running Chromium OS instance"
+DEFINE_integer ssh_connect_timeout 30 \
+  "SSH connect timeout in seconds"
+DEFINE_integer ssh_connection_attempts 4 \
+  "SSH connection attempts"
 
-SSH_CONNECT_SETTINGS="-o Protocol=2 -o ConnectTimeout=30 \
-  -o ConnectionAttempts=4 -o ServerAliveInterval=10 \
-  -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no"
+ssh_connect_settings() {
+  if [[ -n "$SSH_CONNECT_SETTINGS" ]]; then
+    # If connection settings were fixed in an environment variable, just return
+    # those values.
+    echo -n "$SSH_CONNECT_SETTINGS"
+  else
+    # Otherwise, return the default (or user overridden) settings.
+    local settings=(
+      "Protocol=2"
+      "ConnectTimeout=${FLAGS_ssh_connect_timeout}"
+      "ConnectionAttempts=${FLAGS_ssh_connection_attempts}"
+      "ServerAliveInterval=10"
+      "ServerAliveCountMax=3"
+      "StrictHostKeyChecking=no"
+    )
+    printf -- '-o %s ' "${settings[@]}"
+  fi
+}
 
 # Copies $1 to $2 on remote host
 remote_cp_to() {
-  REMOTE_OUT=$(scp -P ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
+  REMOTE_OUT=$(scp -P ${FLAGS_ssh_port} $(ssh_connect_settings) \
     -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY $1 \
     root@$FLAGS_remote:$2)
   return ${PIPESTATUS[0]}
@@ -28,13 +47,13 @@ remote_cp_to() {
 # Copies a list of remote files specified in file $1 to local location
 # $2.  Directory paths in $1 are collapsed into $2.
 remote_rsync_from() {
-  rsync -e "ssh -p ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
+  rsync -e "ssh -p ${FLAGS_ssh_port} $(ssh_connect_settings) \
              -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY" \
     --no-R --files-from=$1 root@${FLAGS_remote}:/ $2
 }
 
 _remote_sh() {
-  REMOTE_OUT=$(ssh -p ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
+  REMOTE_OUT=$(ssh -p ${FLAGS_ssh_port} $(ssh_connect_settings) \
     -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY \
     root@$FLAGS_remote "$@")
   return ${PIPESTATUS[0]}
@@ -54,7 +73,7 @@ remote_sh() {
 }
 
 remote_sh_raw() {
-  ssh -p ${FLAGS_ssh_port} $SSH_CONNECT_SETTINGS \
+  ssh -p ${FLAGS_ssh_port} $(ssh_connect_settings) \
     -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY \
     $EXTRA_REMOTE_SH_ARGS root@$FLAGS_remote "$@"
   return $?
@@ -123,7 +142,7 @@ _check_if_rebooted() {
     SSH_CONNECT_SETTINGS="$(sed \
       -e 's/\(ConnectTimeout\)=[0-9]*/\1=2/' \
       -e 's/\(ConnectionAttempts\)=[0-9]*/\1=2/' \
-      <<<"${SSH_CONNECT_SETTINGS}")"
+      <<<"$(ssh_connect_settings)")"
     remote_sh_allow_changed_host_key -q -- '[ ! -e /tmp/awaiting_reboot ]'
   )
 }
