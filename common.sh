@@ -542,7 +542,12 @@ sub_mounts() {
   # unmount submounts (think /dev/pts and /dev).
   awk -v path="$1" -v len="${#1}" \
     '(substr($2, 1, len) == path) { print $2 }' /proc/mounts | \
-    tac
+    tac | \
+    sed -e 's/\\040(deleted)$//'
+  # Hack(zbehan): If a bind mount's source is mysteriously removed,
+  # we'd end up with an orphaned mount with the above string in its name.
+  # It can only be seen through /proc/mounts and will stick around even
+  # when it should be gone already. crosbug.com/31250
 }
 
 # Unmounts a directory, if the unmount fails, warn, and then lazily unmount.
