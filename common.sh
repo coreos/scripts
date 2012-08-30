@@ -562,7 +562,7 @@ safe_umount_tree() {
   fi
 
   # First try to unmount in one shot to speed things up.
-  if sudo umount -d ${mounts}; then
+  if safe_umount -d ${mounts}; then
     return 0
   fi
 
@@ -570,11 +570,21 @@ safe_umount_tree() {
   mounts=$(sub_mounts "$1")
   warn "Failed to unmount ${mounts}"
   warn "Doing a lazy unmount"
-  if ! sudo umount -d -l ${mounts}; then
+  if ! safe_umount -d -l ${mounts}; then
     mounts=$(sub_mounts "$1")
     die "Failed to lazily unmount ${mounts}"
   fi
 }
+
+
+# Helper; all scripts should use this since it ensures our
+# override of umount is used (inside the chroot, it's enforced
+# via configuration; outside is the concern).
+# Args are passed directly to umount; no sudo args are allowed.
+safe_umount() {
+  sudo "${SCRIPT_ROOT}/path-overrides/umount" "$@"
+}
+
 
 get_git_id() {
   git var GIT_COMMITTER_IDENT | sed -e 's/^.*<\(\S\+\)>.*$/\1/'

@@ -68,8 +68,8 @@ fi
 
 # Prepare to mount rootfs.
 umount_loop() {
-  sudo umount r || true
-  sudo umount s || true
+  safe_umount r || true
+  safe_umount s || true
   false
 }
 
@@ -141,7 +141,7 @@ sudo cp "s/dev_image/etc/lsb-factory" "r/${LSB_FACTORY_DIR}"
 
 # Clean up mounts.
 trap - EXIT
-sudo umount r s
+safe_umount r s
 sudo rm -rf r s
 
 # Generate an initrd fo u-boot to load.

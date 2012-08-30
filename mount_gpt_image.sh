@@ -85,13 +85,13 @@ unmount_image() {
       "${FLAGS_stateful_mountpt}"
     fix_broken_symlinks "${FLAGS_rootfs_mountpt}"
   fi
-  sudo umount "${FLAGS_rootfs_mountpt}/usr/local"
-  sudo umount "${FLAGS_rootfs_mountpt}/var"
+  safe_umount "${FLAGS_rootfs_mountpt}/usr/local"
+  safe_umount "${FLAGS_rootfs_mountpt}/var"
   if [[ -n "${FLAGS_esp_mountpt}" ]]; then
-    sudo umount "${FLAGS_esp_mountpt}"
+    safe_umount "${FLAGS_esp_mountpt}"
   fi
-  sudo umount "${FLAGS_stateful_mountpt}"
-  sudo umount "${FLAGS_rootfs_mountpt}"
+  safe_umount "${FLAGS_stateful_mountpt}"
+  safe_umount "${FLAGS_rootfs_mountpt}"
   switch_to_strict_mode
 }
 

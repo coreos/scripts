@@ -77,7 +77,7 @@ get_install_vblock() {
   sudo cp "$stateful_mnt/vmlinuz_hd.vblock"  "$out"
   sudo chown $USER "$out"
 
-  sudo umount "$stateful_mnt"
+  safe_umount "$stateful_mnt"
   rmdir "$stateful_mnt"
   switch_to_strict_mode
   echo "$out"
@@ -186,7 +186,7 @@ create_recovery_kernel_image() {
   # safe.
   sudo sed  -i -e "s/cros_efi/cros_efi kern_b_hash=$kern_hash/g" \
     "$efi_dir/efi/boot/grub.cfg" || true
-  sudo umount "$efi_dir"
+  safe_umount "$efi_dir"
   sudo losetup -a | sed 's/^/16651 /'
   sudo losetup -d "$efi_dev"
   rmdir "$efi_dir"
@@ -243,7 +243,7 @@ install_recovery_kernel() {
     local esp_mnt=$(mktemp -d)
     sudo mount -o loop,offset=$((esp_offset * 512)) "$RECOVERY_IMAGE" "$esp_mnt"
     sudo cp "$vmlinuz" "$esp_mnt/syslinux/vmlinuz.A" || failed=1
-    sudo umount "$esp_mnt"
+    safe_umount "$esp_mnt"
     rmdir "$esp_mnt"
     switch_to_strict_mode
   fi
@@ -322,7 +322,7 @@ maybe_resize_stateful() {
   set +e
   sudo mount -o loop $small_stateful $new_stateful_mnt
   sudo cp "$INSTALL_VBLOCK" "$new_stateful_mnt/vmlinuz_hd.vblock"
-  sudo umount "$new_stateful_mnt"
+  safe_umount "$new_stateful_mnt"
   rmdir "$new_stateful_mnt"
   switch_to_strict_mode
 

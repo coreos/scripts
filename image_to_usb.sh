@@ -348,7 +348,7 @@ if [ -b "${FLAGS_to}" ]; then
   if [ -n "${mount_list}" ]; then
     echo "Attempting to unmount any mounts on the target device..."
     for i in ${mount_list}; do
-      if sudo umount "$i" 2>&1 >/dev/null | grep "not found"; then
+      if safe_umount "$i" 2>&1 >/dev/null | grep "not found"; then
         die_notrace "$i needs to be unmounted outside the chroot"
       fi
     done

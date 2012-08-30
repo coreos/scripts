@@ -39,6 +39,6 @@ if [ "${SURE}" != "y" ]; then
   exit 1
 fi
 
-sudo umount "$OUTPUT_DIR"/*/* 2> /dev/null
-sudo umount /tmp/esp.* 2> /dev/null
+safe_umount "$OUTPUT_DIR"/*/* 2> /dev/null
+safe_umount /tmp/esp.* 2> /dev/null
 sudo losetup -d /dev/loop* 2> /dev/null

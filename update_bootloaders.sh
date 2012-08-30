@@ -159,13 +159,13 @@ fi
 ESP_FS_DIR=$(mktemp -d /tmp/esp.XXXXXX)
 cleanup() {
   set +e
-  if ! sudo umount "${ESP_FS_DIR}"; then
+  if ! safe_umount "${ESP_FS_DIR}"; then
       # There is a race condition possible on some ubuntu setups
       # with mounting and unmounting a device very quickly
       # Doing a quick sleep/retry as a temporary workaround
       warn "Initial unmount failed. Possibly crosbug.com/23443. Retrying"
       sleep 5
-      sudo umount "${ESP_FS_DIR}"
+      safe_umount "${ESP_FS_DIR}"
   fi
   if [[ -n "${ESP_DEV}" && -z "${ESP_DEV//\/dev\/loop*}" ]]; then
     sudo losetup -d  "${ESP_DEV}"
@@ -211,7 +211,7 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
   # Install the syslinux loader on the ESP image (part 12) so it is ready when
   # we cut over from rootfs booting (extlinux).
   if [[ ${FLAGS_install_syslinux} -eq ${FLAGS_TRUE} ]]; then
-    sudo umount "${ESP_FS_DIR}"
+    safe_umount "${ESP_FS_DIR}"
     sudo syslinux -d /syslinux "${ESP_DEV}"
     # mount again for cleanup to free resource gracefully
     sudo mount -o ro "${ESP_DEV}" "${ESP_FS_DIR}"

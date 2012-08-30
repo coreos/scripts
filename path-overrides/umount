@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# Work around a bug on precise where gvfs trash goes looking in mounts
+# it shouldn't, resulting in the umount failing when it shouldn't.
+# See crosbug.com/23443 for the sordid details.
+
+suppressed_dir=$(dirname "$(readlink -f "$0")")
+cleaned_path="$(echo "$PATH" | sed -e 's+\(^\|:\)/usr/local/sbin\(:\|$\)++g')"
+binary="$(PATH="${cleaned_path}" type -P umount)"
+if [ $? -ne 0 ]; then
+  echo "umount: command not found" >&2
+  exit 127
+fi
+
+for x in {1..10}; do
+  # umount doesn't give use a distinct exit code for device is busy; thus grep
+  # the output.
+  output=$(LC_ALL=C "${binary}" "$@" 2>&1)
+  ret=$?
+  if [ ${ret} -eq 0 ] || [[ "${output}" == *"device is busy"* ]]; then
+    # Nothing to do in these scenarios; either ran fine, or it failed in a non
+    # busy fashion.
+    break
+  fi
+  sleep 1
+done
+
+echo -n "${output}" >&2
+exit ${ret}
