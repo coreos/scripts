@@ -466,12 +466,12 @@ assert_not_root_user() {
 # Usage: check_flags_only_and_allow_null_arg "$@" && set --
 check_flags_only_and_allow_null_arg() {
   do_shift=1
-  if [[ $# == 1 && -z "$@" ]]; then
+  if [ $# = 1 -a -z "$1" ]; then
     echo "$0: warning: ignoring null argument" >&2
     shift
     do_shift=0
   fi
-  if [[ $# -gt 0 ]]; then
+  if [ $# -gt 0 ]; then
     echo "error: invalid arguments: \"$@\"" >&2
     flags_help
     exit 1
@@ -1071,3 +1071,22 @@ switch_to_strict_mode() {
 
 # TODO: Re-enable this once shflags is set -e safe.
 #switch_to_strict_mode
+
+# The following code is used to ensure our umount wrapper is in use.
+# Shouldn't be invoked by anything other than common.sh
+_enable_path_overrides(){
+  # Ensure that our PATH overrides are in use.
+  local override_dir=$(readlink -f "${SCRIPT_ROOT}/path-overrides")
+  local IFS=:
+  local x
+  for x in ${PATH}; do
+    x=$(readlink -f "${x}")
+    if [ "${x}" = "${override_dir}" ]; then
+      # Already is in path; nothing more to do.
+      return
+    fi
+  done
+  export PATH="${override_dir}${PATH:+:${PATH}}"
+}
+
+_enable_path_overrides
