@@ -177,6 +177,11 @@ init_setup () {
    sudo bash -e "${SCRIPT_ROOT}/chroot_version_hooks.d/45_rewrite_sudoers.d" \
      "${FLAGS_chroot}" "${USER}" "${ENVIRONMENT_WHITELIST[@]}"
 
+   # Turn on the path overrides; subshelled to protect our env from whatever
+   # vars the scriptlet may bleed.
+   ( CROS_CHROOT="${FLAGS_chroot}"
+     . "${SCRIPT_ROOT}/chroot_version_hooks.d/47_path_overrides" )
+
    sudo find "${FLAGS_chroot}/etc/"sudoers* -type f -exec chmod 0440 {} +
    # Fix bad group for some.
    sudo chown -R root:root "${FLAGS_chroot}/etc/"sudoers*
