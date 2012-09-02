@@ -15,6 +15,12 @@ DEFINE_string vnc "" "VNC Server to display to instead of SDL."
 KVM_PID_FILE=/tmp/kvm.$$.pid
 LIVE_VM_IMAGE=
 
+if ! KVM_BINARY=$(which kvm 2> /dev/null); then
+  if ! KVM_BINARY=$(which qemu-kvm 2> /dev/null); then
+    die "no kvm binary found"
+  fi
+fi
+
 get_pid() {
   sudo cat "${KVM_PID_FILE}"
 }
@@ -89,7 +95,7 @@ start_kvm() {
       cache_type="unsafe"
     fi
 
-    sudo kvm -m 2G \
+    sudo "${KVM_BINARY}" -m 2G \
       -smp 4 \
       -vga std \
       -pidfile "${KVM_PID_FILE}" \
