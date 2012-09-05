@@ -161,9 +161,9 @@ make_image_bootable() {
   local use_dev_keys=
 
   # Default to non-verified
-  cros_root="PARTUUID=%U/PARTNROFF=1"
+  local enable_rootfs_verification_flag=--noenable_rootfs_verification
   if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-    cros_root=/dev/dm-0
+    enable_rootfs_verification_flag=--enable_rootfs_verification
   fi
 
   trap "mount_gpt_cleanup" EXIT
@@ -223,8 +223,8 @@ make_image_bootable() {
     --verity_max_ios=${FLAGS_verity_max_ios} \
     --verity_error_behavior=${FLAGS_verity_error_behavior} \
     --verity_salt=${FLAGS_verity_salt} \
-    --root=${cros_root} \
     --keys_dir="${FLAGS_keys_dir}" \
+    ${enable_rootfs_verification_flag} \
     ${use_dev_keys}
 
   # Check the size of kernel image and issue warning when image size is

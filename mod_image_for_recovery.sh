@@ -121,9 +121,9 @@ create_recovery_kernel_image() {
   local root_offset=$(partoffset "$FLAGS_image" 3)
   local root_size=$(partsize "$FLAGS_image" 3)
 
-  cros_root="PARTUUID=%U/PARTNROFF=1"  # only used for non-verified images
+  local enable_rootfs_verification_flag=--noenable_rootfs_verification
   if grep -q enable_rootfs_verification "${IMAGE_DIR}/boot.desc"; then
-    cros_root=/dev/dm-0
+    enable_rootfs_verification_flag=--enable_rootfs_verification
   fi
 
   # Tie the installed recovery kernel to the final kernel.  If we don't
@@ -159,8 +159,8 @@ create_recovery_kernel_image() {
     --working_dir="${IMAGE_DIR}" \
     --boot_args="noinitrd panic=60 cros_recovery kern_b_hash=$kern_hash" \
     --keep_work \
-    --root=${cros_root} \
     --keys_dir="${FLAGS_keys_dir}" \
+    ${enable_rootfs_verification_flag} \
     --nouse_dev_keys 1>&2 || failboat "build_kernel_image"
   sudo mount | sed 's/^/16651 /'
   sudo losetup -a | sed 's/^/16651 /'

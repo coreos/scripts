@@ -31,11 +31,6 @@ DEFINE_boolean use_dev_keys ${FLAGS_FALSE} \
 # --root=/dev/dm-0
 DEFINE_string boot_args "noinitrd" \
   "Additional boot arguments to pass to the commandline (Default: noinitrd)"
-# By default, we use a firmware enumerated value, but it isn't reliable for
-# production use.  If +%d can be added upstream, then we can use:
-#   root=PARTUID=uuid+1
-DEFINE_string root "PARTUUID=%U/PARTNROFF=1" \
-  "Expected device root partition"
 # If provided, will automatically add verified boot arguments.
 DEFINE_string rootfs_image "" \
   "Optional path to the rootfs device or image.(Default: \"\")"
@@ -50,6 +45,8 @@ DEFINE_string verity_hash_alg "sha1" \
   "Cryptographic hash algorithm used for dm-verity. (Default: sha1)"
 DEFINE_string verity_salt "" \
   "Salt to use for rootfs hash (Default: \"\")"
+DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
+  "Enable kernel-based root fs integrity checking. (Default: true)"
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -94,10 +91,9 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
   if [[ -f "${FLAGS_rootfs_hash}" ]]; then
     sudo chmod a+r "${FLAGS_rootfs_hash}"
   fi
-  # Don't claim the root device unless the root= flag is pointed to
-  # the verified boot device.  Doing so will claim /dev/sdDP out from
-  # under the system.
-  if [[ ${FLAGS_root} = "/dev/dm-0" ]]; then
+  # Don't claim the root device unless verity is enabled.
+  # Doing so will claim /dev/sdDP out from under the system.
+  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
     base_root='%U+1'  # kern_guid + 1
     table=${table//HASH_DEV/${base_root}}
     table=${table//ROOT_DEV/${base_root}}
@@ -109,13 +105,18 @@ fi
 mkdir -p "${FLAGS_working_dir}"
 
 # Only let dm-verity block if rootfs verification is configured.
+# By default, we use a firmware enumerated value, but it isn't reliable for
+# production use.  If +%d can be added upstream, then we can use:
+#   root_dev=PARTUID=uuid+1
 dev_wait=0
-if [[ ${FLAGS_root} = "/dev/dm-0" ]]; then
+root_dev="PARTUUID=%U/PARTNROFF=1"
+if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
+  root_dev=/dev/dm-0
   dev_wait=1
 fi
 
 cat <<EOF > "${FLAGS_working_dir}/boot.config"
-root=${FLAGS_root}
+root=${root_dev}
 rootwait
 ro
 dm_verity.error_behavior=${FLAGS_verity_error_behavior}
