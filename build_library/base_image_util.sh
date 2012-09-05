@@ -16,6 +16,16 @@ STATEFUL_FS_IMG="${BUILD_DIR}/stateful_partition.image"
 ESP_FS_IMG=${BUILD_DIR}/esp.image
 
 cleanup_rootfs_loop() {
+  # See if we ran out of space.
+  local df=$(df -B 1M "${ROOT_FS_DIR}")
+  if [[ ${df} == *100%* ]]; then
+    error "Here are the biggest files (by disk usage):"
+    # Send final output to stderr to match `error` behavior.
+    sudo find "${ROOT_FS_DIR}" -xdev -type f -printf '%b %P\n' | \
+      awk '$1 > 16 { $1 = $1 * 512; print }' | sort -n | tail -100 1>&2
+    error "Target image has run out of space:"
+    error "${df}"
+  fi
   sudo umount -d "${ROOT_FS_DIR}"
 }
 
