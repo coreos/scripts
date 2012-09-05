@@ -143,12 +143,15 @@ if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
   # TODO: Build a separated ebuild for the install shim to reduce size.
   INSTALL_MASK="${FACTORY_SHIM_INSTALL_MASK}"
 
-  # Reduce the size of factory install shim.
-  info "Fixing the rootfs size at 320 MiB for install shim"
-  FLAGS_rootfs_size=300
-  FLAGS_rootfs_partition_size=320
-  info "Fixing the statefulfs size at 140 MiB for install shim"
+  # Reduce the size of factory install shim. Note that 400M is too much, it
+  # should be smaller, see http://crosbug.com/34167
+  FLAGS_rootfs_size=400
+  FLAGS_rootfs_partition_size=420
   FLAGS_statefulfs_size=140
+  info "Fixing the rootfs size at ${FLAGS_rootfs_partition_size} MiB " \
+    "for install shim"
+  info "Fixing the statefulfs size at ${FLAGS_statefulfs_size} MiB " \
+    "for install shim"
 
   # Add the cros_factory_install boot arg.
   FLAGS_boot_args="${FLAGS_boot_args} cros_factory_install"
