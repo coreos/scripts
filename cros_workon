@@ -275,12 +275,11 @@ regen_manifest_and_sync() {
     need_repo_sync='yes'
     for S in "${CROS_WORKON_SRCDIR[@]}"; do
       local srcdir=$(readlink -m "${S}")
-      local project_path=${srcdir#${trunkdir}/}
-      local name_path="${CROS_WORKON_PROJECT[i]} ${project_path}"
       if [ -z "${FLAGS_remote}" ]; then
-        loman add --workon ${name_path}
+        loman add --workon "${CROS_WORKON_PROJECT[i]}"
       else
-        loman add ${name_path} --remote="${FLAGS_remote}"
+        loman add --remote "${FLAGS_remote}" "${CROS_WORKON_PROJECT[i]}" \
+          "${srcdir#${trunkdir}/}"
       fi
       : $(( ++i ))
     done
