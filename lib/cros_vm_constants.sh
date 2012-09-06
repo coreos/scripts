@@ -12,5 +12,5 @@ DEFAULT_VBOX_DISK="os.vdi"
 DEFAULT_QEMU_IMAGE="chromiumos_qemu_image.bin"
 
 # Minimum sizes for full size vm images -- needed for update.
-MIN_VDISK_SIZE_FULL=6072
+MIN_VDISK_SIZE_FULL=9216
 MIN_STATEFUL_FS_SIZE_FULL=6144
