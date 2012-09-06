@@ -274,12 +274,8 @@ setup_env() {
         queue_mount /run/shm "--bind" /run/shm
       fi
     fi
-    # Get path overrides for the chroot in place now- it's possible
-    # that they may be needed for early teardown.
-    queue_mount "${FLAGS_trunk}/src/scripts/path-overrides" "--bind" \
-      "/usr/local/path-overrides"
-
     queue_mount "${FLAGS_trunk}" "--bind" "${CHROOT_TRUNK_DIR}"
+
 
     debug "Setting up referenced repositories if required."
     REFERENCE_DIR=$(git config --file  \
