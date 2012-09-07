@@ -45,6 +45,8 @@ DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
   "directory containing the signing keys"
 DEFINE_boolean verbose $FLAGS_FALSE \
   "log all commands to stdout" v
+DEFINE_boolean decrypt_stateful $FLAGS_FALSE \
+  "request a decryption of the stateful partition (implies --nominimize_image)"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -57,6 +59,12 @@ switch_to_strict_mode
 if [ $FLAGS_verbose -eq $FLAGS_TRUE ]; then
   # Make debugging with -v easy.
   set -x
+fi
+
+# We need space for copying decrypted files to the recovery image, so force
+# --nominimize_image when using --decrypt_stateful.
+if [ $FLAGS_decrypt_stateful -eq $FLAGS_TRUE ]; then
+  FLAGS_minimize_image=$FLAGS_FALSE
 fi
 
 # Load board options.
@@ -421,6 +429,16 @@ fi
 trap cleanup EXIT
 
 maybe_resize_stateful  # Also copies the image if needed.
+
+if [ $FLAGS_decrypt_stateful -eq $FLAGS_TRUE ]; then
+  stateful_mnt=$(mktemp -d)
+  offset=$(partoffset "${RECOVERY_IMAGE}" 1)
+  sudo mount -o loop,offset=$(( offset * 512 )) \
+    "${RECOVERY_IMAGE}" "${stateful_mnt}"
+  echo -n "1" | sudo tee "${stateful_mnt}"/decrypt_stateful >/dev/null
+  sudo umount "$stateful_mnt"
+  rmdir "$stateful_mnt"
+fi
 
 install_recovery_kernel
 
