@@ -1,6 +1,7 @@
 # User files
 /.chromeos_dev
 /.default_board
+/.local_mounts
 /shared_user_passwd.txt
 
 # Generated files

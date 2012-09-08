@@ -123,11 +123,13 @@ queue_mount() {
     # Already mounted!
     ;;
   *)
-    MOUNT_QUEUE+=(
-      "mkdir -p '${mounted_path}'"
-      # The args are left unquoted on purpose.
-      "mount ${mount_args} '${source}' '${mounted_path}'"
-    )
+    MOUNT_QUEUE+=( "mkdir -p '${mounted_path}'" )
+    # The args are left unquoted on purpose.
+    if [[ -n ${source} ]]; then
+      MOUNT_QUEUE+=( "mount ${mount_args} '${source}' '${mounted_path}'" )
+    else
+      MOUNT_QUEUE+=( "mount ${mount_args} '${mounted_path}'" )
+    fi
     ;;
   esac
 }
@@ -388,6 +390,27 @@ setup_env() {
       DEPOT_TOOLS=${DEPOT_TOOLS%/*} # dirname
       debug "Mounting depot_tools"
       queue_mount "$DEPOT_TOOLS" --bind "$INNER_DEPOT_TOOLS_ROOT"
+    fi
+
+    # Mount additional directories as specified in .local_mounts file.
+    local local_mounts="${FLAGS_trunk}/src/scripts/.local_mounts"
+    if [[ -f ${local_mounts} ]]; then
+      info "Mounting local folders (read-only for safety concern)"
+      # format: mount_source
+      #      or mount_source mount_point
+      #      or # comments
+      local mount_source mount_point
+      while read mount_source mount_point; do
+        if [[ -z ${mount_source} ]]; then
+          continue
+        fi
+        # if only source is assigned, use source as mount point.
+        : ${mount_point:=${mount_source}}
+        debug "  mounting ${mount_source} on ${mount_point}"
+        queue_mount "${mount_source}" "--bind" "${mount_point}"
+        # --bind can't initially be read-only so we have to do it via remount.
+        queue_mount "" "-o remount,ro" "${mount_point}"
+      done < <(sed -e 's:#.*::' "${local_mounts}")
     fi
 
     process_mounts
