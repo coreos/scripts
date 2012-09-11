@@ -155,6 +155,7 @@ if [[ $# -eq 0 ]]; then
   PACKAGES=( chromeos-base/chromeos )
   if [[ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]]; then
     PACKAGES+=( chromeos-base/chromeos-dev )
+    PACKAGES+=( chromeos-base/chromeos-dev-init )
   fi
   if [[ "${FLAGS_withfactory}" -eq "${FLAGS_TRUE}" ]]; then
     PACKAGES+=( chromeos-base/chromeos-factory )
@@ -164,6 +165,7 @@ if [[ $# -eq 0 ]]; then
   fi
   if [[ "${FLAGS_withtest}" -eq "${FLAGS_TRUE}" ]]; then
     PACKAGES+=( chromeos-base/chromeos-test )
+    PACKAGES+=( chromeos-base/chromeos-test-init )
   fi
   if [[ "${FLAGS_withautotest}" -eq "${FLAGS_TRUE}" ]]; then
     PACKAGES+=( chromeos-base/autotest-all )

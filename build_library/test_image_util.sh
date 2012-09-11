@@ -77,6 +77,7 @@ emerge_chromeos_test() {
   # Determine the root dir for test packages.
   local root_dev_dir="${ROOT_FS_DIR}/usr/local"
 
+  emerge_to_image --root="${ROOT_FS_DIR}" chromeos-test-init
   emerge_to_image --root="${root_dev_dir}" chromeos-test
 }
 
