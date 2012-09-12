@@ -1,12 +1,16 @@
 #!/bin/bash
 
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
 # Work around a bug on precise where gvfs trash goes looking in mounts
 # it shouldn't, resulting in the umount failing when it shouldn't.
 # See crosbug.com/23443 for the sordid details.
 
-suppressed_dir=$(dirname "$(readlink -f "$0")")
-cleaned_path="$(echo "$PATH" | sed -e 's+\(^\|:\)/usr/local/sbin\(:\|$\)++g')"
-binary="$(PATH="${cleaned_path}" type -P umount)"
+suppressed_dir=$(dirname "$0")
+cleaned_path=$(echo "${PATH}" | sed -r -e "s,(^|:)${suppressed_dir}(:|$),,g")
+binary=$(PATH="${cleaned_path}" type -P umount)
 if [ $? -ne 0 ]; then
   echo "umount: command not found" >&2
   exit 127
