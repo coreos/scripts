@@ -21,7 +21,7 @@ for x in {1..10}; do
   # the output.
   output=$(LC_ALL=C "${binary}" "$@" 2>&1)
   ret=$?
-  if [ ${ret} -eq 0 ] || [[ "${output}" == *"device is busy"* ]]; then
+  if [ ${ret} -eq 0 ] || [[ "${output}" != *"device is busy"* ]]; then
     # Nothing to do in these scenarios; either ran fine, or it failed in a non
     # busy fashion.
     break
