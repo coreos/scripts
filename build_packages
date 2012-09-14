@@ -23,12 +23,15 @@ DEFINE_boolean showoutput "${FLAGS_FALSE}" \
 DEFINE_boolean withautotest "${FLAGS_TRUE}" \
   "Build autotest client code."
 
-FLAGS_HELP="usage: $(basename $0) [flags]
+FLAGS_HELP="usage: $(basename $0) [flags] [packages]
 
 build_packages updates the set of binary packages needed by Chrome OS. It will
 cross compile all packages that have been updated into the given target's root
 and build binary packages as a side-effect. The output packages will be picked
 up by the build_image script to put together a bootable Chrome OS image.
+
+If [packages] are specified, only build those specific packages (and any
+dependencies they might need).
 
 For the fastest builds, use --nowithautotest --noworkon.
 "
@@ -67,7 +70,6 @@ DEFINE_boolean reuse_pkgs_from_local_boards $FLAGS_FALSE \
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
-check_flags_only_and_allow_null_arg "$@" && set --
 
 # Die on any errors.
 switch_to_strict_mode
@@ -148,25 +150,29 @@ if [[ "${FLAGS_withdebug}" -eq "${FLAGS_FALSE}" ]]; then
 fi
 
 # Figure out which packages we should be building.
-PACKAGES=( chromeos-base/chromeos )
-if [[ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]]; then
-  PACKAGES+=( chromeos-base/chromeos-dev )
-fi
-if [[ "${FLAGS_withfactory}" -eq "${FLAGS_TRUE}" ]]; then
-  PACKAGES+=( chromeos-base/chromeos-factory )
-  PACKAGES+=( chromeos-base/chromeos-factoryinstall )
-  PACKAGES+=( chromeos-base/factorytest-init )
-  PACKAGES+=( chromeos-base/chromeos-hwid )
-fi
-if [[ "${FLAGS_withtest}" -eq "${FLAGS_TRUE}" ]]; then
-  PACKAGES+=( chromeos-base/chromeos-test )
-fi
-if [[ "${FLAGS_withautotest}" -eq "${FLAGS_TRUE}" ]]; then
-  PACKAGES+=( chromeos-base/autotest-all )
+PACKAGES=( "$@" )
+if [[ $# -eq 0 ]]; then
+  PACKAGES=( chromeos-base/chromeos )
+  if [[ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]]; then
+    PACKAGES+=( chromeos-base/chromeos-dev )
+  fi
+  if [[ "${FLAGS_withfactory}" -eq "${FLAGS_TRUE}" ]]; then
+    PACKAGES+=( chromeos-base/chromeos-factory )
+    PACKAGES+=( chromeos-base/chromeos-factoryinstall )
+    PACKAGES+=( chromeos-base/factorytest-init )
+    PACKAGES+=( chromeos-base/chromeos-hwid )
+  fi
+  if [[ "${FLAGS_withtest}" -eq "${FLAGS_TRUE}" ]]; then
+    PACKAGES+=( chromeos-base/chromeos-test )
+  fi
+  if [[ "${FLAGS_withautotest}" -eq "${FLAGS_TRUE}" ]]; then
+    PACKAGES+=( chromeos-base/autotest-all )
+  fi
 fi
 
 # Verify that all packages can be emerged from scratch, without any
 # backtracking. Only print the output if this step fails.
+info "Checking package dependencies are correct: ${PACKAGES[*]}"
 if ! OUTPUT=$(emerge-${FLAGS_board} -pe --backtrack=0 ${PACKAGES} 2>&1); then
   printf "%s\n" "${OUTPUT}"
   die_notrace "emerge detected broken ebuilds. See error message above."
@@ -195,7 +201,7 @@ fi
 tmpfile=$(mktemp -t tmp.build_packages-emerge.XXXXXX)
 trap "rm -f '${tmpfile}'" EXIT
 
-info "Merging board packages ${PACKAGES[*]}"
+info "Merging board packages now"
 (
   set -o pipefail
   sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" "${PACKAGES[@]}" | \
