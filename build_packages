@@ -80,88 +80,89 @@ if [[ -z "${FLAGS_board}" ]]; then
   exit 1
 fi
 
-EMERGE_FLAGS="--backtrack=30 --select"
-
-EMERGE_CMD="emerge"
-EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
 CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
+
+# Before we can run any tools, we need to update chroot or setup_board.
+UPDATE_ARGS=()
+if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
+  UPDATE_ARGS+=( --fast )
+else
+  UPDATE_ARGS+=( --nofast )
+fi
+if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
+  UPDATE_ARGS+=( --usepkg )
+else
+  UPDATE_ARGS+=( --nousepkg )
+fi
+if [[ "${FLAGS_jobs}" -ne -1 ]]; then
+  UPDATE_ARGS+=( --jobs=${FLAGS_jobs} )
+fi
+if [ "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]; then
+  UPDATE_ARGS+=( --reuse_pkgs_from_local_boards )
+fi
+if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_TRUE}" ]; then
+  UPDATE_ARGS+=( --skip_toolchain_update )
+fi
+if [ "${FLAGS_skip_chroot_upgrade}" -eq "${FLAGS_TRUE}" ]; then
+  UPDATE_ARGS+=( --skip_chroot_upgrade )
+fi
+
+"${SCRIPTS_DIR}"/setup_board --quiet --board=${FLAGS_board} "${UPDATE_ARGS[@]}"
+
+# Setup all the emerge command/flags.
+EMERGE_FLAGS=( -uDNv --backtrack=30 --select )
+
 if [[ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
-  EMERGE_CMD="${CHROMITE_BIN}/parallel_emerge"
-  EMERGE_BOARD_CMD="${EMERGE_CMD} --board=${FLAGS_board}"
+  EMERGE_CMD=(
+    "${CHROMITE_BIN}/parallel_emerge"
+    --board=${FLAGS_board}
+  )
+else
+  EMERGE_CMD=( "emerge-${FLAGS_board}" )
 fi
-if [[ -n "${EXTRA_BOARD_FLAGS}" ]]; then
-  EMERGE_BOARD_CMD="${EMERGE_BOARD_CMD} ${EXTRA_BOARD_FLAGS}"
-fi
+EMERGE_CMD+=( ${EXTRA_BOARD_FLAGS} )
 
 if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
       "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]]; then
   # Use binary packages. Include all build-time dependencies,
   # so as to avoid unnecessary differences between source
   # and binary builds.
-  EMERGE_FLAGS="${EMERGE_FLAGS} --getbinpkg --usepkg --with-bdeps y"
+  EMERGE_FLAGS+=( --getbinpkg --usepkg --with-bdeps y )
 fi
 
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
-  EMERGE_FLAGS+=" --jobs=${FLAGS_jobs}"
+  EMERGE_FLAGS+=( --jobs=${FLAGS_jobs} )
+fi
+
+if [[ "${FLAGS_norebuild}" -eq "${FLAGS_FALSE}" ]]; then
+  EMERGE_FLAGS+=( --rebuild-if-unbuilt )
+fi
+if [[ "${FLAGS_showoutput}" -eq "${FLAGS_TRUE}" && \
+      "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
+  # Only parallel_emerge supports --show-output.
+  EMERGE_FLAGS+=( --show-output )
 fi
 
 if [[ "${FLAGS_withdebug}" -eq "${FLAGS_FALSE}" ]]; then
   export USE="${USE} -cros-debug"
 fi
 
-# Before we can run any tools, we need to update chroot or setup_board.
-UPDATE_ARGS=""
-if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
-  UPDATE_ARGS+=" --fast"
-else
-  UPDATE_ARGS+=" --nofast"
-fi
-if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
-  UPDATE_ARGS+=" --usepkg"
-else
-  UPDATE_ARGS+=" --nousepkg"
-fi
-if [[ "${FLAGS_jobs}" -ne -1 ]]; then
-  UPDATE_ARGS+=" --jobs=${FLAGS_jobs}"
-fi
-if [ "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]; then
-  UPDATE_ARGS+=" --reuse_pkgs_from_local_boards"
-fi
-if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_TRUE}" ]; then
-  UPDATE_ARGS+=" --skip_toolchain_update"
-fi
-if [ "${FLAGS_skip_chroot_upgrade}" -eq "${FLAGS_TRUE}" ]; then
-  UPDATE_ARGS+=" --skip_chroot_upgrade"
-fi
-
-${SCRIPTS_DIR}/setup_board --quiet --board=${FLAGS_board} ${UPDATE_ARGS}
-
-if [ "${FLAGS_noworkon}" -eq "${FLAGS_FALSE}" ]; then
-  # Build cros_workon packages when they are changed.
-  LIST_MODIFIED_PACKAGES="${CHROMITE_BIN}/cros_list_modified_packages"
-  CROS_WORKON_PKGS=$("${LIST_MODIFIED_PACKAGES}" --board=${FLAGS_board})
-fi
-
-# TODO(anush): Make chrome a fake cros-workon package.
-if [[ -n "${CHROME_ORIGIN}" ]]; then
-  CROS_WORKON_PKGS="${CROS_WORKON_PKGS} chromeos-base/chromeos-chrome"
-fi
-
-PACKAGES="chromeos-base/chromeos"
+# Figure out which packages we should be building.
+PACKAGES=( chromeos-base/chromeos )
 if [[ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]]; then
-  PACKAGES="${PACKAGES} chromeos-base/chromeos-dev"
+  PACKAGES+=( chromeos-base/chromeos-dev )
 fi
 if [[ "${FLAGS_withfactory}" -eq "${FLAGS_TRUE}" ]]; then
-  PACKAGES="${PACKAGES} chromeos-base/chromeos-factory"
-  PACKAGES="${PACKAGES} chromeos-base/chromeos-factoryinstall"
-  PACKAGES="${PACKAGES} chromeos-base/factorytest-init"
-  PACKAGES="${PACKAGES} chromeos-base/chromeos-hwid"
+  PACKAGES+=( chromeos-base/chromeos-factory )
+  PACKAGES+=( chromeos-base/chromeos-factoryinstall )
+  PACKAGES+=( chromeos-base/factorytest-init )
+  PACKAGES+=( chromeos-base/chromeos-hwid )
 fi
 if [[ "${FLAGS_withtest}" -eq "${FLAGS_TRUE}" ]]; then
-  PACKAGES="${PACKAGES} chromeos-base/chromeos-test"
+  PACKAGES+=( chromeos-base/chromeos-test )
 fi
 if [[ "${FLAGS_withautotest}" -eq "${FLAGS_TRUE}" ]]; then
-  PACKAGES="${PACKAGES} chromeos-base/autotest-all"
+  PACKAGES+=( chromeos-base/autotest-all )
 fi
 
 # Verify that all packages can be emerged from scratch, without any
@@ -171,27 +172,33 @@ if ! OUTPUT=$(emerge-${FLAGS_board} -pe --backtrack=0 ${PACKAGES} 2>&1); then
   die_notrace "emerge detected broken ebuilds. See error message above."
 fi
 
-for pkg in ${CROS_WORKON_PKGS}; do
-  EMERGE_FLAGS+=" --reinstall-atoms=${pkg}"
-  EMERGE_FLAGS+=" --usepkg-exclude=${pkg}"
-done
-if [[ "${FLAGS_norebuild}" -eq "${FLAGS_FALSE}" ]]; then
-  EMERGE_FLAGS+=" --rebuild-if-unbuilt"
+# Build cros_workon packages when they are changed.
+CROS_WORKON_PKGS=()
+if [ "${FLAGS_noworkon}" -eq "${FLAGS_FALSE}" ]; then
+  LIST_MODIFIED_PACKAGES="${CHROMITE_BIN}/cros_list_modified_packages"
+  CROS_WORKON_PKGS+=( $("${LIST_MODIFIED_PACKAGES}" --board=${FLAGS_board}) )
 fi
-if [[ "${FLAGS_showoutput}" -eq "${FLAGS_TRUE}" && \
-      "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
-  # Only parallel_emerge supports --show-output.
-  EMERGE_FLAGS+=" --show-output"
+
+# TODO(anush): Make chrome a fake cros-workon package.
+if [[ -n "${CHROME_ORIGIN}" ]]; then
+  CROS_WORKON_PKGS+=( chromeos-base/chromeos-chrome )
+fi
+
+if [[ ${#CROS_WORKON_PKGS[@]} -gt 0 ]]; then
+  EMERGE_FLAGS+=(
+    --reinstall-atoms="${CROS_WORKON_PKGS[*]}"
+    --usepkg-exclude="${CROS_WORKON_PKGS[*]}"
+  )
 fi
 
 # Prepare tmp file to capture emerge output from tee.
 tmpfile=$(mktemp -t tmp.build_packages-emerge.XXXXXX)
 trap "rm -f '${tmpfile}'" EXIT
 
-info "Merging board packages ${PACKAGES}"
+info "Merging board packages ${PACKAGES[*]}"
 (
   set -o pipefail
-  sudo -E ${EMERGE_BOARD_CMD} -uDNv ${EMERGE_FLAGS} ${PACKAGES} | \
+  sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" "${PACKAGES[@]}" | \
     tee "${tmpfile}"
 )
 
