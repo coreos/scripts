@@ -1089,4 +1089,35 @@ _enable_path_overrides(){
   export PATH="${override_dir}${PATH:+:${PATH}}"
 }
 
+okboat() {
+  # http://www.chris.com/ascii/index.php?art=transportation/nautical
+  echo -e "${V_BOLD_GREEN}"
+  cat <<"BOAT"
+    .  o ..
+    o . o o.o
+         ...oo_
+           _[__\___
+        __|_o_o_o_o\__
+    OK  \' ' ' ' ' ' /
+    ^^^^^^^^^^^^^^^^^^^^
+BOAT
+  echo -e "${V_VIDOFF}"
+}
+
+failboat() {
+  echo -e "${V_BOLD_RED}"
+  cat <<"BOAT"
+             '
+        '    )
+         ) (
+        ( .')  __/\
+          (.  /o/` \
+           __/o/`   \
+    FAIL  / /o/`    /
+    ^^^^^^^^^^^^^^^^^^^^
+BOAT
+  echo -e "${V_VIDOFF}"
+  die "$* failed"
+}
+
 _enable_path_overrides
