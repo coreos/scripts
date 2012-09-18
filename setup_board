@@ -201,6 +201,7 @@ install_toolchain_in_provided() {
 # Install all of the stuff that depends on the toolchain versions
 # into the board root.
 install_toolchain_in_board() {
+  local cmds
   local binutils_ver=$(cross_get_version binutils)
   local gcc_ver=$(cross_get_version gcc)
   local libc_ver=$(cross_get_version glibc)
@@ -226,23 +227,27 @@ install_toolchain_in_board() {
     fi
     copy_gcc_libs "${BOARD_ROOT}" "cross-$FLAGS_toolchain/gcc-$gcc_ver"
   else
-    sudo mkdir -p ${BOARD_ROOT}/usr/lib64
-    sudo ln -sf ${BOARD_ROOT}/usr/lib64 ${BOARD_ROOT}/usr/lib
-    sudo mkdir -p ${BOARD_ROOT}/lib64
-    sudo ln -sf ${BOARD_ROOT}/lib64 ${BOARD_ROOT}/lib
+    cmds=(
+      "mkdir -p '${BOARD_ROOT}'{/usr,}/lib64 '${BOARD_ROOT}/usr/lib/debug'"
+      "ln -sf '${BOARD_ROOT}/usr/lib64' '${BOARD_ROOT}/usr/lib'"
+      "ln -sf '${BOARD_ROOT}/lib64' '${BOARD_ROOT}/lib'"
+    )
+    sudo_multi "${cmds[@]}"
     LIBC_PATH="${PKGDIR}/sys-libs/${LIBC_TAR}"
     sudo emerge --oneshot --nodeps -k --root=${BOARD_ROOT} =sys-libs/glibc-${libc_ver}
-    sudo mkdir -p ${BOARD_ROOT}/usr/lib/debug
     # TODO: we have no debug
     GCC_PKG=sys-devel/gcc-$gcc_ver
   fi
 
   # Some header files are needed also for rpcbind (NFS support)
   # TODO: Figure out a better way of doing this too?
-  sudo cp -a /usr/include/rpcsvc/mount.h "${BOARD_ROOT}/usr/include/rpcsvc"
-  sudo cp -a /usr/include/rpcsvc/rquota.h "${BOARD_ROOT}/usr/include/rpcsvc"
-  sudo cp -a /usr/include/rpcsvc/nfs_prot.h "${BOARD_ROOT}/usr/include/rpcsvc"
-  sudo cp -a /usr/include/rpcsvc/yppasswd.h "${BOARD_ROOT}/usr/include/rpcsvc"
+  cmds=(
+    "cp -a /usr/include/rpcsvc/mount.h '${BOARD_ROOT}/usr/include/rpcsvc'"
+    "cp -a /usr/include/rpcsvc/rquota.h '${BOARD_ROOT}/usr/include/rpcsvc'"
+    "cp -a /usr/include/rpcsvc/nfs_prot.h '${BOARD_ROOT}/usr/include/rpcsvc'"
+    "cp -a /usr/include/rpcsvc/yppasswd.h '${BOARD_ROOT}/usr/include/rpcsvc'"
+  )
+  sudo_multi "${cmds[@]}"
 
   install_toolchain_in_provided "$binutils_ver" "$gcc_ver" "$libc_ver"
 
@@ -458,7 +463,9 @@ if [ -d "${BOARD_ROOT}" ] ; then
   fi
 fi
 
-sudo mkdir -p "${BOARD_ROOT}" "${BOARD_ETC}" "${BOARD_PROFILE}"
+cmds=(
+  "mkdir -p '${BOARD_ROOT}' '${BOARD_ETC}' '${BOARD_PROFILE}'"
+)
 
 # Setup the make.confs. We use the following:
 #    make.conf             <- Overall target make.conf [arm, x86, etc. version]
@@ -466,25 +473,30 @@ sudo mkdir -p "${BOARD_ROOT}" "${BOARD_ETC}" "${BOARD_PROFILE}"
 #    make.conf.common      <- Common settings across all targets
 #    make.conf.board       <- Optional board-supplied make.conf
 if ${HOST_BOARD}; then
-  sudo ln -sf "${CHROMIUMOS_CONFIG}/make.conf.${BOARD}" \
-    "${BOARD_ETC}/make.conf"
-  sudo cp -f "/etc/make.conf.host_setup" "${BOARD_ETC}/"
+  cmds+=(
+    "ln -sf '${CHROMIUMOS_CONFIG}/make.conf.${BOARD}' \
+      '${BOARD_ETC}/make.conf'"
+    "cp -f '/etc/make.conf.host_setup' '${BOARD_ETC}/'"
 
-  # Setting up symlinks for bootstrapping multilib.
-  # See http://crosbug.com/14498
-  sudo mkdir -p "${BOARD_ROOT}/usr/lib64" "${BOARD_ROOT}/lib64"
-  sudo ln -sf lib64 "${BOARD_ROOT}/lib"
-  sudo ln -sf lib64 "${BOARD_ROOT}/usr/lib"
+    # Setting up symlinks for bootstrapping multilib.
+    # See http://crosbug.com/14498
+    "mkdir -p '${BOARD_ROOT}'{/usr,}/lib64"
+    "ln -sf lib64 '${BOARD_ROOT}/lib'"
+    "ln -sf lib64 '${BOARD_ROOT}/usr/lib'"
 
-  # Copying some files for bootstrapping empty chroot.
-  # See http://crosbug.com/14499
-  sudo mkdir -p  ${BOARD_ETC}/xml/
-  sudo cp /etc/xml/catalog ${BOARD_ETC}/xml/
-  sudo mkdir -p  ${BOARD_ETC}/init.d/
-  sudo cp /etc/init.d/functions.sh ${BOARD_ETC}/init.d/
+    # Copying some files for bootstrapping empty chroot.
+    # See http://crosbug.com/14499
+    "mkdir -p '${BOARD_ETC}'/{init.d,xml}"
+    "cp /etc/xml/catalog '${BOARD_ETC}'/xml/"
+    "cp /etc/init.d/functions.sh '${BOARD_ETC}'/init.d/"
+  )
 fi
-sudo ln -sf "${CHROMIUMOS_CONFIG}/make.conf.common-target" \
-  "${BOARD_ETC}/make.conf.common"
+cmds+=(
+  "ln -sf '${CHROMIUMOS_CONFIG}/make.conf.common-target' \
+    '${BOARD_ETC}/make.conf.common'"
+)
+sudo_multi "${cmds[@]}"
+
 sudo_clobber "${BOARD_SETUP}" <<EOF
 # Created by setup_board
 CHOST="${FLAGS_toolchain}"
@@ -504,9 +516,12 @@ if ! ${HOST_BOARD}; then
   install_toolchain_in_board
 fi
 # Setup make.globals and the profile.
-sudo touch /etc/make.conf.user
-sudo ln -sf /etc/make.globals "${BOARD_ROOT}/etc/make.globals"
-sudo ln -sf /etc/make.conf.user "${BOARD_ROOT}/etc/make.conf.user"
+cmds=(
+  "touch /etc/make.conf.user"
+  "ln -sf /etc/make.globals '${BOARD_ROOT}/etc/make.globals'"
+  "ln -sf /etc/make.conf.user '${BOARD_ROOT}/etc/make.conf.user'"
+)
+sudo_multi "${cmds[@]}"
 
 # Select the profile to build based on the board and profile passed to
 # setup_board.  The developer can later change profiles by running
