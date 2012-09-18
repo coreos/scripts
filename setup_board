@@ -89,15 +89,18 @@ fi
 export ROOT="$BOARD_ROOT"
 exec sudo -E ${command} ${extra_args} "\$@"
 EOF
-  sudo chmod +rx ${target}
-  sudo chown root:root ${target}
+  local cmds=(
+    "chmod a+rx '${target}'"
+    "chown root:root '${target}'"
+  )
+  sudo_multi "${cmds[@]}"
   eval ${command^^}_WRAPPER="${target}" # ${foo^^} returns toupper($foo)
   echo created wrapper ${target}
 }
 
-generate_pkgconfig_wrapper() {
-  local target="/usr/local/bin/pkg-config-${BOARD_VARIANT}"
-  sudo_clobber "${target}" <<EOF
+generate_all_wrappers() {
+  local wrapper="/usr/local/bin/pkg-config-${BOARD_VARIANT}"
+  sudo_clobber "${wrapper}" <<EOF
 #!/bin/bash
 
 PKG_CONFIG_LIBDIR="${BOARD_ROOT}/usr/lib/pkgconfig:\
@@ -109,9 +112,32 @@ export PKG_CONFIG_SYSROOT_DIR="${BOARD_ROOT}"
 
 exec pkg-config "\$@"
 EOF
-  sudo chmod a+rx ${target}
-  sudo chown root:root ${target}
+  local cmds=(
+    "chmod a+rx '${wrapper}'"
+    "chown root:root '${wrapper}'"
+  )
+  sudo_multi "${cmds[@]}"
   echo created wrapper pkg-config
+
+  for wrapper in 'emerge --root-deps' ebuild eclean equery portageq \
+                 qcheck qfile qlist; do
+    generate_wrapper $wrapper
+  done
+
+  if [ "${CHOST}" != "$FLAGS_toolchain" ] ; then
+    # TODO(cmasone): Do this more cleanly, if we figure out what "cleanly"
+    # means.  Set up wrapper for pkg-config.  Point a board-specific wrapper
+    # at the generic wrapper script created by crossdev-wrapper.
+    sudo ln -sf "/usr/bin/cross-pkg-config" \
+      "/usr/bin/${FLAGS_toolchain}-pkg-config"
+  fi
+
+  wrapper="/usr/local/bin/cros_workon-${BOARD_VARIANT}"
+  sudo_clobber "${wrapper}" <<EOF
+#!/bin/bash
+exec cros_workon --board ${BOARD_VARIANT} "\$@"
+EOF
+  sudo chmod +x "${wrapper}"
 }
 
 # Checks whether the libc version installed in the board
@@ -434,14 +460,6 @@ fi
 
 sudo mkdir -p "${BOARD_ROOT}" "${BOARD_ETC}" "${BOARD_PROFILE}"
 
-if [ "${CHOST}" != "$FLAGS_toolchain" ] ; then
-  # TODO(cmasone): Do this more cleanly, if we figure out what "cleanly" means.
-  # Set up wrapper for pkg-config.  Point a board-specific wrapper at the
-  # generic wrapper script created by crossdev-wrapper
-  sudo ln -sf "/usr/bin/cross-pkg-config" \
-      "/usr/bin/${FLAGS_toolchain}-pkg-config"
-fi
-
 # Setup the make.confs. We use the following:
 #    make.conf             <- Overall target make.conf [arm, x86, etc. version]
 #    make.conf.board_setup <- Declares CHOST, ROOT, etc.
@@ -467,7 +485,7 @@ if ${HOST_BOARD}; then
 fi
 sudo ln -sf "${CHROMIUMOS_CONFIG}/make.conf.common-target" \
   "${BOARD_ETC}/make.conf.common"
-cat <<EOF | sudo dd of="${BOARD_SETUP}" > /dev/null 2>&1
+sudo_clobber "${BOARD_SETUP}" <<EOF
 # Created by setup_board
 CHOST="${FLAGS_toolchain}"
 ROOT="${BOARD_ROOT}/"
@@ -503,20 +521,7 @@ if ! cros_choose_profile \
   exit 1
 fi
 
-
-for wrapper in 'emerge --root-deps' ebuild eclean equery portageq \
-               qcheck qfile qlist ; do
-  generate_wrapper $wrapper
-done
-
-generate_pkgconfig_wrapper
-
-CROS_WORKON_WRAPPER="/usr/local/bin/cros_workon-${BOARD_VARIANT}"
-cat <<EOF | sudo dd of="$CROS_WORKON_WRAPPER" > /dev/null 2>&1
-#!/bin/bash
-exec cros_workon --board ${BOARD_VARIANT} "\$@"
-EOF
-sudo chmod +x "$CROS_WORKON_WRAPPER"
+generate_all_wrappers
 
 if ${HOST_BOARD}; then
   EMERGE_CMD="emerge"
