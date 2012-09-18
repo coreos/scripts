@@ -55,6 +55,8 @@ DEFINE_string toolchain "" \
   "Toolchain.  For example: i686-pc-linux-gnu, armv7a-softfloat-linux-gnueabi"
 DEFINE_string variant "" \
   "Board variant."
+DEFINE_boolean regen_configs ${FLAGS_FALSE} \
+  "Regenerate all config files (useful for modifying profiles w/out rebuild)."
 
 # The --reuse_pkgs_from_local_boards flag tells Portage to share binary
 # packages between boards that are built locally, so that the total time
@@ -229,8 +231,8 @@ install_toolchain_in_board() {
   else
     cmds=(
       "mkdir -p '${BOARD_ROOT}'{/usr,}/lib64 '${BOARD_ROOT}/usr/lib/debug'"
-      "ln -sf '${BOARD_ROOT}/usr/lib64' '${BOARD_ROOT}/usr/lib'"
-      "ln -sf '${BOARD_ROOT}/lib64' '${BOARD_ROOT}/lib'"
+      "ln -sfT '${BOARD_ROOT}/usr/lib64' '${BOARD_ROOT}/usr/lib'"
+      "ln -sfT '${BOARD_ROOT}/lib64' '${BOARD_ROOT}/lib'"
     )
     sudo_multi "${cmds[@]}"
     LIBC_PATH="${PKGDIR}/sys-libs/${LIBC_TAR}"
@@ -437,14 +439,14 @@ BOARD_OVERLAY_LIST=$(cros_overlay_list \
 
 eval $(portageq envvar -v CHOST PKGDIR)
 
-if [ -d "${BOARD_ROOT}" ] ; then
+if [ -d "${BOARD_ROOT}" ]; then
   if [[ ${FLAGS_force} -eq ${FLAGS_TRUE} ]]; then
     echo "--force set.  Re-creating ${BOARD_ROOT}..."
     # Removal takes long. Make it asynchronous.
     TEMP_DIR=`mktemp -d`
     sudo mv "${BOARD_ROOT}" "${TEMP_DIR}"
     sudo rm -rf "${TEMP_DIR}" &
-  else
+  elif [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
     if ! ${HOST_BOARD}; then
       { print_board_make_conf; print_board_binhost_config; } | \
         sudo_clobber $BOARD_ETC/make.conf.board
@@ -461,6 +463,9 @@ if [ -d "${BOARD_ROOT}" ] ; then
     fi
     exit 0
   fi
+else
+  # Regenerating configs w/out a board root doesn't make sense.
+  FLAGS_regen_configs=${FLAGS_FALSE}
 fi
 
 cmds=(
@@ -481,8 +486,8 @@ if ${HOST_BOARD}; then
     # Setting up symlinks for bootstrapping multilib.
     # See http://crosbug.com/14498
     "mkdir -p '${BOARD_ROOT}'{/usr,}/lib64"
-    "ln -sf lib64 '${BOARD_ROOT}/lib'"
-    "ln -sf lib64 '${BOARD_ROOT}/usr/lib'"
+    "ln -sfT lib64 '${BOARD_ROOT}/lib'"
+    "ln -sfT lib64 '${BOARD_ROOT}/usr/lib'"
 
     # Copying some files for bootstrapping empty chroot.
     # See http://crosbug.com/14499
@@ -513,7 +518,9 @@ if ! ${HOST_BOARD}; then
 
   # We install the toolchain related bits after the BOARD_ROOT, BOARD_PROFILE
   # and BOARD_ETC directories have been created.
-  install_toolchain_in_board
+  if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
+    install_toolchain_in_board
+  fi
 fi
 # Setup make.globals and the profile.
 cmds=(
@@ -597,18 +604,26 @@ else
   # config to make.conf.board.
   print_board_binhost_config | sudo_append $BOARD_ETC/make.conf.board
 
-  # Emerge the kernel headers into the board build root.  Use rdeps to
-  # avoid pulling any spurious DEPEND things in that we don't care about.
-  KERNEL_EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
-  if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
-        "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]]; then
-    KERNEL_EMERGE_FLAGS+=" --getbinpkg --usepkg"
+  if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
+    # Emerge the kernel headers into the board build root.  Use rdeps to
+    # avoid pulling any spurious DEPEND things in that we don't care about.
+    KERNEL_EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
+    if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
+          "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]]; then
+      KERNEL_EMERGE_FLAGS+=" --getbinpkg --usepkg"
+    fi
+
+    sudo -E "${EMERGE_WRAPPER}" ${KERNEL_EMERGE_FLAGS} \
+      sys-kernel/linux-headers
+
+    unset KERNEL_EMERGE_FLAGS
+  else
+    # Since we clobbered this file earlier, make sure the libc version
+    # is set correctly otherwise future upgrades will wrongly trigger.
+    sudo_append "${BOARD_SETUP}" <<EOF
+LIBC_VERSION="$(cross_get_version glibc)"
+EOF
   fi
-
-  sudo -E "${EMERGE_WRAPPER}" ${KERNEL_EMERGE_FLAGS} \
-    sys-kernel/linux-headers
-
-  unset KERNEL_EMERGE_FLAGS
 fi
 
 if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then
