@@ -71,7 +71,7 @@ DEFINE_boolean reuse_pkgs_from_local_boards $FLAGS_FALSE \
 # args:
 #   $1:  command to wrap
 #   rest:  extra arguments to pass to the command
-generate_wrapper() {
+_generate_wrapper() {
   local command="${1}"
   shift
   local extra_args="$@"
@@ -91,17 +91,18 @@ fi
 export ROOT="$BOARD_ROOT"
 exec sudo -E ${command} ${extra_args} "\$@"
 EOF
-  local cmds=(
-    "chmod a+rx '${target}'"
-    "chown root:root '${target}'"
-  )
-  sudo_multi "${cmds[@]}"
+  # Note: parent will process these.
+  wrappers+=( "${target}" )
   eval ${command^^}_WRAPPER="${target}" # ${foo^^} returns toupper($foo)
-  echo created wrapper ${target}
 }
 
 generate_all_wrappers() {
-  local wrapper="/usr/local/bin/pkg-config-${BOARD_VARIANT}"
+  local cmds=() wrappers=()
+  local wrapper
+
+  info "Generating wrapper scripts"
+
+  wrapper="/usr/local/bin/pkg-config-${BOARD_VARIANT}"
   sudo_clobber "${wrapper}" <<EOF
 #!/bin/bash
 
@@ -114,24 +115,21 @@ export PKG_CONFIG_SYSROOT_DIR="${BOARD_ROOT}"
 
 exec pkg-config "\$@"
 EOF
-  local cmds=(
-    "chmod a+rx '${wrapper}'"
-    "chown root:root '${wrapper}'"
-  )
-  sudo_multi "${cmds[@]}"
-  echo created wrapper pkg-config
+  wrappers+=( "${wrapper}" )
 
   for wrapper in 'emerge --root-deps' ebuild eclean equery portageq \
                  qcheck qfile qlist; do
-    generate_wrapper $wrapper
+    _generate_wrapper ${wrapper}
   done
 
   if [ "${CHOST}" != "$FLAGS_toolchain" ] ; then
     # TODO(cmasone): Do this more cleanly, if we figure out what "cleanly"
     # means.  Set up wrapper for pkg-config.  Point a board-specific wrapper
     # at the generic wrapper script created by crossdev-wrapper.
-    sudo ln -sf "/usr/bin/cross-pkg-config" \
-      "/usr/bin/${FLAGS_toolchain}-pkg-config"
+    cmds+=(
+      "ln -sf '/usr/bin/cross-pkg-config' \
+        '/usr/bin/${FLAGS_toolchain}-pkg-config'"
+    )
   fi
 
   wrapper="/usr/local/bin/cros_workon-${BOARD_VARIANT}"
@@ -139,7 +137,14 @@ EOF
 #!/bin/bash
 exec cros_workon --board ${BOARD_VARIANT} "\$@"
 EOF
-  sudo chmod +x "${wrapper}"
+  wrappers+=( "${wrapper}" )
+
+  cmds+=(
+    "chmod a+rx ${wrappers[*]}"
+    "chown root:root ${wrappers[*]}"
+  )
+
+  sudo_multi "${cmds[@]}"
 }
 
 # Checks whether the libc version installed in the board
