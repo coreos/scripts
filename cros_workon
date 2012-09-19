@@ -296,8 +296,9 @@ chrome_to_live () {
   # Switch to using repo manifest checkout of chromium src.
   # Run chrome_set_ver to set DEPS
 
-  # No chromium directory checked out in this repo; probably a minilayout.
-  if [ ! -d "${CHROOT_TRUNK_DIR}/chromium" ]; then
+  # No chromium/src.git project checked out, meaning user not using
+  # gerrit_source.xml
+  if [ ! -d "${CHROOT_TRUNK_DIR}/chromium/src/.git" ]; then
     return
   fi
 
