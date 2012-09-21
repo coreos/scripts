@@ -56,6 +56,8 @@ the command nor args should include single quotes.  For example:
 Otherwise, provides an interactive shell.
 "
 
+CROS_LOG_PREFIX=cros_sdk:enter_chroot
+
 # Version of info from common.sh that only echos if --verbose is set.
 debug() {
   if [ $FLAGS_verbose -eq $FLAGS_TRUE ]; then
@@ -210,6 +212,35 @@ copy_into_chroot_if_exists() {
   # $1 is file path outside of chroot to copy to path $2 inside chroot.
   [ -e "$1" ] || return
   cp "$1" "${FLAGS_chroot}/$2"
+}
+
+# Usage: promote_api_keys
+# This takes care of getting the developer API keys into the chroot where
+# chrome can build with them.  It needs to take it from the places a dev
+# is likely to put them, and recognize that older chroots may or may not
+# have been used since the concept of keys got added, as well as before
+# and after the developer decding to grab his own keys.
+promote_api_keys() {
+  local destination="${FLAGS_chroot}/home/${USER}/.googleapikeys"
+  # Don't disturb existing keys.  They could be set differently
+  if [[ -s "${destination}" ]]; then
+    return 0
+  fi
+  if [[ -r "${HOME}/.googleapikeys" ]]; then
+    cp "${HOME}/.googleapikeys" "${destination}"
+    if [[ -s "${destination}" ]] ; then
+      info "Copied Google API keys into chroot."
+    fi
+  elif [[ -r "${HOME}/.gyp/include.gypi" ]]; then
+    local NAME="('google_(api_key|default_client_(id|secret))')"
+    local WS="[[:space:]]*"
+    local CONTENTS="('[^\\\\']*')"
+    sed -nr -e "/^${WS}${NAME}${WS}[:=]${WS}${CONTENTS}.*/{s//\1: \4,/;p;}" \
+         "${HOME}/.gyp/include.gypi" >"${destination}"
+    if [[ -s "${destination}" ]]; then
+      info "Put discovered Google API keys into chroot."
+    fi
+  fi
 }
 
 setup_env() {
@@ -433,6 +464,7 @@ setup_env() {
     for fn in "${FILES_TO_COPY_TO_CHROOT[@]}"; do
       copy_into_chroot_if_exists "${HOME}/${fn}" "/home/${USER}/${fn}"
     done
+    promote_api_keys
 
     # Make sure user's requested locales are available
     # http://crosbug.com/19139

@@ -52,7 +52,7 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 check_flags_only_and_allow_null_arg "$@" && set --
 
-CROS_LOG_PREFIX=cros_sdk
+CROS_LOG_PREFIX=cros_sdk:make_chroot
 
 assert_not_root_user
 # Set the right umask for chroot creation.
