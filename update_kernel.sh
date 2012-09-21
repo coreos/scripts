@@ -43,9 +43,8 @@ learn_device() {
 learn_partition_and_ro() {
   [ -n "${FLAGS_partition}" ] && return
   ! remote_sh rootdev
-  if [ "${REMOTE_OUT}" == "/dev/dm-0" ]; then
-    remote_sh ls /sys/block/dm-0/slaves
-    REMOTE_OUT="/dev/${REMOTE_OUT}"
+  if [ "${REMOTE_OUT%%-*}" == "/dev/dm" ]; then
+    remote_sh rootdev -s
     REMOTE_VERITY=${FLAGS_TRUE}
     info "System is using verity: not updating firmware"
   else
