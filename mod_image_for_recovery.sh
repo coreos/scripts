@@ -267,6 +267,18 @@ update_partition_table() {
   local resized_sectors=$3  # number of sectors in resized stateful partition
   local temp_img=$4
 
+  local temp_pmbr=$(mktemp "/tmp/pmbr.XXXXXX")
+  dd if="${src_img}" of="${temp_pmbr}" bs=512 count=1 &>/dev/null
+  trap "rm -rf \"${temp_pmbr}\"" EXIT
+
+  # Set up a new partition table
+  rm -f "${temp_img}"
+  PARTITION_SCRIPT_PATH=$( tempfile )
+  write_partition_script "recovery" "${PARTITION_SCRIPT_PATH}"
+  . "${PARTITION_SCRIPT_PATH}"
+  write_partition_table "${temp_img}" "${temp_pmbr}"
+  echo "${PARTITION_SCRIPT_PATH}"
+
   local kern_a_dst_offset=$(partoffset ${temp_img} 2)
   local kern_a_src_offset=$(partoffset ${src_img} 2)
   local kern_a_count=$(partsize ${src_img} 2)
@@ -289,21 +301,9 @@ update_partition_table() {
 
   local state_dst_offset=$(partoffset ${temp_img} 1)
 
-  local temp_pmbr=$(mktemp "/tmp/pmbr.XXXXXX")
-  dd if="${src_img}" of="${temp_pmbr}" bs=512 count=1 &>/dev/null
-
-  trap "rm -rf \"${temp_pmbr}\"" EXIT
-  # Set up a new partition table
-  PARTITION_SCRIPT_PATH=$( tempfile )
-  write_partition_script "recovery" "${PARTITION_SCRIPT_PATH}"
-  . "${PARTITION_SCRIPT_PATH}"
-  write_partition_table "${temp_img}" "${temp_pmbr}"
-  echo "${PARTITION_SCRIPT_PATH}"
-  #rm "${PARTITION_SCRIPT_PATH}"
-
   # Copy into the partition parts of the file
   dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
-    seek=${kern_a_dst_offset} skip=${kern_a_src_offset} count=${rootfs_count}
+    seek=${rootfs_dst_offset} skip=${rootfs_src_offset} count=${rootfs_count}
   dd if="${temp_state}" of="${temp_img}" conv=notrunc bs=512 \
     seek=${state_dst_offset}
   # Copy the full kernel (i.e. with vboot sections)
@@ -346,8 +346,8 @@ maybe_resize_stateful() {
   # Create a recovery image of the right size
   # TODO(wad) Make the developer script case create a custom GPT with
   # just the kernel image and stateful.
-  update_partition_table "${RECOVERY_IMAGE}" "$small_stateful" 4096 \
-                         "$RECOVERY_IMAGE" 1>&2
+  update_partition_table "${FLAGS_image}" "$small_stateful" 4096 \
+                         "${RECOVERY_IMAGE}" 1>&2
   return $err
 }
 
@@ -405,9 +405,7 @@ if [ $FLAGS_modify_in_place -eq $FLAGS_TRUE ]; then
   fi
   RECOVERY_IMAGE="${FLAGS_image}"
 else
-  if [[ ${FLAGS_modify_in_place} -eq ${FLAGS_FALSE} ]]; then
-    cp "${FLAGS_image}" "${RECOVERY_IMAGE}"
-  fi
+  cp "${FLAGS_image}" "${RECOVERY_IMAGE}"
 fi
 
 echo "Creating recovery image from ${FLAGS_image}"
