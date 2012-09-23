@@ -45,6 +45,7 @@ DEFINE_string stage3_date "2010.03.09" \
   "Use the stage3 with the given date."
 DEFINE_string stage3_path "" \
   "Use the stage3 located on this path."
+DEFINE_string cache_dir "" "Directory to store caches within."
 
 # Parse command line flags.
 FLAGS_HELP="usage: $SCRIPT_NAME [flags]"
@@ -62,6 +63,10 @@ umask 022
 # so will die prematurely if 'switch_to_strict_mode' is specified before now.
 # TODO: replace shflags with something less error-prone, or contribute a fix.
 switch_to_strict_mode
+
+[[ "${FLAGS_delete}" == "${FLAGS_FALSE}" ]] && \
+  [[ -z "${FLAGS_cache_dir}" ]] && \
+  die "--cache_dir is required"
 
 . "${SCRIPT_ROOT}"/sdk_lib/make_conf_util.sh
 
@@ -93,7 +98,8 @@ ENTER_CHROOT_ARGS=(
 
 # Invoke enter_chroot.  This can only be used after sudo has been installed.
 enter_chroot() {
-  "$ENTER_CHROOT" --chroot "$FLAGS_chroot" -- "${ENTER_CHROOT_ARGS[@]}" "$@"
+  "$ENTER_CHROOT" --cache_dir "${FLAGS_cache_dir}" --chroot "$FLAGS_chroot" \
+    -- "${ENTER_CHROOT_ARGS[@]}" "$@"
 }
 
 # Invoke enter_chroot running the command as root, and w/out sudo.
@@ -101,6 +107,7 @@ enter_chroot() {
 early_env=()
 early_enter_chroot() {
   "$ENTER_CHROOT" --chroot "$FLAGS_chroot" --early_make_chroot \
+    --cache_dir "${FLAGS_cache_dir}" \
     -- "${ENTER_CHROOT_ARGS[@]}" "${early_env[@]}" "$@"
 }
 
@@ -208,8 +215,15 @@ init_setup () {
 
    # Create directories referred to by our conf files.
    sudo mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/pkgs" \
-     "${FLAGS_chroot}/var/cache/distfiles" \
-     "${FLAGS_chroot}/var/cache/chromeos-chrome"
+     "${FLAGS_chroot}/var/cache/"chromeos-{cache,chrome} \
+     "${FLAGS_chroot}/etc/profile.d"
+
+   echo "export CHROMEOS_CACHEDIR=/var/cache/chromeos-cache" | \
+     sudo_clobber "${FLAGS_chroot}/etc/profile.d/chromeos-cachedir.sh"
+   sudo_multi \
+       "chmod 0644 '${FLAGS_chroot}/etc/profile.d/chromeos-cachedir.sh'" \
+       "rm -rf '${FLAGS_chroot}/var/cache/distfiles'" \
+       "ln -s chromeos-cache/distfiles '${FLAGS_chroot}/var/cache/distfiles'"
 
    # Run this from w/in the chroot so we use whatever uid/gid
    # these are defined as w/in the chroot.
@@ -217,10 +231,10 @@ init_setup () {
 
    # These are created for compatibility while transitioning
    # make.conf and friends over to the new location.
-   # TODO(ferringb): remove this 03/12 or so.
-   sudo ln -s ../../cache/distfiles/host \
+   # TODO(ferringb): remove this 01/13 or so.
+   sudo ln -s ../../cache/chromeos-cache/distfiles/host \
      "${FLAGS_chroot}/var/lib/portage/distfiles"
-   sudo ln -s ../../cache/distfiles/target \
+   sudo ln -s ../../cache/chromeos-cache/distfiles/target \
      "${FLAGS_chroot}/var/lib/portage/distfiles-target"
 
    # Add chromite/bin and depot_tools into the path globally; note that the
