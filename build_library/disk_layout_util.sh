@@ -172,6 +172,7 @@ build_gpt() {
   local rootfs_img="$2"
   local stateful_img="$3"
   local esp_img="$4"
+  local oem_img="$5"
 
   get_disk_layout_type
   run_partition_script "${outdev}" "${rootfs_img}"
@@ -194,6 +195,10 @@ build_gpt() {
   info "Copying EFI system partition..."
   $sudo dd if="$esp_img" of="$outdev" conv=notrunc bs=512 \
       seek=$(partoffset ${outdev} 12)
+
+  info "Copying OEM partition..."
+  $sudo dd if="$oem_img" of="$outdev" conv=notrunc bs=512 \
+      seek=$(partoffset ${outdev} 8)
 
   # Pre-set "sucessful" bit in gpt, so we will never mark-for-death
   # a partition on an SDCard/USB stick.

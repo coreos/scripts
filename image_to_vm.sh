@@ -117,6 +117,7 @@ popd >/dev/null
 
 # Fix the kernel command line
 TEMP_ESP="${TEMP_DIR}"/part_12
+TEMP_OEM="${TEMP_DIR}"/part_8
 TEMP_ROOTFS="${TEMP_DIR}"/part_3
 TEMP_STATE="${TEMP_DIR}"/part_1
 TEMP_KERN="${TEMP_DIR}"/part_2
@@ -175,6 +176,8 @@ dd if="${TEMP_KERN}"   of="${TEMP_IMG}" conv=notrunc bs=512 \
   seek=$(partoffset ${TEMP_IMG} 2)
 dd if="${TEMP_ESP}"    of="${TEMP_IMG}" conv=notrunc bs=512 \
   seek=$(partoffset ${TEMP_IMG} 12)
+dd if="${TEMP_OEM}"    of="${TEMP_IMG}" conv=notrunc bs=512 \
+  seek=$(partoffset ${TEMP_IMG} 8)
 
 # Make the built-image bootable and ensure that the legacy default usb boot
 # uses /dev/sda instead of /dev/sdb3.

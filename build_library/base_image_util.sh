@@ -23,6 +23,7 @@ cleanup_mounts() {
   safe_umount_tree "${root_fs_dir}"
   safe_umount_tree "${stateful_fs_dir}"
   safe_umount_tree "${esp_fs_dir}"
+  safe_umount_tree "${oem_fs_dir}"
 
    # Turn die on error back on.
   set -e
@@ -240,7 +241,8 @@ create_base_image() {
   build_gpt "${BUILD_DIR}/${image_name}" \
           "${root_fs_img}" \
           "${stateful_fs_img}" \
-          "${esp_fs_img}"
+          "${esp_fs_img}" \
+          "${oem_fs_img}"
 
   # Clean up temporary files.
   rm -f "${root_fs_img}" "${stateful_fs_img}" "${esp_fs_img}" "{oem_fs_img}"
