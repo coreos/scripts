@@ -157,8 +157,8 @@ def WriteLayoutFunction(sfile, func_name, image_type, config):
 
   # Pass 1: Set up the expanding partition size.
   for partition in partitions:
+    partition["var"] = partition["blocks"]
     if partition["type"] != "blank":
-      partition["var"] = partition["blocks"]
 
       if partition["num"] == 1:
         if "features" in partition and "expand" in partition["features"]:
@@ -178,7 +178,7 @@ def WriteLayoutFunction(sfile, func_name, image_type, config):
         partition["label"]))
 
     # Increment the CURR counter ready for the next partition.
-    sfile.write("CURR=$(( $CURR + %s ))\n" % partition["blocks"])
+    sfile.write("CURR=$(( $CURR + %s ))\n" % partition["var"])
 
   # Set default priorities on kernel partitions
   sfile.write("$GPT add -i 2 -S 0 -T 15 -P 15 $1\n")
