@@ -99,9 +99,9 @@ DEFINE_string rootfs_hash "/tmp/rootfs.hash" \
   "Path where the rootfs hash should be stored."
 DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
-DEFINE_integer verity_error_behavior 2 \
+DEFINE_integer verity_error_behavior 3 \
   "Kernel verified boot error behavior (0: I/O errors, 1: reboot, 2: nothing)"
-DEFINE_integer verity_max_ios 1024 \
+DEFINE_integer verity_max_ios -1 \
   "Number of outstanding I/O operations dm-verity caps at."
 DEFINE_string verity_algorithm "sha1" \
   "Cryptographic hash algorithm used for kernel vboot."

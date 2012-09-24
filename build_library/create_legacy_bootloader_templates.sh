@@ -24,10 +24,10 @@ DEFINE_string boot_args "" \
   "Additional boot arguments to pass to the commandline (Default: '')"
 DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
   "Controls if verity is used for root filesystem checking (Default: false)"
-DEFINE_integer verity_error_behavior 2 \
+DEFINE_integer verity_error_behavior 3 \
   "Verified boot error behavior [0: I/O errors, 1: reboot, 2: nothing] \
-(Default: 2)"
-DEFINE_integer verity_max_ios 1024 \
+(Default: 3)"
+DEFINE_integer verity_max_ios -1 \
   "Optional number of outstanding I/O operations. (Default: 1024)"
 
 # Parse flags

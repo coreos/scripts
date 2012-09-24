@@ -36,9 +36,9 @@ DEFINE_string rootfs_image "" \
   "Optional path to the rootfs device or image.(Default: \"\")"
 DEFINE_string rootfs_hash "" \
   "Optional path to output the rootfs hash to. (Default: \"\")"
-DEFINE_integer verity_error_behavior 2 \
+DEFINE_integer verity_error_behavior 3 \
   "Verified boot error behavior [0: I/O errors, 1: reboot, 2: nothing] \
-(Default: 2)"
+(Default: 3)"
 DEFINE_integer verity_max_ios -1 \
   "Optional number of outstanding I/O operations. (Default: -1)"
 DEFINE_string verity_hash_alg "sha1" \
