@@ -78,14 +78,30 @@
         "num": 5,
         "label":"ROOT-B",
         "type":"rootfs",
-        "blocks":"1"
+        "blocks":"4194304",
+        "fs_blocks":"217600"
       },
+      {
+        "num": 3,
+        "label":"ROOT-A",
+        "type":"rootfs",
+        "blocks":"4194304",
+        "fs_blocks":"217600"
+      }
+    ],
+    "usb": [
       {
         "num": 3,
         "label":"ROOT-A",
         "type":"rootfs",
         "blocks":"1757184",
         "fs_blocks":"217600"
+      },
+      {
+        "num": 5,
+        "label":"ROOT-B",
+        "type":"rootfs",
+        "blocks":"1"
       }
     ],
     "factory_install": [
@@ -101,6 +117,12 @@
         "type":"rootfs",
         "blocks":"860160",
         "fs_blocks":"102400"
+      },
+      {
+        "num": 5,
+        "label":"ROOT-B",
+        "type":"rootfs",
+        "blocks":"1"
       },
       {
         "num": 12,
@@ -137,6 +159,19 @@
         "label":"STATE",
         "type":"data",
         "blocks":"4096"
+      },
+      {
+        "num": 3,
+        "label":"ROOT-A",
+        "type":"rootfs",
+        "blocks":"1757184",
+        "fs_blocks":"217600"
+      },
+      {
+        "num": 5,
+        "label":"ROOT-B",
+        "type":"rootfs",
+        "blocks":"1"
       }
     ],
     "pgo": [

@@ -43,7 +43,7 @@ zero_free_space() {
 create_base_image() {
   local image_name=$1
   local rootfs_verification_enabled=$2
-  local image_type="base"
+  local image_type="usb"
 
   if [[ "${FLAGS_disk_layout}" != "default" ]]; then
       image_type="${FLAGS_disk_layout}"

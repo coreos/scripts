@@ -170,6 +170,10 @@ def WriteLayoutFunction(sfile, func_name, image_type, config):
           sfile.write("fi\n")
           partition["var"] = "$STATEFUL_SIZE"
 
+
+  sfile.write("STATEFUL_SIZE=$((STATEFUL_SIZE-(STATEFUL_SIZE %% %d)))\n" %
+    config["metadata"]["fs_block_size"])
+
   # Pass 2: Write out all the cgpt add commands.
   for partition in partitions:
     if partition["type"] != "blank":
