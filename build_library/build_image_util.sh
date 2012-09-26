@@ -129,6 +129,7 @@ create_boot_desc() {
   --arch="${ARCH}"
   --keys_dir="${DEVKEYSDIR}"
   --usb_disk="${FLAGS_usb_disk}"
+  --boot_args="${FLAGS_boot_args}"
   --nocleanup_dirs
   --verity_algorithm=sha1
   ${enable_rootfs_verification_flag}
