@@ -535,6 +535,12 @@ cmds=(
 )
 sudo_multi "${cmds[@]}"
 
+# Set up post_install hooks that run qa on ELF binaries.
+sudo_multi \
+  "mkdir -p '${BOARD_ROOT}/etc/portage/hooks'" \
+  "ln -sfT '${SCRIPTS_DIR}/hooks/install' \
+    '${BOARD_ROOT}/etc/portage/hooks/install'"
+
 # Select the profile to build based on the board and profile passed to
 # setup_board.  The developer can later change profiles by running
 # cros_choose_profile manually.
