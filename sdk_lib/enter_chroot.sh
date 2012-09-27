@@ -166,7 +166,7 @@ env_sync_proc() {
 
   while true; do
     # Sync files
-    for file in ${sync_files}; do
+    for file in "${sync_files[@]}"; do
       if ! cmp /${file} ${FLAGS_chroot}/${file} &> /dev/null; then
         cp -f /${file} ${FLAGS_chroot}/${file}
       fi
