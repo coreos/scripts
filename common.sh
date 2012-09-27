@@ -405,6 +405,7 @@ FACTORY_SHIM_INSTALL_MASK="
   /usr/share/sounds
   /usr/share/tts
   /usr/share/zoneinfo
+  /usr/share/oem
   "
 
 # -----------------------------------------------------------------------------
