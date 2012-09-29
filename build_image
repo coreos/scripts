@@ -122,6 +122,12 @@ if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
   fi
 fi
 
+if should_build_image ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}; then
+  # Disable module restrictions on factory test image to allow for
+  # external third party drivers in /usr/local.
+  FLAGS_boot_args="${FLAGS_boot_args} lsm.module_locking=0"
+fi
+
 # TODO: </prebuild hook>
 
 # If we are creating a developer image, also create a pristine image with a
