@@ -121,10 +121,6 @@ create_boot_desc() {
   if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
     enable_rootfs_verification_flag="--enable_rootfs_verification"
   fi
-  local enable_bootcache_flag=""
-  if [[ ${FLAGS_enable_bootcache} -eq ${FLAGS_TRUE} ]]; then
-    enable_bootcache_flag=--enable_bootcache
-  fi
 
   [ -z "${FLAGS_verity_salt}" ] && FLAGS_verity_salt=$(make_salt)
   cat <<EOF > ${BUILD_DIR}/boot.desc
@@ -137,7 +133,6 @@ create_boot_desc() {
   --nocleanup_dirs
   --verity_algorithm=sha1
   ${enable_rootfs_verification_flag}
-  ${enable_bootcache_flag}
 EOF
 }
 

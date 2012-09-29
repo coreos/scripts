@@ -47,8 +47,6 @@ DEFINE_string verity_salt "" \
   "Salt to use for rootfs hash (Default: \"\")"
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Enable kernel-based root fs integrity checking. (Default: true)"
-DEFINE_boolean enable_bootcache ${FLAGS_FALSE} \
-  "Enable boot cache to accelerate booting. (Default: false)"
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -57,31 +55,7 @@ eval set -- "${FLAGS_ARGV}"
 # Die on error
 switch_to_strict_mode
 
-rootdigest() {
-  local digest
-  digest=${table#*root_hexdigest=}
-  echo ${digest% salt*}
-}
-
-salt() {
-  local salt
-  salt=${table#*salt=}
-  echo ${salt%}
-}
-
-hashstart() {
-  local hash
-  hash=${table#*hashstart=}
-  echo ${hash% alg*}
-}
-
-# Estimate of sectors used by verity
-# (num blocks) * 32 (bytes per hash) * 2 (overhead) / 512 (bytes per sector)
-veritysize() {
-  echo $((root_fs_blocks * 32 * 2 / 512))
-}
-
-device_mapper_args=
+verity_args=
 # Even with a rootfs_image, root= is not changed unless specified.
 if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
   # Gets the number of blocks. 4096 byte blocks _are_ expected.
@@ -120,29 +94,12 @@ if [[ -n "${FLAGS_rootfs_image}" && -n "${FLAGS_rootfs_hash}" ]]; then
   # Don't claim the root device unless verity is enabled.
   # Doing so will claim /dev/sdDP out from under the system.
   if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-    if [[ ${FLAGS_enable_bootcache} -eq ${FLAGS_TRUE} ]]; then
-      base_root='254:0'  # major:minor numbers for /dev/dm-0
-    else
-      base_root='%U+1'  # kern_guid + 1
-    fi
+    base_root='%U+1'  # kern_guid + 1
     table=${table//HASH_DEV/${base_root}}
     table=${table//ROOT_DEV/${base_root}}
   fi
-  verity_dev="vroot none ro 1,${table}"
-  if [[ ${FLAGS_enable_bootcache} -eq ${FLAGS_TRUE} ]]; then
-    signature=$(rootdigest)
-    cachestart=$(($(hashstart) + $(veritysize)))
-    size_limit=512
-    max_trace=20000
-    max_pages=100000
-    bootcache_args="%U+1 ${cachestart} ${signature} ${size_limit}"
-    bootcache_args="${bootcache_args} ${max_trace} ${max_pages}"
-    bootcache_dev="vboot none ro 1, 0 ${cachestart} bootcache ${bootcache_args}"
-    device_mapper_args="dm=\"2 ${bootcache_dev}, ${verity_dev}\""
-  else
-    device_mapper_args="dm=\"1 ${verity_dev}\""
-  fi
-  info "device mapper configuration: ${device_mapper_args}"
+  verity_args="dm=\"vroot none ro,${table}\""
+  info "dm-verity configuration: ${verity_args}"
 fi
 
 mkdir -p "${FLAGS_working_dir}"
@@ -154,17 +111,8 @@ mkdir -p "${FLAGS_working_dir}"
 dev_wait=0
 root_dev="PARTUUID=%U/PARTNROFF=1"
 if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
+  root_dev=/dev/dm-0
   dev_wait=1
-  if [[ ${FLAGS_enable_bootcache} -eq ${FLAGS_TRUE} ]]; then
-    root_dev=/dev/dm-1
-  else
-    root_dev=/dev/dm-0
-  fi
-else
-  if [[ ${FLAGS_enable_bootcache} -eq ${FLAGS_TRUE} ]]; then
-    echo "Having bootcache without verity is not supported"
-    exit 2
-  fi
 fi
 
 cat <<EOF > "${FLAGS_working_dir}/boot.config"
@@ -174,7 +122,7 @@ ro
 dm_verity.error_behavior=${FLAGS_verity_error_behavior}
 dm_verity.max_bios=${FLAGS_verity_max_ios}
 dm_verity.dev_wait=${dev_wait}
-${device_mapper_args}
+${verity_args}
 ${FLAGS_boot_args}
 vt.global_cursor_default=0
 kern_guid=%U
