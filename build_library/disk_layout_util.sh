@@ -187,3 +187,66 @@ build_gpt() {
   # a partition on an SDCard/USB stick.
   cgpt add -i 2 -S 1 "$outdev"
 }
+
+# Rebuild an image's partition table with new stateful size.
+#  $1: source image filename
+#  $2: source stateful partition image filename
+#  $3: number of sectors to allocate to the new stateful partition
+#  $4: destination image filename
+# Used by dev/host/tests/mod_recovery_for_decryption.sh and
+# mod_image_for_recovery.sh.
+update_partition_table() {
+  local src_img=$1          # source image
+  local temp_state=$2       # stateful partition image
+  local resized_sectors=$3  # number of sectors in resized stateful partition
+  local temp_img=$4
+
+  local temp_pmbr=$(mktemp "/tmp/pmbr.XXXXXX")
+  dd if="${src_img}" of="${temp_pmbr}" bs=512 count=1 &>/dev/null
+  trap "rm -rf \"${temp_pmbr}\"" EXIT
+
+  # Set up a new partition table
+  rm -f "${temp_img}"
+  PARTITION_SCRIPT_PATH=$( tempfile )
+  write_partition_script "recovery" "${PARTITION_SCRIPT_PATH}"
+  . "${PARTITION_SCRIPT_PATH}"
+  write_partition_table "${temp_img}" "${temp_pmbr}"
+  echo "${PARTITION_SCRIPT_PATH}"
+
+  local kern_a_dst_offset=$(partoffset ${temp_img} 2)
+  local kern_a_src_offset=$(partoffset ${src_img} 2)
+  local kern_a_count=$(partsize ${src_img} 2)
+
+  local kern_b_dst_offset=$(partoffset ${temp_img} 4)
+  local kern_b_src_offset=$(partoffset ${src_img} 4)
+  local kern_b_count=$(partsize ${src_img} 4)
+
+  local rootfs_dst_offset=$(partoffset ${temp_img} 3)
+  local rootfs_src_offset=$(partoffset ${src_img} 3)
+  local rootfs_count=$(partsize ${src_img} 3)
+
+  local oem_dst_offset=$(partoffset ${temp_img} 8)
+  local oem_src_offset=$(partoffset ${src_img} 8)
+  local oem_count=$(partsize ${src_img} 8)
+
+  local esp_dst_offset=$(partoffset ${temp_img} 12)
+  local esp_src_offset=$(partoffset ${src_img} 12)
+  local esp_count=$(partsize ${src_img} 12)
+
+  local state_dst_offset=$(partoffset ${temp_img} 1)
+
+  # Copy into the partition parts of the file
+  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
+    seek=${rootfs_dst_offset} skip=${rootfs_src_offset} count=${rootfs_count}
+  dd if="${temp_state}" of="${temp_img}" conv=notrunc bs=512 \
+    seek=${state_dst_offset}
+  # Copy the full kernel (i.e. with vboot sections)
+  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
+    seek=${kern_a_dst_offset} skip=${kern_a_src_offset} count=${kern_a_count}
+  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
+    seek=${kern_b_dst_offset} skip=${kern_b_src_offset} count=${kern_b_count}
+  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
+    seek=${oem_dst_offset} skip=${oem_src_offset} count=${oem_count}
+  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
+    seek=${esp_dst_offset} skip=${esp_src_offset} count=${esp_count}
+}
