@@ -175,13 +175,34 @@
         "blocks":"1"
       }
     ],
-    "pgo": [
+    "2gb-rootfs": [
       {
         "num": 3,
         "label":"ROOT-A",
         "type":"rootfs",
-        "blocks":"2662400",
-        "fs_blocks":"320000"
+        "blocks":"4194304",
+        "fs_blocks":"512000"
+      },
+      {
+        "num": 5,
+        "label":"ROOT-B",
+        "type":"rootfs",
+        "blocks":"1"
+      }
+    ],
+    "4gb-rootfs": [
+      {
+        "num": 3,
+        "label":"ROOT-A",
+        "type":"rootfs",
+        "blocks":"8388608",
+        "fs_blocks":"1024000"
+      },
+      {
+        "num": 5,
+        "label":"ROOT-B",
+        "type":"rootfs",
+        "blocks":"1"
       }
     ]
   }
