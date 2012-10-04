@@ -32,7 +32,6 @@ def LoadPartitionConfig(filename):
     raise ConfigNotFound('Partition config %s was not found!' % filename)
   with open(filename) as f:
     config = json.load(f)
-    f.close()
 
   metadata = config['metadata']
   metadata['block_size'] = int(metadata['block_size'])
@@ -126,7 +125,6 @@ def GetScriptShell():
   script_shell_path = os.path.join(os.path.dirname(__file__), 'cgpt_shell.sh')
   with open(script_shell_path, 'r') as f:
     script_shell = "".join(f.readlines())
-    f.close()
 
   # Before we return, insert the path to this tool so somebody reading the
   # script later can tell where it was generated.
@@ -222,14 +220,12 @@ def WritePartitionScript(image_type, layout_filename, sfilename):
 
   config = LoadPartitionConfig(layout_filename)
 
-  sfile = open(sfilename, 'w')
-  script_shell = GetScriptShell()
-  sfile.write(script_shell)
+  with open(sfilename, 'w') as f:
+    script_shell = GetScriptShell()
+    f.write(script_shell)
 
-  WriteLayoutFunction(sfile, 'write_base_table', 'base', config)
-  WriteLayoutFunction(sfile, 'write_partition_table', image_type, config)
-
-  sfile.close()
+    WriteLayoutFunction(f, 'write_base_table', 'base', config)
+    WriteLayoutFunction(f, 'write_partition_table', image_type, config)
 
 
 def GetBlockSize(layout_filename):
