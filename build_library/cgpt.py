@@ -28,25 +28,51 @@ def LoadPartitionConfig(filename):
     Object containing disk layout configuration
   """
 
+  valid_keys = set(('_comment', 'metadata', 'layouts'))
+  valid_layout_keys = set((
+      '_comment', 'type', 'num', 'label', 'blocks', 'block_size', 'fs_blocks',
+      'fs_block_size', 'features'))
+
   if not os.path.exists(filename):
     raise ConfigNotFound('Partition config %s was not found!' % filename)
   with open(filename) as f:
     config = json.load(f)
 
-  metadata = config['metadata']
-  metadata['block_size'] = int(metadata['block_size'])
+  try:
+    metadata = config['metadata']
+    for key in ('block_size', 'fs_block_size'):
+      metadata[key] = int(metadata[key])
 
-  for layout_name, layout in config['layouts'].items():
-    for part in layout:
-      part['blocks'] = int(part['blocks'])
-      part['bytes'] = part['blocks'] * metadata['block_size']
+    unknown_keys = set(config.keys()) - valid_keys
+    if unknown_keys:
+      raise InvalidLayout('Unknown items: %r' % unknown_keys)
 
-      if 'fs_blocks' in part:
-        part['fs_blocks'] = int(part['fs_blocks'])
-        part['fs_bytes'] = part['fs_blocks'] * metadata['fs_block_size']
+    if len(config['layouts']) <= 0:
+      raise InvalidLayout('Missing "layouts" entries')
 
-        if part['fs_bytes'] > part['bytes']:
-          raise InvalidLayout('Filesystem may not be larger than partition')
+    for layout_name, layout in config['layouts'].items():
+      for part in layout:
+        unknown_keys = set(part.keys()) - valid_layout_keys
+        if unknown_keys:
+          raise InvalidLayout('Unknown items in layout %s: %r' %
+                              (layout_name, unknown_keys))
+
+        if part['type'] != 'blank':
+          for s in ('num', 'label'):
+            if not s in part:
+              raise InvalidLayout('Layout "%s" missing "%s"' % (layout_name, s))
+
+        part['blocks'] = int(part['blocks'])
+        part['bytes'] = part['blocks'] * metadata['block_size']
+
+        if 'fs_blocks' in part:
+          part['fs_blocks'] = int(part['fs_blocks'])
+          part['fs_bytes'] = part['fs_blocks'] * metadata['fs_block_size']
+
+          if part['fs_bytes'] > part['bytes']:
+            raise InvalidLayout('Filesystem may not be larger than partition')
+  except KeyError as e:
+    raise InvalidLayout('Layout is missing required entries: %s' % e)
 
   return config
 
