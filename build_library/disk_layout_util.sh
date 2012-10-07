@@ -158,8 +158,12 @@ EOF
     if [[ ${size} -gt 1 ]]; then
       cat <<-EOF >>"${mount}"
 mkdir -p ${dir}
-sudo mount -o loop,offset=${start_b},sizelimit=${size_b} ${target} ${dir} || \
-  rmdir ${dir}
+m=( sudo mount -o loop,offset=${start_b},sizelimit=${size_b} ${target} ${dir} )
+if ! "\${m[@]}"; then
+  if ! "\${m[@]}" -o ro; then
+    rmdir ${dir}
+  fi
+fi
 EOF
       cat <<-EOF >>"${umount}"
 if [[ -d ${dir} ]]; then
