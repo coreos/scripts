@@ -371,9 +371,10 @@ setup_env() {
     if [ ! -L "${distfiles_path}" ]; then
       # While we're at it, ensure the var is exported w/in the chroot; it
       # won't exist if distfiles isn't a symlink.
-      p="${FLAGS_chroot}/etc/profile.d/chromeos-cache.sh"
+      p="${FLAGS_chroot}/etc/profile.d/chromeos-cachedir.sh"
       sudo_multi "rm -rf '${distfiles_path}'" \
                  "ln -s chromeos-cache/distfiles '${distfiles_path}'" \
+                 "mkdir -p -m 775 '${p%/*}'" \
                  "echo 'export CHROMEOS_CACHEDIR=${chroot_cache}' > '${p}'" \
                  "chmod 0644 '${p}'"
     fi
