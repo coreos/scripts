@@ -5,6 +5,19 @@
 CGPT_PY="${BUILD_LIBRARY_DIR}/cgpt.py"
 PARTITION_SCRIPT_PATH="usr/sbin/write_gpt.sh"
 
+cgpt_py() {
+  if [[ -n "${FLAGS_adjust_part-}" ]]; then
+    set -- --adjust_part "${FLAGS_adjust_part}" "$@"
+    if [[ ! -t 0 ]]; then
+      warn "The --adjust_part flag was passed." \
+           "This option must ONLY be used interactively. If" \
+           "you need to pass a size from another script, you're" \
+           "doing it wrong and should be using a disk layout type."
+    fi
+  fi
+  "${CGPT_PY}" "$@"
+}
+
 get_disk_layout_path() {
   DISK_LAYOUT_PATH="${BUILD_LIBRARY_DIR}/legacy_disk_layout.json"
   local partition_script_path=$(tempfile)
@@ -21,10 +34,13 @@ write_partition_script() {
   local partition_script_path=$2
   get_disk_layout_path
 
+  local temp_script_file=$(mktemp)
+
   sudo mkdir -p "$(dirname "${partition_script_path}")"
 
-  sudo "${BUILD_LIBRARY_DIR}/cgpt.py" "write" \
-    "${image_type}" "${DISK_LAYOUT_PATH}" "${partition_script_path}"
+  cgpt_py write "${image_type}" "${DISK_LAYOUT_PATH}" \
+          "${temp_script_file}"
+  sudo mv "${temp_script_file}" "${partition_script_path}"
 }
 
 run_partition_script() {
@@ -54,13 +70,13 @@ run_partition_script() {
 get_fs_block_size() {
   get_disk_layout_path
 
-  echo $(${CGPT_PY} readfsblocksize ${DISK_LAYOUT_PATH})
+  cgpt_py readfsblocksize "${DISK_LAYOUT_PATH}"
 }
 
 get_block_size() {
   get_disk_layout_path
 
-  echo $(${CGPT_PY} readblocksize ${DISK_LAYOUT_PATH})
+  cgpt_py readblocksize "${DISK_LAYOUT_PATH}"
 }
 
 get_partition_size() {
@@ -68,7 +84,7 @@ get_partition_size() {
   local part_id=$2
   get_disk_layout_path
 
-  echo $(${CGPT_PY} readpartsize ${image_type} ${DISK_LAYOUT_PATH} ${part_id})
+  cgpt_py readpartsize "${image_type}" "${DISK_LAYOUT_PATH}" ${part_id}
 }
 
 get_filesystem_size() {
@@ -76,7 +92,7 @@ get_filesystem_size() {
   local part_id=$2
   get_disk_layout_path
 
-  echo $(${CGPT_PY} readfssize ${image_type} ${DISK_LAYOUT_PATH} ${part_id})
+  cgpt_py readfssize "${image_type}" "${DISK_LAYOUT_PATH}" ${part_id}
 }
 
 get_label() {
@@ -84,7 +100,14 @@ get_label() {
   local part_id=$2
   get_disk_layout_path
 
-  echo $(${CGPT_PY} readlabel ${image_type} ${DISK_LAYOUT_PATH} ${part_id})
+  cgpt_py readlabel "${image_type}" "${DISK_LAYOUT_PATH}" ${part_id}
+}
+
+check_valid_layout() {
+  local image_type=$1
+  get_disk_layout_path
+
+  cgpt_py parseonly "${image_type}" "${DISK_LAYOUT_PATH}" > /dev/null
 }
 
 get_disk_layout_type() {
@@ -205,9 +228,12 @@ update_partition_table() {
   dd if="${src_img}" of="${temp_pmbr}" bs=512 count=1 &>/dev/null
   trap "rm -rf \"${temp_pmbr}\"" EXIT
 
+  local stateful_bytes=$(( resized_sectors * 512 ))
+
   # Set up a new partition table
   rm -f "${temp_img}"
   PARTITION_SCRIPT_PATH=$( tempfile )
+  FLAGS_adjust_part="STATE:=${stateful_bytes}"
   write_partition_script "recovery" "${PARTITION_SCRIPT_PATH}"
   . "${PARTITION_SCRIPT_PATH}"
   write_partition_table "${temp_img}" "${temp_pmbr}"

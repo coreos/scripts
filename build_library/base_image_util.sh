@@ -57,6 +57,9 @@ create_base_image() {
     fi
   fi
 
+  check_valid_layout "base"
+  check_valid_layout ${image_type}
+
   info "Using image type ${image_type}"
 
   root_fs_dir="${BUILD_DIR}/rootfs"
@@ -85,14 +88,14 @@ create_base_image() {
   local oem_fs_label=$(get_label ${image_type} 8)
   local oem_fs_uuid=$(uuidgen)
 
-  local block_size=$(get_fs_block_size)
+  local fs_block_size=$(get_fs_block_size)
 
   # Build root FS image.
   info "Building ${root_fs_img}"
   dd if=/dev/zero of="${root_fs_img}" bs=1 count=1 \
     seek=$((root_fs_bytes - 1)) status=noxfer
-  sudo mkfs.ext2 -F -q -b $block_size "${root_fs_img}" \
-    "$((root_fs_bytes / block_size))"
+  sudo mkfs.ext2 -F -q -b ${fs_block_size} "${root_fs_img}" \
+    "$((root_fs_bytes / fs_block_size))"
   sudo tune2fs -L "${root_fs_label}" \
                -U clear \
                -T 20091119110000 \
@@ -225,7 +228,7 @@ create_base_image() {
 
   # Don't test the factory install shim
   if ! should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-      if [[ ${skip_test_image_content} -ne 1 ]]; then
+    if [[ ${skip_test_image_content} -ne 1 ]]; then
       # Check that the image has been correctly created.
       test_image_content "$root_fs_dir"
     fi
@@ -263,5 +266,6 @@ create_base_image() {
   # Place flags before positional args.
   ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
                                               ${image_name} \
-                                              ${USE_DEV_KEYS}
+                                              ${USE_DEV_KEYS} \
+                                           --adjust_part="${FLAGS_adjust_part}"
 }

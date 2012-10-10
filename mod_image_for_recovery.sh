@@ -258,7 +258,8 @@ maybe_resize_stateful() {
   # Create a recovery image of the right size
   # TODO(wad) Make the developer script case create a custom GPT with
   # just the kernel image and stateful.
-  update_partition_table "${FLAGS_image}" "$small_stateful" 4096 \
+  update_partition_table "${FLAGS_image}" "$small_stateful" \
+                         ${FLAGS_statefulfs_sectors} \
                          "${RECOVERY_IMAGE}" 1>&2
   return $err
 }
