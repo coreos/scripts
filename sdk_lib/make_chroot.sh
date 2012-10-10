@@ -423,6 +423,16 @@ sudo sh -c "echo STAGE3=$STAGE3 > $CHROOT_STATE"
 info "Updating portage"
 early_enter_chroot emerge -uNv --quiet portage
 
+# Packages that inherit cros-workon commonly get a circular dependency
+# curl->openssl->git->curl that is broken by emerging an early version of git
+# without curl (and webdav that depends on it).
+need_git_rebuild=${FLAGS_FALSE}
+if [[ ! -e "${FLAGS_chroot}/usr/bin/git" ]]; then
+  need_git_rebuild=${FLAGS_TRUE}
+  info "Updating early git"
+  USE="-curl -webdav" early_enter_chroot emerge -uNv $USEPKG dev-vcs/git
+fi
+
 info "Updating host toolchain"
 early_enter_chroot emerge -uNv --quiet crossdev
 TOOLCHAIN_ARGS=( --deleteold )
@@ -440,7 +450,13 @@ early_enter_chroot $EMERGE_CMD --deselect dhcpcd
 
 info "Running emerge curl sudo ..."
 early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
-  pbzip2 net-misc/curl sudo
+  pbzip2 dev-libs/openssl net-misc/curl sudo
+
+if [[ ${need_git_rebuild} -eq ${FLAGS_TRUE} ]]; then
+  # (Re-)emerge the full version of git, without preventing curl.
+  info "Updating full verison of git"
+  early_enter_chroot emerge -uNv $USEPKG dev-vcs/git
+fi
 
 if [ -n "${INITIALIZE_CHROOT}" ]; then
   # If we're creating a new chroot, we also want to set it to the latest
