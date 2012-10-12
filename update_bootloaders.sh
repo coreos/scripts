@@ -90,30 +90,30 @@ if ! type -p update_x86_bootloaders; then
         -e "s|DMTABLEB|${grub_dm_table_b}|g" \
         -e "s|cros_legacy|${cros_flags}|g" \
         "${template_dir}"/efi/boot/grub.cfg |
-        sudo dd of="${esp_fs_dir}"/efi/boot/grub.cfg
+        sudo dd of="${esp_fs_dir}"/efi/boot/grub.cfg status=noxfer
     sed -e "s|/dev/\\\$linuxpartA|${root_a_uuid}|g" \
         -e "s|/dev/\\\$linuxpartB|${root_b_uuid}|g" \
         "${template_dir}"/efi/boot/grub.cfg |
-        sudo dd of="${esp_fs_dir}"/efi/boot/grub.cfg
+        sudo dd of="${esp_fs_dir}"/efi/boot/grub.cfg status=noxfer
 
     # Rewrite syslinux DM_TABLE
     syslinux_dm_table_usb=${dm_table//${old_root}/${root_a_uuid}}
     sed -e "s|DMTABLEA|${syslinux_dm_table_usb}|g" \
         -e "s|cros_legacy|${cros_flags}|g" \
         "${template_dir}"/syslinux/usb.A.cfg |
-        sudo dd of="${esp_fs_dir}"/syslinux/usb.A.cfg
+        sudo dd of="${esp_fs_dir}"/syslinux/usb.A.cfg status=noxfer
 
     syslinux_dm_table_a=${dm_table//${old_root}/HDROOTA}
     sed -e "s|DMTABLEA|${syslinux_dm_table_a}|g" \
         -e "s|cros_legacy|${cros_flags}|g" \
         "${template_dir}"/syslinux/root.A.cfg |
-        sudo dd of="${esp_fs_dir}"/syslinux/root.A.cfg
+        sudo dd of="${esp_fs_dir}"/syslinux/root.A.cfg status=noxfer
 
     syslinux_dm_table_b=${dm_table//${old_root}/HDROOTB}
     sed -e "s|DMTABLEB|${syslinux_dm_table_b}|g" \
         -e "s|cros_legacy|${cros_flags}|g" \
         "${template_dir}"/syslinux/root.B.cfg |
-        sudo dd of="${esp_fs_dir}"/syslinux/root.B.cfg
+        sudo dd of="${esp_fs_dir}"/syslinux/root.B.cfg status=noxfer
 
     # Copy the vmlinuz's into place for syslinux
     sudo cp -f "${template_dir}"/vmlinuz "${esp_fs_dir}"/syslinux/vmlinuz.A
