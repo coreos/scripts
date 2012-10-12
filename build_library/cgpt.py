@@ -70,7 +70,9 @@ def LoadPartitionConfig(filename):
           part['fs_bytes'] = part['fs_blocks'] * metadata['fs_block_size']
 
           if part['fs_bytes'] > part['bytes']:
-            raise InvalidLayout('Filesystem may not be larger than partition')
+            raise InvalidLayout(
+                'Filesystem may not be larger than partition: %s %s: %d > %d' %
+                (layout_name, part['label'], part['fs_bytes'], part['bytes']))
   except KeyError as e:
     raise InvalidLayout('Layout is missing required entries: %s' % e)
 

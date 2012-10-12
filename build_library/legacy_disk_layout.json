@@ -80,14 +80,14 @@
         "label":"ROOT-B",
         "type":"rootfs",
         "blocks":"4194304",
-        "fs_blocks":"217600"
+        "fs_blocks":"262144"
       },
       {
         "num": 3,
         "label":"ROOT-A",
         "type":"rootfs",
         "blocks":"4194304",
-        "fs_blocks":"217600"
+        "fs_blocks":"262144"
       }
     ],
     "usb": [
@@ -95,8 +95,8 @@
         "num": 3,
         "label":"ROOT-A",
         "type":"rootfs",
-        "blocks":"1757184",
-        "fs_blocks":"217600"
+        "blocks":"2113672",
+        "fs_blocks":"262144"
       },
       {
         "num": 5,
@@ -143,15 +143,15 @@
         "num": 3,
         "label":"ROOT-A",
         "type":"rootfs",
-        "blocks":"2097152",
-        "fs_blocks":"217600"
+        "blocks":"2113672",
+        "fs_blocks":"262144"
       },
       {
         "num": 5,
         "label":"ROOT-B",
         "type":"rootfs",
-        "blocks":"2097152",
-        "fs_blocks":"217600"
+        "blocks":"2113672",
+        "fs_blocks":"262144"
       }
     ],
     "recovery": [
@@ -165,8 +165,8 @@
         "num": 3,
         "label":"ROOT-A",
         "type":"rootfs",
-        "blocks":"1757184",
-        "fs_blocks":"217600"
+        "blocks":"2113672",
+        "fs_blocks":"262144"
       },
       {
         "num": 5,
