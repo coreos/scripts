@@ -399,6 +399,22 @@ setup_env() {
       TARGET="/home/${USER}/.subversion"
       mkdir -p "${FLAGS_chroot}${TARGET}"
       queue_mount "${HOME}/.subversion" "--bind" "${TARGET}"
+      # Symbolic-link the .subversion directory so sandboxed subversion.class
+      # clients can use it.
+      local cmds=()
+      for d in \
+        "${FLAGS_cache_dir}"/distfiles/{host,target}/svn-src/"${USER}"; do
+        if [[ ! -L "${d}/.subversion" ]]; then
+          cmds+=(
+            "mkdir -p '${d}'"
+            "ln -sf /home/${USER}/.subversion '${d}/.subversion'"
+            "chown -R ${USER}:250 '${d%/*}'"
+          )
+        fi
+      done
+      if [[ ${#cmds[@]} -gt 0 ]]; then
+        sudo_multi "${cmds[@]}"
+      fi
     fi
 
     if DEPOT_TOOLS=$(type -P gclient) ; then
