@@ -10,10 +10,11 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
 # Flags
-DEFINE_string from "" "Directory with build archive (zipname)"
+DEFINE_string from "" "Directory with autotest tarball"
 DEFINE_string to "" "Directory to receive packaged hwqual"
-DEFINE_string zipname "image.zip" "Name of zip file to create."
 DEFINE_string output_tag "chromeos-hwqual" "Name used in tar"
+DEFINE_string image_dir "" "Directory containing test image."
+DEFINE_string image "${CHROMEOS_TEST_IMAGE_NAME}" "Name of image file to use."
 
 TMP=$(mktemp -d "/tmp/image.XXXX")
 
@@ -31,8 +32,11 @@ main() {
   switch_to_strict_mode
 
   if [[ -z "${FLAGS_from}" ]]; then
-    echo "Please specify --from directory"
-    exit 1
+    die "Please specify --from directory"
+  fi
+
+  if [[ -z "${FLAGS_image_dir}" ]]; then
+    die "Please specify --image_dir directory"
   fi
 
   FLAGS_from=$(readlink -f "${FLAGS_from}")
@@ -50,8 +54,6 @@ main() {
   cd "${TMP}"
 
   echo "Extracting build artifacts..."
-  unzip "${FLAGS_from}/${FLAGS_zipname}"
-  mkdir -p image
   mkdir -p "tarball/${FLAGS_output_tag}"
 
   if which pbzip2 >/dev/null 2>/dev/null; then
@@ -65,10 +67,9 @@ main() {
 
   cd "${TMP}"
 
-  mv chromiumos_test_image.bin image/chromiumos_image.bin
-
   echo "Formatting rootfs as a USB image..."
-  "${script_dir}/image_to_usb.sh" --from=image \
+  "${script_dir}/image_to_usb.sh" --from="${FLAGS_image_dir}" \
+    --image="${FLAGS_image}" \
     --to="tarball/${FLAGS_output_tag}/chromeos-hwqual-usb.img"
 
   echo "Inserting documentation and autotest to tarball..."
