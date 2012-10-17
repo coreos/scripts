@@ -5,18 +5,22 @@
 . "${SRC_ROOT}/platform/dev/toolchain_utils.sh" || exit 1
 
 cleanup_mounts() {
+  local prev_ret=$?
+
   # Disable die on error.
   set +e
 
-  # See if we ran out of space.
-  local df=$(df -B 1M "${root_fs_dir}")
-  if [[ ${df} == *100%* ]]; then
-    error "Here are the biggest files (by disk usage):"
-    # Send final output to stderr to match `error` behavior.
-    sudo find "${root_fs_dir}" -xdev -type f -printf '%b %P\n' | \
-      awk '$1 > 16 { $1 = $1 * 512; print }' | sort -n | tail -100 1>&2
-    error "Target image has run out of space:"
-    error "${df}"
+  # See if we ran out of space.  Only show if we errored out via a trap.
+  if [[ ${prev_ret} -ne 0 ]]; then
+    local df=$(df -B 1M "${root_fs_dir}")
+    if [[ ${df} == *100%* ]]; then
+      error "Here are the biggest files (by disk usage):"
+      # Send final output to stderr to match `error` behavior.
+      sudo find "${root_fs_dir}" -xdev -type f -printf '%b %P\n' | \
+        awk '$1 > 16 { $1 = $1 * 512; print }' | sort -n | tail -100 1>&2
+      error "Target image has run out of space:"
+      error "${df}"
+    fi
   fi
 
   echo "Cleaning up mounts"
