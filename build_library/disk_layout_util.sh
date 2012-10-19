@@ -8,7 +8,7 @@ PARTITION_SCRIPT_PATH="usr/sbin/write_gpt.sh"
 get_disk_layout_path() {
   DISK_LAYOUT_PATH="${BUILD_LIBRARY_DIR}/legacy_disk_layout.json"
   local partition_script_path=$(tempfile)
-  for overlay in $(cros_overlay_list --board "$BOARD"); do
+  for overlay in $(cros_list_overlays --board "$BOARD"); do
     local disk_layout="${overlay}/scripts/disk_layout.json"
     if [[ -e ${disk_layout} ]]; then
       DISK_LAYOUT_PATH=${disk_layout}

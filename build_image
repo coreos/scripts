@@ -87,7 +87,7 @@ OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos"
 
 parse_build_image_args
 
-for overlay in $(cros_overlay_list --board "$BOARD"); do
+for overlay in $(cros_list_overlays --board "$BOARD"); do
   setup_sh="${overlay}/scripts/board_specific_setup.sh"
   if [[ -e ${setup_sh} ]]; then
     source "${setup_sh}"
