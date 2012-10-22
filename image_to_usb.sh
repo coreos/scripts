@@ -39,8 +39,6 @@ DEFINE_boolean factory_install ${FLAGS_FALSE} \
   "generate a factory install shim"
 DEFINE_boolean factory ${FLAGS_FALSE} \
   "generate a factory runing image, implies autotest and test"
-DEFINE_boolean hybrid_mbr ${FLAGS_FALSE} \
-  "Creates a hybrid MBR rather than a protective one"
 DEFINE_boolean copy_kernel ${FLAGS_FALSE} \
   "copy the kernel to the fourth partition"
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
@@ -367,11 +365,6 @@ if [ -b "${FLAGS_to}" ]; then
       --arch="${FLAGS_arch}" \
       --payload_image="${SRC_IMAGE}" \
       --dst="${FLAGS_to}"
-
-    # Setup hybrid MBR if it was enabled
-    if [[ ${FLAGS_hybrid_mbr} -eq ${FLAGS_TRUE} ]]; then
-      install_hybrid_mbr "${FLAGS_to}"
-    fi
   fi
 elif [[ "${FLAGS_to}" == /dev/* ]]; then
   # Did the user attempt to write to a non-existent block device?
