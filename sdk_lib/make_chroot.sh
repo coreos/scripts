@@ -298,13 +298,6 @@ EOF
    echo ". ~/trunk/src/scripts/bash_completion" \
        >> "$FLAGS_chroot/home/$USER/.bashrc"
 
-   # Warn if attempting to use source control commands inside the chroot.
-   for NOUSE in svn gcl gclient
-   do
-     echo "alias $NOUSE='echo In the chroot, it is a bad idea to run $NOUSE'" \
-       >> "$FLAGS_chroot/home/$USER/.bash_profile"
-   done
-
    if [[ "$USER" = "chrome-bot" ]]; then
      # Copy ssh keys, so chroot'd chrome-bot can scp files from chrome-web.
      cp -r ~/.ssh "$FLAGS_chroot/home/$USER/"
