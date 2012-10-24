@@ -531,14 +531,12 @@ cmds=(
   "touch /etc/make.conf.user"
   "ln -sf /etc/make.globals '${BOARD_ROOT}/etc/make.globals'"
   "ln -sf /etc/make.conf.user '${BOARD_ROOT}/etc/make.conf.user'"
+  "mkdir -p '${BOARD_ROOT}/etc/portage/hooks'"
 )
+for d in "${SCRIPTS_DIR}"/hooks/*; do
+  cmds+=( "ln -sfT '${d}' '${BOARD_ROOT}/etc/portage/hooks/${d##*/}'" )
+done
 sudo_multi "${cmds[@]}"
-
-# Set up post_install hooks that run qa on ELF binaries.
-sudo_multi \
-  "mkdir -p '${BOARD_ROOT}/etc/portage/hooks'" \
-  "ln -sfT '${SCRIPTS_DIR}/hooks/install' \
-    '${BOARD_ROOT}/etc/portage/hooks/install'"
 
 # Select the profile to build based on the board and profile passed to
 # setup_board.  The developer can later change profiles by running
