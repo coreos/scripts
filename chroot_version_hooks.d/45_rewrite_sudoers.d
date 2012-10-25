@@ -5,11 +5,12 @@
 # Note that this script is invoked by make_chroot in addition
 # to normal upgrade pathways.
 
-if [ "$(id -u)" != 0 ]; then
+if [ "${UID:-$(id -u)}" != 0 ]; then
   # Note that since we're screwing w/ sudo variables, this script
   # explicitly bounces up to root for everything it does- that way
   # if anyone introduces a temp depriving in the sudo setup, it can't break
   # mid upgrade.
+  load_environment_whitelist
   exec sudo bash -e "${VERSION_HOOKS_DIR}/45_rewrite_sudoers.d" \
     / "${USER}" "${ENVIRONMENT_WHITELIST[@]}"
   exit 1

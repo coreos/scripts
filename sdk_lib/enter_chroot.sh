@@ -9,11 +9,9 @@
 SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
-enable_strict_sudo
-
-# Script must be run outside the chroot and as a regular user.
+# Script must be run outside the chroot and as root.
 assert_outside_chroot
-assert_not_root_user
+assert_root_user
 
 # Define command line flags
 # See http://code.google.com/p/shflags/wiki/Documentation10x
@@ -25,14 +23,12 @@ DEFINE_string build_number "" \
   "The build-bot build number (when called by buildbot only)." "b"
 DEFINE_string chrome_root "" \
   "The root of your chrome browser source. Should contain a 'src' subdir."
-DEFINE_string chrome_root_mount "/home/$USER/chrome_root" \
+DEFINE_string chrome_root_mount "/home/${SUDO_USER}/chrome_root" \
   "The mount point of the chrome broswer source in the chroot."
 DEFINE_string cache_dir "" "Directory to use for caching."
 
 DEFINE_boolean official_build $FLAGS_FALSE \
   "Set CHROMEOS_OFFICIAL=1 for release builds."
-DEFINE_boolean mount $FLAGS_FALSE "Only set up mounts."
-DEFINE_boolean unmount $FLAGS_FALSE "Only tear down mounts."
 DEFINE_boolean ssh_agent $FLAGS_TRUE "Import ssh agent."
 DEFINE_boolean early_make_chroot $FLAGS_FALSE \
   "Internal flag.  If set, the command is run as root without sudo."
@@ -47,7 +43,7 @@ the chroot environment.  For example:
    $0 FOO=bar BAZ=bel
 
 If [-- command] is present, runs the command inside the chroot,
-after changing directory to /$USER/trunk/src/scripts.  Note that neither
+after changing directory to /${SUDO_USER}/trunk/src/scripts.  Note that neither
 the command nor args should include single quotes.  For example:
 
     $0 -- ./build_platform_packages.sh
@@ -56,6 +52,7 @@ Otherwise, provides an interactive shell.
 "
 
 CROS_LOG_PREFIX=cros_sdk:enter_chroot
+SUDO_HOME=$(eval echo ~${SUDO_USER})
 
 # Version of info from common.sh that only echos if --verbose is set.
 debug() {
@@ -89,30 +86,21 @@ FILES_TO_COPY_TO_CHROOT=(
 
 INNER_CHROME_ROOT=$FLAGS_chrome_root_mount  # inside chroot
 CHROME_ROOT_CONFIG="/var/cache/chrome_root"  # inside chroot
-INNER_DEPOT_TOOLS_ROOT="/home/$USER/depot_tools"  # inside chroot
+INNER_DEPOT_TOOLS_ROOT="/home/${SUDO_USER}/depot_tools"  # inside chroot
 FUSE_DEVICE="/dev/fuse"
-AUTOMOUNT_PREF="/apps/nautilus/preferences/media_automount"
-SAVED_AUTOMOUNT_PREF_FILE="/tmp/.automount_pref"
 
-# Avoid the sudo call if possible since it is a little slow.
-if [ $(stat -c %a "$FLAGS_chroot/var/lock") != 777 ]; then
-  sudo chmod 0777 "$FLAGS_chroot/var/lock"
-fi
+chmod 0777 "$FLAGS_chroot/var/lock"
 
 LOCKFILE="$FLAGS_chroot/var/lock/enter_chroot"
-SYNCERPIDFILE="${FLAGS_chroot}/var/tmp/enter_chroot_sync.pid"
-
-
 MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
-mount_queue_init() {
-  MOUNT_QUEUE=()
-}
 
-queue_mount() {
+setup_mount() {
   # If necessary, mount $source in the host FS at $target inside the
-  # chroot directory with $mount_args.
+  # chroot directory with $mount_args. We don't write to /etc/mtab because
+  # these mounts are all contained within an unshare and are therefore
+  # inaccessible to other namespaces (e.g. the host desktop system).
   local source="$1"
-  local mount_args="$2"
+  local mount_args="-n $2"
   local target="$3"
 
   local mounted_path="${MOUNTED_PATH}$target"
@@ -122,57 +110,15 @@ queue_mount() {
     # Already mounted!
     ;;
   *)
-    MOUNT_QUEUE+=( "mkdir -p '${mounted_path}'" )
+    mkdir -p "${mounted_path}"
     # The args are left unquoted on purpose.
     if [[ -n ${source} ]]; then
-      MOUNT_QUEUE+=( "mount ${mount_args} '${source}' '${mounted_path}'" )
+      mount ${mount_args} "${source}" "${mounted_path}"
     else
-      MOUNT_QUEUE+=( "mount ${mount_args} '${mounted_path}'" )
+      mount ${mount_args} "${mounted_path}"
     fi
     ;;
   esac
-}
-
-process_mounts() {
-  if [[ ${#MOUNT_QUEUE[@]} -eq 0 ]]; then
-    return 0
-  fi
-  sudo_multi "${MOUNT_QUEUE[@]}"
-  mount_queue_init
-}
-
-env_sync_proc() {
-  # This function runs and performs periodic updates to the chroot env, if
-  # necessary.
-
-  local poll_interval=10
-  local sync_files=( etc/resolv.conf etc/hosts )
-
-  # Make sure the files exist before the find -- they might not in a
-  # fresh chroot which results in warnings in the build output.
-  local chown_cmd=(
-    # Make sure the files exists first -- they might not in a fresh chroot.
-    "touch ${sync_files[*]/#/${FLAGS_chroot}/}"
-    # Make sure the files are writable by normal user so that we don't have
-    # to execute sudo in the main loop below.
-    "chown ${USER} ${sync_files[*]/#/${FLAGS_chroot}/}"
-  )
-  sudo_multi "${chown_cmd[@]}"
-
-  # Drop stdin, stderr, stdout, and chroot lock.
-  # This is needed for properly daemonizing the process.
-  exec 0>&- 1>&- 2>&- 200>&-
-
-  while true; do
-    # Sync files
-    for file in "${sync_files[@]}"; do
-      if ! cmp /${file} ${FLAGS_chroot}/${file} &> /dev/null; then
-        cp -f /${file} ${FLAGS_chroot}/${file}
-      fi
-    done
-
-    sleep ${poll_interval}
-  done
 }
 
 copy_ssh_config() {
@@ -188,7 +134,7 @@ copy_ssh_config() {
     'GSSAPIKeyExchange'
     'ProxyUseFdpass'
   )
-  local sshc="${HOME}/.ssh/config"
+  local sshc="${SUDO_HOME}/.ssh/config"
   local chroot_ssh_dir="${1}"
   local filter
   local option
@@ -206,13 +152,13 @@ copy_ssh_config() {
     fi
   done
 
-  sed "/^.*\(${filter}\).*$/d" "${sshc}" > "${chroot_ssh_dir}/config"
+  sed "/^.*\(${filter}\).*$/d" "${sshc}" | \
+    user_clobber "${chroot_ssh_dir}/config"
 }
 
 copy_into_chroot_if_exists() {
   # $1 is file path outside of chroot to copy to path $2 inside chroot.
-  [ -e "$1" ] || return
-  cp "$1" "${FLAGS_chroot}/$2"
+  [ -e "$1" ] && cp -p "$1" "${FLAGS_chroot}/$2"
 }
 
 # Usage: promote_api_keys
@@ -222,22 +168,22 @@ copy_into_chroot_if_exists() {
 # have been used since the concept of keys got added, as well as before
 # and after the developer decding to grab his own keys.
 promote_api_keys() {
-  local destination="${FLAGS_chroot}/home/${USER}/.googleapikeys"
+  local destination="${FLAGS_chroot}/home/${SUDO_USER}/.googleapikeys"
   # Don't disturb existing keys.  They could be set differently
   if [[ -s "${destination}" ]]; then
     return 0
   fi
-  if [[ -r "${HOME}/.googleapikeys" ]]; then
-    cp "${HOME}/.googleapikeys" "${destination}"
+  if [[ -r "${SUDO_HOME}/.googleapikeys" ]]; then
+    cp -p "${SUDO_HOME}/.googleapikeys" "${destination}"
     if [[ -s "${destination}" ]] ; then
       info "Copied Google API keys into chroot."
     fi
-  elif [[ -r "${HOME}/.gyp/include.gypi" ]]; then
+  elif [[ -r "${SUDO_HOME}/.gyp/include.gypi" ]]; then
     local NAME="('google_(api_key|default_client_(id|secret))')"
     local WS="[[:space:]]*"
     local CONTENTS="('[^\\\\']*')"
     sed -nr -e "/^${WS}${NAME}${WS}[:=]${WS}${CONTENTS}.*/{s//\1: \4,/;p;}" \
-         "${HOME}/.gyp/include.gypi" >"${destination}"
+         "${SUDO_HOME}/.gyp/include.gypi" | user_clobber "${destination}"
     if [[ -s "${destination}" ]]; then
       info "Put discovered Google API keys into chroot."
     fi
@@ -245,73 +191,29 @@ promote_api_keys() {
 }
 
 setup_env() {
-  # Validate sudo timestamp before entering the critical section so that we
-  # don't stall for a password while we have the lockfile.
-  # Don't use sudo -v since that has issues on machines w/ no password.
-  sudo echo "" > /dev/null
-
   (
     flock 200
-    echo $$ >> "$LOCKFILE"
 
-    # If there isn't a syncer daemon started already, start one.  The
-    # daemon is considered to not be started under the following
-    # conditions:
-    #
-    #   o There is no PID file
-    #
-    #   o The PID file is 0 bytes in size, which might be a partial
-    #     manifestation of chromium-os:17680.  This situation will not
-    #     occur anymore, but you might have a chroot which was already
-    #     affected.
-    #
-    #   o The /proc node for the process named by the PID file does
-    #     not exist.
-    #
-    #     Note: This does not address PID recycling.  While
-    #           increasingly unlikely, it is possible for the PID in
-    #           the PID file to refer to a running process that is not
-    #           the syncer process.  Since the PID file is now
-    #           removed, I think it is only possible for this to occur
-    #           if your system crashes and the PID file exists after
-    #           restart.
-    #
-    # The daemon is killed by the enter_chroot that exits last.
-    if [ -f "${SYNCERPIDFILE}" ] && [ ! -s "${SYNCERPIDFILE}" ] ; then
-        info "You may have suffered from chromium-os:17680 and";
-        info "could have stray 'enter_chroot.sh' processes running.";
-        info "You must manually kill any such stray processes.";
-        info "Exit all chroot shells; remaining 'enter_chroot.sh'";
-        info "processes are probably stray.";
-        sudo rm -f "${SYNCERPIDFILE}";
-    fi;
-    if ! [ -f "${SYNCERPIDFILE}" ] || \
-       ! [ -d /proc/$(<"${SYNCERPIDFILE}") ]; then
-      debug "Starting sync process"
-      env_sync_proc &
-      echo $! > "${SYNCERPIDFILE}"
-      disown $!
-    fi
+    # Make the lockfile writable for backwards compatibility.
+    chown ${SUDO_UID}:${SUDO_GID} "${LOCKFILE}"
+
+    # Refresh /etc/resolv.conf and /etc/hosts in the chroot.
+    install -C -m644 /etc/resolv.conf ${FLAGS_chroot}/etc/resolv.conf
+    install -C -m644 /etc/hosts ${FLAGS_chroot}/etc/hosts
 
     debug "Mounting chroot environment."
     MOUNT_CACHE=$(echo $(awk '{print $2}' /proc/mounts))
-    mount_queue_init
-    queue_mount none "-t proc" /proc
-    queue_mount none "-t sysfs" /sys
-    queue_mount /dev "--bind" /dev
-    queue_mount none "-t devpts" /dev/pts
+    setup_mount none "-t proc" /proc
+    setup_mount none "-t sysfs" /sys
+    setup_mount /dev "--bind" /dev
+    setup_mount none "-t devpts" /dev/pts
     if [ -d /run ]; then
-      queue_mount /run "--bind" /run
+      setup_mount /run "--bind" /run
       if [ -d /run/shm ]; then
-        queue_mount /run/shm "--bind" /run/shm
+        setup_mount /run/shm "--bind" /run/shm
       fi
     fi
-    # Get path overrides for the chroot in place now- it's possible
-    # that they may be needed for early teardown.
-    queue_mount "${FLAGS_trunk}/src/scripts/path-overrides" "--bind" \
-      "/usr/local/path-overrides"
-
-    queue_mount "${FLAGS_trunk}" "--bind" "${CHROOT_TRUNK_DIR}"
+    setup_mount "${FLAGS_trunk}" "--bind" "${CHROOT_TRUNK_DIR}"
 
     debug "Setting up referenced repositories if required."
     REFERENCE_DIR=$(git config --file  \
@@ -322,17 +224,17 @@ setup_env() {
       ALTERNATES="${FLAGS_trunk}/.repo/alternates"
 
       # Ensure this directory exists ourselves, and has the correct ownership.
-      [ -d "${ALTERNATES}" ] || mkdir "${ALTERNATES}"
-      [ -w "${ALTERNATES}" ] || sudo chown -R "${USER}" "${ALTERNATES}"
+      user_mkdir "${ALTERNATES}"
 
       unset ALTERNATES
 
       IFS=$'\n';
-      required=( $( "${FLAGS_trunk}/chromite/lib/rewrite_git_alternates.py" \
+      required=( $( sudo -u "${SUDO_USER}" -- \
+        "${FLAGS_trunk}/chromite/lib/rewrite_git_alternates.py" \
         "${FLAGS_trunk}" "${REFERENCE_DIR}" "${CHROOT_TRUNK_DIR}" ) )
       unset IFS
 
-      queue_mount "${FLAGS_trunk}/.repo/chroot/alternates" --bind \
+      setup_mount "${FLAGS_trunk}/.repo/chroot/alternates" --bind \
         "${CHROOT_TRUNK_DIR}/.repo/alternates"
 
       # Note that as we're bringing up each referened repo, we also
@@ -343,13 +245,13 @@ setup_env() {
       #
       # Finally note that if you're unfamiliar w/ chroot/vfs semantics,
       # the bind is visible only w/in the chroot.
-      mkdir -p ${FLAGS_trunk}/.repo/chroot/empty
+      user_mkdir ${FLAGS_trunk}/.repo/chroot/empty
       position=1
       for x in "${required[@]}"; do
         base="${CHROOT_TRUNK_DIR}/.repo/chroot/external${position}"
-        queue_mount "${x}" "--bind" "${base}"
+        setup_mount "${x}" "--bind" "${base}"
         if [ -e "${x}/.repo/alternates" ]; then
-          queue_mount "${FLAGS_trunk}/.repo/chroot/empty" "--bind" \
+          setup_mount "${FLAGS_trunk}/.repo/chroot/empty" "--bind" \
             "${base}/.repo/alternates"
         fi
         position=$(( ${position} + 1 ))
@@ -360,9 +262,9 @@ setup_env() {
 
     chroot_cache='/var/cache/chromeos-cache'
     debug "Setting up shared cache dir directory."
-    mkdir -p "${FLAGS_cache_dir}"/distfiles/{target,host}
-    sudo mkdir -p "${FLAGS_chroot}/${chroot_cache}"
-    queue_mount "${FLAGS_cache_dir}" "--bind" "${chroot_cache}"
+    user_mkdir "${FLAGS_cache_dir}"/distfiles/{target,host}
+    user_mkdir "${FLAGS_chroot}/${chroot_cache}"
+    setup_mount "${FLAGS_cache_dir}" "--bind" "${chroot_cache}"
     # TODO(build): remove this as of 12/01/12.
     # Because of how distfiles -> cache_dir was deployed, if this isn't
     # a symlink, we *know* the ondisk pathways aren't compatible- thus
@@ -372,55 +274,51 @@ setup_env() {
       # While we're at it, ensure the var is exported w/in the chroot; it
       # won't exist if distfiles isn't a symlink.
       p="${FLAGS_chroot}/etc/profile.d/chromeos-cachedir.sh"
-      sudo_multi "rm -rf '${distfiles_path}'" \
-                 "ln -s chromeos-cache/distfiles '${distfiles_path}'" \
-                 "mkdir -p -m 775 '${p%/*}'" \
-                 "echo 'export CHROMEOS_CACHEDIR=${chroot_cache}' > '${p}'" \
-                 "chmod 0644 '${p}'"
+      rm -rf "${distfiles_path}"
+      ln -s chromeos-cache/distfiles "${distfiles_path}"
+      mkdir -p -m 775 "${p%/*}"
+      echo 'export CHROMEOS_CACHEDIR=${chroot_cache}' > "${p}"
+      chmod 0644 "${p}"
     fi
 
     if [ $FLAGS_ssh_agent -eq $FLAGS_TRUE ]; then
-      if [ -n "${SSH_AUTH_SOCK}" -a -d "${HOME}/.ssh" ]; then
-        TARGET_DIR="${FLAGS_chroot}/home/${USER}/.ssh"
-        mkdir -p "${TARGET_DIR}"
+      if [ -n "${SSH_AUTH_SOCK}" -a -d "${SUDO_HOME}/.ssh" ]; then
+        TARGET_DIR="${FLAGS_chroot}/home/${SUDO_USER}/.ssh"
+        user_mkdir "${TARGET_DIR}"
         # Ignore errors as some people won't have these files to copy.
-        cp "${HOME}"/.ssh/{known_hosts,*.pub} "${TARGET_DIR}/" 2>/dev/null || :
+        cp -p "${SUDO_HOME}"/.ssh/{known_hosts,*.pub} "${TARGET_DIR}/" \
+          2>/dev/null || :
         copy_ssh_config "${TARGET_DIR}"
+        chown -R ${SUDO_UID}:${SUDO_GID} "${TARGET_DIR}"
 
         # Don't try to bind mount the ssh agent dir if it has gone stale.
         ASOCK=${SSH_AUTH_SOCK%/*}
         if [ -d "${ASOCK}" ]; then
-          queue_mount "${ASOCK}" "--bind" "${ASOCK}"
+          setup_mount "${ASOCK}" "--bind" "${ASOCK}"
         fi
       fi
     fi
 
-    if [ -d "$HOME/.subversion" ]; then
-      TARGET="/home/${USER}/.subversion"
-      mkdir -p "${FLAGS_chroot}${TARGET}"
-      queue_mount "${HOME}/.subversion" "--bind" "${TARGET}"
+    if [ -d "$SUDO_HOME/.subversion" ]; then
+      TARGET="/home/${SUDO_USER}/.subversion"
+      user_mkdir "${FLAGS_chroot}${TARGET}"
+      setup_mount "${SUDO_HOME}/.subversion" "--bind" "${TARGET}"
       # Symbolic-link the .subversion directory so sandboxed subversion.class
       # clients can use it.
-      local cmds=()
       for d in \
-        "${FLAGS_cache_dir}"/distfiles/{host,target}/svn-src/"${USER}"; do
+        "${FLAGS_cache_dir}"/distfiles/{host,target}/svn-src/"${SUDO_USER}"; do
         if [[ ! -L "${d}/.subversion" ]]; then
-          cmds+=(
-            "mkdir -p '${d}'"
-            "ln -sf /home/${USER}/.subversion '${d}/.subversion'"
-            "chown -R ${USER}:250 '${d%/*}'"
-          )
+          rm -rf "${d}/.subversion"
+          user_mkdir "${d}"
+          user_symlink /home/${SUDO_USER}/.subversion "${d}/.subversion"
         fi
       done
-      if [[ ${#cmds[@]} -gt 0 ]]; then
-        sudo_multi "${cmds[@]}"
-      fi
     fi
 
-    if DEPOT_TOOLS=$(type -P gclient) ; then
-      DEPOT_TOOLS=${DEPOT_TOOLS%/*} # dirname
+    # A reference to the DEPOT_TOOLS path may be passed in by cros_sdk.
+    if [ -n "${DEPOT_TOOLS}" ]; then
       debug "Mounting depot_tools"
-      queue_mount "$DEPOT_TOOLS" --bind "$INNER_DEPOT_TOOLS_ROOT"
+      setup_mount "${DEPOT_TOOLS}" --bind "${INNER_DEPOT_TOOLS_ROOT}"
     fi
 
     # Mount additional directories as specified in .local_mounts file.
@@ -438,13 +336,11 @@ setup_env() {
         # if only source is assigned, use source as mount point.
         : ${mount_point:=${mount_source}}
         debug "  mounting ${mount_source} on ${mount_point}"
-        queue_mount "${mount_source}" "--bind" "${mount_point}"
+        setup_mount "${mount_source}" "--bind" "${mount_point}"
         # --bind can't initially be read-only so we have to do it via remount.
-        queue_mount "" "-o remount,ro" "${mount_point}"
+        setup_mount "" "-o remount,ro" "${mount_point}"
       done < <(sed -e 's:#.*::' "${local_mounts}")
     fi
-
-    process_mounts
 
     CHROME_ROOT="$(readlink -f "$FLAGS_chrome_root" || :)"
     if [ -z "$CHROME_ROOT" ]; then
@@ -455,42 +351,23 @@ setup_env() {
     if [[ -n "$CHROME_ROOT" ]]; then
       if [[ ! -d "${CHROME_ROOT}/src" ]]; then
         error "Not mounting chrome source"
-        sudo rm -f "${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
+        rm -f "${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
         if [[ ! "$CHROME_ROOT_AUTO" ]]; then
           exit 1
         fi
       else
         debug "Mounting chrome source at: $INNER_CHROME_ROOT"
-        sudo bash -c "echo '$CHROME_ROOT' > \
-          '${FLAGS_chroot}${CHROME_ROOT_CONFIG}'"
-        queue_mount "$CHROME_ROOT" --bind "$INNER_CHROME_ROOT"
+        echo $CHROME_ROOT > "${FLAGS_chroot}${CHROME_ROOT_CONFIG}"
+        setup_mount "$CHROME_ROOT" --bind "$INNER_CHROME_ROOT"
       fi
     fi
-
-    process_mounts
 
     # Install fuse module.  Skip modprobe when possible for slight
     # speed increase when initializing the env.
     if [ -c "${FUSE_DEVICE}" ] && ! grep -q fuse /proc/filesystems; then
-      sudo modprobe fuse 2> /dev/null ||\
+      modprobe fuse 2> /dev/null ||\
         warn "-- Note: modprobe fuse failed.  gmergefs will not work"
     fi
-
-    # Turn off automounting of external media when we enter the
-    # chroot; thus we don't have to worry about being able to unmount
-    # from inside.
-    if SAVED_PREF=$(gconftool-2 -g ${AUTOMOUNT_PREF} 2>/dev/null); then
-      if [ "${SAVED_PREF}" != "false" ]; then
-        if [ $(gconftool-2 -s --type=boolean ${AUTOMOUNT_PREF} false) ]; then
-          warn "-- Note: USB sticks may be automounted by your host OS."
-          warn "-- Note: If you plan to burn bootable media, you may need to"
-          warn "-- Note: unmount these devices manually, or run image_to_usb.sh"
-          warn "-- Note: outside the chroot."
-        fi
-      fi
-    fi
-    # Always write the temp file so we can read it when exiting
-    echo "${SAVED_PREF:-false}" > "${FLAGS_chroot}${SAVED_AUTOMOUNT_PREF_FILE}"
 
     # Fix permissions on ccache tree.  If this is a fresh chroot, then they
     # might not be set up yet.  Or if the user manually `rm -rf`-ed things,
@@ -498,25 +375,14 @@ setup_env() {
     # on demand, but only when it updates.
     ccache_dir="${FLAGS_chroot}/var/cache/distfiles/ccache"
     if [[ ! -d ${ccache_dir} ]]; then
-      sudo mkdir -p -m 2775 "${ccache_dir}"
+      mkdir -p -m 2775 "${ccache_dir}"
     fi
-    sudo find -H "${ccache_dir}" -type d -exec chmod 2775 {} + &
-    sudo find -H "${ccache_dir}" -gid 0 -exec chgrp 250 {} + &
-
-    # Configure committer username and email in chroot .gitconfig.  Change
-    # to the root directory first so that random $PWD/.git/config settings
-    # do not get picked up.  We want to stick to ~/.gitconfig only.
-    ident=$(cd /; git var GIT_COMMITTER_IDENT || :)
-    ident_name=${ident%% <*}
-    ident_email=${ident%%>*}; ident_email=${ident_email##*<}
-    git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all \
-      user.name "${ident_name}" || true
-    git config -f ${FLAGS_chroot}/home/${USER}/.gitconfig --replace-all \
-      user.email "${ident_email}" || true
+    find -H "${ccache_dir}" -type d -exec chmod 2775 {} + &
+    find -H "${ccache_dir}" -gid 0 -exec chgrp 250 {} + &
 
     # Certain files get copied into the chroot when entering.
     for fn in "${FILES_TO_COPY_TO_CHROOT[@]}"; do
-      copy_into_chroot_if_exists "${HOME}/${fn}" "/home/${USER}/${fn}"
+      copy_into_chroot_if_exists "${SUDO_HOME}/${fn}" "/home/${SUDO_USER}/${fn}"
     done
     promote_api_keys
 
@@ -545,25 +411,23 @@ setup_env() {
       # with long multibyte strings.  Newer setups have this fixed,
       # but locale-gen doesn't need to be run in any locale in the
       # first place, so just go with C to keep it fast.
-      sudo -- chroot "$FLAGS_chroot" env LC_ALL=C locale-gen -q -u \
+      chroot "$FLAGS_chroot" env LC_ALL=C locale-gen -q -u \
         -G "$(printf '%s\n' "${gen_locales[@]}")"
     fi
 
     # Fix permissions on shared memory to allow non-root users access to POSIX
-    # semaphores.  Avoid the sudo call if possible (sudo is slow).
-    if [ -n "$(find "${FLAGS_chroot}/dev/shm" ! -perm 777)" ] ; then
-      sudo chmod -R 777 "${FLAGS_chroot}/dev/shm"
-    fi
+    # semaphores.
+    chmod -R 777 "${FLAGS_chroot}/dev/shm"
 
     # If the private overlays are installed, gsutil can use those credentials.
     # We're also installing credentials for use by sudoed invocations.
     boto='src/private-overlays/chromeos-overlay/googlestorage_account.boto'
     if [ -s "${FLAGS_trunk}/${boto}" ]; then
-      if [ ! -e "${FLAGS_chroot}/home/${USER}/.boto" ]; then
-        ln -s "trunk/${boto}" "${FLAGS_chroot}/home/${USER}/.boto"
+      if [ ! -e "${FLAGS_chroot}/home/${SUDO_USER}/.boto" ]; then
+        user_symlink "trunk/${boto}" "${FLAGS_chroot}/home/${SUDO_USER}/.boto"
       fi
       if [ ! -e "${FLAGS_chroot}/root/.boto" ]; then
-        sudo ln -s "../home/${USER}/trunk/${boto}" "${FLAGS_chroot}/root/.boto"
+        ln -s "../home/${SUDO_USER}/trunk/${boto}" "${FLAGS_chroot}/root/.boto"
       fi
     fi
 
@@ -571,95 +435,13 @@ setup_env() {
     # as a result of old gsutil or tools. This causes permission errors when
     # gsutil cp tries to create its cache files, so ensure the user can
     # actually write to their directory.
-    gsutil_dir="${FLAGS_chroot}/home/${USER}/.gsutil"
-    if [ -d "${gsutil_dir}" ] && [ ! -w "${gsutil_dir}" ]; then
-      sudo chown -R "${USER}:$(id -gn)" "${gsutil_dir}"
+    gsutil_dir="${FLAGS_chroot}/home/${SUDO_USER}/.gsutil"
+    if [ -d "${gsutil_dir}" ]; then
+      chown -R ${SUDO_UID}:${SUDO_GID} "${gsutil_dir}"
     fi
   ) 200>>"$LOCKFILE" || die "setup_env failed"
 }
 
-teardown_env() {
-  # Validate sudo timestamp before entering the critical section so that we
-  # don't stall for a password while we have the lockfile.
-  # Don't use sudo -v since that has issues on machines w/ no password.
-  sudo echo "" > /dev/null
-
-  # Only teardown if we're the last enter_chroot to die
-  (
-    flock 200
-
-    # check each pid in $LOCKFILE to see if it's died unexpectedly
-    TMP_LOCKFILE="$LOCKFILE.tmp"
-
-    echo -n > "$TMP_LOCKFILE"  # Erase/reset temp file
-    cat "$LOCKFILE" | while read PID; do
-      if [ "$PID" = "$$" ]; then
-        # ourself, leave PROC_NAME empty
-        PROC_NAME=""
-      else
-        PROC_NAME=$(ps --pid $PID -o comm=)
-      fi
-
-      if [ ! -z "$PROC_NAME" ]; then
-        # All good, keep going
-        echo "$PID" >> "$TMP_LOCKFILE"
-      fi
-    done
-    # Remove any dups from lock file while installing new one
-    sort -u -n "$TMP_LOCKFILE" > "$LOCKFILE"
-
-    SAVED_PREF=$(<"${FLAGS_chroot}${SAVED_AUTOMOUNT_PREF_FILE}")
-    if [ "${SAVED_PREF}" != "false" ]; then
-      gconftool-2 -s --type=boolean ${AUTOMOUNT_PREF} ${SAVED_PREF} || \
-        warn "could not re-set your automount preference."
-    fi
-
-    if [ -s "$LOCKFILE" ]; then
-      debug "At least one other pid is running in the chroot, so not"
-      debug "tearing down env."
-    else
-      debug "Stopping syncer process"
-      # If another process entering the chroot is blocked on this
-      # flock in setup_env(), it can be a race condition.
-      #
-      # When this locked region is exited, the setup_env() flock can
-      # be entered before the script can exit and the /proc entry for
-      # the PID is removed.  The newly-created chroot will not end up
-      # with a syncer process.  To avoid that situation, remove the
-      # syncer PID file.
-      #
-      # The syncer PID file should also be removed because the kernel
-      # will reuse PIDs.  It's possible that the PID in the syncer PID
-      # has been reused by another process; make sure we don't skip
-      # starting the syncer process when this occurs by deleting the
-      # PID file.
-      kill $(<"${SYNCERPIDFILE}") && \
-        { rm -f "${SYNCERPIDFILE}" 2>/dev/null || \
-          sudo rm -f "${SYNCERPIDFILE}" ; } ||
-        debug "Unable to clean up syncer process.";
-
-      debug "Unmounting chroot environment."
-      safe_umount_tree "${MOUNTED_PATH}/"
-    fi
-  ) 200>>"$LOCKFILE" || die "teardown_env failed"
-}
-
-if [ $FLAGS_mount -eq $FLAGS_TRUE ]; then
-  setup_env
-  info "Make sure you run"
-  info "    $0 --unmount"
-  info "before deleting $FLAGS_chroot"
-  info "or you'll end up deleting $FLAGS_trunk too!"
-  exit 0
-fi
-
-if [ $FLAGS_unmount -eq $FLAGS_TRUE ]; then
-  teardown_env
-  exit 0
-fi
-
-# Make sure we unmount before exiting
-trap teardown_env EXIT
 setup_env
 
 CHROOT_PASSTHRU=(
@@ -668,15 +450,9 @@ CHROOT_PASSTHRU=(
   "EXTERNAL_TRUNK_PATH=${FLAGS_trunk}"
 )
 
-# Add the standard proxied variables, and a few we specifically
-# export for script usage; USE/GCC_GITHASH are for ebuilds/portage,
-# CHROMEOS_VERSION_* is for cros_set_lsb_release and local AU server
-# (builders export this for marking reasons).
-KEEP_VARS=(
-  CHROMEOS_VERSION_{TRACK,AUSERVER,DEVSERVER}
-  USE GCC_GITHASH
-)
-for var in "${ENVIRONMENT_WHITELIST[@]}" "${KEEP_VARS[@]}"; do
+# Add the whitelisted environment variables to CHROOT_PASSTHRU.
+load_environment_whitelist
+for var in "${ENVIRONMENT_WHITELIST[@]}" ; do
   [ "${!var+set}" = "set" ] && CHROOT_PASSTHRU+=( "${var}=${!var}" )
 done
 
@@ -692,11 +468,8 @@ elif [ ! -x "${FLAGS_chroot}/usr/bin/sudo" ]; then
   error "Requested enter_chroot command was: $@"
   exit 127
 else
-  cmd=( sudo -i -u "$USER" )
+  cmd=( sudo -i -u "${SUDO_USER}" )
 fi
 
-sudo -- chroot "${FLAGS_chroot}" "${cmd[@]}" "${CHROOT_PASSTHRU[@]}" "$@"
-
-# Remove trap and explicitly unmount
-trap - EXIT
-teardown_env
+cmd+=( "${CHROOT_PASSTHRU[@]}" "$@" )
+exec chroot "${FLAGS_chroot}" "${cmd[@]}"

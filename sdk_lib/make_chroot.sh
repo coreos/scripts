@@ -14,8 +14,6 @@ SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 
 ENTER_CHROOT=$(readlink -f $(dirname "$0")/enter_chroot.sh)
 
-enable_strict_sudo
-
 if [ -n "${USE}" ]; then
   echo "$SCRIPT_NAME: Building with a non-empty USE: ${USE}"
   echo "This modifies the expected behaviour and can fail."
@@ -28,8 +26,9 @@ if [[ "$ARCHITECTURE" != "x86_64" ]]; then
   exit 1
 fi
 
-# Script must be run outside the chroot.
+# Script must be run outside the chroot and as root.
 assert_outside_chroot
+assert_root_user
 
 # Define command line flags.
 # See http://code.google.com/p/shflags/wiki/Documentation10x
@@ -54,8 +53,8 @@ eval set -- "${FLAGS_ARGV}"
 check_flags_only_and_allow_null_arg "$@" && set --
 
 CROS_LOG_PREFIX=cros_sdk:make_chroot
+SUDO_HOME=$(eval echo ~${SUDO_USER})
 
-assert_not_root_user
 # Set the right umask for chroot creation.
 umask 022
 
@@ -86,13 +85,13 @@ fi
 # Support faster build if necessary.
 EMERGE_CMD="emerge"
 if [ "$FLAGS_fast" -eq "${FLAGS_TRUE}" ]; then
-  CHROOT_CHROMITE_DIR="/home/${USER}/trunk/chromite"
+  CHROOT_CHROMITE_DIR="/home/${SUDO_USER}/trunk/chromite"
   EMERGE_CMD="${CHROOT_CHROMITE_DIR}/bin/parallel_emerge"
 fi
 
 ENTER_CHROOT_ARGS=(
   CROS_WORKON_SRCROOT="$CHROOT_TRUNK"
-  PORTAGE_USERNAME="$USER"
+  PORTAGE_USERNAME="${SUDO_USER}"
   IGNORE_PREFLIGHT_BINHOST="$IGNORE_PREFLIGHT_BINHOST"
 )
 
@@ -114,8 +113,8 @@ early_enter_chroot() {
 # Run a command within the chroot.  The main usage of this is to avoid
 # the overhead of enter_chroot, and do not need access to the source tree,
 # don't need the actual chroot profile env, and can run the command as root.
-sudo_chroot() {
-  sudo chroot "${FLAGS_chroot}" "$@"
+bare_chroot() {
+  chroot "${FLAGS_chroot}" "$@"
 }
 
 cleanup() {
@@ -131,120 +130,115 @@ delete_existing() {
   info "Cleaning up old mount points..."
   cleanup
   info "Deleting $FLAGS_chroot..."
-  sudo rm -rf "$FLAGS_chroot"
+  rm -rf "$FLAGS_chroot"
   info "Done."
 }
 
 init_users () {
    info "Set timezone..."
    # date +%Z has trouble with daylight time, so use host's info.
-   sudo rm -f "${FLAGS_chroot}/etc/localtime"
+   rm -f "${FLAGS_chroot}/etc/localtime"
    if [ -f /etc/localtime ] ; then
-     sudo cp /etc/localtime "${FLAGS_chroot}/etc"
+     cp /etc/localtime "${FLAGS_chroot}/etc"
    else
-     sudo ln -sf /usr/share/zoneinfo/PST8PDT "${FLAGS_chroot}/etc/localtime"
+     ln -sf /usr/share/zoneinfo/PST8PDT "${FLAGS_chroot}/etc/localtime"
    fi
    info "Adding user/group..."
    # Add ourselves as a user inside the chroot.
-   sudo_chroot groupadd -g 5000 eng
+   bare_chroot groupadd -g 5000 eng
    # We need the UID to match the host user's. This can conflict with
    # a particular chroot UID. At the same time, the added user has to
    # be a primary user for the given UID for sudo to work, which is
    # determined by the order in /etc/passwd. Let's put ourselves on top
    # of the file.
-   sudo_chroot useradd -o -G ${DEFGROUPS} -g eng -u `id -u` -s \
-     /bin/bash -m -c "${FULLNAME}" -p ${CRYPTED_PASSWD} ${USER}
+   bare_chroot useradd -o -G ${DEFGROUPS} -g eng -u ${SUDO_UID} -s \
+     /bin/bash -m -c "${FULLNAME}" -p ${CRYPTED_PASSWD} ${SUDO_USER}
    # Because passwd generally isn't sorted and the entry ended up at the
    # bottom, it is safe to just take it and move it to top instead.
-   sudo sed -e '1{h;d};$!{H;d};$G' -i "${FLAGS_chroot}/etc/passwd"
+   sed -e '1{h;d};$!{H;d};$G' -i "${FLAGS_chroot}/etc/passwd"
 }
 
 init_setup () {
    info "Running init_setup()..."
-   sudo mkdir -p -m 755 "${FLAGS_chroot}/usr" \
+   mkdir -p -m 755 "${FLAGS_chroot}/usr" \
      "${FLAGS_chroot}/usr/local/portage" \
      "${FLAGS_chroot}"/"${CROSSDEV_OVERLAY}"
-   sudo ln -sf "${CHROOT_TRUNK}/src/third_party/portage" \
+   ln -sf "${CHROOT_TRUNK}/src/third_party/portage" \
      "${FLAGS_chroot}/usr/portage"
-   sudo ln -sf "${CHROOT_TRUNK}/src/third_party/chromiumos-overlay" \
+   ln -sf "${CHROOT_TRUNK}/src/third_party/chromiumos-overlay" \
      "${FLAGS_chroot}"/"${CHROOT_OVERLAY}"
-   sudo ln -sf "${CHROOT_TRUNK}/src/third_party/portage-stable" \
+   ln -sf "${CHROOT_TRUNK}/src/third_party/portage-stable" \
      "${FLAGS_chroot}"/"${PORTAGE_STABLE_OVERLAY}"
 
    # Some operations need an mtab.
-   sudo ln -s /proc/mounts "${FLAGS_chroot}/etc/mtab"
+   ln -s /proc/mounts "${FLAGS_chroot}/etc/mtab"
 
    # Set up sudoers.  Inside the chroot, the user can sudo without a password.
    # (Safe enough, since the only way into the chroot is to 'sudo chroot', so
    # the user's already typed in one sudo password...)
    # Make sure the sudoers.d subdir exists as older stage3 base images lack it.
-   sudo mkdir -p "${FLAGS_chroot}/etc/sudoers.d"
+   mkdir -p "${FLAGS_chroot}/etc/sudoers.d"
 
    # Use the standardized upgrade script to setup proxied vars.
-   sudo bash -e "${SCRIPT_ROOT}/chroot_version_hooks.d/45_rewrite_sudoers.d" \
-     "${FLAGS_chroot}" "${USER}" "${ENVIRONMENT_WHITELIST[@]}"
+   load_environment_whitelist
+   bash -e "${SCRIPT_ROOT}/chroot_version_hooks.d/45_rewrite_sudoers.d" \
+     "${FLAGS_chroot}" "${SUDO_USER}" "${ENVIRONMENT_WHITELIST[@]}"
 
-   # Turn on the path overrides; subshelled to protect our env from whatever
-   # vars the scriptlet may bleed.
-   ( CROS_CHROOT="${FLAGS_chroot}"
-     . "${SCRIPT_ROOT}/chroot_version_hooks.d/47_path_overrides" )
-
-   sudo find "${FLAGS_chroot}/etc/"sudoers* -type f -exec chmod 0440 {} +
+   find "${FLAGS_chroot}/etc/"sudoers* -type f -exec chmod 0440 {} +
    # Fix bad group for some.
-   sudo chown -R root:root "${FLAGS_chroot}/etc/"sudoers*
+   chown -R root:root "${FLAGS_chroot}/etc/"sudoers*
 
    info "Setting up hosts/resolv..."
    # Copy config from outside chroot into chroot.
-   sudo cp /etc/{hosts,resolv.conf} "$FLAGS_chroot/etc/"
-   sudo chmod 0644 "$FLAGS_chroot"/etc/{hosts,resolv.conf}
+   cp /etc/{hosts,resolv.conf} "$FLAGS_chroot/etc/"
+   chmod 0644 "$FLAGS_chroot"/etc/{hosts,resolv.conf}
 
    # Setup host make.conf. This includes any overlay that we may be using
    # and a pointer to pre-built packages.
    # TODO: This should really be part of a profile in the portage.
    info "Setting up /etc/make.*..."
-   sudo mv "${FLAGS_chroot}"/etc/make.conf{,.orig}
-   sudo ln -sf "${CHROOT_CONFIG}/make.conf.amd64-host" \
+   mv "${FLAGS_chroot}"/etc/make.conf{,.orig}
+   ln -sf "${CHROOT_CONFIG}/make.conf.amd64-host" \
      "${FLAGS_chroot}/etc/make.conf"
-   sudo mv "${FLAGS_chroot}"/etc/make.profile{,.orig}
-   sudo ln -sf "${CHROOT_OVERLAY}/profiles/default/linux/amd64/10.0" \
+   mv "${FLAGS_chroot}"/etc/make.profile{,.orig}
+   ln -sf "${CHROOT_OVERLAY}/profiles/default/linux/amd64/10.0" \
      "${FLAGS_chroot}/etc/make.profile"
 
    # Create make.conf.user .
-   sudo touch "${FLAGS_chroot}"/etc/make.conf.user
-   sudo chmod 0644 "${FLAGS_chroot}"/etc/make.conf.user
+   touch "${FLAGS_chroot}"/etc/make.conf.user
+   chmod 0644 "${FLAGS_chroot}"/etc/make.conf.user
 
    # Create directories referred to by our conf files.
-   sudo mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/pkgs" \
+   mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/pkgs" \
      "${FLAGS_chroot}/var/cache/"chromeos-{cache,chrome} \
      "${FLAGS_chroot}/etc/profile.d"
 
-   echo "export CHROMEOS_CACHEDIR=/var/cache/chromeos-cache" | \
-     sudo_clobber "${FLAGS_chroot}/etc/profile.d/chromeos-cachedir.sh"
-   sudo_multi \
-       "chmod 0644 '${FLAGS_chroot}/etc/profile.d/chromeos-cachedir.sh'" \
-       "rm -rf '${FLAGS_chroot}/var/cache/distfiles'" \
-       "ln -s chromeos-cache/distfiles '${FLAGS_chroot}/var/cache/distfiles'"
+   echo "export CHROMEOS_CACHEDIR=/var/cache/chromeos-cache" > \
+     "${FLAGS_chroot}/etc/profile.d/chromeos-cachedir.sh"
+   chmod 0644 "${FLAGS_chroot}/etc/profile.d/chromeos-cachedir.sh"
+   rm -rf "${FLAGS_chroot}/var/cache/distfiles"
+   ln -s chromeos-cache/distfiles "${FLAGS_chroot}/var/cache/distfiles"
 
    # Run this from w/in the chroot so we use whatever uid/gid
    # these are defined as w/in the chroot.
-   sudo_chroot chown "${USER}:portage" /var/cache/chromeos-chrome
+   bare_chroot chown "${SUDO_USER}:portage" /var/cache/chromeos-chrome
 
    # These are created for compatibility while transitioning
    # make.conf and friends over to the new location.
    # TODO(ferringb): remove this 01/13 or so.
-   sudo ln -s ../../cache/chromeos-cache/distfiles/host \
+   ln -s ../../cache/chromeos-cache/distfiles/host \
      "${FLAGS_chroot}/var/lib/portage/distfiles"
-   sudo ln -s ../../cache/chromeos-cache/distfiles/target \
+   ln -s ../../cache/chromeos-cache/distfiles/target \
      "${FLAGS_chroot}/var/lib/portage/distfiles-target"
 
    # Add chromite/bin and depot_tools into the path globally; note that the
    # chromite wrapper itself might also be found in depot_tools.
    # We rely on 'env-update' getting called below.
    target="${FLAGS_chroot}/etc/env.d/99chromiumos"
-   sudo_clobber "${target}" <<EOF
-PATH=/home/$USER/trunk/chromite/bin:/home/$USER/depot_tools
+   cat <<EOF > "${target}"
+PATH=/home/${SUDO_USER}/trunk/chromite/bin:/home/${SUDO_USER}/depot_tools
 CROS_WORKON_SRCROOT="${CHROOT_TRUNK}"
-PORTAGE_USERNAME=$USER
+PORTAGE_USERNAME=${SUDO_USER}
 EOF
 
    # TODO(zbehan): Configure stuff that is usually configured in postinst's,
@@ -260,8 +254,8 @@ EOF
      /usr/local/portage/chromiumos/profiles/default/linux/amd64/10.0
 
    target="${FLAGS_chroot}/etc/profile.d"
-   sudo mkdir -p "${target}"
-   sudo_clobber "${target}/chromiumos-niceties.sh" << EOF
+   mkdir -p "${target}"
+   cat << EOF > "${target}/chromiumos-niceties.sh"
 # Niceties for interactive logins. (cr) denotes this is a chroot, the
 # __git_branch_ps1 prints current git branch in ./ . The $r behavior is to
 # make sure we don't reset the previous $? value which later formats in
@@ -278,40 +272,53 @@ EOF
    # http://crosbug.com/20378
    local localegen="$FLAGS_chroot/etc/locale.gen"
    if ! grep -q -v -e '^#' -e '^$' "${localegen}" ; then
-     sudo_append "${localegen}" <<EOF
+     cat <<EOF >> "${localegen}"
 en_US ISO-8859-1
 en_US.UTF-8 UTF-8
 EOF
    fi
 
    # Add chromite as a local site-package.
-   mkdir -p "${FLAGS_chroot}/home/$USER/.local/lib/python2.6/site-packages"
-   ln -s ../../../../trunk/chromite \
-     "${FLAGS_chroot}/home/$USER/.local/lib/python2.6/site-packages/"
+   local site_packages="/home/${SUDO_USER}/.local/lib/python2.6/site-packages"
+   user_mkdir "${FLAGS_chroot}${site_packages}"
+   user_symlink ../../../../trunk/chromite \
+     "${FLAGS_chroot}${site_packages}/chromite"
 
-   chmod a+x "$FLAGS_chroot/home/$USER/.bashrc"
    # Automatically change to scripts directory.
    echo 'cd ${CHROOT_CWD:-~/trunk/src/scripts}' \
-       >> "$FLAGS_chroot/home/$USER/.bash_profile"
+       | user_append "$FLAGS_chroot/home/${SUDO_USER}/.bash_profile"
 
    # Enable bash completion for build scripts.
    echo ". ~/trunk/src/scripts/bash_completion" \
-       >> "$FLAGS_chroot/home/$USER/.bashrc"
+       | user_append "$FLAGS_chroot/home/${SUDO_USER}/.bashrc"
 
-   if [[ "$USER" = "chrome-bot" ]]; then
+   if [[ "${SUDO_USER}" = "chrome-bot" ]]; then
      # Copy ssh keys, so chroot'd chrome-bot can scp files from chrome-web.
-     cp -r ~/.ssh "$FLAGS_chroot/home/$USER/"
+     cp -rp ~/.ssh "$FLAGS_chroot/home/${SUDO_USER}/"
    fi
 
-   if [[ -f $HOME/.gitconfig ]]; then
+   if [[ -f ${SUDO_HOME}/.gitconfig ]]; then
      # Copy .gitconfig into chroot so repo and git can be used from inside.
      # This is required for repo to work since it validates the email address.
      echo "Copying ~/.gitconfig into chroot"
-     cp $HOME/.gitconfig "$FLAGS_chroot/home/$USER/"
+     cp -p "${SUDO_HOME}/.gitconfig" "$FLAGS_chroot/home/${SUDO_USER}/"
    fi
 
-   if [[ -f $HOME/.cros_chroot_init ]]; then
-     /bin/bash $HOME/.cros_chroot_init "${FLAGS_chroot}"
+   # If the user didn't set up their username in their gitconfig, look
+   # at the default git settings for the user.
+   if ! git config -f "${SUDO_HOME}/.gitconfig" user.email >& /dev/null; then
+     ident=$(cd /; sudo -u ${SUDO_USER} -- git var GIT_COMMITTER_IDENT || :)
+     ident_name=${ident%% <*}
+     ident_email=${ident%%>*}; ident_email=${ident_email##*<}
+     gitconfig=${FLAGS_chroot}/home/${SUDO_USER}/.gitconfig
+     git config -f ${gitconfig} --replace-all user.name "${ident_name}" || :
+     git config -f ${gitconfig} --replace-all user.email "${ident_email}" || :
+     chown ${SUDO_UID}:${SUDO_GID} ${FLAGS_chroot}/home/${SUDO_USER}/.gitconfig
+   fi
+
+   if [[ -f ${SUDO_HOME}/.cros_chroot_init ]]; then
+     sudo -u ${SUDO_USER} -- /bin/bash "${SUDO_HOME}/.cros_chroot_init" \
+       "${FLAGS_chroot}"
    fi
 }
 
@@ -343,7 +350,7 @@ done
 # Create the base Gentoo stage3 based on last version put in chroot.
 STAGE3="${OVERLAY}/chromeos/stage3/stage3-amd64-${FLAGS_stage3_date}.tar.bz2"
 if [ -f $CHROOT_STATE ] && \
-  ! sudo egrep -q "^STAGE3=$STAGE3" $CHROOT_STATE >/dev/null 2>&1
+  ! egrep -q "^STAGE3=$STAGE3" $CHROOT_STATE >/dev/null 2>&1
 then
   info "STAGE3 version has changed."
   delete_existing
@@ -372,8 +379,8 @@ else
     *) die "Unknown tarball compression: ${STAGE3}";;
   esac
   ${DECOMPRESS} -dc "${STAGE3}" | \
-    sudo tar -xp -C "${FLAGS_chroot}"
-  sudo rm -f "$FLAGS_chroot/etc/"make.{globals,conf.user}
+    tar -xp -C "${FLAGS_chroot}"
+  rm -f "$FLAGS_chroot/etc/"make.{globals,conf.user}
 fi
 
 # Set up users, if needed, before mkdir/mounts below.
@@ -382,7 +389,7 @@ fi
 echo
 info "Setting up mounts..."
 # Set up necessary mounts and make sure we clean them up on exit.
-sudo mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK}" "${FLAGS_chroot}/run"
+mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK}" "${FLAGS_chroot}/run"
 
 # Create a special /etc/make.conf.host_setup that we use to bootstrap
 # the chroot.  The regular content for the file will be generated the
@@ -411,7 +418,7 @@ fi
 
 # Add file to indicate that it is a chroot.
 # Add version of $STAGE3 for update checks.
-sudo sh -c "echo STAGE3=$STAGE3 > $CHROOT_STATE"
+echo STAGE3=$STAGE3 > $CHROOT_STATE
 
 info "Updating portage"
 early_enter_chroot emerge -uNv --quiet portage

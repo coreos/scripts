@@ -209,6 +209,15 @@ get_gclient_root() {
   fi
 }
 
+# Populate the ENVIRONMENT_WHITELIST array.
+load_environment_whitelist() {
+  set -f
+  ENVIRONMENT_WHITELIST=(
+    $("${GCLIENT_ROOT}/chromite/scripts/cros_env_whitelist")
+  )
+  set +f
+}
+
 # Find root of source tree
 get_gclient_root
 
@@ -300,20 +309,6 @@ DEFAULT_FAST=${FLAGS_TRUE}
 # Directory to store built images.  Should be set by sourcing script when used.
 BUILD_DIR=
 
-# List of variables to proxy into the chroot from the host, and to
-# have sudo export if existent.
-# Anytime this list is modified, to make that change active a new
-# chroot_version_hooks.d upgrade script that symlinks to 45_rewrite_sudoers.d
-# is required.
-ENVIRONMENT_WHITELIST=(
-  CHROMEOS_OFFICIAL
-  {http{,s},ftp,all,no}_proxy
-  RSYNC_PROXY
-  GIT_{PROXY_COMMAND,SSH}
-  SSH_AGENT_PID
-  SSH_AUTH_SOCK
-)
-
 # Standard filenames
 CHROMEOS_BASE_IMAGE_NAME="chromiumos_base_image.bin"
 CHROMEOS_IMAGE_NAME="chromiumos_image.bin"
@@ -324,7 +319,11 @@ CHROMEOS_FACTORY_TEST_IMAGE_NAME="chromiumos_factory_image.bin"
 CHROMEOS_FACTORY_INSTALL_SHIM_NAME="factory_install_shim.bin"
 
 # Directory locations inside the dev chroot
-CHROOT_TRUNK_DIR="/home/$USER/trunk"
+if [ "${USER}" = "root" ]; then
+  CHROOT_TRUNK_DIR="/home/${SUDO_USER}/trunk"
+else
+  CHROOT_TRUNK_DIR="/home/${USER}/trunk"
+fi
 
 # Install make for portage ebuilds.  Used by build_image and gmergefs.
 # TODO: Is /usr/local/autotest-chrome still used by anyone?
@@ -452,9 +451,15 @@ assert_outside_chroot() {
 }
 
 assert_not_root_user() {
-  if [ $(id -u) = 0 ]; then
+  if [ ${UID:-$(id -u)} = 0 ]; then
     echo "This script must be run as a non-root user."
     exit 1
+  fi
+}
+
+assert_root_user() {
+  if [ ${UID:-$(id -u)} != 0 ] || [ "${SUDO_USER:-root}" = "root" ]; then
+    die_notrace "This script must be run using sudo from a non-root user."
   fi
 }
 
@@ -534,6 +539,37 @@ sudo_multi() {
   fi
 }
 
+# Writes stdin to the given file name as the sudo user in overwrite mode.
+#
+# $@ - The output file names.
+user_clobber() {
+  install -m644 -o ${SUDO_UID} -g ${SUDO_GID} /dev/stdin "$@"
+}
+
+# Appends stdin to the given file name as the sudo user.
+#
+# $1 - The output file name.
+user_append() {
+  cat >> "$1"
+  chown ${SUDO_UID}:${SUDO_GID} "$1"
+}
+
+# Create the specified directory, along with parents, as the sudo user.
+#
+# $@ - The directories to create.
+user_mkdir() {
+  install -o ${SUDO_UID} -g ${SUDO_GID} -d "$@"
+}
+
+# Create the specified symlink as the sudo user.
+#
+# $1 - Link target
+# $2 - Link name
+user_symlink() {
+  ln -sfT "$1" "$2"
+  chown -h ${SUDO_UID}:${SUDO_GID} "$2"
+}
+
 # Locate all mounts below a specified directory.
 #
 # $1 - The root tree.
@@ -585,14 +621,10 @@ safe_umount_tree() {
 }
 
 
-# Helper; all scripts should use this since it ensures our
-# override of umount is used (inside the chroot, it's enforced
-# via configuration; outside is the concern).
-# Args are passed directly to umount; no sudo args are allowed.
+# Run umount as root.
 safe_umount() {
-  sudo "${SCRIPT_ROOT}/path-overrides/umount" "$@"
+  $([ ${UID:-$(id -u)} != 0 ] && echo sudo) umount "$@"
 }
-
 
 get_git_id() {
   git var GIT_COMMITTER_IDENT | sed -e 's/^.*<\(\S\+\)>.*$/\1/'
@@ -1080,23 +1112,6 @@ switch_to_strict_mode() {
 # TODO: Re-enable this once shflags is set -e safe.
 #switch_to_strict_mode
 
-# The following code is used to ensure our umount wrapper is in use.
-# Shouldn't be invoked by anything other than common.sh
-_enable_path_overrides(){
-  # Ensure that our PATH overrides are in use.
-  local override_dir=$(readlink -f "${SCRIPT_ROOT}/path-overrides")
-  local IFS=:
-  local x
-  for x in ${PATH}; do
-    x=$(readlink -f "${x}")
-    if [ "${x}" = "${override_dir}" ]; then
-      # Already is in path; nothing more to do.
-      return
-    fi
-  done
-  export PATH="${override_dir}${PATH:+:${PATH}}"
-}
-
 okboat() {
   # http://www.chris.com/ascii/index.php?art=transportation/nautical
   echo -e "${V_BOLD_GREEN}"
@@ -1127,5 +1142,3 @@ BOAT
   echo -e "${V_VIDOFF}"
   die "$* failed"
 }
-
-_enable_path_overrides
