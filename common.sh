@@ -568,8 +568,14 @@ safe_umount_tree() {
     return 0
   fi
 
-  # Well that didn't work, so lazy unmount remaining ones.
+  # Check whether our mounts were successfully unmounted.
   mounts=$(sub_mounts "$1")
+  if [ -z "${mounts}" ]; then
+    warn "umount failed, but devices were unmounted anyway"
+    return 0
+  fi
+
+  # Well that didn't work, so lazy unmount remaining ones.
   warn "Failed to unmount ${mounts}"
   warn "Doing a lazy unmount"
   if ! safe_umount -d -l ${mounts}; then
