@@ -426,15 +426,27 @@ early_enter_chroot emerge -uNv --quiet portage
 # Packages that inherit cros-workon commonly get a circular dependency
 # curl->openssl->git->curl that is broken by emerging an early version of git
 # without curl (and webdav that depends on it).
-need_git_rebuild=${FLAGS_FALSE}
+# We also need to do this before the toolchain as those will sometimes also
+# fetch via remote git trees (for some bot configs).
 if [[ ! -e "${FLAGS_chroot}/usr/bin/git" ]]; then
-  need_git_rebuild=${FLAGS_TRUE}
   info "Updating early git"
-  USE="-curl -webdav" early_enter_chroot emerge -uNv $USEPKG dev-vcs/git
+  USE="-curl -webdav" early_enter_chroot $EMERGE_CMD -uNv $USEPKG dev-vcs/git
+
+  # OpenSSL is a cros-workon package too, but the default http repo is now
+  # unusable since we disabled building with curl above.  Reject minilayouts.
+  if [[ ! -d ${SRC_ROOT}/third_party/openssl ]]; then
+    die "bootstrapping requires a full manifest checkout"
+  fi
+  early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
+      dev-libs/openssl net-misc/curl
+
+  # (Re-)emerge the full version of git.
+  info "Updating full version of git"
+  early_enter_chroot $EMERGE_CMD -uNv $USEPKG dev-vcs/git
 fi
 
 info "Updating host toolchain"
-early_enter_chroot emerge -uNv --quiet crossdev
+early_enter_chroot $EMERGE_CMD -uNv crossdev
 TOOLCHAIN_ARGS=( --deleteold )
 if [[ ${FLAGS_usepkg} -eq ${FLAGS_FALSE} ]]; then
   TOOLCHAIN_ARGS+=( --nousepkg )
@@ -451,12 +463,6 @@ early_enter_chroot $EMERGE_CMD --deselect dhcpcd
 info "Running emerge curl sudo ..."
 early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
   pbzip2 dev-libs/openssl net-misc/curl sudo
-
-if [[ ${need_git_rebuild} -eq ${FLAGS_TRUE} ]]; then
-  # (Re-)emerge the full version of git, without preventing curl.
-  info "Updating full verison of git"
-  early_enter_chroot emerge -uNv $USEPKG dev-vcs/git
-fi
 
 if [ -n "${INITIALIZE_CHROOT}" ]; then
   # If we're creating a new chroot, we also want to set it to the latest
