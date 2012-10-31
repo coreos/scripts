@@ -9,11 +9,10 @@ echo "Configuring for backchannel network device"
 testif=eth_test
 modemif=pseudomodem0p
 
-# Prevent flimflam from taking control of the backchannel network device.
-ORIG_CONF=${ROOT_FS_DIR}/etc/init/flimflam.conf
+# Prevent shill from taking control of the backchannel network device.
+ORIG_CONF=${ROOT_FS_DIR}/etc/init/shill.conf
 TEMP_CONF=${ORIG_CONF}.tmp
-sed -e "s,flimflamd,flimflamd -I ${testif} -I ${modemif}," \
-    -e "s@SHILL_TEST_ARGS=\"\"@SHILL_TEST_ARGS=\"--device-black-list=${testif},${modemif}\"@" \
+sed -e "s@SHILL_TEST_ARGS=\"\"@SHILL_TEST_ARGS=\"--device-black-list=${testif},${modemif}\"@" \
     ${ORIG_CONF} > ${TEMP_CONF}
 mv -f ${TEMP_CONF} ${ORIG_CONF}
 
@@ -42,7 +41,7 @@ if [ -f /var/run/dhclient-\${testif}.pid ]; then
 fi
 
 if [ "\$1" != "\${testif}" ]; then
-    initctl stop flimflam
+    initctl stop shill
     # \$1 is the current name of the backchannel device. Swap it with testif.
     if ifconfig \${testif} > /dev/null 2>&1; then
         orig_mac=\$(ifconfig \${testif} | awk '/HWaddr/ {print \$5}')
@@ -55,7 +54,7 @@ if [ "\$1" != "\${testif}" ]; then
     if [ -n "\${orig_mac}" ]; then
         nameif \$1 \${orig_mac}
     fi
-    initctl start flimflam
+    initctl start shill
 fi
 
 # Bring up the backchannel interface
