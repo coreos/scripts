@@ -4,9 +4,9 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-echo "Configuring for backchannel network device"
+echo "Configuring for backchannel and test network devices"
 
-testif=eth_test
+testif=eth_test,wlan1,wlan2,managed0,managed1
 modemif=pseudomodem0p
 
 # Prevent shill from taking control of the backchannel network device.
