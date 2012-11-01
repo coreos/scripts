@@ -144,7 +144,7 @@ class CrosEnv(object):
   """Encapsulates the ChromeOS build system environment functionality."""
 
   REBOOT_START_WAIT = 5
-  REBOOT_WAIT_TIME = 60
+  REBOOT_WAIT_TIME = 180
 
   SILENT = 0
   INFO = 1
