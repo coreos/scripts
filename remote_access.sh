@@ -91,7 +91,7 @@ set_up_remote_access() {
   # Verify the client is reachable before continuing
   local output
   local status=0
-  if output=$(remote_sh "true" 2>&1); then
+  if output=$(remote_sh -n "true" 2>&1); then
     :
   else
     status=$?
@@ -104,7 +104,7 @@ set_up_remote_access() {
 # Ask the target what board it is
 learn_board() {
   [ -n "${FLAGS_board}" ] && return
-  remote_sh grep CHROMEOS_RELEASE_BOARD /etc/lsb-release
+  remote_sh -n grep CHROMEOS_RELEASE_BOARD /etc/lsb-release
   FLAGS_board=$(echo "${REMOTE_OUT}" | cut -d '=' -f 2)
   if [ -z "${FLAGS_board}" ]; then
     error "Board required"
