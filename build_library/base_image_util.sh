@@ -170,10 +170,16 @@ create_base_image() {
     "--board=${BOARD} to update the version of libc installed on that board."
   fi
 
+  # Strip out files we don't need in the final image at runtime.
+  local libc_excludes=(
+    # Compile-time headers.
+    'usr/include' 'sys-include'
+    # Link-time objects.
+    '*.[ao]'
+  )
   pbzip2 -dc --ignore-trailing-garbage=1 "${LIBC_PATH}" | \
     sudo tar xpf - -C "${root_fs_dir}" ./usr/${CHOST} \
-      --strip-components=3 --exclude=usr/include --exclude=sys-include \
-      --exclude=*.a --exclude=*.o
+      --strip-components=3 "${libc_excludes[@]/#/--exclude=}"
 
   board_ctarget=$(get_ctarget_from_board "${BOARD}")
   for atom in $(portageq match / cross-$board_ctarget/gcc); do
