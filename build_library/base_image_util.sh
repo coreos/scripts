@@ -170,9 +170,10 @@ create_base_image() {
     "--board=${BOARD} to update the version of libc installed on that board."
   fi
 
-  sudo tar jxpf "${LIBC_PATH}" -C "${root_fs_dir}" ./usr/${CHOST} \
-  --strip-components=3 --exclude=usr/include --exclude=sys-include \
-  --exclude=*.a --exclude=*.o
+  pbzip2 -dc --ignore-trailing-garbage=1 "${LIBC_PATH}" | \
+    sudo tar xpf - -C "${root_fs_dir}" ./usr/${CHOST} \
+      --strip-components=3 --exclude=usr/include --exclude=sys-include \
+      --exclude=*.a --exclude=*.o
 
   board_ctarget=$(get_ctarget_from_board "${BOARD}")
   for atom in $(portageq match / cross-$board_ctarget/gcc); do
