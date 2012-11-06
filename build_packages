@@ -175,7 +175,8 @@ fi
 # Verify that all packages can be emerged from scratch, without any
 # backtracking. Only print the output if this step fails.
 info "Checking package dependencies are correct: ${PACKAGES[*]}"
-if ! OUTPUT=$(emerge-${FLAGS_board} -pe --backtrack=0 ${PACKAGES} 2>&1); then
+if ! OUTPUT=$(emerge-${FLAGS_board} -pe --backtrack=0 \
+              "${PACKAGES[@]}" 2>&1); then
   printf "%s\n" "${OUTPUT}"
   die_notrace "emerge detected broken ebuilds. See error message above."
 fi
