@@ -37,6 +37,8 @@ DEFINE_string format "qemu" \
   "Output format, either qemu, vmware or virtualbox"
 DEFINE_string from "" \
   "Directory containing rootfs.image and mbr.image"
+DEFINE_string disk_layout "vm" \
+  "The disk layout type to use for this image."
 DEFINE_boolean make_vmx ${FLAGS_TRUE} \
   "Create a vmx file for use with vmplayer (vmware only)."
 DEFINE_integer mem "${DEFAULT_MEM}" \
@@ -126,7 +128,7 @@ TEMP_KERN="${TEMP_DIR}"/part_2
 if [ -n "${FLAGS_state_image}" ]; then
   TEMP_STATE="${FLAGS_state_image}"
 else
-  STATEFUL_SIZE_BYTES=$(get_filesystem_size vm 1)
+  STATEFUL_SIZE_BYTES=$(get_filesystem_size "${FLAGS_disk_layout}" 1)
   STATEFUL_SIZE_MEGABYTES=$(( STATEFUL_SIZE_BYTES / 1024 / 1024 ))
   original_image_size=$(stat -c%s "${TEMP_STATE}")
   if [ "${original_image_size}" -gt "${STATEFUL_SIZE_BYTES}" ]; then
@@ -164,7 +166,7 @@ cleanup
 
 # Set up a new partition table
 PARTITION_SCRIPT_PATH=$( tempfile )
-write_partition_script "vm" "${PARTITION_SCRIPT_PATH}"
+write_partition_script "${FLAGS_disk_layout}" "${PARTITION_SCRIPT_PATH}"
 . "${PARTITION_SCRIPT_PATH}"
 write_partition_table "${TEMP_IMG}" "${TEMP_PMBR}"
 rm "${PARTITION_SCRIPT_PATH}"
