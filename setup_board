@@ -173,9 +173,7 @@ cross_get_version() {
       cpv=$(portageq match / cross-${toolchain}/${pkg} || true)
     fi
   else
-    if [[ "$pkg" = binutils ]] ; then
-      cpv=$(portageq match / sys-devel/binutils || true)
-    elif [[ "$pkg" = glibc ]] ; then
+    if [[ "$pkg" = glibc ]] ; then
       cpv=$(portageq match / sys-libs/glibc || true)
     elif [[ "$pkg" = gcc ]] ; then
       cpv=$(portageq match / sys-devel/gcc || true)
@@ -195,9 +193,8 @@ cross_get_version() {
 }
 
 install_toolchain_in_provided() {
-  local binutils_ver="$1"
-  local gcc_ver="$2"
-  local glibc_ver="$3"
+  local gcc_ver="$1"
+  local glibc_ver="$2"
   # Tell portage that toolchain packages are already installed in the sysroot.
   (
     echo sys-devel/gcc-$gcc_ver
@@ -209,10 +206,9 @@ install_toolchain_in_provided() {
 # into the board root.
 install_toolchain_in_board() {
   local cmds
-  local binutils_ver=$(cross_get_version binutils)
   local gcc_ver=$(cross_get_version gcc)
   local libc_ver=$(cross_get_version glibc)
-  if [[ -z "$binutils_ver" || -z "$gcc_ver" || -z "$libc_ver" ]]; then
+  if [[ -z ${gcc_ver} || -z ${libc_ver} ]]; then
     die "Cannot find toolchain to install into board root"
   fi
   echo "Installing the toolchain into the board root."
@@ -256,7 +252,7 @@ install_toolchain_in_board() {
   )
   sudo_multi "${cmds[@]}"
 
-  install_toolchain_in_provided "$binutils_ver" "$gcc_ver" "$libc_ver"
+  install_toolchain_in_provided "$gcc_ver" "$libc_ver"
 
   # Configure new libc version in make.conf.board_setup.
   sudo sed -i -e "/^LIBC_VERSION=/d" $BOARD_SETUP
