@@ -95,7 +95,7 @@
         "num": 3,
         "label":"ROOT-A",
         "type":"rootfs",
-        "blocks":"2113672",
+        "blocks":"2539520",
         "fs_blocks":"262144"
       },
       {
@@ -143,14 +143,14 @@
         "num": 3,
         "label":"ROOT-A",
         "type":"rootfs",
-        "blocks":"2113672",
+        "blocks":"2539520",
         "fs_blocks":"262144"
       },
       {
         "num": 5,
         "label":"ROOT-B",
         "type":"rootfs",
-        "blocks":"2113672",
+        "blocks":"2539520",
         "fs_blocks":"262144"
       }
     ],
@@ -165,7 +165,7 @@
         "num": 3,
         "label":"ROOT-A",
         "type":"rootfs",
-        "blocks":"2113672",
+        "blocks":"2539520",
         "fs_blocks":"262144"
       },
       {
@@ -180,7 +180,7 @@
         "num": 3,
         "label":"ROOT-A",
         "type":"rootfs",
-        "blocks":"4194304",
+        "blocks":"4569600",
         "fs_blocks":"512000"
       },
       {
@@ -195,7 +195,7 @@
         "num": 3,
         "label":"ROOT-A",
         "type":"rootfs",
-        "blocks":"8388608",
+        "blocks":"8729600",
         "fs_blocks":"1024000"
       },
       {
