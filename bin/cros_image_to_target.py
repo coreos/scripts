@@ -25,7 +25,13 @@ import tempfile
 import time
 import traceback
 
-from xml.dom import minidom
+path = os.path.realpath(__file__)
+path = os.path.normpath(os.path.join(os.path.dirname(path), '..', '..',
+                                     'platform'))
+sys.path.insert(0, path)
+del path
+
+from dev import autoupdate_lib
 
 
 # This is the default filename within the image directory to load updates from
@@ -39,42 +45,6 @@ STATEFUL_FILENAME = 'stateful.tgz'
 # How long do we wait for the server to start before launching client
 SERVER_STARTUP_WAIT = 1
 
-UPDATE_RESPONSE = """<?xml version="1.0" encoding="UTF-8"?>
-  <response protocol="3.0">
-    <daystart elapsed_seconds="%(time_elapsed)s"/>
-    <app appid="{%(appid)s}" status="ok">
-      <ping status="ok"/>
-      <updatecheck status="ok">
-        <urls>
-          <url codebase="%(codebase)s/"/>
-        </urls>
-        <manifest version="9999.0.0">
-          <packages>
-            <package hash="%(sha1)s" name="%(filename)s" size="%(size)s"
-                     required="true"/>
-          </packages>
-          <actions>
-            <action event="postinstall"
-              ChromeOSVersion="9999.0.0"
-              sha256="%(sha256)s"
-              needsadmin="false"
-              IsDelta="%(is_delta_format)s"
-              %(extra_attr)s />
-          </actions>
-        </manifest>
-      </updatecheck>
-    </app>
-  </response>
-  """
-NO_UPDATE_RESPONSE = """<?xml version="1.0" encoding="UTF-8"?>
-  <response" protocol="3.0">
-    <daystart elapsed_seconds="%(time_elapsed)s"/>
-    <app appid="{%(appid)s}" status="ok">
-      <ping status="ok"/>
-      <updatecheck status="noupdate"/>
-    </app>
-  </response>
-  """
 
 class Command(object):
   """Shell command ease-ups for Python."""
@@ -351,7 +321,7 @@ class CrosEnv(object):
     self.ssh_cmd.Run('reboot')
     self.Info('Waiting for client to reboot')
     time.sleep(self.REBOOT_START_WAIT)
-    for attempt in range(self.REBOOT_WAIT_TIME/SSHCommand.CONNECT_TIMEOUT):
+    for attempt in range(self.REBOOT_WAIT_TIME / SSHCommand.CONNECT_TIMEOUT):
       start = time.time()
       if self.ssh_cmd.Run('/bin/true'):
         return True
@@ -417,7 +387,7 @@ class FileUpdateResponse(UpdateResponse):
   """Respond by sending the contents of a file."""
 
   def __init__(self, filename, content_type='application/octet-stream',
-               verbose=False, blocksize=16*1024, have_pv=False):
+               verbose=False, blocksize=16 * 1024, have_pv=False):
     self.filename = filename
     self.content_type = content_type
     self.verbose = verbose
@@ -494,96 +464,27 @@ class PingUpdateResponse(StringUpdateResponse):
     PingUpdateResponse.file_sha256 = filesha256
     PingUpdateResponse.file_size = filesize
 
-  def GetCommonResponseValues(self):
-    """Returns a dictionary of default values that'll be substituted in the
-    response irrespective of the protocol version."""
-    response_values = {}
-    response_values['appid'] = '87efface-864d-49a5-9bb3-4b050a7c227a'
-    response_values['time_elapsed'] = self.SecondsSinceMidnight()
-    return response_values
-
-  def GetSubstitutedResponse(self, response_template, response_values):
-    """Substitutes the response template with response_values.
-
-    Args:
-      response_dict: Canned response template
-      response_values: Values to be substituted in the canned template.
-    Returns:
-      Xml string to be passed back to client.
-    Raises:
-      AutoupdateError if required response values are not present.
-    """
-    try:
-      response_xml = response_template % response_values
-      return response_xml
-    except KeyError as e:
-      self.Fatal('Missing response value: %s' % e)
-
-  def GetUpdateResponse(self, sha1, sha256, size, url, is_delta_format):
-    """Returns a response to the client corresponding to a new update.
-
-    Args:
-      sha1: SHA1 hash of update blob
-      sha256: SHA256 hash of update blob
-      size: size of update blob
-      url: where to find update blob
-      is_delta_format: true if url refers to a delta payload
-    Returns:
-      Xml string to be passed back to client.
-    """
-    response_values = self.GetCommonResponseValues()
-    response_values['sha1'] = sha1
-    response_values['sha256'] = sha256
-    response_values['size'] = size
-    response_values['url'] = url
-    (codebase, filename) = os.path.split(url)
-    response_values['codebase'] = codebase
-    response_values['filename'] = filename
-    response_values['is_delta_format'] = is_delta_format
-    response_values['extra_attr'] = ''
-    response_xml = self.GetSubstitutedResponse(UPDATE_RESPONSE,
-                                               response_values)
-    return response_xml
-
-  def GetNoUpdateResponse(self):
-    """Returns a response to the client corresponding to no update."""
-    response_values = self.GetCommonResponseValues()
-    response_xml = self.GetSubstitutedResponse(NO_UPDATE_RESPONSE,
-                                               response_values)
-    return response_xml
-
-
   def Reply(self, handler, send_content=True, post_data=None):
     """Return (using StringResponse) an XML reply to ForcedUpdate clients."""
 
     if not post_data:
       return UpdateResponse.Reply(self, handler)
 
-    root = minidom.parseString(post_data)
-    protocol = root.firstChild.getAttribute('protocol')
-    if (protocol != '3.0'):
-      raise BaseException('You first need to update your device to a build '
-          'that uses Omaha v3 protocol for the update_engine.')
-
-    app = root.firstChild.getElementsByTagName('app')[0]
+    protocol, app, _, _ = autoupdate_lib.ParseUpdateRequest(post_data)
     request_version = app.getAttribute('version')
-
     if request_version == 'ForcedUpdate':
       host, pdict = cgi.parse_header(handler.headers.getheader('Host'))
       url = 'http://%s/%s' % (host, UPDATE_FILENAME)
-      self.string = self.GetUpdateResponse(self.file_hash,
-                                           self.file_sha256,
-                                           self.file_size,
-                                           url,
-                                           False) # is_delta_format
+      self.string = autoupdate_lib.GetUpdateResponse(self.file_hash,
+                                                     self.file_sha256,
+                                                     self.file_size,
+                                                     url,
+                                                     False,
+                                                     protocol)
     else:
-      self.string = (self.GetNoUpdateResponse())
+      self.string = (autoupdate_lib.GetNoUpdateResponse(protocol))
 
     StringUpdateResponse.Reply(self, handler, send_content)
-
-  def SecondsSinceMidnight(self):
-    now = time.localtime()
-    return now[3] * 3600 + now[4] * 60 + now[5]
 
 
 class UpdateHandler(BaseHTTPServer.BaseHTTPRequestHandler):
@@ -649,7 +550,6 @@ class ChildFinished(Exception):
 
 def MakePortList(user_supplied_port):
   range_start = user_supplied_port or 8082
-  port_list = []
   if user_supplied_port is not None:
     range_length = 1
   else:
