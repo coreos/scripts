@@ -147,116 +147,8 @@ EOF
   sudo_multi "${cmds[@]}"
 }
 
-# Checks whether the libc version installed in the board
-# matches the one installed by the toolchain.
-board_needs_libc_update() {
-  local board_version=$(. "${BOARD_SETUP}"; echo "${LIBC_VERSION}")
-  local toolchain_version=$(cross_get_version glibc)
-  if [[ "${board_version}" = "${toolchain_version}" ]]; then
-    return 1
-  fi
-  return 0
-}
-
-# Get the version number of a toolchain package.
-cross_get_version() {
-  local pkg="$1"
-  local toolchain="${2:-${FLAGS_toolchain}}"
-  local cpv=""
-  if [[ "$CHOST" != "${toolchain}" ]]; then
-    if [[  "$pkg" = "gcc" ]]; then
-      # Users can install multiple versions of gcc at once, so we need to call
-      # gcc-config to find out which installed version is selected.
-      local path=$(CTARGET=${toolchain} gcc-config -B || true)
-      cpv=$(portageq owners / $path | sed -e '/^\t/d')
-    else
-      cpv=$(portageq match / cross-${toolchain}/${pkg} || true)
-    fi
-  else
-    if [[ "$pkg" = glibc ]] ; then
-      cpv=$(portageq match / sys-libs/glibc || true)
-    elif [[ "$pkg" = gcc ]] ; then
-      cpv=$(portageq match / sys-devel/gcc || true)
-    else
-      die "Unknown pkg ${pkg}"
-    fi
-  fi
-  local cp=$(echo $cpv | sed -e 's/-r[0-9]*$//; s/-[^-]*$//')
-  local result="${cpv#$cp-}"
-  local count="$(echo $result | wc -w)"
-  if [ "$count" -gt "1" ]; then
-    die "Multiple versions of $pkg installed"
-  elif [ "$count" -lt "1" ]; then
-    die "Cannot find $pkg"
-  fi
-  echo $result
-}
-
-install_toolchain_in_provided() {
-  local gcc_ver="$1"
-  local glibc_ver="$2"
-  # Tell portage that toolchain packages are already installed in the sysroot.
-  (
-    echo sys-devel/gcc-$gcc_ver
-    echo sys-libs/glibc-$glibc_ver
-  ) | sudo_clobber "$BOARD_PROFILE/package.provided"
-}
-
-# Install all of the stuff that depends on the toolchain versions
-# into the board root.
-install_toolchain_in_board() {
-  local cmds
-  local gcc_ver=$(cross_get_version gcc)
-  local libc_ver=$(cross_get_version glibc)
-  if [[ -z ${gcc_ver} || -z ${libc_ver} ]]; then
-    die "Cannot find toolchain to install into board root"
-  fi
-  echo "Installing the toolchain into the board root."
-  # Untar glibc to get most of the headers required to build.
-  LIBC_TAR="glibc-${libc_ver}.tbz2"
-
-  # Install libc libraries.
-  if [ "${CHOST}" != "$FLAGS_toolchain" ] ; then
-    LIBC_PATH="${PKGDIR}/cross-${FLAGS_toolchain}/${LIBC_TAR}"
-    sudo tar jxpf "${LIBC_PATH}" -C "${BOARD_ROOT}" ./usr/${FLAGS_toolchain} --strip-components=3
-    sudo mkdir -p ${BOARD_ROOT}/usr/lib/debug
-    sudo tar jxpf "${LIBC_PATH}" -C "${BOARD_ROOT}/usr/lib/debug" ./usr/lib/debug/usr/${FLAGS_toolchain} --strip-components=6 || warn "libc debug info not copied."
-    GCC_PKG=cross-${FLAGS_toolchain}/gcc-$gcc_ver
-
-    # TODO(asharif): Remove this hack after a while.
-    BOARD_GCC_DIR="${BOARD_ROOT}/usr/lib/gcc"
-    if [[ -L "${BOARD_GCC_DIR}" ]] ; then
-      sudo rm -f "${BOARD_GCC_DIR}"
-    fi
-    copy_gcc_libs "${BOARD_ROOT}" "cross-$FLAGS_toolchain/gcc-$gcc_ver"
-  else
-    cmds=(
-      "mkdir -p '${BOARD_ROOT}'{/usr,}/lib64 '${BOARD_ROOT}/usr/lib/debug'"
-      "ln -sfT '${BOARD_ROOT}/usr/lib64' '${BOARD_ROOT}/usr/lib'"
-      "ln -sfT '${BOARD_ROOT}/lib64' '${BOARD_ROOT}/lib'"
-    )
-    sudo_multi "${cmds[@]}"
-    LIBC_PATH="${PKGDIR}/sys-libs/${LIBC_TAR}"
-    sudo emerge --oneshot --nodeps -k --root=${BOARD_ROOT} =sys-libs/glibc-${libc_ver}
-    # TODO: we have no debug
-    GCC_PKG=sys-devel/gcc-$gcc_ver
-  fi
-
-  # Some header files are needed also for rpcbind (NFS support)
-  # TODO: Figure out a better way of doing this too?
-  cmds=(
-    "cp -a /usr/include/rpcsvc/mount.h '${BOARD_ROOT}/usr/include/rpcsvc'"
-    "cp -a /usr/include/rpcsvc/rquota.h '${BOARD_ROOT}/usr/include/rpcsvc'"
-    "cp -a /usr/include/rpcsvc/nfs_prot.h '${BOARD_ROOT}/usr/include/rpcsvc'"
-    "cp -a /usr/include/rpcsvc/yppasswd.h '${BOARD_ROOT}/usr/include/rpcsvc'"
-  )
-  sudo_multi "${cmds[@]}"
-
-  install_toolchain_in_provided "$gcc_ver" "$libc_ver"
-
-  # Configure new libc version in make.conf.board_setup.
-  sudo sed -i -e "/^LIBC_VERSION=/d" $BOARD_SETUP
-  echo "LIBC_VERSION=\"$libc_ver\"" | sudo_append $BOARD_SETUP
+install_toolchain() {
+  "${GCLIENT_ROOT}/src/scripts/install_toolchain" --board="${BOARD_VARIANT}"
 }
 
 # Print contents of $BOARD_ETC/make.conf.board. This file sources make.conf
@@ -456,11 +348,8 @@ if [ -d "${BOARD_ROOT}" ]; then
       warn "Not setting up board root. "
       warn "Use --force to clobber the board root and start again."
     fi
-    if board_needs_libc_update; then
-      # Update the users libc in their board if needed.
-      echo "Updating libc in the board."
-      install_toolchain_in_board
-    fi
+    # Update the users libc in their board if needed.
+    install_toolchain
     exit 0
   fi
 else
@@ -519,7 +408,7 @@ if ! ${HOST_BOARD}; then
   # We install the toolchain related bits after the BOARD_ROOT, BOARD_PROFILE
   # and BOARD_ETC directories have been created.
   if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
-    install_toolchain_in_board
+    install_toolchain
   fi
 fi
 # Setup make.globals and the profile.
