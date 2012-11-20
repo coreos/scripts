@@ -22,6 +22,8 @@ DEFINE_string usb_disk /dev/sdb3 \
   "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
 DEFINE_string boot_args "" \
   "Additional boot arguments to pass to the commandline (Default: '')"
+DEFINE_boolean enable_bootcache ${FLAGS_FALSE} \
+  "Default all bootloaders to NOT use boot cache."
 DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
   "Controls if verity is used for root filesystem checking (Default: false)"
 DEFINE_integer verity_error_behavior 3 \
@@ -36,9 +38,14 @@ eval set -- "${FLAGS_ARGV}"
 switch_to_strict_mode
 
 # Only let dm-verity block if rootfs verification is configured.
+# Also, set which device mapper correspondes to verity
 dev_wait=0
+ROOTDEV=/dev/dm-0
 if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
   dev_wait=1
+  if [[ ${FLAGS_enable_bootcache} -eq ${FLAGS_TRUE} ]]; then
+    ROOTDEV=/dev/dm-1
+  fi
 fi
 
 # Common kernel command-line args
@@ -104,7 +111,8 @@ label chromeos-usb.A
 label chromeos-vusb.A
   menu label chromeos-vusb.A
   kernel vmlinuz.A
-  append ${common_args} ${verity_common} root=/dev/dm-0 i915.modeset=1 cros_legacy dm="DMTABLEA"
+  append ${common_args} ${verity_common} root=${ROOTDEV} \
+      i915.modeset=1 cros_legacy dm="DMTABLEA"
 EOF
   info "Emitted ${SYSLINUX_DIR}/usb.A.cfg"
 
@@ -120,7 +128,8 @@ label chromeos-hd.A
 label chromeos-vhd.A
   menu label chromeos-vhd.A
   kernel vmlinuz.A
-  append ${common_args} ${verity_common} root=/dev/dm-0 i915.modeset=1 cros_legacy dm="DMTABLEA"
+  append ${common_args} ${verity_common} root=${ROOTDEV} \
+      i915.modeset=1 cros_legacy dm="DMTABLEA"
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.A.cfg"
 
@@ -133,7 +142,8 @@ label chromeos-hd.B
 label chromeos-vhd.B
   menu label chromeos-vhd.B
   kernel vmlinuz.B
-  append ${common_args} ${verity_common} root=/dev/dm-0 i915.modeset=1 cros_legacy dm="DMTABLEB"
+  append ${common_args} ${verity_common} root=${ROOTDEV} \
+      i915.modeset=1 cros_legacy dm="DMTABLEB"
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.B.cfg"
 
@@ -175,11 +185,13 @@ menuentry "local image B" {
 }
 
 menuentry "verified image A" {
-  linux \$grubpartA/boot/vmlinuz ${common_args} ${verity_common} i915.modeset=1 cros_efi root=/dev/dm-0 dm=\\"DMTABLEA\\"
+  linux \$grubpartA/boot/vmlinuz ${common_args} ${verity_common} \
+      i915.modeset=1 cros_efi root=${ROOTDEV} dm=\\"DMTABLEA\\"
 }
 
 menuentry "verified image B" {
-  linux \$grubpartB/boot/vmlinuz ${common_args} ${verity_common} i915.modeset=1 cros_efi root=/dev/dm-0 dm=\\"DMTABLEB\\"
+  linux \$grubpartB/boot/vmlinuz ${common_args} ${verity_common} \
+      i915.modeset=1 cros_efi root=${ROOTDEV} dm=\\"DMTABLEB\\"
 }
 
 # FIXME: usb doesn't support verified boot for now

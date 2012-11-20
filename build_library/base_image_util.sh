@@ -47,6 +47,7 @@ zero_free_space() {
 create_base_image() {
   local image_name=$1
   local rootfs_verification_enabled=$2
+  local bootcache_enabled=$3
   local image_type="usb"
 
   if [[ "${FLAGS_disk_layout}" != "default" ]]; then
@@ -223,15 +224,20 @@ create_base_image() {
   # not support verified boot yet (see create_legacy_bootloader_templates.sh)
   # so rootfs verification is disabled if we are building with --factory_install
   local enable_rootfs_verification=
-  if [[ ${rootfs_verification_enabled} -eq 1 ]]; then
-  enable_rootfs_verification="--enable_rootfs_verification"
+  if [[ ${rootfs_verification_enabled} -eq ${FLAGS_TRUE} ]]; then
+    enable_rootfs_verification="--enable_rootfs_verification"
+  fi
+  local enable_bootcache=
+  if [[ ${bootcache_enabled} -eq ${FLAGS_TRUE} ]]; then
+    enable_bootcache="--enable_bootcache"
   fi
 
   ${BUILD_LIBRARY_DIR}/create_legacy_bootloader_templates.sh \
     --arch=${ARCH} \
     --to="${root_fs_dir}"/boot \
     --boot_args="${FLAGS_boot_args}" \
-      ${enable_rootfs_verification}
+      ${enable_rootfs_verification} \
+      ${enable_bootcache}
 
   # Don't test the factory install shim
   if ! should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then

@@ -99,8 +99,12 @@ DEFINE_integer rootfs_hash_pad 8 \
 
 DEFINE_string rootfs_hash "/tmp/rootfs.hash" \
   "Path where the rootfs hash should be stored."
+# TODO(taysom): when we turn on boot cache, both verification and
+# bootcache should have their default be FLAGS_TRUE.
 DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
-  "Default all bootloaders to use kernel-based root fs integrity checking."
+  "Default all bootloaders to NOT use kernel-based root fs integrity checking."
+DEFINE_boolean enable_bootcache ${FLAGS_FALSE} \
+  "Default all bootloaders to NOT use bootcache."
 DEFINE_integer verity_error_behavior 3 \
   "Kernel verified boot error behavior (0: I/O errors, 1: reboot, 2: nothing)"
 DEFINE_integer verity_max_ios -1 \
@@ -173,6 +177,10 @@ make_image_bootable() {
   if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
     enable_rootfs_verification_flag=--enable_rootfs_verification
   fi
+  local enable_bootcache_flag=--noenable_bootcache
+  if [[ ${FLAGS_enable_bootcache} -eq ${FLAGS_TRUE} ]]; then
+    enable_bootcache_flag=--enable_bootcache
+  fi
 
   trap "mount_gpt_cleanup" EXIT
   "${SCRIPTS_DIR}/mount_gpt_image.sh" --from "$(dirname "${image}")" \
@@ -233,6 +241,7 @@ make_image_bootable() {
     --verity_salt=${FLAGS_verity_salt} \
     --keys_dir="${FLAGS_keys_dir}" \
     ${enable_rootfs_verification_flag} \
+    ${enable_bootcache_flag} \
     ${use_dev_keys}
 
   # Check the size of kernel image and issue warning when image size is

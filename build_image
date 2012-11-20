@@ -19,6 +19,8 @@ DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
 DEFINE_string boot_args "noinitrd" \
   "Additional boot arguments to pass to the commandline"
+DEFINE_boolean enable_bootcache ${FLAGS_FALSE} \
+  "Default all bootloaders to NOT use boot cache."
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
@@ -29,6 +31,14 @@ DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
   "Install standard backdoor credentials for testing"
 DEFINE_string usb_disk /dev/sdb3 \
   "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
+
+FLAGS_bootcache_use_board_default=${FLAGS_TRUE}
+case " $* " in
+  *" --enable_bootcache "*|\
+  *" --noenable_bootcache "*)
+    FLAGS_bootcache_use_board_default=${FLAGS_FALSE}
+    ;;
+esac
 
 FLAGS_HELP="USAGE: build_image [flags] [list of images to build].
 This script is used to build a Chromium OS image. Chromium OS comes in many
@@ -175,7 +185,8 @@ fi
 mkdir -p "${BUILD_DIR}"
 
 # Create the base image.
-create_base_image ${PRISTINE_IMAGE_NAME}
+create_base_image ${PRISTINE_IMAGE_NAME} ${FLAGS_enable_rootfs_verification} \
+  ${FLAGS_enable_bootcache}
 
 # Running board-specific setup if any exists.
 if type board_setup &>/dev/null; then
