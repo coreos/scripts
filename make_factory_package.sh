@@ -1,1 +1,1 @@
-../platform/factory-utils/factory_setup/make_factory_package.sh
+../platform/factory/setup/make_factory_package.sh
