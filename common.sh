@@ -421,6 +421,16 @@ setup_board_warning() {
   echo
 }
 
+is_nfs() {
+  [ "$(stat -f -L -c %T "$1")" = "nfs" ]
+}
+
+warn_if_nfs() {
+  if is_nfs "$1"; then
+    warn "$1 is on NFS. This is unsupported."
+  fi
+}
+
 # Enter a chroot and restart the current script if needed
 restart_in_chroot_if_needed() {
   # NB:  Pass in ARGV:  restart_in_chroot_if_needed "$@"
@@ -544,6 +554,13 @@ sudo_multi() {
 # $@ - The output file names.
 user_clobber() {
   install -m644 -o ${SUDO_UID} -g ${SUDO_GID} /dev/stdin "$@"
+}
+
+# Copies the specified file owned by the user to the specified location.
+# If the copy fails as root (e.g. due to root_squash and NFS), retry the copy
+# with the user's account before failing.
+user_cp() {
+  cp -p "$@" 2>/dev/null || sudo -u ${SUDO_USER} -- cp -p "$@"
 }
 
 # Appends stdin to the given file name as the sudo user.

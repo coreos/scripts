@@ -301,7 +301,7 @@ EOF
      # Copy .gitconfig into chroot so repo and git can be used from inside.
      # This is required for repo to work since it validates the email address.
      echo "Copying ~/.gitconfig into chroot"
-     cp -p "${SUDO_HOME}/.gitconfig" "$FLAGS_chroot/home/${SUDO_USER}/"
+     user_cp "${SUDO_HOME}/.gitconfig" "$FLAGS_chroot/home/${SUDO_USER}/"
    fi
 
    # If the user didn't set up their username in their gitconfig, look
@@ -513,3 +513,5 @@ delete the chroot cleanly, use:
 $ cros_sdk --delete $CHROOT_EXAMPLE_OPT
 
 EOF
+
+warn_if_nfs "${SUDO_HOME}"

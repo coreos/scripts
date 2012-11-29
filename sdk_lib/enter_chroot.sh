@@ -139,7 +139,7 @@ copy_ssh_config() {
   local filter
   local option
 
-  if [ ! -f "${sshc}" ]; then
+  if ! user_cp "${sshc}" "${chroot_ssh_dir}/config.orig" 2>/dev/null; then
     return # Nothing to copy.
   fi
 
@@ -152,7 +152,7 @@ copy_ssh_config() {
     fi
   done
 
-  sed "/^.*\(${filter}\).*$/d" "${sshc}" | \
+  sed "/^.*\(${filter}\).*$/d" "${chroot_ssh_dir}/config.orig" | \
     user_clobber "${chroot_ssh_dir}/config"
 }
 
@@ -285,9 +285,15 @@ setup_env() {
       if [ -n "${SSH_AUTH_SOCK}" -a -d "${SUDO_HOME}/.ssh" ]; then
         TARGET_DIR="${FLAGS_chroot}/home/${SUDO_USER}/.ssh"
         user_mkdir "${TARGET_DIR}"
-        # Ignore errors as some people won't have these files to copy.
-        cp -p "${SUDO_HOME}"/.ssh/{known_hosts,*.pub} "${TARGET_DIR}/" \
-          2>/dev/null || :
+        (
+          # Only copy ~/.ssh/{known_hosts,*.pub} if they exist. Since we set
+          # nullglob, this needs to happen within a subshell.
+          shopt -s nullglob
+          files=("${SUDO_HOME}"/.ssh/{known_hosts,*.pub})
+          if [[ ${#files[@]} -gt 0 ]]; then
+            user_cp "${files[@]}" "${TARGET_DIR}/"
+          fi
+        )
         copy_ssh_config "${TARGET_DIR}"
         chown -R ${SUDO_UID}:${SUDO_GID} "${TARGET_DIR}"
 
