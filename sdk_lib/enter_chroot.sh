@@ -282,6 +282,9 @@ setup_env() {
     fi
 
     if [ $FLAGS_ssh_agent -eq $FLAGS_TRUE ]; then
+      # Clean up previous ssh agents.
+      rmdir "${FLAGS_chroot}"/tmp/ssh-* 2>/dev/null
+
       if [ -n "${SSH_AUTH_SOCK}" -a -d "${SUDO_HOME}/.ssh" ]; then
         TARGET_DIR="${FLAGS_chroot}/home/${SUDO_USER}/.ssh"
         user_mkdir "${TARGET_DIR}"
