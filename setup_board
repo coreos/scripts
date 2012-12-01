@@ -106,9 +106,7 @@ generate_all_wrappers() {
   sudo_clobber "${wrapper}" <<EOF
 #!/bin/bash
 
-PKG_CONFIG_LIBDIR="${BOARD_ROOT}/usr/lib/pkgconfig:\
-${BOARD_ROOT}/usr/lib64/pkgconfig:\
-${BOARD_ROOT}/usr/share/pkgconfig"
+PKG_CONFIG_LIBDIR=\$(printf '%s:' "${BOARD_ROOT}"/usr/*/pkgconfig)
 export PKG_CONFIG_LIBDIR
 
 export PKG_CONFIG_SYSROOT_DIR="${BOARD_ROOT}"
