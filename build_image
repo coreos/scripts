@@ -32,14 +32,6 @@ DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
 DEFINE_string usb_disk /dev/sdb3 \
   "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
 
-FLAGS_bootcache_use_board_default=${FLAGS_TRUE}
-case " $* " in
-  *" --enable_bootcache "*|\
-  *" --noenable_bootcache "*)
-    FLAGS_bootcache_use_board_default=${FLAGS_FALSE}
-    ;;
-esac
-
 FLAGS_HELP="USAGE: build_image [flags] [list of images to build].
 This script is used to build a Chromium OS image. Chromium OS comes in many
 different forms.  This scripts can be used to build the following:
@@ -77,6 +69,19 @@ DEFINE_string version "" \
 
 # Parse command line.
 FLAGS "$@" || exit 1
+
+# See if we want to default the bootcache flag before we clobber
+# the user's command line.  We want to default to false if the
+# user explicitly disabled rootfs verification otherwise they
+# have to manually specify both.
+FLAGS_bootcache_use_board_default=${FLAGS_enable_rootfs_verification}
+case " $* " in
+  *" --enable_bootcache "*|\
+  *" --noenable_bootcache "*)
+    FLAGS_bootcache_use_board_default=${FLAGS_FALSE}
+    ;;
+esac
+
 eval set -- "${FLAGS_ARGV}"
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
