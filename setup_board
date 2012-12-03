@@ -389,6 +389,11 @@ cmds+=(
 )
 sudo_multi "${cmds[@]}"
 
+SAVED_VERSION=
+if [[ ${FLAGS_regen_configs} -eq ${FLAGS_TRUE} ]]; then
+  SAVED_VERSION=$(grep -s ^LIBC_VERSION= ${BOARD_SETUP} || true)
+fi
+
 sudo_clobber "${BOARD_SETUP}" <<EOF
 # Created by setup_board
 CHOST="${FLAGS_toolchain}"
@@ -397,7 +402,9 @@ BOARD_OVERLAY="${BOARD_OVERLAY_LIST}"
 MAKEOPTS="-j${NUM_JOBS}"
 PKG_CONFIG="pkg-config-${BOARD_VARIANT}"
 BOARD_USE="${BOARD_VARIANT}"
+${SAVED_VERSION}
 EOF
+
 if ! ${HOST_BOARD}; then
   sudo ln -sf "${CHROMIUMOS_CONFIG}/make.conf.${ARCH}-target" \
     "${BOARD_ETC}/make.conf"
@@ -508,12 +515,6 @@ else
       sys-kernel/linux-headers
 
     unset KERNEL_EMERGE_FLAGS
-  else
-    # Since we clobbered this file earlier, make sure the libc version
-    # is set correctly otherwise future upgrades will wrongly trigger.
-    sudo_append "${BOARD_SETUP}" <<EOF
-LIBC_VERSION="$(cross_get_version glibc)"
-EOF
   fi
 fi
 
