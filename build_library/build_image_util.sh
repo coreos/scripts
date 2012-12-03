@@ -85,7 +85,10 @@ parse_build_image_args() {
         "image."
   fi
   if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
+    # For factory, force rootfs verification and bootcache off
     FLAGS_enable_rootfs_verification=${FLAGS_FALSE}
+    FLAGS_enable_bootcache=${FLAGS_FALSE}
+    FLAGS_bootcache_use_board_default=${FLAGS_FALSE}
   fi
 }
 
