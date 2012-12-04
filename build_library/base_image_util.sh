@@ -177,21 +177,6 @@ create_base_image() {
     'usr/include' 'sys-include'
     # Link-time objects.
     '*.[ao]'
-    # Link-time symlinks & linker scripts.
-    'usr/lib*/lib*.so'
-    # We mount /var manually so this gets thrown away.
-    'var'
-    # Debug commands not used by normal runtime code.
-    'usr/bin/'{getent,ldd}
-    # LD_PRELOAD objects for debugging.
-    'lib*/lib'{memusage,pcprofile,SegFault}.so 'usr/lib*/audit'
-    # Libraries used for translating between charsets -- but we use libicu
-    # in Chromium, so there's no need for these.  http://crosbug.com/23105
-    'usr/*/gconv'
-    # We only use files & dns with nsswitch, so throw away the others.
-    'lib*/libnss_'{compat,db,hesiod,nis,nisplus}'*.so*'
-    # This is only for very old packages which we don't have.
-    'lib*/libBrokenLocale*.so*'
   )
   pbzip2 -dc --ignore-trailing-garbage=1 "${LIBC_PATH}" | \
     sudo tar xpf - -C "${root_fs_dir}" ./usr/${CHOST} \

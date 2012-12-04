@@ -60,8 +60,12 @@ install_dev_packages() {
   # Leave core files for developers to inspect.
   sudo touch "${root_fs_dir}/root/.leave_core"
 
-  # Release images do not include these, so install it for dev images.
-  sudo cp -a "${BOARD_ROOT}"/usr/bin/{getent,ldd} "${root_fs_dir}/usr/bin/"
+  # This hack is only needed for devs who have old versions of glibc, which
+  # filtered out ldd when cross-compiling.  TODO(davidjames): Remove this hack
+  # once everybody has upgraded to a new version of glibc.
+  if [[ ! -x "${root_fs_dir}/usr/bin/ldd" ]]; then
+    sudo cp -a "$(which ldd)" "${root_fs_dir}/usr/bin"
+  fi
 
   # If vim is installed, then a vi symlink would probably help.
   if [[ -x "${root_fs_dir}/usr/local/bin/vim" ]]; then
