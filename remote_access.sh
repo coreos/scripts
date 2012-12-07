@@ -44,12 +44,36 @@ remote_cp_to() {
   return ${PIPESTATUS[0]}
 }
 
+# Raw rsync access to the remote
+# Use like: remote_rsync_raw -a /path/from/ root@${FLAGS_remote}:/path/to/
+remote_rsync_raw() {
+  rsync -e "ssh -p ${FLAGS_ssh_port} $(ssh_connect_settings) \
+               -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY" \
+               "$@"
+}
+
 # Copies a list of remote files specified in file $1 to local location
 # $2.  Directory paths in $1 are collapsed into $2.
 remote_rsync_from() {
-  rsync -e "ssh -p ${FLAGS_ssh_port} $(ssh_connect_settings) \
-             -o UserKnownHostsFile=$TMP_KNOWN_HOSTS -i $TMP_PRIVATE_KEY" \
-    --no-R --files-from=$1 root@${FLAGS_remote}:/ $2
+  remote_rsync_raw --no-R --files-from="$1" root@${FLAGS_remote}:/ "$2"
+}
+
+# Send a directory from $1 to $2 on remote host
+#
+# Tries to use rsync -a but will fall back to tar if the remote doesn't
+# have rsync.
+#
+# Use like: remote_send_to /build/board/lib/modules/ /lib/modules/
+remote_send_to() {
+  if [ ! -d "$1" ]; then
+    die "$1 must be a directory"
+  fi
+
+  if remote_sh rsync --version >/dev/null 2>&1; then
+    remote_rsync_raw -a "$1/" root@${FLAGS_remote}:"$2/"
+  else
+    tar -C "$1" -cz . | remote_sh tar -C "$2" -xz
+  fi
 }
 
 _remote_sh() {
