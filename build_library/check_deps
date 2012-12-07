@@ -10,7 +10,7 @@ import sys
 import glob
 
 _SHARED_RE = re.compile(r"Shared library: \[([^\]]+)\]")
-_RPATH_RE = re.compile(r"Library rpath: \[([^\]]+)\]")
+_RPATH_RE = re.compile(r"Library r(?:un)?path: \[([^\]]+)\]")
 
 
 class CheckDependencies(object):
