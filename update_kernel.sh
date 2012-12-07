@@ -130,14 +130,9 @@ main() {
   fi
 
   if [[ ${REMOTE_VERITY} -eq ${FLAGS_FALSE} ]]; then
-    tar -C /build/"${FLAGS_board}"/lib/modules -cjf $TMP/new_modules.tar .
-    tar -C /build/"${FLAGS_board}"/lib/firmware -cjf $TMP/new_firmware.tar .
-    tar -C /build/"${FLAGS_board}"/boot -cjf $TMP/new_boot.tar .
-
     remote_sh mount -o remount,rw /
     echo "copying kernel"
-    remote_cp_to $TMP/new_boot.tar /tmp/
-    remote_sh tar -C /boot -xjf /tmp/new_boot.tar
+    remote_send_to /build/"${FLAGS_board}"/boot/ /boot/
 
     # ARM does not have the syslinux directory, so skip it when the
     # partition or the syslinux vmlinuz target is missing.
@@ -159,12 +154,10 @@ main() {
     fi
 
     echo "copying modules"
-    remote_cp_to $TMP/new_modules.tar /tmp/
-    remote_sh tar -C /lib/modules -xjf /tmp/new_modules.tar
+    remote_send_to /build/"${FLAGS_board}"/lib/modules/ /lib/modules/
 
     echo "copying firmware"
-    remote_cp_to $TMP/new_firmware.tar /tmp/
-    remote_sh tar -C /lib/firmware -xjf /tmp/new_firmware.tar
+    remote_send_to /build/"${FLAGS_board}"/lib/firmware/ /lib/firmware/
   fi
 
   if [ ${FLAGS_vboot} -eq ${FLAGS_TRUE} ]; then
