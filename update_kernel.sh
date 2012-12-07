@@ -18,6 +18,7 @@ DEFINE_string device "" "Override boot device reported by target"
 DEFINE_string partition "" "Override kernel partition reported by target"
 DEFINE_string arch "" "Override architecture reported by target"
 DEFINE_boolean reboot $FLAGS_TRUE "Reboot system after update"
+DEFINE_boolean vboot $FLAGS_TRUE "Update the vboot kernel"
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -59,7 +60,12 @@ learn_partition_and_ro() {
   if [ -z "${FLAGS_partition}" ]; then
     die "Partition required"
   fi
-  info "Target reports kernel partition is ${FLAGS_partition}"
+  if [ ${REMOTE_VERITY} -eq ${FLAGS_TRUE} ]; then
+    info "Target reports kernel partition is ${FLAGS_partition}"
+    if [ ${FLAGS_vboot} -eq ${FLAGS_FALSE} ]; then
+      die "Must update vboot when target is using verity"
+    fi
+  fi
 }
 
 make_kernelimage() {
@@ -119,7 +125,9 @@ main() {
 
   check_kernelbuildtime
 
-  make_kernelimage
+  if [ ${FLAGS_vboot} -eq ${FLAGS_TRUE} ]; then
+    make_kernelimage
+  fi
 
   if [[ ${REMOTE_VERITY} -eq ${FLAGS_FALSE} ]]; then
     tar -C /build/"${FLAGS_board}"/lib/modules -cjf $TMP/new_modules.tar .
@@ -159,9 +167,12 @@ main() {
     remote_sh tar -C /lib/firmware -xjf /tmp/new_firmware.tar
   fi
 
-  echo "copying kernel image"
-
-  copy_kernelimage
+  if [ ${FLAGS_vboot} -eq ${FLAGS_TRUE} ]; then
+    info "Copying vboot kernel image"
+    copy_kernelimage
+  else
+    info "Skipping update of vboot (per request)"
+  fi
 
   # An early kernel panic can prevent the normal sync on reboot.  Explicitly
   # sync for safety to avoid random file system corruption.
