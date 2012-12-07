@@ -85,12 +85,7 @@ make_kernelimage() {
 }
 
 copy_kernelimage() {
-  if [ "${FLAGS_arch}" == "arm" -a ${REMOTE_VERITY} -eq ${FLAGS_FALSE} ]; then
-    remote_cp_to /build/${FLAGS_board}/boot/vmlinux.uimg /boot
-  fi
-
   remote_cp_to $TMP/new_kern.bin /tmp
-
   remote_sh dd if=/tmp/new_kern.bin of="${FLAGS_partition}"
 }
 
