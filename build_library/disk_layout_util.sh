@@ -223,60 +223,76 @@ build_gpt() {
 # Used by dev/host/tests/mod_recovery_for_decryption.sh and
 # mod_image_for_recovery.sh.
 update_partition_table() {
-  local src_img=$1          # source image
-  local temp_state=$2       # stateful partition image
-  local resized_sectors=$3  # number of sectors in resized stateful partition
-  local temp_img=$4
+  local src_img=$1              # source image
+  local src_state=$2            # stateful partition image
+  local dst_stateful_blocks=$3  # number of blocks in resized stateful partition
+  local dst_img=$4
 
-  local temp_pmbr=$(mktemp "/tmp/pmbr.XXXXXX")
-  dd if="${src_img}" of="${temp_pmbr}" bs=512 count=1 &>/dev/null
-  trap "rm -rf \"${temp_pmbr}\"" EXIT
+  rm -f "${dst_img}"
 
-  local stateful_bytes=$(( resized_sectors * 512 ))
+  # Calculate change in image size.
+  local src_stateful_blocks=$(cgpt show -i 1 -s ${src_img})
+  local delta_blocks=$(( dst_stateful_blocks - src_stateful_blocks ))
+  local dst_stateful_bytes=$(( dst_stateful_blocks * 512 ))
+  local src_stateful_bytes=$(( src_stateful_blocks * 512 ))
+  local src_size=$(stat -c %s ${src_img})
+  local dst_size=$(( src_size - src_stateful_bytes + dst_stateful_bytes ))
+  truncate -s ${dst_size} ${dst_img}
 
-  # Set up a new partition table
-  rm -f "${temp_img}"
-  PARTITION_SCRIPT_PATH=$( tempfile )
-  FLAGS_adjust_part="STATE:=${stateful_bytes}"
-  write_partition_script "recovery" "${PARTITION_SCRIPT_PATH}"
-  . "${PARTITION_SCRIPT_PATH}"
-  write_partition_table "${temp_img}" "${temp_pmbr}"
-  echo "${PARTITION_SCRIPT_PATH}"
+  # Copy MBR, initialize GPT.
+  dd if="${src_img}" of="${dst_img}" conv=notrunc bs=512 count=1
+  cgpt create ${dst_img}
 
-  local kern_a_dst_offset=$(partoffset ${temp_img} 2)
-  local kern_a_src_offset=$(partoffset ${src_img} 2)
-  local kern_a_count=$(partsize ${src_img} 2)
+  # Find partition number of STATE (really should always be "1")
+  local part=0
+  local label=""
+  while [ "${label}" != "STATE" ]; do
+    part=$(( part + 1 ))
+    local label=$(cgpt show -i ${part} -l ${src_img})
+    local src_start=$(cgpt show -i ${part} -b ${src_img})
+    if [ ${src_start} -eq 0 ]; then
+      echo "Could not find 'STATE' partition" >&2
+      return 1
+    fi
+  done
+  local src_state_start=$(cgpt show -i ${part} -b ${src_img})
 
-  local kern_b_dst_offset=$(partoffset ${temp_img} 4)
-  local kern_b_src_offset=$(partoffset ${src_img} 4)
-  local kern_b_count=$(partsize ${src_img} 4)
-
-  local rootfs_dst_offset=$(partoffset ${temp_img} 3)
-  local rootfs_src_offset=$(partoffset ${src_img} 3)
-  local rootfs_count=$(partsize ${src_img} 3)
-
-  local oem_dst_offset=$(partoffset ${temp_img} 8)
-  local oem_src_offset=$(partoffset ${src_img} 8)
-  local oem_count=$(partsize ${src_img} 8)
-
-  local esp_dst_offset=$(partoffset ${temp_img} 12)
-  local esp_src_offset=$(partoffset ${src_img} 12)
-  local esp_count=$(partsize ${src_img} 12)
-
-  local state_dst_offset=$(partoffset ${temp_img} 1)
-
-  # Copy into the partition parts of the file
-  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
-    seek=${rootfs_dst_offset} skip=${rootfs_src_offset} count=${rootfs_count}
-  dd if="${temp_state}" of="${temp_img}" conv=notrunc bs=512 \
-    seek=${state_dst_offset}
-  # Copy the full kernel (i.e. with vboot sections)
-  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
-    seek=${kern_a_dst_offset} skip=${kern_a_src_offset} count=${kern_a_count}
-  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
-    seek=${kern_b_dst_offset} skip=${kern_b_src_offset} count=${kern_b_count}
-  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
-    seek=${oem_dst_offset} skip=${oem_src_offset} count=${oem_count}
-  dd if="${src_img}" of="${temp_img}" conv=notrunc bs=512 \
-    seek=${esp_dst_offset} skip=${esp_src_offset} count=${esp_count}
+  # Duplicate each partition entry.
+  part=0
+  while :; do
+    part=$(( part + 1 ))
+    local src_start=$(cgpt show -i ${part} -b ${src_img})
+    if [ ${src_start} -eq 0 ]; then
+      # No more partitions to copy.
+      break
+    fi
+    local dst_start=${src_start}
+    # Load source partition details.
+    local size=$(cgpt show -i ${part} -s ${src_img})
+    local label=$(cgpt show -i ${part} -l ${src_img})
+    local attr=$(cgpt show -i ${part} -A ${src_img})
+    local tguid=$(cgpt show -i ${part} -t ${src_img})
+    local uguid=$(cgpt show -i ${part} -u ${src_img})
+    # Change size of stateful.
+    if [ "${label}" = "STATE" ]; then
+      size=${dst_stateful_blocks}
+    fi
+    # Partitions located after STATE need to have their start moved.
+    if [ ${src_start} -gt ${src_state_start} ]; then
+      dst_start=$(( dst_start + delta_blocks ))
+    fi
+    # Add this partition to the destination.
+    cgpt add -i ${part} -b ${dst_start} -s ${size} -l "${label}" -A ${attr} \
+             -t ${tguid} -u ${uguid} ${dst_img}
+    if [ "${label}" != "STATE" ]; then
+      # Copy source partition as-is.
+      dd if="${src_img}" of="${dst_img}" conv=notrunc bs=512 \
+        skip=${src_start} seek=${dst_start} count=${size}
+    else
+      # Copy new stateful partition into place.
+      dd if="${src_state}" of="${dst_img}" conv=notrunc bs=512 \
+        seek=${dst_start}
+    fi
+  done
+  return 0
 }
