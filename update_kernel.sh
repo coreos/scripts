@@ -57,8 +57,7 @@ learn_partition_and_ro() {
     FLAGS_partition="${FLAGS_device}4"
   fi
   if [ -z "${FLAGS_partition}" ]; then
-    error "Partition required"
-    exit 1
+    die "Partition required"
   fi
   info "Target reports kernel partition is ${FLAGS_partition}"
 }
@@ -168,7 +167,7 @@ main() {
   # sync for safety to avoid random file system corruption.
   remote_sh sync
 
-  if [ "${FLAGS_reboot}" -eq ${FLAGS_TRUE} ]; then
+  if [ ${FLAGS_reboot} -eq ${FLAGS_TRUE} ]; then
     echo "rebooting"
 
     remote_reboot
