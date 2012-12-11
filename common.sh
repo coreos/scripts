@@ -392,19 +392,22 @@ FACTORY_SHIM_INSTALL_MASK="
   /opt/google/talkplugin
   /usr/lib/dri
   /usr/lib/python2.6/test
+  /usr/lib64/dri
   /usr/local/autotest-pkgs
   /usr/share/X11
   /usr/share/chewing
+  /usr/share/chromeos-assets
   /usr/share/fonts
   /usr/share/ibus-pinyin
   /usr/share/libhangul
   /usr/share/locale
   /usr/share/m17n
   /usr/share/mime
+  /usr/share/oem
+  /usr/share/pyzy
   /usr/share/sounds
   /usr/share/tts
   /usr/share/zoneinfo
-  /usr/share/oem
   "
 
 # -----------------------------------------------------------------------------
