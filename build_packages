@@ -124,7 +124,7 @@ if [[ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
 else
   EMERGE_CMD=( "emerge-${FLAGS_board}" )
 fi
-if [ "${FLAGS_fetchonly}" -eq "${FLAGS_TRUE}" ]; then
+if [[ "${FLAGS_fetchonly}" -eq "${FLAGS_TRUE}" ]]; then
   EMERGE_CMD+=( --fetchonly )
 fi
 
