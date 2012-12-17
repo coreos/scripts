@@ -42,6 +42,8 @@ show_help_if_requested "$@"
 # The following options are advanced options, only available to those willing
 # to read the source code. They are not shown in help output, since they are
 # not needed for the typical developer workflow.
+DEFINE_string accept_licenses "" \
+  "Licenses to append to the accept list."
 DEFINE_boolean fast "${DEFAULT_FAST}" \
   "Call many emerges in parallel."
 DEFINE_integer jobs -1 \
@@ -88,6 +90,9 @@ CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
 
 # Before we can run any tools, we need to update chroot or setup_board.
 UPDATE_ARGS=()
+if [[ -n ${FLAGS_accept_licenses} ]]; then
+  UPDATE_ARGS+=( --accept_licenses "${FLAGS_accept_licenses}" )
+fi
 if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=( --fast )
 else

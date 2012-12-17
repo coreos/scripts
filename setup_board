@@ -33,6 +33,8 @@ show_help_if_requested "$@"
 # The following options are advanced options, only available to those willing
 # to read the source code. They are not shown in help output, since they are
 # not needed for the typical developer workflow.
+DEFINE_string accept_licenses "" \
+  "Licenses to append to the accept list."
 DEFINE_string board_overlay "" \
   "Location of the board overlay."
 DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
@@ -174,6 +176,10 @@ print_board_make_conf() {
   echo FETCHCOMMAND_GS="\"bash -c 'BOTO_CONFIG=$boto_config $gsutil_cmd'\""
   echo RESUMECOMMAND_GS='"$FETCHCOMMAND_GS"'
   echo
+  if [[ -n ${FLAGS_accept_licenses} ]]; then
+    echo "ACCEPT_LICENSE='${FLAGS_accept_licenses}'"
+    echo
+  fi
 }
 
 print_binhost_config() {
