@@ -90,8 +90,7 @@ make_kernelimage() {
 }
 
 copy_kernelimage() {
-  remote_cp_to $TMP/new_kern.bin /tmp
-  remote_sh dd if=/tmp/new_kern.bin of="${FLAGS_partition}"
+  remote_sh dd of="${FLAGS_partition}" bs=4K < "${TMP}/new_kern.bin"
 }
 
 check_kernelbuildtime() {
