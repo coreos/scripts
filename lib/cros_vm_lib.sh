@@ -97,7 +97,7 @@ start_kvm() {
 
     sudo "${KVM_BINARY}" -m 2G \
       -smp 4 \
-      -vga std \
+      -vga cirrus \
       -pidfile "${KVM_PID_FILE}" \
       -daemonize \
       ${net_option} \
