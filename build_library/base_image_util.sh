@@ -197,7 +197,7 @@ create_base_image() {
   # runtime packages for chrome os. This builds up a chrome os image from
   # binary packages with runtime dependencies only.  We use INSTALL_MASK to
   # trim the image size as much as possible.
-  emerge_to_image --root="${root_fs_dir}" chromeos ${EXTRA_PACKAGES}
+  emerge_to_image --root="${root_fs_dir}" ${BASE_PACKAGE}
 
   # Set /etc/lsb-release on the image.
   "${OVERLAY_CHROMEOS_DIR}/scripts/cros_set_lsb_release" \

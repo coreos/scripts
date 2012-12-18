@@ -94,14 +94,14 @@ parse_build_image_args() {
 
 check_blacklist() {
   info "Verifying that the base image does not contain a blacklisted package."
-  info "Generating list of packages for chromeos-base/chromeos."
+  info "Generating list of packages for ${BASE_PACKAGE}."
   local package_blacklist_file="${BUILD_LIBRARY_DIR}/chromeos_blacklist"
   if [ ! -e "${package_blacklist_file}" ]; then
     warn "Missing blacklist file."
     return
   fi
   local blacklisted_packages=$(${SCRIPTS_DIR}/get_package_list \
-      --board="${BOARD}" chromeos-base/chromeos \
+      --board="${BOARD}" "${BASE_PACKAGE}" \
       | grep -x -f "${package_blacklist_file}")
   if [ -n "${blacklisted_packages}" ]; then
     die "Blacklisted packages found: ${blacklisted_packages}."
