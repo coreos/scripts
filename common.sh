@@ -363,6 +363,7 @@ DEFAULT_INSTALL_MASK="
   /lib/modules/*/kernel/drivers/input/misc/uinput.ko
   /lib/modules/*/build
   /lib/modules/*/source
+  test_*.ko
   "
 
 # Mask for factory test image (build_image --factory)

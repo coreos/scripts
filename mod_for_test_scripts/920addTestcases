@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Add the kernel testcase modules into the image for test builds.
+# This is for running various autotests needing specific kernel behaviors.
+
+echo "Adding the kernel test modules for autotest runs."
+MODULES_PATH="/lib/modules"
+KERNEL_RELEASE=$(ls -tr "${ROOT_FS_DIR}${MODULES_PATH}" | tail -n1)
+TESTCASES_PATH="${MODULES_PATH}/${KERNEL_RELEASE}"
+SRC_DIR="${BOARD_ROOT}${TESTCASES_PATH}"
+DST_DIR="${ROOT_FS_DIR}${TESTCASES_PATH}"
+(cd "${SRC_DIR}" && find . -type f -name 'test_*.ko') | \
+    rsync -a --files-from=- "${SRC_DIR}" "${DST_DIR}"
