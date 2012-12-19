@@ -86,13 +86,17 @@ FILES_TO_COPY_TO_CHROOT=(
 
 INNER_CHROME_ROOT=$FLAGS_chrome_root_mount  # inside chroot
 CHROME_ROOT_CONFIG="/var/cache/chrome_root"  # inside chroot
-INNER_DEPOT_TOOLS_ROOT="/home/${SUDO_USER}/depot_tools"  # inside chroot
 FUSE_DEVICE="/dev/fuse"
 
 chmod 0777 "$FLAGS_chroot/var/lock"
 
 LOCKFILE="$FLAGS_chroot/var/lock/enter_chroot"
 MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
+
+# Reset the depot tools/internal trunk pathways to what they'll
+# be w/in the chroot.
+set_chroot_trunk_dir "${FLAGS_chroot}"
+
 
 setup_mount() {
   # If necessary, mount $source in the host FS at $target inside the
@@ -213,6 +217,7 @@ setup_env() {
         setup_mount /run/shm "--bind" /run/shm
       fi
     fi
+
     setup_mount "${FLAGS_trunk}" "--bind" "${CHROOT_TRUNK_DIR}"
 
     debug "Setting up referenced repositories if required."
@@ -327,7 +332,7 @@ setup_env() {
     # A reference to the DEPOT_TOOLS path may be passed in by cros_sdk.
     if [ -n "${DEPOT_TOOLS}" ]; then
       debug "Mounting depot_tools"
-      setup_mount "${DEPOT_TOOLS}" --bind "${INNER_DEPOT_TOOLS_ROOT}"
+      setup_mount "${DEPOT_TOOLS}" --bind "${DEPOT_TOOLS_DIR}"
     fi
 
     # Mount additional directories as specified in .local_mounts file.

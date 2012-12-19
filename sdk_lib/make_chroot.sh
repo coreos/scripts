@@ -85,7 +85,7 @@ fi
 # Support faster build if necessary.
 EMERGE_CMD="emerge"
 if [ "$FLAGS_fast" -eq "${FLAGS_TRUE}" ]; then
-  CHROOT_CHROMITE_DIR="/home/${SUDO_USER}/trunk/chromite"
+  CHROOT_CHROMITE_DIR="${CHROOT_TRUNK_DIR}/chromite"
   EMERGE_CMD="${CHROOT_CHROMITE_DIR}/bin/parallel_emerge"
 fi
 
@@ -163,11 +163,11 @@ init_setup () {
    mkdir -p -m 755 "${FLAGS_chroot}/usr" \
      "${FLAGS_chroot}/usr/local/portage" \
      "${FLAGS_chroot}"/"${CROSSDEV_OVERLAY}"
-   ln -sf "${CHROOT_TRUNK}/src/third_party/portage" \
+   ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage" \
      "${FLAGS_chroot}/usr/portage"
-   ln -sf "${CHROOT_TRUNK}/src/third_party/chromiumos-overlay" \
+   ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/chromiumos-overlay" \
      "${FLAGS_chroot}"/"${CHROOT_OVERLAY}"
-   ln -sf "${CHROOT_TRUNK}/src/third_party/portage-stable" \
+   ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage-stable" \
      "${FLAGS_chroot}"/"${PORTAGE_STABLE_OVERLAY}"
 
    # Some operations need an mtab.
@@ -236,10 +236,14 @@ init_setup () {
    # We rely on 'env-update' getting called below.
    target="${FLAGS_chroot}/etc/env.d/99chromiumos"
    cat <<EOF > "${target}"
-PATH=/home/${SUDO_USER}/trunk/chromite/bin:/home/${SUDO_USER}/depot_tools
-CROS_WORKON_SRCROOT="${CHROOT_TRUNK}"
+PATH=${CHROOT_TRUNK_DIR}/chromite/bin:${DEPOT_TOOLS_DIR}
+CROS_WORKON_SRCROOT="${CHROOT_TRUNK_DIR}"
 PORTAGE_USERNAME=${SUDO_USER}
 EOF
+
+   # Add chromite into python path.
+   CHROOT_TRUNK_DIR="${CHROOT_TRUNK_DIR}" bash -e \
+       "${SCRIPT_ROOT}/chroot_version_hooks.d/50_add_chromite_pythonpath"
 
    # TODO(zbehan): Configure stuff that is usually configured in postinst's,
    # but wasn't. Fix the postinst's.
@@ -277,12 +281,6 @@ en_US ISO-8859-1
 en_US.UTF-8 UTF-8
 EOF
    fi
-
-   # Add chromite as a local site-package.
-   local site_packages="/home/${SUDO_USER}/.local/lib/python2.6/site-packages"
-   user_mkdir "${FLAGS_chroot}${site_packages}"
-   user_symlink ../../../../trunk/chromite \
-     "${FLAGS_chroot}${site_packages}/chromite"
 
    # Automatically change to scripts directory.
    echo 'cd ${CHROOT_CWD:-~/trunk/src/scripts}' \
@@ -333,7 +331,7 @@ CHROOT_TRUNK="${CHROOT_TRUNK_DIR}"
 PORTAGE="${SRC_ROOT}/third_party/portage"
 OVERLAY="${SRC_ROOT}/third_party/chromiumos-overlay"
 CONFIG_DIR="${OVERLAY}/chromeos/config"
-CHROOT_CONFIG="${CHROOT_TRUNK}/src/third_party/chromiumos-overlay/chromeos/config"
+CHROOT_CONFIG="${CHROOT_TRUNK_DIR}/src/third_party/chromiumos-overlay/chromeos/config"
 PORTAGE_STABLE_OVERLAY="/usr/local/portage/stable"
 CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
 CHROOT_OVERLAY="/usr/local/portage/chromiumos"
@@ -386,10 +384,15 @@ fi
 # Set up users, if needed, before mkdir/mounts below.
 [ -f $CHROOT_STATE ] || init_users
 
+# Reset internal vars to force them to the 'inside the chroot' value;
+# since user directories now exist, this can do the upgrade in place.
+set_chroot_trunk_dir "${FLAGS_chroot}" poppycock
+
 echo
 info "Setting up mounts..."
 # Set up necessary mounts and make sure we clean them up on exit.
-mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK}" "${FLAGS_chroot}/run"
+mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK_DIR}" \
+    "${FLAGS_chroot}/${DEPOT_TOOLS_DIR}" "${FLAGS_chroot}/run"
 
 # Create a special /etc/make.conf.host_setup that we use to bootstrap
 # the chroot.  The regular content for the file will be generated the
@@ -452,7 +455,7 @@ if [[ ${FLAGS_usepkg} -eq ${FLAGS_FALSE} ]]; then
   TOOLCHAIN_ARGS+=( --nousepkg )
 fi
 # Note: early_enter_chroot executes as root.
-early_enter_chroot "${CHROOT_TRUNK}/chromite/bin/cros_setup_toolchains" \
+early_enter_chroot "${CHROOT_TRUNK_DIR}/chromite/bin/cros_setup_toolchains" \
     --hostonly "${TOOLCHAIN_ARGS[@]}"
 
 # dhcpcd is included in 'world' by the stage3 that we pull in for some reason.
@@ -468,7 +471,7 @@ if [ -n "${INITIALIZE_CHROOT}" ]; then
   # If we're creating a new chroot, we also want to set it to the latest
   # version.
   enter_chroot \
-    "${CHROOT_TRUNK}/src/scripts/run_chroot_version_hooks" --force_latest
+    "${CHROOT_TRUNK_DIR}/src/scripts/run_chroot_version_hooks" --force_latest
 fi
 
 # Update chroot.
@@ -488,7 +491,7 @@ fi
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   UPDATE_ARGS+=( --jobs=${FLAGS_jobs} )
 fi
-enter_chroot "${CHROOT_TRUNK}/src/scripts/update_chroot" "${UPDATE_ARGS[@]}"
+enter_chroot "${CHROOT_TRUNK_DIR}/src/scripts/update_chroot" "${UPDATE_ARGS[@]}"
 
 CHROOT_EXAMPLE_OPT=""
 if [[ "$FLAGS_chroot" != "$DEFAULT_CHROOT_DIR" ]]; then
@@ -497,7 +500,7 @@ fi
 
 # As a final pass, build all desired cross-toolchains.
 info "Updating toolchains"
-enter_chroot sudo -E "${CHROOT_TRUNK}/chromite/bin/cros_setup_toolchains" \
+enter_chroot sudo -E "${CHROOT_TRUNK_DIR}/chromite/bin/cros_setup_toolchains" \
     "${TOOLCHAIN_ARGS[@]}"
 
 command_completed
