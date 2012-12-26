@@ -81,10 +81,11 @@ mod_image_for_test () {
   cleanup_mounts
   trap - EXIT
 
-  # Now make it bootable with the flags from build_image.
-  if should_build_image ${image_name}; then
-    "${SCRIPTS_DIR}/bin/cros_make_image_bootable" "${BUILD_DIR}" \
-                                                  ${image_name} \
-                                                 --force_developer_mode
+  if [[ ${skip_kernelblock_install} -ne 1 ]]; then
+    # Now make it bootable with the flags from build_image.
+    if should_build_image ${image_name}; then
+      "${SCRIPTS_DIR}/bin/cros_make_image_bootable" "${BUILD_DIR}" \
+         ${image_name} --force_developer_mode
+    fi
   fi
 }

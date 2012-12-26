@@ -276,9 +276,9 @@ create_base_image() {
     USE_DEV_KEYS="--use_dev_keys"
   fi
 
-  # Place flags before positional args.
-  ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
-                                              ${image_name} \
-                                              ${USE_DEV_KEYS} \
-                                           --adjust_part="${FLAGS_adjust_part}"
+  if [[ ${skip_kernelblock_install} -ne 1 ]]; then
+    # Place flags before positional args.
+    ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
+      ${image_name} ${USE_DEV_KEYS} --adjust_part="${FLAGS_adjust_part}"
+  fi
 }
