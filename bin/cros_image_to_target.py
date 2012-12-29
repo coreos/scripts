@@ -686,6 +686,7 @@ def main(argv):
     else:
       try:
         time.sleep(SERVER_STARTUP_WAIT)
+        cros_env.ssh_cmd.Run('start', 'update-engine', hide_stderr=True)
         if cros_env.StartClient(port):
           exit_status = 0
       except KeyboardInterrupt:
