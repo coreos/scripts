@@ -6,7 +6,6 @@
 
 import inspect
 import os
-import re
 import subprocess
 import sys
 
@@ -19,7 +18,7 @@ class RunCommandException(Exception):
   pass
 
 
-def GetCallerName():
+def _GetCallerName():
   """Returns the name of the calling module with __main__."""
   top_frame = inspect.stack()[-1][0]
   return os.path.basename(top_frame.f_code.co_filename)
@@ -79,20 +78,20 @@ def RunCommand(cmd, print_cmd=True, error_ok=False, error_message=None,
   if enter_chroot:  cmd = ['cros_sdk', '--'] + cmd
 
   # Print out the command before running.
-  cmd_string = 'PROGRAM(%s) -> RunCommand: %r in dir %s' % (GetCallerName(),
+  cmd_string = 'PROGRAM(%s) -> RunCommand: %r in dir %s' % (_GetCallerName(),
                                                             cmd, cwd)
   if print_cmd:
     if not log_to_file:
-      Info(cmd_string)
+      _Info(cmd_string)
     else:
-      Info('%s -- Logging to %s' % (cmd_string, log_to_file))
+      _Info('%s -- Logging to %s' % (cmd_string, log_to_file))
 
   for retry_count in range(num_retries + 1):
 
     # If it's not the first attempt, it's a retry
     if retry_count > 0 and print_cmd:
-      Info('PROGRAM(%s) -> RunCommand: retrying %r in dir %s' %
-           (GetCallerName(), cmd, cwd))
+      _Info('PROGRAM(%s) -> RunCommand: retrying %r in dir %s' %
+            (_GetCallerName(), cmd, cwd))
 
     proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
                             stdout=stdout, stderr=stderr, close_fds=True)
@@ -159,8 +158,8 @@ def RunCommandCaptureOutput(cmd, print_cmd=True, cwd=None, input=None,
 
   # Print out the command before running.
   if print_cmd:
-    Info('PROGRAM(%s) -> RunCommand: %r in dir %s' %
-         (GetCallerName(), cmd, cwd))
+    _Info('PROGRAM(%s) -> RunCommand: %r in dir %s' %
+          (_GetCallerName(), cmd, cwd))
 
   proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
                           stdout=stdout, stderr=stderr, close_fds=True)
@@ -205,30 +204,7 @@ class Color(object):
     return start + text + self.RESET
 
 
-def Die(message):
-  """Emits a red error message and halts execution.
-
-  Keyword arguments:
-    message: The message to be emitted before exiting.
-  """
-  print >> sys.stderr, (
-      Color(_STDOUT_IS_TTY).Color(Color.RED, '\nERROR: ' + message))
-  sys.stderr.flush()
-  sys.exit(1)
-
-
-def Warning(message):
-  """Emits a yellow warning message and continues execution.
-
-  Keyword arguments:
-    message: The message to be emitted.
-  """
-  print >> sys.stderr, (
-      Color(_STDOUT_IS_TTY).Color(Color.YELLOW, '\nWARNING: ' + message))
-  sys.stderr.flush()
-
-
-def Info(message):
+def _Info(message):
   """Emits a blue informational message and continues execution.
 
   Keyword arguments:
@@ -256,27 +232,6 @@ def FindRepoDir(path=None):
   return None
 
 
-def ReinterpretPathForChroot(path):
-  """Returns reinterpreted path from outside the chroot for use inside.
-
-  Keyword arguments:
-    path: The path to reinterpret.  Must be in src tree.
-  """
-  root_path = os.path.join(FindRepoDir(path), '..')
-
-  path_abs_path = os.path.abspath(path)
-  root_abs_path = os.path.abspath(root_path)
-
-  # Strip the repository root from the path and strip first /.
-  relative_path = path_abs_path.replace(root_abs_path, '')[1:]
-
-  if relative_path == path_abs_path:
-    raise Exception('Error: path is outside your src tree, cannot reinterpret.')
-
-  new_path = os.path.join('/home', os.getenv('USER'), 'trunk', relative_path)
-  return new_path
-
-
 def PrependChrootPath(path):
   """Assumes path is a chroot path and prepends chroot to create full path."""
   chroot_path = os.path.join(FindRepoDir(), '..', 'chroot')
@@ -286,83 +241,6 @@ def PrependChrootPath(path):
     return os.path.realpath(os.path.join(chroot_path, path))
 
 
-def GetIPAddress(device='eth0'):
-  """Returns the IP Address for a given device using ifconfig.
-
-  socket.gethostname() is insufficient for machines where the host files are
-  not set up "correctly."  Since some of our builders may have this issue,
-  this method gives you a generic way to get the address so you are reachable
-  either via a VM or remote machine on the same network.
-  """
-  ifconfig_output = RunCommand(['/sbin/ifconfig', device],
-                               redirect_stdout=True, print_cmd=False)
-  match = re.search('.*inet addr:(\d+\.\d+\.\d+\.\d+).*', ifconfig_output)
-  if match:
-    return match.group(1)
-  else:
-    Warning('Failed to find ip address in %s' % ifconfig_output)
-    return None
-
-
-def MountImage(image_path, root_dir, stateful_dir, read_only):
-  """Mounts a Chromium OS image onto mount dir points."""
-  from_dir = os.path.dirname(image_path)
-  image = os.path.basename(image_path)
-  extra_args = []
-  if read_only: extra_args.append('--read_only')
-  cmd = ['./mount_gpt_image.sh',
-         '--from=%s' % from_dir,
-         '--image=%s' % image,
-         '--rootfs_mountpt=%s' % root_dir,
-         '--stateful_mountpt=%s' % stateful_dir,
-        ]
-  cmd.extend(extra_args)
-  RunCommand(cmd, print_cmd=False, redirect_stdout=True, redirect_stderr=True,
-             cwd=CROSUTILS_DIRECTORY)
-
-
-def UnmountImage(root_dir, stateful_dir):
-  """Unmounts a Chromium OS image specified by mount dir points."""
-  RunCommand(['./mount_gpt_image.sh',
-              '--unmount',
-              '--rootfs_mountpt=%s' % root_dir,
-              '--stateful_mountpt=%s' % stateful_dir,
-             ], print_cmd=False, redirect_stdout=True, redirect_stderr=True,
-             cwd=CROSUTILS_DIRECTORY)
-
-
-def GetCrosUtilsPath(source_dir_path=True):
-  """Return the path to src/scripts.
-
-  Args:
-    source_dir_path:  If True, returns the path from the source code directory.
-  """
-  if IsInsideChroot():
-    if source_dir_path:
-      return os.path.join(os.getenv('HOME'), 'trunk', 'src', 'scripts')
-
-    return os.path.join('/usr/lib/crosutils')
-
-  # Outside the chroot => from_source.
-  return os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
-
-
-def GetCrosUtilsBinPath(source_dir_path=True):
-  """Return the path to crosutils/bin.
-
-  Args:
-    source_dir_path:  If True, returns the path from the source code directory.
-  """
-  if IsInsideChroot() and not source_dir_path:
-      return '/usr/bin'
-
-  return os.path.join(GetCrosUtilsPath(source_dir_path), 'bin')
-
-
 def IsInsideChroot():
   """Returns True if we are inside chroot."""
   return os.path.exists('/etc/debian_chroot')
-
-
-# TODO(sosa): Remove once all callers use method.
-CROSUTILS_DIRECTORY = GetCrosUtilsPath(True)
