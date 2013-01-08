@@ -94,7 +94,7 @@ create_base_image() {
   # Build root FS image.
   info "Building ${root_fs_img}"
   dd if=/dev/zero of="${root_fs_img}" bs=1 count=1 \
-    seek=$((root_fs_bytes - 1)) status=noxfer
+    seek=$((root_fs_bytes - 1)) status=none
   sudo mkfs.ext2 -F -q -b ${fs_block_size} "${root_fs_img}" \
     "$((root_fs_bytes / fs_block_size))"
   sudo tune2fs -L "${root_fs_label}" \
@@ -114,7 +114,7 @@ create_base_image() {
   # Build stateful FS disk image.
   info "Building ${stateful_fs_img}"
   dd if=/dev/zero of="${stateful_fs_img}" bs=1 count=1 \
-    seek=$((stateful_fs_bytes - 1)) status=noxfer
+    seek=$((stateful_fs_bytes - 1)) status=none
   sudo mkfs.ext4 -F -q "${stateful_fs_img}"
   sudo tune2fs -L "${stateful_fs_label}" -U "${stateful_fs_uuid}" \
                -c 0 -i 0 "${stateful_fs_img}"
@@ -124,13 +124,13 @@ create_base_image() {
   # Build ESP disk image.
   info "Building ${esp_fs_img}"
   dd if=/dev/zero of="${esp_fs_img}" bs=1 count=1 \
-    seek=$((esp_fs_bytes - 1)) status=noxfer
+    seek=$((esp_fs_bytes - 1)) status=none
   sudo mkfs.vfat "${esp_fs_img}"
 
   # Build OEM FS disk image.
   info "Building ${oem_fs_img}"
   dd if=/dev/zero of="${oem_fs_img}" bs=1 count=1 \
-    seek=$((oem_fs_bytes - 1)) status=noxfer
+    seek=$((oem_fs_bytes - 1)) status=none
   sudo mkfs.ext4 -F -q "${oem_fs_img}"
   sudo tune2fs -L "${oem_fs_label}" -U "${oem_fs_uuid}" \
                -c 0 -i 0 "${oem_fs_img}"

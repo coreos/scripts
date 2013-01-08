@@ -284,7 +284,7 @@ make_image_bootable() {
           if="${FLAGS_rootfs_hash}" \
           of="${image}" \
           conv=notrunc \
-          status=noxfer
+          status=none
 
   # Move the verification block needed for the hard disk install to the
   # stateful partition. Mount stateful fs, copy file, and umount fs.
@@ -296,7 +296,7 @@ make_image_bootable() {
 
   local koffset="$(partoffset ${image} 2)"
   sudo dd if="${FLAGS_output_dir}/vmlinuz.image" of="${image}" \
-    conv=notrunc bs=512 seek=${koffset} status=noxfer
+    conv=notrunc bs=512 seek=${koffset} status=none
 
   # Update the bootloaders.  The EFI system partition will be updated.
   local kernel_part=
@@ -344,7 +344,7 @@ make_image_bootable() {
     info "copy the squashfs to the partition"
     local part_offset="$(partoffset ${image} 3)"
     sudo dd bs=512 if="${squashfs_img}" of="${image}" \
-            seek=${part_offset} conv=notrunc status=noxfer
+            seek=${part_offset} conv=notrunc status=none
     sudo rm "${squashfs_img}"
   fi
 }
@@ -356,7 +356,7 @@ verify_image_rootfs() {
   local rootfs_tmp_file=$(mktemp)
   trap "rm ${rootfs_tmp_file}" EXIT
   sudo dd if="${image}" of="${rootfs_tmp_file}" bs=512 skip="${rootfs_offset}" \
-          status=noxfer
+          status=none
 
   # This flips the read-only compatibility flag, so that
   # e2fsck does not complain about unknown file system capabilities.

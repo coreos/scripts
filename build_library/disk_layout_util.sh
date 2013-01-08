@@ -196,19 +196,19 @@ build_gpt() {
   # Now populate the partitions.
   info "Copying stateful partition..."
   $sudo dd if="$stateful_img" of="$outdev" conv=notrunc bs=512 \
-      seek=$(partoffset ${outdev} 1)
+      seek=$(partoffset ${outdev} 1) status=none
 
   info "Copying rootfs..."
   $sudo dd if="$rootfs_img" of="$outdev" conv=notrunc bs=512 \
-      seek=$(partoffset ${outdev} 3)
+      seek=$(partoffset ${outdev} 3) status=none
 
   info "Copying EFI system partition..."
   $sudo dd if="$esp_img" of="$outdev" conv=notrunc bs=512 \
-      seek=$(partoffset ${outdev} 12)
+      seek=$(partoffset ${outdev} 12) status=none
 
   info "Copying OEM partition..."
   $sudo dd if="$oem_img" of="$outdev" conv=notrunc bs=512 \
-      seek=$(partoffset ${outdev} 8)
+      seek=$(partoffset ${outdev} 8) status=none
 
   # Pre-set "sucessful" bit in gpt, so we will never mark-for-death
   # a partition on an SDCard/USB stick.
@@ -240,7 +240,7 @@ update_partition_table() {
   truncate -s ${dst_size} ${dst_img}
 
   # Copy MBR, initialize GPT.
-  dd if="${src_img}" of="${dst_img}" conv=notrunc bs=512 count=1
+  dd if="${src_img}" of="${dst_img}" conv=notrunc bs=512 count=1 status=none
   cgpt create ${dst_img}
 
   # Find partition number of STATE (really should always be "1")
@@ -287,11 +287,11 @@ update_partition_table() {
     if [ "${label}" != "STATE" ]; then
       # Copy source partition as-is.
       dd if="${src_img}" of="${dst_img}" conv=notrunc bs=512 \
-        skip=${src_start} seek=${dst_start} count=${size}
+        skip=${src_start} seek=${dst_start} count=${size} status=none
     else
       # Copy new stateful partition into place.
       dd if="${src_state}" of="${dst_img}" conv=notrunc bs=512 \
-        seek=${dst_start}
+        seek=${dst_start} status=none
     fi
   done
   return 0
