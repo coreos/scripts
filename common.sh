@@ -16,13 +16,22 @@ fi
 # Ensure that any sub scripts we invoke get the max proc count.
 export NUM_JOBS="${NUM_JOBS}"
 
-# True if we have the 'pv' utility - also set up COMMON_PV_CAT for convenience
-COMMON_PV_OK=1
-COMMON_PV_CAT=pv
-pv -V >/dev/null 2>&1 || COMMON_PV_OK=0
-if [ $COMMON_PV_OK -eq 0 ]; then
-  COMMON_PV_CAT=cat
-fi
+# Returns the pv command if it's available, otherwise plain-old cat. Note that
+# this function echoes the command, rather than running it, so it can be used
+# as an argument to other commands (like sudo).
+pv_cat_cmd() {
+  if pv -V >/dev/null 2>&1; then
+    # Limit pv's output to 80 columns, for readability.
+    local term_cols=$(stty size 2>/dev/null | cut -d' ' -f2)
+    if [ ${term_cols:-0} -gt 80 ]; then
+      echo pv -w 80
+    else
+      echo pv
+    fi
+  else
+    echo cat
+  fi
+}
 
 # Make sure we have the location and name of the calling script, using
 # the current value if it is already set.

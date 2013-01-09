@@ -350,7 +350,7 @@ if [ -b "${FLAGS_to}" ]; then
   fi
 
   if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
-    sudo ${COMMON_PV_CAT} "${SRC_IMAGE}" |
+    sudo $(pv_cat_cmd) "${SRC_IMAGE}" |
       sudo dd of="${FLAGS_to}" bs=4M oflag=sync status=noxfer
     sync
   else
@@ -369,7 +369,7 @@ else
   # Output to a file, so just make a copy.
   if [ "${SRC_IMAGE}" != "${FLAGS_to}" ]; then
     echo "Copying image ${SRC_IMAGE} to file ${FLAGS_to}..."
-    ${COMMON_PV_CAT} "${SRC_IMAGE}" >"${FLAGS_to}"
+    $(pv_cat_cmd) "${SRC_IMAGE}" >"${FLAGS_to}"
   fi
 
   info "To copy onto a USB/MMC drive /dev/sdX, use: "
