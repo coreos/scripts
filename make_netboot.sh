@@ -94,43 +94,39 @@ else
 fi
 
 # Get netboot kernel.
+echo "Building kernel"
+
+# Create temporary emerge root
+temp_build_path="$(mktemp -d bk_XXXXXXXX)"
+if ! [ -d "${temp_build_path}" ]; then
+  echo "Failed to create temporary directory."
+  exit 1
+fi
+
+# Emerge network boot kernel
+# We don't want to build whole install shim everytime we run this script,
+# and thus we only build kernel here. If this script is run against install
+# shim with different kernel version, this might not work. But as we don't
+# upgrade kernel so often, this is probably fine.
+export USE='vfat blkdevram fbconsole'
+export EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
+emerge_custom_kernel ${temp_build_path}
+
+# Generate kernel uImage
+echo "Generating netboot kernel vmlinux.uimg"
+
 if [ "${ARCH}" = "arm" ]; then
-  # Currently we don't use initramfs for ARM. Someday we would probably want
-  # initramfs for USB factory installation.
-  # TODO: Converge build processes of ARM and x86.
-  echo "Generating netboot kernel vmlinux.uimg"
-  cp "r/boot/vmlinux.uimg" "netboot"
+  cp "${temp_build_path}"/boot/vmlinux.uimg netboot/
 else
-  echo "Building kernel"
-
-  # Create temporary emerge root
-  temp_build_path="$(mktemp -d bk_XXXXXXXX)"
-  if ! [ -d "${temp_build_path}" ]; then
-    echo "Failed to create temporary directory."
-    exit 1
-  fi
-
-  # Emerge network boot kernel
-  # We don't want to build whole install shim everytime we run this script,
-  # and thus we only build kernel here. If this script is run against install
-  # shim with different kernel version, this might not work. But as we don't
-  # upgrade kernel so often, this is probably fine.
-  export USE='vfat blkdevram fbconsole'
-  export EMERGE_BOARD_CMD="emerge-${FLAGS_board}"
-  emerge_custom_kernel ${temp_build_path}
-
-  # Generate kernel uImage
-  echo "Generating netboot kernel vmlinux.uimg"
-
   # U-boot put kernel image at 0x100000. We load it at 0x3000000 because
   # 0x3000000 is safe enough not to overlap with image at 0x100000.
   mkimage -A "${MKIMAGE_ARCH}" -O linux -T kernel -n "Linux kernel" -C none \
       -d "${temp_build_path}"/boot/vmlinuz \
       -a 0x03000000 -e 0x03000000 netboot/vmlinux.uimg
-
-  # Clean up temporary emerge root
-  sudo rm -rf "${temp_build_path}"
 fi
+
+# Clean up temporary emerge root
+sudo rm -rf "${temp_build_path}"
 
 echo "Add lsb-factory"
 # Copy factory config file.

@@ -125,17 +125,11 @@ if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
 
   BASE_PACKAGE="chromeos-base/chromeos-installshim"
 
-  # On x86/amd64, we boot the factory install shim from an SD card using
-  # initramfs for our root.  On ARM, we boot the factory install shim over the
-  # network, so we don't require initramfs, but we do require fbconsole to fix
-  # a display driver bug.
-  if [ "${ARCH}" = "x86" -o "${ARCH}" = "amd64" ] ; then
-    export USE="${USE} initramfs vfat"
-  fi
-  # CONFIG_BLK_DEV_RAM is disabled by default.
-  # But tftp install needs it to mount rootfs in ram
+  export USE="${USE} initramfs vfat"
+
+  # On ARM, fbconsole is required to fix a display driver bug.
   if [ "${ARCH}" = "arm" ] ; then
-    export USE="${USE} fbconsole blkdevram"
+    export USE="${USE} fbconsole"
   fi
 fi
 
