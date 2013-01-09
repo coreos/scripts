@@ -585,9 +585,6 @@ def main(argv):
 
   (options, args) = parser.parse_args(argv)
 
-  # we can build the test image if it doesn't exist, so remember if we want to
-  build_test_image = False
-
   verbosity = CrosEnv.SILENT
   if options.verbose:
       verbosity = CrosEnv.INFO
@@ -631,9 +628,6 @@ def main(argv):
     # auto-select the correct image
     if options.test:
       options.image_name = DEFAULT_IMAGE_NAME_TEST
-
-      # we will build the test image if not found
-      build_test_image = True
     else:
       options.image_name = DEFAULT_IMAGE_NAME
 
@@ -642,18 +636,6 @@ def main(argv):
     image_file = os.path.join(options.src, options.image_name)
 
     if not os.path.exists(image_file):
-      if build_test_image:
-        # we want a test image but it doesn't exist
-        # try to build it if we can
-        cros_env.Info('Creating test image')
-        test_output = cros_env.cmd.Output(
-                'cros_sdk',
-                '--', './mod_image_for_test.sh',
-                '--board=%s' % options.board, '-y')
-        if not os.path.exists(image_file):
-          print test_output
-          cros_env.Fatal('Failed to create test image - please run '
-             './mod_image_for_test.sh manually inside the chroot')
       parser.error('Image file %s does not exist' % image_file)
   else:
     image_file = options.src

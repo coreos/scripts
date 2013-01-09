@@ -91,10 +91,10 @@ if [ -z "${FLAGS_to}" ] ; then
   FLAGS_to="${FLAGS_from}"
 fi
 
-if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ] ; then
-  # Make a test image - this returns the test filename in CHROMEOS_RETURN_VAL
-  prepare_test_image "${FLAGS_from}" "${CHROMEOS_IMAGE_NAME}"
-  SRC_IMAGE="${CHROMEOS_RETURN_VAL}"
+if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+  SRC_IMAGE="${FLAGS_from}/${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
+elif [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ]; then
+  SRC_IMAGE="${FLAGS_from}/${CHROMEOS_TEST_IMAGE_NAME}"
 else
   # Use the standard image
   SRC_IMAGE="${FLAGS_from}/${CHROMEOS_IMAGE_NAME}"

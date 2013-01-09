@@ -36,13 +36,13 @@ DEFINE_boolean force_copy ${FLAGS_FALSE} \
 DEFINE_boolean force_non_usb ${FLAGS_FALSE} \
   "force writing even if target device doesn't appear to be a USB/MMC disk"
 DEFINE_boolean factory_install ${FLAGS_FALSE} \
-  "generate a factory install shim"
+  "Install the factory install shim"
 DEFINE_boolean factory ${FLAGS_FALSE} \
-  "generate a factory runing image, implies autotest and test"
+  "Install a factory test image"
 DEFINE_boolean copy_kernel ${FLAGS_FALSE} \
   "copy the kernel to the fourth partition"
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
-  "copy normal image to ${CHROMEOS_TEST_IMAGE_NAME} and modify it for test"
+  "Install a test image"
 DEFINE_string image_name "" \
   "image base name (empty: auto-detect)" \
   i
@@ -241,14 +241,10 @@ STATEFUL_DIR="${FLAGS_from}/stateful_partition"
 mkdir -p "${STATEFUL_DIR}"
 
 # Figure out which image to use.
-if [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ]; then
-  # Test image requested: pass the provided (or otherwise default) image name
-  # to the method that's in charge of preparing a test image (note that this
-  # image may or may not exist). The test image filename is returned in
-  # CHROMEOS_RETURN_VAL.
-  prepare_test_image "${FLAGS_from}" \
-    "${FLAGS_image_name:=${CHROMEOS_IMAGE_NAME}}"
-  SRC_IMAGE="${CHROMEOS_RETURN_VAL}"
+if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
+  SRC_IMAGE="${FLAGS_from}/${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
+elif [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ]; then
+  SRC_IMAGE="${FLAGS_from}/${CHROMEOS_TEST_IMAGE_NAME}"
 else
   # Auto-detect and select an image name if none provided.
   if [ -z "${FLAGS_image_name}" ]; then
