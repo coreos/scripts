@@ -226,7 +226,7 @@ FLAGS_to=`eval readlink -f ${FLAGS_to}`
 
 # Check whether target device is USB/MMC, and obtain a string descriptor for it.
 unset disk_string
-if [ -b "${FLAGS_to}" ]; then
+if [ -b "${FLAGS_to}" -o -c "${FLAGS_to}" ]; then
   if list_usb_disks | grep -q '^'${FLAGS_to##*/}'$' ||
      list_mmc_disks | grep -q '^'${FLAGS_to##*/}'$'; then
     disk_string=$(get_disk_string ${FLAGS_to})
@@ -310,7 +310,7 @@ if [ ! -f "${SRC_IMAGE}" ]; then
 fi
 
 # Let's do it.
-if [ -b "${FLAGS_to}" ]; then
+if [ -b "${FLAGS_to}" -o -c "${FLAGS_to}" ]; then
   # Output to a block device (i.e., a real USB key / SD card), so need sudo dd
   if [ ${FLAGS_install} -ne ${FLAGS_TRUE} ]; then
     echo "Copying image ${SRC_IMAGE} to device ${FLAGS_to}..."
