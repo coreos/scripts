@@ -175,6 +175,65 @@ die_notrace() {
   exit 1
 }
 
+# Directory locations inside the dev chroot; try the new default,
+# falling back to user specific paths if the upgrade has yet to
+# happen.
+_user="${USER}"
+[ "${USER}" = "root" ] && _user="${SUDO_USER}"
+_CHROOT_TRUNK_DIRS=( "/home/${_user}/trunk" /mnt/host/source )
+_DEPOT_TOOLS_DIRS=( "/home/${_user}/depot_tools" /mnt/host/depot_tools )
+unset _user
+
+_process_mount_pt() {
+  # Given 4 arguments; the root path, the variable to set,
+  # the old location, and the new; finally, forcing the upgrade is doable
+  # via if a 5th arg is provided.
+  # This will then try to migrate the old to new if we can do so right now
+  # (else leaving symlinks in place w/in the new), and will set $1 to the
+  # new location.
+  local base="${1:-/}" var="${2}" old="${3}" new="${4}" force="${5:-false}"
+  local _sudo=$([ "$USER" != root ] && echo sudo)
+  local val="${new}"
+  if [ -L "${base}/${new}" ] || [ ! -e "${base}/${new}" ]; then
+    # Ok, it's either a symlink or this is the first run.  Upgrade if we can-
+    # specifically, if we're outside the chroot and we can rmdir the old.
+    # If we cannot rmdir the old, that's due to a mount being bound to that
+    # point (even if we can't see it, it's there)- thus fallback to adding
+    # compat links.
+    if ${force} || ( [ "$INSIDE_CHROOT" -eq 0 ] && \
+        ${_sudo} rmdir "${base}/${old}" 2> /dev/null ); then
+      ${_sudo} rm -f "${base}/${new}" || :
+      ${_sudo} mkdir -p "${base}/${new}" "$(dirname "${base}/${old}" )"
+      ${_sudo} ln -s "${new}" "${base}/${old}"
+    else
+      if [ ! -L "${base}/${new}" ]; then
+        # We can't do the upgrade right now; install compatibility links.
+        ${_sudo} mkdir -p "$(dirname "${base}/${new}")" "${base}/${old}"
+        ${_sudo} ln -s "${old}" "${base}/${new}"
+      fi
+      val="${old}"
+    fi
+  fi
+  eval "${var}=\"${val}\""
+}
+
+set_chroot_trunk_dir() {
+  # This takes two optional arguments; the first being the path to the chroot
+  # base; this is only used by enter_chroot.  The second argument is whether
+  # or not to force the new pathways; this is only used by make_chroot.  Passing
+  # a non-null value for $2 forces the new paths.
+  if [ "${INSIDE_CHROOT}" == 0 ] && [ -z "${1-}" ]; then
+    # Can't do the upgrade, thus skip trying to do so.
+    CHROOT_TRUNK_DIR="${_CHROOT_TRUNK_DIRS[1]}"
+    DEPOT_TOOLS_DIR="${_DEPOT_TOOLS_DIRS[1]}"
+    return
+  fi
+  _process_mount_pt "$1" CHROOT_TRUNK_DIR "${_CHROOT_TRUNK_DIRS[@]}" ${2:+true}
+  _process_mount_pt "$1" DEPOT_TOOLS_DIR "${_DEPOT_TOOLS_DIRS[@]}" ${2:+true}
+}
+
+set_chroot_trunk_dir
+
 # Construct a list of possible locations for the source tree.  This list is
 # based on various environment variables and globals that may have been set
 # by the calling script.
@@ -324,65 +383,6 @@ CHROMEOS_RECOVERY_IMAGE_NAME="recovery_image.bin"
 CHROMEOS_TEST_IMAGE_NAME="chromiumos_test_image.bin"
 CHROMEOS_FACTORY_TEST_IMAGE_NAME="chromiumos_factory_image.bin"
 CHROMEOS_FACTORY_INSTALL_SHIM_NAME="factory_install_shim.bin"
-
-# Directory locations inside the dev chroot; try the new default,
-# falling back to user specific paths if the upgrade has yet to
-# happen.
-_user="${USER}"
-[ "${USER}" = "root" ] && _user="${SUDO_USER}"
-_CHROOT_TRUNK_DIRS=( "/home/${_user}/trunk" /mnt/host/source )
-_DEPOT_TOOLS_DIRS=( "/home/${_user}/depot_tools" /mnt/host/depot_tools )
-unset _user
-
-_process_mount_pt() {
-  # Given 4 arguments; the root path, the variable to set,
-  # the old location, and the new; finally, forcing the upgrade is doable
-  # via if a 5th arg is provided.
-  # This will then try to migrate the old to new if we can do so right now
-  # (else leaving symlinks in place w/in the new), and will set $1 to the
-  # new location.
-  local base="${1:-/}" var="${2}" old="${3}" new="${4}" force="${5:-false}"
-  local _sudo=$([ "$USER" != root ] && echo sudo)
-  local val="${new}"
-  if [ -L "${base}/${new}" ] || [ ! -e "${base}/${new}" ]; then
-    # Ok, it's either a symlink or this is the first run.  Upgrade if we can-
-    # specifically, if we're outside the chroot and we can rmdir the old.
-    # If we cannot rmdir the old, that's due to a mount being bound to that
-    # point (even if we can't see it, it's there)- thus fallback to adding
-    # compat links.
-    if ${force} || ( [ "$INSIDE_CHROOT" -eq 0 ] && \
-        ${_sudo} rmdir "${base}/${old}" 2> /dev/null ); then
-      ${_sudo} rm -f "${base}/${new}" || :
-      ${_sudo} mkdir -p "${base}/${new}" "$(dirname "${base}/${old}" )"
-      ${_sudo} ln -s "${new}" "${base}/${old}"
-    else
-      if [ ! -L "${base}/${new}" ]; then
-        # We can't do the upgrade right now; install compatibility links.
-        ${_sudo} mkdir -p "$(dirname "${base}/${new}")" "${base}/${old}"
-        ${_sudo} ln -s "${old}" "${base}/${new}"
-      fi
-      val="${old}"
-    fi
-  fi
-  eval "${var}=\"${val}\""
-}
-
-set_chroot_trunk_dir() {
-  # This takes two optional arguments; the first being the path to the chroot
-  # base; this is only used by enter_chroot.  The second argument is whether
-  # or not to force the new pathways; this is only used by make_chroot.  Passing
-  # a non-null value for $2 forces the new paths.
-  if [ "${INSIDE_CHROOT}" == 0 ] && [ -z "${1-}" ]; then
-    # Can't do the upgrade, thus skip trying to do so.
-    CHROOT_TRUNK_DIR="${_CHROOT_TRUNK_DIRS[1]}"
-    DEPOT_TOOLS_DIR="${_DEPOT_TOOLS_DIRS[1]}"
-    return
-  fi
-  _process_mount_pt "$1" CHROOT_TRUNK_DIR "${_CHROOT_TRUNK_DIRS[@]}" ${2:+true}
-  _process_mount_pt "$1" DEPOT_TOOLS_DIR "${_DEPOT_TOOLS_DIRS[@]}" ${2:+true}
-}
-
-set_chroot_trunk_dir
 
 # Install make for portage ebuilds.  Used by build_image and gmergefs.
 # TODO: Is /usr/local/autotest-chrome still used by anyone?
