@@ -242,8 +242,10 @@ PORTAGE_USERNAME=${SUDO_USER}
 EOF
 
    # Add chromite into python path.
-   CHROOT_TRUNK_DIR="${CHROOT_TRUNK_DIR}" bash -e \
-       "${SCRIPT_ROOT}/chroot_version_hooks.d/50_add_chromite_pythonpath"
+   for python_path in "${FLAGS_chroot}/usr/lib/"python2.*; do
+     sudo mkdir -p "${python_path}"
+     sudo ln -s "${CHROOT_TRUNK_DIR}"/chromite "${python_path}"
+   done
 
    # TODO(zbehan): Configure stuff that is usually configured in postinst's,
    # but wasn't. Fix the postinst's.
