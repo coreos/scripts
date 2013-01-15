@@ -20,7 +20,6 @@ import tempfile
 image_sign_dir = '~/trunk/src/platform/vboot_reference/scripts/image_signing'
 STATIC_FILES = ['/usr/bin/cgpt',
                 '~/trunk/src/scripts/common.sh',
-                '~/trunk/src/scripts/common_bash_backtraces.sh',
                 '/usr/bin/cros_generate_update_payload',
                 '~/trunk/src/scripts/chromeos-common.sh',
                 os.path.join(image_sign_dir, 'convert_recovery_to_ssd.sh'),

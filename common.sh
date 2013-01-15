@@ -1,29 +1,27 @@
+#!/bin/bash
 # Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
-# Common constants for build scripts
-# This must evaluate properly for both /bin/bash and /bin/sh
 
 # All scripts should die on error unless commands are specifically excepted
 # by prefixing with '!' or surrounded by 'set +e' / 'set -e'.
 
 # The number of jobs to pass to tools that can run in parallel (such as make
 # and dpkg-buildpackage
-if [ -z "${NUM_JOBS}" ]; then
+if [[ -z ${NUM_JOBS} ]]; then
   NUM_JOBS=$(grep -c "^processor" /proc/cpuinfo)
 fi
 # Ensure that any sub scripts we invoke get the max proc count.
-export NUM_JOBS="${NUM_JOBS}"
+export NUM_JOBS
 
 # Returns the pv command if it's available, otherwise plain-old cat. Note that
 # this function echoes the command, rather than running it, so it can be used
 # as an argument to other commands (like sudo).
 pv_cat_cmd() {
-  if pv -V >/dev/null 2>&1; then
+  if type -P pv >&/dev/null; then
     # Limit pv's output to 80 columns, for readability.
     local term_cols=$(stty size 2>/dev/null | cut -d' ' -f2)
-    if [ ${term_cols:-0} -gt 80 ]; then
+    if [[ ${term_cols:-0} -gt 80 ]]; then
       echo pv -w 80
     else
       echo pv
@@ -35,12 +33,11 @@ pv_cat_cmd() {
 
 # Make sure we have the location and name of the calling script, using
 # the current value if it is already set.
-SCRIPT_LOCATION=${SCRIPT_LOCATION:-$(dirname "$(readlink -f "$0")")}
-SCRIPT_NAME=${SCRIPT_NAME:-$(basename "$0")}
+: ${SCRIPT_LOCATION:=$(dirname "$(readlink -f "$0")")}
+: ${SCRIPT_NAME:=$(basename "$0")}
 
 # Detect whether we're inside a chroot or not
-if [ -e /etc/debian_chroot ]
-then
+if [[ -e /etc/debian_chroot ]]; then
   INSIDE_CHROOT=1
 else
   INSIDE_CHROOT=0
@@ -53,47 +50,53 @@ V_BOLD_YELLOW=
 V_REVERSE=
 V_VIDOFF=
 
-if tput colors >/dev/null 2>&1; then
+if tput colors >&/dev/null; then
   # order matters: we want VIDOFF last so that when we trace with `set -x`,
   # our terminal doesn't bleed colors as bash dumps the values of vars.
-  V_BOLD_RED="$(tput bold; tput setaf 1)"
-  V_BOLD_GREEN="$(tput bold; tput setaf 2)"
-  V_BOLD_YELLOW="$(tput bold; tput setaf 3)"
-  V_REVERSE="$(tput rev)"
-  V_VIDOFF="$(tput sgr0)"
+  V_BOLD_RED=$(tput bold; tput setaf 1)
+  V_BOLD_GREEN=$(tput bold; tput setaf 2)
+  V_BOLD_YELLOW=$(tput bold; tput setaf 3)
+  V_REVERSE=$(tput rev)
+  V_VIDOFF=$(tput sgr0)
 fi
 
-# Stubs for sh compatibility.
-_dump_trace() { :; }
-_escaped_echo() {
-  printf '%b\n' "$*"
-}
+# Turn on bash debug support if available for backtraces.
+shopt -s extdebug 2>/dev/null
 
-# Bash awareness, including stacktraces if possible.
-if [ -n "${BASH_VERSION-}" ]; then
-  function _escaped_echo() {
-    echo -e "$@"
-  }
-  # Turn on bash debug support if available.
-  if shopt -s extdebug 2> /dev/null; then
-    # Pull the path relative to this lib; SCRIPT_ROOT should always be set,
-    # but has never been formally required.
-    if [ -n "${SOURCE_ROOT-}" ]; then
-      . "${SOURCE_ROOT}"/common_bash_backtraces.sh
+# Output a backtrace all the way back to the raw invocation, suppressing
+# only the _dump_trace frame itself.
+_dump_trace() {
+  local j n p func src line args
+  p=${#BASH_ARGV[@]}
+  for (( n = ${#FUNCNAME[@]}; n > 1; --n )); do
+    func=${FUNCNAME[${n} - 1]}
+    src=${BASH_SOURCE[${n}]##*/}
+    line=${BASH_LINENO[${n} - 1]}
+    args=
+    if [[ -z ${BASH_ARGC[${n} -1]} ]]; then
+      args='(args unknown, no debug available)'
     else
-      x=$(readlink -f "${BASH_SOURCE[0]}")
-      . "${x%/*}"/common_bash_backtraces.sh
-      unset x
+      for (( j = 0; j < ${BASH_ARGC[${n} -1]}; ++j )); do
+        args="${args:+${args} }'${BASH_ARGV[$(( p - j - 1 ))]}'"
+      done
+      ! (( p -= ${BASH_ARGC[${n} - 1]} ))
     fi
-  fi
-fi
+    if [[ ${n} == ${#FUNCNAME[@]} ]]; then
+      error "script called: ${0##/*} ${args}"
+      error "Backtrace:  (most recent call is last)"
+    else
+      error "$(printf '  file %s, line %s, called: %s %s' \
+               "${src}" "${line}" "${func}" "${args}")"
+    fi
+  done
+}
 
 # Declare these asap so that code below can safely assume they exist.
 _message() {
-  local prefix="${1}"
+  local prefix=$1
   shift
-  if [ $# -eq 0 ]; then
-    _escaped_echo >&2 "${prefix}${CROS_LOG_PREFIX:-""}:${V_VIDOFF}"
+  if [[ $# -eq 0 ]]; then
+    echo -e "${prefix}${CROS_LOG_PREFIX:-""}:${V_VIDOFF}" >&2
     return
   fi
   (
@@ -104,12 +107,12 @@ _message() {
     set +f
     set -- $*
     IFS=' '
-    if [ $# -eq 0 ]; then
+    if [[ $# -eq 0 ]]; then
       # Empty line was requested.
       set -- ''
     fi
     for line in "$@"; do
-      _escaped_echo >&2 "${prefix}${CROS_LOG_PREFIX:-}: ${line}${V_VIDOFF}"
+      echo -e "${prefix}${CROS_LOG_PREFIX:-}: ${line}${V_VIDOFF}" >&2
     done
   )
 }
@@ -130,21 +133,18 @@ error() {
 # For all die functions, they must explicitly force set +eu;
 # no reason to have them cause their own crash if we're inthe middle
 # of reporting an error condition then exiting.
-
 die_err_trap() {
-  local command="$1" result="$2"
+  local command=$1 result=$2
   set +e +u
 
   # Per the message, bash misreports 127 as 1 during err trap sometimes.
   # Note this fact to ensure users don't place too much faith in the
   # exit code in that case.
   set -- "Command '${command}' exited with nonzero code: ${result}"
-  if [ -n "${BASH_VERSION-}" ]; then
-    if [ "$result" = 1 ] && [ -z "$(type -t $command)" ]; then
-      set -- "$@" \
-         '(Note bash sometimes misreports "command not found" as exit code 1 '\
+  if [[ ${result} -eq 1 ]] && [[ -z $(type -t ${command}) ]]; then
+    set -- "$@" \
+       '(Note bash sometimes misreports "command not found" as exit code 1 '\
 'instead of 127)'
-    fi
   fi
   _dump_trace
   error
@@ -166,11 +166,12 @@ die() {
 # Exit this script w/out a backtrace.
 die_notrace() {
   set +e +u
-  if [ $# -eq 0 ]; then
+  if [[ $# -eq 0 ]]; then
     set -- '(no error message given)'
   fi
+  local line
   for line in "$@"; do
-    error "${DIE_PREFIX}$line"
+    error "${DIE_PREFIX}${line}"
   done
   exit 1
 }
@@ -179,7 +180,7 @@ die_notrace() {
 # falling back to user specific paths if the upgrade has yet to
 # happen.
 _user="${USER}"
-[ "${USER}" = "root" ] && _user="${SUDO_USER}"
+[[ ${USER} == "root" ]] && _user="${SUDO_USER}"
 _CHROOT_TRUNK_DIRS=( "/home/${_user}/trunk" /mnt/host/source )
 _DEPOT_TOOLS_DIRS=( "/home/${_user}/depot_tools" /mnt/host/depot_tools )
 unset _user
@@ -191,27 +192,27 @@ _process_mount_pt() {
   # This will then try to migrate the old to new if we can do so right now
   # (else leaving symlinks in place w/in the new), and will set $1 to the
   # new location.
-  local base="${1:-/}" var="${2}" old="${3}" new="${4}" force="${5:-false}"
-  local _sudo=$([ "$USER" != root ] && echo sudo)
-  local val="${new}"
-  if [ -L "${base}/${new}" ] || [ ! -e "${base}/${new}" ]; then
+  local base=${1:-/} var=$2 old=$3 new=$4 force=${5:-false}
+  local _sudo=$([[ ${USER} != "root" ]] && echo sudo)
+  local val=${new}
+  if [[ -L ${base}/${new} ]] || [[ ! -e ${base}/${new} ]]; then
     # Ok, it's either a symlink or this is the first run.  Upgrade if we can-
     # specifically, if we're outside the chroot and we can rmdir the old.
     # If we cannot rmdir the old, that's due to a mount being bound to that
     # point (even if we can't see it, it's there)- thus fallback to adding
     # compat links.
-    if ${force} || ( [ "$INSIDE_CHROOT" -eq 0 ] && \
-        ${_sudo} rmdir "${base}/${old}" 2> /dev/null ); then
+    if ${force} || ( [[ ${INSIDE_CHROOT} -eq 0 ]] && \
+        ${_sudo} rmdir "${base}/${old}" 2>/dev/null ); then
       ${_sudo} rm -f "${base}/${new}" || :
       ${_sudo} mkdir -p "${base}/${new}" "$(dirname "${base}/${old}" )"
       ${_sudo} ln -s "${new}" "${base}/${old}"
     else
-      if [ ! -L "${base}/${new}" ]; then
+      if [[ ! -L ${base}/${new} ]]; then
         # We can't do the upgrade right now; install compatibility links.
         ${_sudo} mkdir -p "$(dirname "${base}/${new}")" "${base}/${old}"
         ${_sudo} ln -s "${old}" "${base}/${new}"
       fi
-      val="${old}"
+      val=${old}
     fi
   fi
   eval "${var}=\"${val}\""
@@ -222,7 +223,7 @@ set_chroot_trunk_dir() {
   # base; this is only used by enter_chroot.  The second argument is whether
   # or not to force the new pathways; this is only used by make_chroot.  Passing
   # a non-null value for $2 forces the new paths.
-  if [ "${INSIDE_CHROOT}" == 0 ] && [ -z "${1-}" ]; then
+  if [[ ${INSIDE_CHROOT} -eq 0 ]] && [[ -z ${1-} ]]; then
     # Can't do the upgrade, thus skip trying to do so.
     CHROOT_TRUNK_DIR="${_CHROOT_TRUNK_DIRS[1]}"
     DEPOT_TOOLS_DIR="${_DEPOT_TOOLS_DIRS[1]}"
@@ -238,37 +239,37 @@ set_chroot_trunk_dir
 # based on various environment variables and globals that may have been set
 # by the calling script.
 get_gclient_root_list() {
-  if [ $INSIDE_CHROOT -eq 1 ]; then
+  if [[ ${INSIDE_CHROOT} -eq 1 ]]; then
     echo "${CHROOT_TRUNK_DIR}"
   fi
 
-  if [ -n "${COMMON_SH}" ]; then echo "$(dirname "$COMMON_SH")/../.."; fi
-  if [ -n "${BASH_SOURCE}" ]; then echo "$(dirname "$BASH_SOURCE")/../.."; fi
+  if [[ -n ${COMMON_SH} ]]; then echo "$(dirname "${COMMON_SH}")/../.."; fi
+  if [[ -n ${BASH_SOURCE} ]]; then echo "$(dirname "${BASH_SOURCE}")/../.."; fi
 }
 
 # Based on the list of possible source locations we set GCLIENT_ROOT if it is
 # not already defined by looking for a src directory in each seach path
 # location.  If we do not find a valid looking root we error out.
 get_gclient_root() {
-  if [ -n "${GCLIENT_ROOT}" ]; then
+  if [[ -n ${GCLIENT_ROOT} ]]; then
     return
   fi
 
   for path in $(get_gclient_root_list); do
-    if [ -d "${path}/src" ]; then
+    if [[ -d ${path}/src ]]; then
       GCLIENT_ROOT=${path}
       break
     fi
   done
 
-  if [ -z "${GCLIENT_ROOT}" ]; then
+  if [[ -z ${GCLIENT_ROOT} ]]; then
     # Using dash or sh, we don't know where we are.  $0 refers to the calling
     # script, not ourselves, so that doesn't help us.
     echo "Unable to determine location for common.sh.  If you are sourcing"
     echo "common.sh from a script run via dash or sh, you must do it in the"
     echo "following way:"
     echo '  COMMON_SH="$(dirname "$0")/../../scripts/common.sh"'
-    echo '  . "$COMMON_SH"'
+    echo '  . "${COMMON_SH}"'
     echo "where the first line is the relative path from your script to"
     echo "common.sh."
     exit 1
@@ -290,38 +291,38 @@ get_gclient_root
 # Canonicalize the directories for the root dir and the calling script.
 # readlink is part of coreutils and should be present even in a bare chroot.
 # This is better than just using
-#     FOO = "$(cd $FOO ; pwd)"
+#     FOO="$(cd ${FOO} ; pwd)"
 # since that leaves symbolic links intact.
 # Note that 'realpath' is equivalent to 'readlink -f'.
-SCRIPT_LOCATION=$(readlink -f "$SCRIPT_LOCATION")
-GCLIENT_ROOT=$(readlink -f "$GCLIENT_ROOT")
+SCRIPT_LOCATION=$(readlink -f "${SCRIPT_LOCATION}")
+GCLIENT_ROOT=$(readlink -f "${GCLIENT_ROOT}")
 
 # Other directories should always be pathed down from GCLIENT_ROOT.
-SRC_ROOT="$GCLIENT_ROOT/src"
-SRC_INTERNAL="$GCLIENT_ROOT/src-internal"
-SCRIPTS_DIR="$SRC_ROOT/scripts"
-BUILD_LIBRARY_DIR=${SCRIPTS_DIR}/build_library
+SRC_ROOT="${GCLIENT_ROOT}/src"
+SRC_INTERNAL="${GCLIENT_ROOT}/src-internal"
+SCRIPTS_DIR="${SRC_ROOT}/scripts"
+BUILD_LIBRARY_DIR="${SCRIPTS_DIR}/build_library"
 
 # Load developer's custom settings.  Default location is in scripts dir,
 # since that's available both inside and outside the chroot.  By convention,
 # settings from this file are variables starting with 'CHROMEOS_'
-CHROMEOS_DEV_SETTINGS="${CHROMEOS_DEV_SETTINGS:-$SCRIPTS_DIR/.chromeos_dev}"
-if [ -f "$CHROMEOS_DEV_SETTINGS" ]; then
+: ${CHROMEOS_DEV_SETTINGS:=${SCRIPTS_DIR}/.chromeos_dev}
+if [[ -f ${CHROMEOS_DEV_SETTINGS} ]]; then
   # Turn on exit-on-error during custom settings processing
   SAVE_OPTS=$(set +o)
   switch_to_strict_mode
 
   # Read settings
-  . "$CHROMEOS_DEV_SETTINGS"
+  . "${CHROMEOS_DEV_SETTINGS}"
 
   # Restore previous state of exit-on-error
-  eval "$SAVE_OPTS"
+  eval "${SAVE_OPTS}"
 fi
 
 # Load shflags
 # NOTE: This code snippet is in particular used by the au-generator (which
 # stores shflags in ./lib/shflags/) and should not be touched.
-if [ -f "${SCRIPTS_DIR}/lib/shflags/shflags" ]; then
+if [[ -f ${SCRIPTS_DIR}/lib/shflags/shflags ]]; then
   . "${SCRIPTS_DIR}/lib/shflags/shflags" || die "Couldn't find shflags"
 else
   . ./lib/shflags/shflags || die "Couldn't find shflags"
@@ -341,25 +342,25 @@ DEFAULT_IMG_MIRROR=${CHROMEOS_IMG_MIRROR:-"${DEFAULT_CHROMEOS_SERVER}/ubuntu"}
 DEFAULT_IMG_SUITE=${CHROMEOS_IMG_SUITE:-"karmic"}
 
 # Default location for chroot
-DEFAULT_CHROOT_DIR=${CHROMEOS_CHROOT_DIR:-"$GCLIENT_ROOT/chroot"}
+DEFAULT_CHROOT_DIR=${CHROMEOS_CHROOT_DIR:-"${GCLIENT_ROOT}/chroot"}
 
-# All output files from build should go under $DEFAULT_BUILD_ROOT, so that
+# All output files from build should go under ${DEFAULT_BUILD_ROOT}, so that
 # they don't pollute the source directory.
-DEFAULT_BUILD_ROOT=${CHROMEOS_BUILD_ROOT:-"$SRC_ROOT/build"}
+DEFAULT_BUILD_ROOT=${CHROMEOS_BUILD_ROOT:-"${SRC_ROOT}/build"}
 
 # Set up a global ALL_BOARDS value
-if [ -d "$SRC_ROOT/overlays" ]; then
-  ALL_BOARDS=$(cd "$SRC_ROOT/overlays"; \
+if [[ -d ${SRC_ROOT}/overlays ]]; then
+  ALL_BOARDS=$(cd "${SRC_ROOT}/overlays"; \
     ls -1d overlay-* 2>&- | sed 's,overlay-,,g')
 fi
-# Strip CR
-ALL_BOARDS=$(echo $ALL_BOARDS)
+# Normalize whitespace.
+ALL_BOARDS=$(echo ${ALL_BOARDS})
 
 # Sets the default board variable for calling script.
-if [ -f "$GCLIENT_ROOT/src/scripts/.default_board" ] ; then
-  DEFAULT_BOARD=$(cat "$GCLIENT_ROOT/src/scripts/.default_board")
+if [[ -f ${GCLIENT_ROOT}/src/scripts/.default_board ]]; then
+  DEFAULT_BOARD=$(<"${GCLIENT_ROOT}/src/scripts/.default_board")
   # Check for user typos like whitespace.
-  if [[ -n ${DEFAULT_BOARD//[a-zA-Z0-9-_]} ]] ; then
+  if [[ -n ${DEFAULT_BOARD//[a-zA-Z0-9-_]} ]]; then
     die ".default_board: invalid name detected; please fix:" \
         "'${DEFAULT_BOARD}'"
   fi
@@ -417,7 +418,7 @@ COMMON_INSTALL_MASK="
 
 # Mask for base, dev, and test images (build_image, build_image --test)
 DEFAULT_INSTALL_MASK="
-  $COMMON_INSTALL_MASK
+  ${COMMON_INSTALL_MASK}
   /usr/local/autotest
   /lib/modules/*/kernel/drivers/input/misc/uinput.ko
   /lib/modules/*/build
@@ -427,7 +428,7 @@ DEFAULT_INSTALL_MASK="
 
 # Mask for factory test image (build_image --factory)
 FACTORY_TEST_INSTALL_MASK="
-  $COMMON_INSTALL_MASK
+  ${COMMON_INSTALL_MASK}
   */.svn
   */CVS
   /usr/local/autotest/[^c]*
@@ -445,7 +446,7 @@ FACTORY_TEST_INSTALL_MASK="
 
 # Mask for factory install shim (build_image factory_install)
 FACTORY_SHIM_INSTALL_MASK="
-  $DEFAULT_INSTALL_MASK
+  ${DEFAULT_INSTALL_MASK}
   /opt/[^g]*
   /opt/google/chrome
   /opt/google/o3d
@@ -475,17 +476,17 @@ FACTORY_SHIM_INSTALL_MASK="
 
 setup_board_warning() {
   echo
-  echo "$V_REVERSE=================  WARNING  ======================$V_VIDOFF"
+  echo "${V_REVERSE}================  WARNING  =====================${V_VIDOFF}"
   echo
   echo "*** No default board detected in " \
-    "$GCLIENT_ROOT/src/scripts/.default_board"
+    "${GCLIENT_ROOT}/src/scripts/.default_board"
   echo "*** Either run setup_board with default flag set"
-  echo "*** or echo |board_name| > $GCLIENT_ROOT/src/scripts/.default_board"
+  echo "*** or echo |board_name| > ${GCLIENT_ROOT}/src/scripts/.default_board"
   echo
 }
 
 is_nfs() {
-  [ "$(stat -f -L -c %T "$1")" = "nfs" ]
+  [[ $(stat -f -L -c %T "$1") == "nfs" ]]
 }
 
 warn_if_nfs() {
@@ -497,17 +498,17 @@ warn_if_nfs() {
 # Enter a chroot and restart the current script if needed
 restart_in_chroot_if_needed() {
   # NB:  Pass in ARGV:  restart_in_chroot_if_needed "$@"
-  if [ $INSIDE_CHROOT -ne 1 ]; then
+  if [[ ${INSIDE_CHROOT} -ne 1 ]]; then
     # Get inside_chroot path for script.
     local chroot_path="$(reinterpret_path_for_chroot "$0")"
-    exec $GCLIENT_ROOT/chromite/bin/cros_sdk -- "$chroot_path" "$@"
+    exec ${GCLIENT_ROOT}/chromite/bin/cros_sdk -- "${chroot_path}" "$@"
   fi
 }
 
 # Fail unless we're inside the chroot.  This guards against messing up your
 # workstation.
 assert_inside_chroot() {
-  if [ $INSIDE_CHROOT -ne 1 ]; then
+  if [[ ${INSIDE_CHROOT} -ne 1 ]]; then
     echo "This script must be run inside the chroot.  Run this first:"
     echo "    cros_sdk"
     exit 1
@@ -517,21 +518,21 @@ assert_inside_chroot() {
 # Fail if we're inside the chroot.  This guards against creating or entering
 # nested chroots, among other potential problems.
 assert_outside_chroot() {
-  if [ $INSIDE_CHROOT -ne 0 ]; then
+  if [[ ${INSIDE_CHROOT} -ne 0 ]]; then
     echo "This script must be run outside the chroot."
     exit 1
   fi
 }
 
 assert_not_root_user() {
-  if [ ${UID:-$(id -u)} = 0 ]; then
+  if [[ ${UID:-$(id -u)} == 0 ]]; then
     echo "This script must be run as a non-root user."
     exit 1
   fi
 }
 
 assert_root_user() {
-  if [ ${UID:-$(id -u)} != 0 ] || [ "${SUDO_USER:-root}" = "root" ]; then
+  if [[ ${UID:-$(id -u)} != 0 ]] || [[ ${SUDO_USER:-root} == "root" ]]; then
     die_notrace "This script must be run using sudo from a non-root user."
   fi
 }
@@ -545,18 +546,18 @@ assert_root_user() {
 #
 # Usage: check_flags_only_and_allow_null_arg "$@" && set --
 check_flags_only_and_allow_null_arg() {
-  do_shift=1
-  if [ $# = 1 -a -z "$1" ]; then
+  local do_shift=1
+  if [[ $# -eq 1 ]] && [[ -z $1 ]]; then
     echo "$0: warning: ignoring null argument" >&2
     shift
     do_shift=0
   fi
-  if [ $# -gt 0 ]; then
-    echo "error: invalid arguments: \"$@\"" >&2
+  if [[ $# -gt 0 ]]; then
+    echo "error: invalid arguments: \"$*\"" >&2
     flags_help
     exit 1
   fi
-  return $do_shift
+  return ${do_shift}
 }
 
 # Removes single quotes around parameter
@@ -572,14 +573,14 @@ remove_quotes() {
 #
 # $1 - The output file name.
 sudo_clobber() {
-  sudo tee "$1" > /dev/null
+  sudo tee "$1" >/dev/null
 }
 
 # Writes stdin to the given file name as root using sudo in append mode.
 #
 # $1 - The output file name.
 sudo_append() {
-  sudo tee -a "$1" > /dev/null
+  sudo tee -a "$1" >/dev/null
 }
 
 # Execute multiple commands in a single sudo. Generally will speed things
@@ -658,7 +659,7 @@ sub_mounts() {
   # that things were mounted (since it always has and hopefully always
   # will).  As such, we have to unmount in reverse order to cleanly
   # unmount submounts (think /dev/pts and /dev).
-  awk -v path="$1" -v len="${#1}" \
+  awk -v path=$1 -v len="${#1}" \
     '(substr($2, 1, len) == path) { print $2 }' /proc/mounts | \
     tac | \
     sed -e 's/\\040(deleted)$//'
@@ -675,7 +676,7 @@ safe_umount_tree() {
   local mounts=$(sub_mounts "$1")
 
   # Hmm, this shouldn't normally happen, but anything is possible.
-  if [ -z "${mounts}" ] ; then
+  if [[ -z ${mounts} ]]; then
     return 0
   fi
 
@@ -686,7 +687,7 @@ safe_umount_tree() {
 
   # Check whether our mounts were successfully unmounted.
   mounts=$(sub_mounts "$1")
-  if [ -z "${mounts}" ]; then
+  if [[ -z ${mounts} ]]; then
     warn "umount failed, but devices were unmounted anyway"
     return 0
   fi
@@ -703,18 +704,18 @@ safe_umount_tree() {
 
 # Run umount as root.
 safe_umount() {
-  $([ ${UID:-$(id -u)} != 0 ] && echo sudo) umount "$@"
+  $([[ ${UID:-$(id -u)} != 0 ]] && echo sudo) umount "$@"
 }
 
 get_git_id() {
   git var GIT_COMMITTER_IDENT | sed -e 's/^.*<\(\S\+\)>.*$/\1/'
 }
 
-# Fixes symlinks that are incorrectly prefixed with the build root ${1}
+# Fixes symlinks that are incorrectly prefixed with the build root $1
 # rather than the real running root '/'.
 # TODO(sosa) - Merge setup - cleanup below with this method.
 fix_broken_symlinks() {
-  local build_root="${1}"
+  local build_root=$1
   local symlinks=$(find "${build_root}/usr/local" -lname "${build_root}/*")
   local symlink
   for symlink in ${symlinks}; do
@@ -735,18 +736,18 @@ fix_broken_symlinks() {
 # usr and local since the developer root is mounted at /usr/local and
 # applications expect to be installed under /usr/local/bin, etc.
 # This avoids packages installing into /usr/local/usr/local/bin.
-# ${1} specifies the symlink target for the developer root.
-# ${2} specifies the symlink target for the var directory.
-# ${3} specifies the location of the stateful partition.
+# $1 specifies the symlink target for the developer root.
+# $2 specifies the symlink target for the var directory.
+# $3 specifies the location of the stateful partition.
 setup_symlinks_on_root() {
   # Give args better names.
-  local dev_image_target=${1}
-  local var_target=${2}
-  local dev_image_root="${3}/dev_image"
+  local dev_image_target=$1
+  local var_target=$2
+  local dev_image_root="$3/dev_image"
 
   # If our var target is actually the standard var, we are cleaning up the
   # symlinks (could also check for /usr/local for the dev_image_target).
-  if [ ${var_target} = "/var" ]; then
+  if [[ ${var_target} == "/var" ]]; then
     echo "Cleaning up /usr/local symlinks for ${dev_image_root}"
   else
     echo "Setting up symlinks for /usr/local for ${dev_image_root}"
@@ -755,18 +756,18 @@ setup_symlinks_on_root() {
   # Set up symlinks that should point to ${dev_image_target}.
   local path
   for path in usr local; do
-    if [ -h "${dev_image_root}/${path}" ]; then
+    if [[ -h ${dev_image_root}/${path} ]]; then
       sudo unlink "${dev_image_root}/${path}"
-    elif [ -e "${dev_image_root}/${path}" ]; then
+    elif [[ -e ${dev_image_root}/${path} ]]; then
       die "${dev_image_root}/${path} should be a symlink if exists"
     fi
     sudo ln -s "${dev_image_target}" "${dev_image_root}/${path}"
   done
 
   # Setup var symlink.
-  if [ -h "${dev_image_root}/var" ]; then
+  if [[ -h ${dev_image_root}/var ]]; then
     sudo unlink "${dev_image_root}/var"
-  elif [ -e "${dev_image_root}/var" ]; then
+  elif [[ -e ${dev_image_root}/var ]]; then
     die "${dev_image_root}/var should be a symlink if it exists"
   fi
 
@@ -797,20 +798,20 @@ setup_symlinks_on_root() {
 # N.B., if the high order feature bits are used in the future, we will need to
 #       revisit this technique.
 disable_rw_mount() {
-  local rootfs="$1"
+  local rootfs=$1
   local offset="${2-0}"  # in bytes
   local ro_compat_offset=$((0x464 + 3))  # Set 'highest' byte
   printf '\377' |
-    sudo dd of="$rootfs" seek=$((offset + ro_compat_offset)) \
+    sudo dd of="${rootfs}" seek=$((offset + ro_compat_offset)) \
             conv=notrunc count=1 bs=1
 }
 
 enable_rw_mount() {
-  local rootfs="$1"
+  local rootfs=$1
   local offset="${2-0}"
   local ro_compat_offset=$((0x464 + 3))  # Set 'highest' byte
   printf '\000' |
-    sudo dd of="$rootfs" seek=$((offset + ro_compat_offset)) \
+    sudo dd of="${rootfs}" seek=$((offset + ro_compat_offset)) \
             conv=notrunc count=1 bs=1
 }
 
@@ -820,7 +821,7 @@ start_time=$(date +%s)
 # Get time elapsed since start_time in seconds.
 get_elapsed_seconds() {
   local end_time=$(date +%s)
-  local elapsed_seconds=$(($end_time - $start_time))
+  local elapsed_seconds=$(( end_time - start_time ))
   echo ${elapsed_seconds}
 }
 
@@ -832,10 +833,10 @@ print_time_elapsed() {
   local elapsed_seconds=${1:-$(get_elapsed_seconds)}
   local cmd_base=${2:-}
 
-  local minutes=$(($elapsed_seconds / 60))
-  local seconds=$(($elapsed_seconds % 60))
+  local minutes=$(( elapsed_seconds / 60 ))
+  local seconds=$(( elapsed_seconds % 60 ))
 
-  if [ -n "${cmd_base}" ]; then
+  if [[ -n ${cmd_base} ]]; then
     info "Elapsed time (${cmd_base}): ${minutes}m${seconds}s"
   else
     info "Elapsed time: ${minutes}m${seconds}s"
@@ -899,16 +900,15 @@ command_completed() {
 # variant information and provides it in the BOARD, VARIANT and BOARD_VARIANT
 # variables.
 get_board_and_variant() {
-  local flags_board="${1}"
-  local flags_variant="${2}"
+  local flags_board=$1
+  local flags_variant=$2
 
-  BOARD=$(echo "$flags_board" | cut -d '_' -f 1)
-  VARIANT=${flags_variant:-$(echo "$flags_board" | cut -s -d '_' -f 2)}
+  BOARD=$(echo "${flags_board}" | cut -d '_' -f 1)
+  VARIANT=${flags_variant:-$(echo "${flags_board}" | cut -s -d '_' -f 2)}
 
-  if [ -n "$VARIANT" ]; then
-    BOARD_VARIANT="${BOARD}_${VARIANT}"
-  else
-    BOARD_VARIANT="${BOARD}"
+  BOARD_VARIANT=${BOARD}
+  if [[ -n ${VARIANT} ]]; then
+    BOARD_VARIANT+="_${VARIANT}"
   fi
 }
 
@@ -932,11 +932,11 @@ check_for_file() {
   local padding=$2
   local path=$3
 
-  if [ -z "${path}" ]; then
+  if [[ -z ${path} ]]; then
     die "No ${name} file specified."
   fi
 
-  if [ ! -e "${path}" ]; then
+  if [[ ! -e ${path} ]]; then
     die "No ${name} file found at: ${path}"
   else
     info "Using ${name}${padding} ${path}"
@@ -950,7 +950,7 @@ check_for_tool() {
   local tool=$1
   local ebuild=$2
 
-  if ! which "${tool}" >/dev/null ; then
+  if ! which "${tool}" >/dev/null; then
     error "The ${tool} utility was not found in your path.  Run the following"
     error "command in your chroot to install it: sudo -E emerge ${ebuild}"
     exit 1
@@ -961,19 +961,19 @@ check_for_tool() {
 # Returns "" if "" given.
 # $1 - The path to reinterpret.
 reinterpret_path_for_chroot() {
-  if [ $INSIDE_CHROOT -ne 1 ]; then
-    if [ -z "${1}" ]; then
+  if [[ ${INSIDE_CHROOT} -ne 1 ]]; then
+    if [[ -z $1 ]]; then
       echo ""
     else
-      local path_abs_path=$(readlink -f "${1}")
+      local path_abs_path=$(readlink -f "$1")
       local gclient_root_abs_path=$(readlink -f "${GCLIENT_ROOT}")
 
       # Strip the repository root from the path.
       local relative_path=$(echo ${path_abs_path} \
           | sed "s:${gclient_root_abs_path}/::")
 
-      if [ "${relative_path}" = "${path_abs_path}" ]; then
-        die "Error reinterpreting path.  Path ${1} is not within source tree."
+      if [[ ${relative_path} == "${path_abs_path}" ]]; then
+        die "Error reinterpreting path.  Path $1 is not within source tree."
       fi
 
       # Prepend the chroot repository path.
@@ -981,12 +981,12 @@ reinterpret_path_for_chroot() {
     fi
   else
     # Path is already inside the chroot :).
-    echo "${1}"
+    echo "$1"
   fi
 }
 
 emerge_custom_kernel() {
-  local install_root="$1"
+  local install_root=$1
   local root=/build/${FLAGS_board}
   local tmp_pkgdir=${root}/custom-packages
 
@@ -995,11 +995,11 @@ emerge_custom_kernel() {
 
   # Update chromeos-initramfs to contain the latest binaries from the build
   # tree. This is basically just packaging up already-built binaries from
-  # $root. We are careful not to muck with the existing prebuilts so that
+  # ${root}. We are careful not to muck with the existing prebuilts so that
   # prebuilts can be uploaded in parallel.
   # TODO(davidjames): Implement ABI deps so that chromeos-initramfs will be
   # rebuilt automatically when its dependencies change.
-  sudo -E PKGDIR="${tmp_pkgdir}" $EMERGE_BOARD_CMD -1 \
+  sudo -E PKGDIR="${tmp_pkgdir}" ${EMERGE_BOARD_CMD} -1 \
     chromeos-base/chromeos-initramfs || die "Cannot emerge chromeos-initramfs"
 
   # Verify all dependencies of the kernel are installed. This should be a
@@ -1008,29 +1008,29 @@ emerge_custom_kernel() {
   # in portage where it only installs the virtual pkg.
   local kernel=$(portageq-${FLAGS_board} expand_virtual ${root} \
                  virtual/linux-sources)
-  sudo -E PKGDIR="${tmp_pkgdir}" $EMERGE_BOARD_CMD --onlydeps \
+  sudo -E PKGDIR="${tmp_pkgdir}" ${EMERGE_BOARD_CMD} --onlydeps \
     ${kernel} || die "Cannot emerge kernel dependencies"
 
   # Build the kernel. This uses the standard root so that we can pick up the
   # initramfs from there. But we don't actually install the kernel to the
   # standard root, because that'll muck up the kernel debug symbols there,
   # which we want to upload in parallel.
-  sudo -E PKGDIR="${tmp_pkgdir}" $EMERGE_BOARD_CMD --buildpkgonly \
+  sudo -E PKGDIR="${tmp_pkgdir}" ${EMERGE_BOARD_CMD} --buildpkgonly \
     ${kernel} || die "Cannot emerge kernel"
 
   # Install the custom kernel to the provided install root.
-  sudo -E PKGDIR="${tmp_pkgdir}" $EMERGE_BOARD_CMD --usepkgonly \
+  sudo -E PKGDIR="${tmp_pkgdir}" ${EMERGE_BOARD_CMD} --usepkgonly \
     --root=${install_root} ${kernel} || die "Cannot emerge kernel to root"
 }
 
 enable_strict_sudo() {
-  if [ -z "$CROS_SUDO_KEEP_ALIVE" ]; then
+  if [[ -z ${CROS_SUDO_KEEP_ALIVE} ]]; then
     echo "$0 was somehow invoked in a way that the sudo keep alive could"
     echo "not be found.  Failing due to this.  See crosbug.com/18393."
     exit 126
   fi
-  function sudo {
-    `type -P sudo` -n "$@"
+  sudo() {
+    $(type -P sudo) -n "$@"
   }
 }
 
@@ -1039,7 +1039,7 @@ enable_strict_sudo() {
 # This check can be overridden by setting the CROS_NO_PROMPT environment
 # variable to a non-empty value.
 is_interactive() {
-  [ -z "${CROS_NO_PROMPT}" -a -t 0 -a -t 2 ]
+  [[ -z ${CROS_NO_PROMPT} && -t 0 && -t 2 ]]
 }
 
 assert_interactive() {
@@ -1079,38 +1079,38 @@ choose() {
 
   # Retrieve output variable name and default return value.
   local choose_reply=$1
-  local choose_default="$2"
-  local choose_invalid="$3"
+  local choose_default=$2
+  local choose_invalid=$3
   shift 3
 
   # Select a return value
   unset REPLY
-  if [ $# -gt 0 ]; then
+  if [[ $# -gt 0 ]]; then
     assert_interactive
 
     # Actual options provided, present a menu and prompt for a choice.
     local choose_opt
     for choose_opt in "$@"; do
-      echo "$choose_i) $choose_opt" >&2
-      choose_i=choose_i+1
+      echo "${choose_i}) ${choose_opt}" >&2
+      : $(( ++choose_i ))
     done
     read -p "$PS3"
   fi
   # Filter out strings containing non-digits.
-  if [ "${REPLY}" != "${REPLY%%[!0-9]*}" ]; then
+  if [[ ${REPLY} != "${REPLY%%[!0-9]*}" ]]; then
     REPLY=0
   fi
   choose_i="${REPLY}"
 
-  if [ $choose_i -ge 1 -a $choose_i -le $# ]; then
+  if [[ ${choose_i} -ge 1 && ${choose_i} -le $# ]]; then
     # Valid choice, return the corresponding value.
-    eval ${choose_reply}="${!choose_i}"
-  elif [ -z "${REPLY}" ]; then
+    eval ${choose_reply}=\""${!choose_i}"\"
+  elif [[ -z ${REPLY} ]]; then
     # Empty choice, return default value.
-    eval ${choose_reply}="${choose_default}"
+    eval ${choose_reply}=\""${choose_default}"\"
   else
     # Invalid choice, return corresponding value.
-    eval ${choose_reply}="${choose_invalid}"
+    eval ${choose_reply}=\""${choose_invalid}\""
   fi
 }
 
@@ -1124,8 +1124,9 @@ choose() {
 #
 # See build_packages for example usage.
 show_help_if_requested() {
+  local opt
   for opt in "$@"; do
-    if [ "$opt" = "-h" ] || [ "$opt" = "--help" ]; then
+    if [[ ${opt} == "-h" || ${opt} == "--help" ]]; then
       flags_help
       exit 0
     fi
@@ -1137,7 +1138,7 @@ switch_to_strict_mode() {
   # must follow switch_to_strict_mode, else it will have no effect.
   set -e
   trap 'die_err_trap "${BASH_COMMAND:-command unknown}" "$?"' ERR
-  if [ $# -ne 0 ]; then
+  if [[ $# -ne 0 ]]; then
     set "$@"
   fi
 }
@@ -1148,7 +1149,7 @@ switch_to_strict_mode() {
 okboat() {
   # http://www.chris.com/ascii/index.php?art=transportation/nautical
   echo -e "${V_BOLD_GREEN}"
-  cat <<"BOAT"
+  cat <<BOAT
     .  o ..
     o . o o.o
          ...oo_
@@ -1162,7 +1163,7 @@ BOAT
 
 failboat() {
   echo -e "${V_BOLD_RED}"
-  cat <<"BOAT"
+  cat <<BOAT
              '
         '    )
          ) (
