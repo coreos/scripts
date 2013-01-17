@@ -437,11 +437,11 @@ setup_env() {
     # We're also installing credentials for use by sudoed invocations.
     boto='src/private-overlays/chromeos-overlay/googlestorage_account.boto'
     if [ -s "${FLAGS_trunk}/${boto}" ]; then
-      if [ ! -e "${FLAGS_chroot}/home/${SUDO_USER}/.boto" ]; then
+      if [ ! -L "${FLAGS_chroot}/home/${SUDO_USER}/.boto" ]; then
         user_symlink "trunk/${boto}" "${FLAGS_chroot}/home/${SUDO_USER}/.boto"
       fi
-      if [ ! -e "${FLAGS_chroot}/root/.boto" ]; then
-        ln -s "../home/${SUDO_USER}/trunk/${boto}" "${FLAGS_chroot}/root/.boto"
+      if [ ! -L "${FLAGS_chroot}/root/.boto" ]; then
+        ln -sf "${CHROOT_TRUNK_DIR}/${boto}" "${FLAGS_chroot}/root/.boto"
       fi
     fi
 
