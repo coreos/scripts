@@ -145,6 +145,9 @@ DEFINE_boolean enable_squashfs ${FLAGS_FALSE} \
 DEFINE_string squash_sort_file "" \
   "Specify the priority of files when squashing the rootfs."
 
+DEFINE_string enable_serial "" \
+  "Enable serial port for printks. Example values: ttyS0"
+
 # Parse the boot.desc and any overrides
 eval set -- "${BOOT_DESC} ${FLAG_OVERRIDES}"
 FLAGS "${@}" || exit 1
@@ -240,6 +243,7 @@ make_image_bootable() {
     --verity_error_behavior=${FLAGS_verity_error_behavior} \
     --verity_salt=${FLAGS_verity_salt} \
     --keys_dir="${FLAGS_keys_dir}" \
+    --enable_serial="${FLAGS_enable_serial}" \
     ${enable_rootfs_verification_flag} \
     ${enable_bootcache_flag} \
     ${use_dev_keys}

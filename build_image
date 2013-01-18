@@ -31,6 +31,8 @@ DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
   "Install standard backdoor credentials for testing"
 DEFINE_string usb_disk /dev/sdb3 \
   "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
+DEFINE_string enable_serial "" \
+  "Enable serial port for printks. Example values: ttyS0"
 
 FLAGS_HELP="USAGE: build_image [flags] [list of images to build].
 This script is used to build a Chromium OS image. Chromium OS comes in many

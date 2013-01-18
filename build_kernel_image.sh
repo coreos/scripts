@@ -49,6 +49,8 @@ DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Enable kernel-based root fs integrity checking. (Default: true)"
 DEFINE_boolean enable_bootcache ${FLAGS_FALSE} \
   "Enable boot cache to accelerate booting. (Default: false)"
+DEFINE_string enable_serial "" \
+  "Enable serial port for printks. Example values: ttyS0"
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -180,10 +182,25 @@ WORK="${WORK} ${FLAGS_working_dir}/boot.config"
 info "Emitted cross-platform boot params to ${FLAGS_working_dir}/boot.config"
 
 # Add common boot options first.
-cat <<EOF | cat - "${FLAGS_working_dir}/boot.config" \
-  > "${FLAGS_working_dir}/config.txt"
-loglevel=7
+config="${FLAGS_working_dir}/config.txt"
+if [[ -n ${FLAGS_enable_serial} ]]; then
+  console=${FLAGS_enable_serial}
+  if [[ ${console} != *,* ]]; then
+    console+=",115200n8"
+  fi
+  cat <<EOF > "${config}"
+console=${console}
+earlyprintk=${console}
+console=tty1
+EOF
+else
+  cat <<EOF > "${config}"
 console=
+EOF
+fi
+
+cat <<EOF - "${FLAGS_working_dir}/boot.config" >> "${config}"
+loglevel=7
 init=/sbin/init
 cros_secure
 EOF
