@@ -125,7 +125,7 @@ if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
 
   BASE_PACKAGE="chromeos-base/chromeos-installshim"
 
-  export USE="${USE} initramfs vfat"
+  export USE="${USE} initramfs vfat tpm i2cdev"
 
   # On ARM, fbconsole is required to fix a display driver bug.
   if [ "${ARCH}" = "arm" ] ; then
