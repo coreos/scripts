@@ -69,13 +69,6 @@
         "blocks":"32768"
       },
       {
-        "num": 1,
-        "label":"STATE",
-        "type":"data",
-        "blocks":"2097152",
-        "features":["expand"]
-      },
-      {
         "num": 5,
         "label":"ROOT-B",
         "type":"rootfs",
@@ -88,6 +81,13 @@
         "type":"rootfs",
         "blocks":"4194304",
         "fs_blocks":"262144"
+      },
+      {
+        "num": 1,
+        "label":"STATE",
+        "type":"data",
+        "blocks":"2097152",
+        "features":["expand"]
       }
     ],
     "usb": [
