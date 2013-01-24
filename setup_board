@@ -362,7 +362,7 @@ else
 fi
 
 cmds=(
-  "mkdir -p '${BOARD_ROOT}' '${BOARD_ETC}' '${BOARD_PROFILE}'"
+  "mkdir -p '${BOARD_ROOT}' '${BOARD_ETC}' '${BOARD_PROFILE}' /usr/local/bin"
 )
 
 # Setup the make.confs. We use the following:
