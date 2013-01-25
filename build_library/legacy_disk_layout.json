@@ -190,6 +190,22 @@
         "blocks":"1"
       }
     ],
+    "2gb-rootfs-updatable": [
+      {
+        "num": 3,
+        "label":"ROOT-A",
+        "type":"rootfs",
+        "blocks":"4569600",
+        "fs_blocks":"512000"
+      },
+      {
+        "num": 5,
+        "label":"ROOT-B",
+        "type":"rootfs",
+        "blocks":"4569600",
+        "fs_blocks":"512000"
+      }
+    ],
     "4gb-rootfs": [
       {
         "num": 3,
