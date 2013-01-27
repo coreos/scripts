@@ -58,12 +58,12 @@ mkdir -p netboot
 # env modification is available.
 # TODO(nsanders): ARM generic doesn't build chromeos-u-boot package.
 # When ARM generic goes away, delete the test.
-if [ -r "${SYSROOT}/firmware/legacy_image.bin" ]; then
-    echo "Copying netboot firmware legacy_image.bin"
-    cp "${SYSROOT}/firmware/legacy_image.bin" "netboot"
-    cp "${GCLIENT_ROOT}/chroot/usr/bin/update_firmware_vars.py" "netboot"
+if ls "${SYSROOT}"/firmware/nv_image-*.bin >/dev/null 2>&1; then
+    echo "Copying netboot firmware nv_image-*.bin"
+    cp -v "${SYSROOT}"/firmware/nv_image-*.bin "netboot"
 else
-    echo "Skipping legacy fw: ${SYSROOT}/firmware/legacy_image.bin not present?"
+    echo "Skipping netboot firmware: " \
+        "${SYSROOT}/firmware/nv_image-*.bin not present?"
 fi
 
 # Prepare to mount rootfs.
