@@ -177,7 +177,8 @@ canonicalize_name () {
     return 0
   fi
 
-  if ! pkgfile=$(ACCEPT_KEYWORDS="~${ARCH}" ${EQUERYCMD} which $1); then
+  if ! pkgfile=$(ACCEPT_KEYWORDS="~${ARCH}" ${EQUERYCMD} \
+                 which --include-masked $1); then
     warn "error looking up package $1" 1>&2
     return 1
   fi
