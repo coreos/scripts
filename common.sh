@@ -705,7 +705,33 @@ safe_umount_tree() {
 
 # Run umount as root.
 safe_umount() {
-  $([[ ${UID:-$(id -u)} != 0 ]] && echo sudo) umount "$@"
+  local ret=0
+  local out=""
+  set +e
+  for i in $(seq 1 4); do
+    out=`$([[ ${UID:-$(id -u)} != 0 ]] && echo sudo) umount "$@" 2>&1`
+    ret=$?
+    if [[ $ret -eq 0 ]]; then
+      set -e
+      return 0
+    fi
+    # Mount is not found
+    if [[ `expr index "${out}" "not found"` -ne "0" ]]; then
+      set -e
+      return 0
+    fi
+    # Mount is not mounted.
+    if [[ `expr index "${out}" "not mounted"` -ne "0" ]]; then
+      set -e
+      return 0
+    fi
+    sleep 1
+    # Mount is actually busy.
+    if [[ `expr index "${out}" "busy"` -ne "0" ]]; then
+      continue
+    fi
+  done
+  return $ret
 }
 
 get_git_id() {

@@ -66,10 +66,10 @@ if [[ ${PKGS/kernel/} != ${PKGS} ]]; then
    sudo dd if="./rootfs/boot/vmlinuz" of=part_2 bs=512 count=8192 conv=notrunc
 fi
 
-sudo umount rootfs/usr/local
-sudo umount rootfs/var
-sudo umount rootfs
-sudo umount stateful_part
+safe_umount rootfs/usr/local
+safe_umount rootfs/var
+safe_umount rootfs
+safe_umount stateful_part
 ./pack_partitions.sh ${IMAGE}
 
 cd -
