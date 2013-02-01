@@ -192,12 +192,6 @@
     ],
     "2gb-rootfs-updatable": [
       {
-        "num": 1,
-        "label":"STATE",
-        "type":"data",
-        "blocks":"6291456"
-      },
-      {
         "num": 3,
         "label":"ROOT-A",
         "type":"rootfs",
