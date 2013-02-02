@@ -412,6 +412,7 @@ COMMON_INSTALL_MASK="
   /usr/share/man
   /usr/share/openrc
   /usr/share/pkgconfig
+  /usr/share/profiling
   /usr/share/readline
   /usr/src
   "
