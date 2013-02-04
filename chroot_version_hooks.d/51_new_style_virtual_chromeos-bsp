@@ -1,0 +1,33 @@
+# Copyright (c) 2013 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Upgrade people to the new style generic virtual/chromeos-bsp.
+
+opkg="chromeos-base/chromeos-bsp-null"
+
+export CLEAN_DELAY=0
+
+update() {
+  local root=$1 board=$2 emerge
+
+  if [[ -z ${board} ]]; then
+    board="root"
+    emerge="sudo -E emerge"
+  else
+    emerge="emerge-${board}"
+  fi
+
+  if portageq has_version ${root} ${opkg}; then
+    ${emerge} -Cq ${opkg}
+  fi
+}
+
+update / &
+
+for board_root in /build/*; do
+  board=${board_root##*/}
+  update ${board_root} ${board} &
+done
+
+wait
