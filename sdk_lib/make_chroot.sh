@@ -165,7 +165,7 @@ init_setup () {
      "${FLAGS_chroot}"/"${CROSSDEV_OVERLAY}"
    ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage" \
      "${FLAGS_chroot}/usr/portage"
-   ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/chromiumos-overlay" \
+   ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/coreos-overlay" \
      "${FLAGS_chroot}"/"${CHROOT_OVERLAY}"
    ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage-stable" \
      "${FLAGS_chroot}"/"${PORTAGE_STABLE_OVERLAY}"
@@ -331,12 +331,12 @@ fi
 
 CHROOT_TRUNK="${CHROOT_TRUNK_DIR}"
 PORTAGE="${SRC_ROOT}/third_party/portage"
-OVERLAY="${SRC_ROOT}/third_party/chromiumos-overlay"
+OVERLAY="${SRC_ROOT}/third_party/coreos-overlay"
 CONFIG_DIR="${OVERLAY}/chromeos/config"
-CHROOT_CONFIG="${CHROOT_TRUNK_DIR}/src/third_party/chromiumos-overlay/chromeos/config"
+CHROOT_CONFIG="${CHROOT_TRUNK_DIR}/src/third_party/coreos-overlay/coreos/config"
 PORTAGE_STABLE_OVERLAY="/usr/local/portage/stable"
 CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
-CHROOT_OVERLAY="/usr/local/portage/chromiumos"
+CHROOT_OVERLAY="/usr/local/portage/coreos"
 CHROOT_STATE="${FLAGS_chroot}/etc/debian_chroot"
 
 # Pass proxy variables into the environment.
