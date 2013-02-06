@@ -81,7 +81,7 @@ EOF
 #      inside the chroot.
 _create_host_setup() {
   local fetchtype="$1"
-  local host_setup="$2/etc/make.conf.host_setup"
+  local host_setup="$2/etc/portage/make.conf.host_setup"
   ( echo "# Automatically generated.  EDIT THIS AND BE SORRY."
     echo
     _make_conf_fetchcommand "$fetchtype"

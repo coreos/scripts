@@ -198,13 +198,13 @@ init_setup () {
    # TODO: This should really be part of a profile in the portage.
    info "Setting up /etc/make.*..."
    ln -sf "${CHROOT_CONFIG}/make.conf.amd64-host" \
-     "${FLAGS_chroot}/etc/make.conf"
+     "${FLAGS_chroot}/etc/portage/make.conf"
    ln -sf "${CHROOT_OVERLAY}/profiles/default/linux/amd64/10.0" \
-     "${FLAGS_chroot}/etc/make.profile"
+     "${FLAGS_chroot}/etc/portage/make.profile"
 
    # Create make.conf.user .
-   touch "${FLAGS_chroot}"/etc/make.conf.user
-   chmod 0644 "${FLAGS_chroot}"/etc/make.conf.user
+   touch "${FLAGS_chroot}"/etc/portage/make.conf.user
+   chmod 0644 "${FLAGS_chroot}"/etc/portage/make.conf.user
 
    # Create directories referred to by our conf files.
    mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/pkgs" \
@@ -254,7 +254,7 @@ EOF
    # don't exist, then either bind mounts have failed, an invocation
    # from above is broke, or some assumption about the stage3 is no longer
    # true.
-   early_enter_chroot ls -l /etc/make.{conf,profile} \
+   early_enter_chroot ls -l /etc/portage/make.{conf,profile} \
      /usr/local/portage/coreos/profiles/default/linux/amd64/10.0
 
    target="${FLAGS_chroot}/etc/profile.d"
