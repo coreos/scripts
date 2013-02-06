@@ -440,11 +440,6 @@ if [[ ! -e "${FLAGS_chroot}/usr/bin/git" ]]; then
   info "Updating early git"
   USE="-curl -webdav" early_enter_chroot $EMERGE_CMD -uNv $USEPKG dev-vcs/git
 
-  # OpenSSL is a cros-workon package too, but the default http repo is now
-  # unusable since we disabled building with curl above.  Reject minilayouts.
-  if [[ ! -d ${SRC_ROOT}/third_party/openssl ]]; then
-    die "bootstrapping requires a full manifest checkout"
-  fi
   early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
       dev-libs/openssl net-misc/curl
 
