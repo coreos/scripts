@@ -255,7 +255,7 @@ EOF
    # from above is broke, or some assumption about the stage3 is no longer
    # true.
    early_enter_chroot ls -l /etc/make.{conf,profile} \
-     /usr/local/portage/chromiumos/profiles/default/linux/amd64/10.0
+     /usr/local/portage/coreos/profiles/default/linux/amd64/10.0
 
    target="${FLAGS_chroot}/etc/profile.d"
    mkdir -p "${target}"
@@ -330,7 +330,7 @@ fi
 CHROOT_TRUNK="${CHROOT_TRUNK_DIR}"
 PORTAGE="${SRC_ROOT}/third_party/portage"
 OVERLAY="${SRC_ROOT}/third_party/coreos-overlay"
-CONFIG_DIR="${OVERLAY}/chromeos/config"
+CONFIG_DIR="${OVERLAY}/coreos/config"
 CHROOT_CONFIG="${CHROOT_TRUNK_DIR}/src/third_party/coreos-overlay/coreos/config"
 PORTAGE_STABLE_OVERLAY="/usr/local/portage/stable"
 CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
@@ -346,7 +346,7 @@ for type in http ftp all; do
 done
 
 # Create the base Gentoo stage3 based on last version put in chroot.
-STAGE3="${OVERLAY}/chromeos/stage3/stage3-amd64-${FLAGS_stage3_date}.tar.bz2"
+STAGE3="${OVERLAY}/coreos/stage3/stage3-amd64-${FLAGS_stage3_date}.tar.bz2"
 if [ -f $CHROOT_STATE ] && \
   ! egrep -q "^STAGE3=$STAGE3" $CHROOT_STATE >/dev/null 2>&1
 then
