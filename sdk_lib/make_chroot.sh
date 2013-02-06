@@ -426,6 +426,11 @@ echo STAGE3=$STAGE3 > $CHROOT_STATE
 info "Updating portage"
 early_enter_chroot emerge -uNv --quiet portage
 
+info "Install python-2.7"
+early_enter_chroot emerge -uNv --quiet python:2.7 dev-python/setuptools
+early_enter_chroot eselect python set python2.7
+
+
 # Packages that inherit cros-workon commonly get a circular dependency
 # curl->openssl->git->curl that is broken by emerging an early version of git
 # without curl (and webdav that depends on it).
