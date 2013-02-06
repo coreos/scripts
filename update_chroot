@@ -106,7 +106,7 @@ done
 # Second pass, update everything else.
 EMERGE_FLAGS+=" --deep"
 sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
-    chromeos-base/hard-host-depends world
+    coreos-base/hard-host-depends world
 
 # Automatically discard all CONFIG_PROTECT'ed files. Those that are
 # protected should not be overwritten until the variable is changed.
