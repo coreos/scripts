@@ -79,7 +79,7 @@ eval set -- "${FLAGS_ARGV}"
 switch_to_strict_mode
 
 # Right now build_packages has to be run from scripts/
-. ${SRC_ROOT}/third_party/chromiumos-overlay/chromeos/config/chromeos_version.sh
+. ${SRC_ROOT}/third_party/coreos-overlay/coreos/config/coreos_version.sh
 
 if [[ -z "${FLAGS_board}" ]]; then
   echo "Error: --board is required."
