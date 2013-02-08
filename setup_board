@@ -167,7 +167,7 @@ print_board_make_conf() {
       boto_config="$overlay/googlestorage_account.boto"
     fi
   done
-  local chromeos_overlay="$SRC_ROOT/private-overlays/chromeos-overlay"
+  local chromeos_overlay="$SRC_ROOT/private-overlays/coreos-overlay"
   if [[ -f "$chromeos_overlay/googlestorage_account.boto" ]]; then
     boto_config="$chromeos_overlay/googlestorage_account.boto"
   fi
@@ -191,7 +191,7 @@ print_binhost_config() {
     die "Invalid arguments for print_binhost_config: $@"
   fi
 
-  local binhost_dir="$CHROMIUMOS_OVERLAY/chromeos/binhost/target"
+  local binhost_dir="$CHROMIUMOS_OVERLAY/coreos/binhost/target"
   local preflight_binhost="$binhost_dir/$BOARD-PREFLIGHT_BINHOST.conf"
   local chrome_binhost_suffix="LATEST_RELEASE_CHROME_BINHOST.conf"
   local chrome_binhost="$binhost_dir/$BOARD-$chrome_binhost_suffix"
@@ -206,8 +206,8 @@ print_binhost_config() {
     chrome_binhost="$binhost_dir/amd64-generic-$chrome_binhost_suffix"
   fi
 
-  local partner_overlay="$SRC_ROOT/private-overlays/chromeos-partner-overlay"
-  local internal_binhost_dir="$partner_overlay/chromeos/binhost/target"
+  local partner_overlay="$SRC_ROOT/private-overlays/coreos-partner-overlay"
+  local internal_binhost_dir="$partner_overlay/coreos/binhost/target"
   local internal_binhost="$internal_binhost_dir/$BOARD-PREFLIGHT_BINHOST.conf"
 
   cat <<'EOF'
@@ -319,8 +319,8 @@ esac
 # Locations we will need
 BOARD_ROOT="/build/${BOARD_VARIANT}"
 CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
-CHROMIUMOS_OVERLAY="/usr/local/portage/chromiumos"
-CHROMIUMOS_CONFIG="${CHROMIUMOS_OVERLAY}/chromeos/config"
+CHROMIUMOS_OVERLAY="/usr/local/portage/coreos"
+CHROMIUMOS_CONFIG="${CHROMIUMOS_OVERLAY}/coreos/config"
 CHROMIUMOS_PROFILES="${CHROMIUMOS_OVERLAY}/profiles"
 BOARD_ETC="${BOARD_ROOT}/etc"
 BOARD_SETUP="${BOARD_ETC}/make.conf.board_setup"
