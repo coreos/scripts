@@ -505,6 +505,9 @@ fi
 
 # As a final pass, build all desired cross-toolchains.
 info "Updating toolchains"
+
+# TODO: Hack! Link in functions.sh
+enter_chroot sudo cp /lib64/rc/sh/functions.sh /etc/init.d/functions.sh
 enter_chroot sudo -E "${CHROOT_TRUNK_DIR}/chromite/bin/cros_setup_toolchains" \
     "${TOOLCHAIN_ARGS[@]}"
 
