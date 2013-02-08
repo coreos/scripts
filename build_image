@@ -91,8 +91,8 @@ eval set -- "${FLAGS_ARGV}"
 switch_to_strict_mode
 
 # Determine build version.
-OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/chromiumos-overlay/chromeos"
-. "${OVERLAY_CHROMEOS_DIR}/config/chromeos_version.sh" || exit 1
+OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/coreos-overlay/coreos"
+. "${OVERLAY_CHROMEOS_DIR}/config/coreos_version.sh" || exit 1
 # N.B.  Ordering matters for some of the libraries below, because
 # some of the files contain initialization used by later files.
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
@@ -115,7 +115,7 @@ done
 
 # TODO: <prebuild hook>
 
-BASE_PACKAGE="chromeos-base/chromeos"
+BASE_PACKAGE="coreos-base/coreos"
 # Tweak flags, configure extra USE flags, and set base packages for the factory
 # install shim.
 if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
@@ -125,7 +125,7 @@ if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
   # Add the cros_factory_install boot arg.
   FLAGS_boot_args="${FLAGS_boot_args} cros_factory_install"
 
-  BASE_PACKAGE="chromeos-base/chromeos-installshim"
+  BASE_PACKAGE="coreos-base/chromeos-installshim"
 
   export USE="${USE} initramfs vfat tpm i2cdev"
 
