@@ -426,9 +426,14 @@ echo STAGE3=$STAGE3 > $CHROOT_STATE
 info "Updating portage"
 early_enter_chroot emerge -uNv --quiet portage
 
-info "Install python-2.7"
-early_enter_chroot emerge -uNv --quiet python:2.7 dev-python/setuptools
-early_enter_chroot eselect python set python2.7
+
+info "Unmerge openssh temporarily"
+early_enter_chroot emerge --unmerge net-misc/openssh
+
+
+info "Install python-2.6"
+early_enter_chroot emerge -uNv --quiet python:2.6 dev-python/setuptools
+early_enter_chroot eselect python set python2.6
 
 
 # Packages that inherit cros-workon commonly get a circular dependency
@@ -445,7 +450,7 @@ if [[ ! -e "${FLAGS_chroot}/usr/bin/git" ]]; then
 
   # (Re-)emerge the full version of git.
   info "Updating full version of git"
-  early_enter_chroot $EMERGE_CMD -uNv $USEPKG dev-vcs/git
+  early_enter_chroot $EMERGE_CMD -uNv $USEPKG dev-vcs/git net-misc/openssh --select $EMERGE_JOBS
 fi
 
 info "Updating host toolchain"
