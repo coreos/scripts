@@ -163,21 +163,22 @@ fi
 # Figure out which packages we should be building.
 PACKAGES=( "$@" )
 if [[ $# -eq 0 ]]; then
-  PACKAGES=( chromeos-base/chromeos )
+  PACKAGES=( coreos-base/coreos )
   if [[ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]]; then
-    PACKAGES+=( chromeos-base/chromeos-dev )
+    PACKAGES+=( coreos-base/coreos-dev )
   fi
   if [[ "${FLAGS_withfactory}" -eq "${FLAGS_TRUE}" ]]; then
-    PACKAGES+=( chromeos-base/chromeos-installshim )
-    PACKAGES+=( chromeos-base/chromeos-factory )
-    PACKAGES+=( chromeos-base/factorytest-init )
-    PACKAGES+=( chromeos-base/chromeos-hwid )
-  fi
+    PACKAGES+=( coreos-base/chromeos-installshim )
+#    PACKAGES+=( coreos-base/coreos-installshim )
+#    PACKAGES+=( coreos-base/coreos-factory )
+#    PACKAGES+=( coreos-base/factorytest-init )
+#    PACKAGES+=( coreos-base/coreos-hwid )
+#  fi
   if [[ "${FLAGS_withtest}" -eq "${FLAGS_TRUE}" ]]; then
-    PACKAGES+=( chromeos-base/chromeos-test )
+    PACKAGES+=( coreos-base/coreos-test )
   fi
   if [[ "${FLAGS_withautotest}" -eq "${FLAGS_TRUE}" ]]; then
-    PACKAGES+=( chromeos-base/autotest-all )
+    PACKAGES+=( coreos-base/autotest-all )
   fi
 fi
 
