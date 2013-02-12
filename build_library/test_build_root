@@ -30,11 +30,8 @@ if [[ ! -d "$ROOT" ]]; then
 fi
 
 ROOT_BINARIES=(
-  /usr/bin/Xorg
   /boot/vmlinuz
-  /sbin/session_manager
   /bin/sed
-  /opt/google/chrome/chrome
 )
 
 EXITCODE=0
