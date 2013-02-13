@@ -22,11 +22,8 @@ install_dev_packages() {
   # Determine the root dir for developer packages.
   local root_dev_dir="${root_fs_dir}/usr/local"
 
-  # Install dev-specific init scripts into / from chromeos-dev-init.
-  emerge_to_image --root="${root_fs_dir}" chromeos-dev-init
-
   # Install developer packages described in chromeos-dev.
-  emerge_to_image --root="${root_dev_dir}" chromeos-dev
+  emerge_to_image --root="${root_dev_dir}" coreos-base/coreos-dev
 
   # Copy over the libc debug info so that gdb
   # works with threads and also for a better debugging experience.
