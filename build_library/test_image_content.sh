@@ -7,11 +7,8 @@ test_image_content() {
   local returncode=0
 
   local binaries=(
-    "$root/usr/bin/Xorg"
     "$root/boot/vmlinuz"
-    "$root/sbin/session_manager"
     "$root/bin/sed"
-    "$root/opt/google/chrome/chrome"
   )
 
   for test_file in "${binaries[@]}"; do
