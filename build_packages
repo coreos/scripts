@@ -167,19 +167,20 @@ if [[ $# -eq 0 ]]; then
   if [[ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]]; then
     PACKAGES+=( coreos-base/coreos-dev )
   fi
-  if [[ "${FLAGS_withfactory}" -eq "${FLAGS_TRUE}" ]]; then
-    PACKAGES+=( coreos-base/chromeos-installshim )
+# TODO(ifup): re-enable this stuff for testing
+#  if [[ "${FLAGS_withfactory}" -eq "${FLAGS_TRUE}" ]]; then
+#    PACKAGES+=( coreos-base/chromeos-installshim )
 #    PACKAGES+=( coreos-base/coreos-installshim )
 #    PACKAGES+=( coreos-base/coreos-factory )
 #    PACKAGES+=( coreos-base/factorytest-init )
 #    PACKAGES+=( coreos-base/coreos-hwid )
 #  fi
-  if [[ "${FLAGS_withtest}" -eq "${FLAGS_TRUE}" ]]; then
-    PACKAGES+=( coreos-base/coreos-test )
-  fi
-  if [[ "${FLAGS_withautotest}" -eq "${FLAGS_TRUE}" ]]; then
-    PACKAGES+=( coreos-base/autotest-all )
-  fi
+#  if [[ "${FLAGS_withtest}" -eq "${FLAGS_TRUE}" ]]; then
+#    PACKAGES+=( coreos-base/coreos-test )
+#  fi
+#  if [[ "${FLAGS_withautotest}" -eq "${FLAGS_TRUE}" ]]; then
+#    PACKAGES+=( coreos-base/autotest-all )
+#  fi
 fi
 
 # Verify that all packages can be emerged from scratch, without any
