@@ -56,7 +56,7 @@ _make_conf_private() {
   if [ "$1" = "wget" ] ; then
     return
   fi
-  local chromeos_overlay="src/private-overlays/chromeos-overlay"
+  local chromeos_overlay="src/private-overlays/coreos-overlay"
   chromeos_overlay="$CHROOT_TRUNK_DIR/$chromeos_overlay"
   if [ -d "$chromeos_overlay" ]; then
     local boto_config="$chromeos_overlay/googlestorage_account.boto"

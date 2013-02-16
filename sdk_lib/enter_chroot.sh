@@ -436,7 +436,7 @@ setup_env() {
 
     # If the private overlays are installed, gsutil can use those credentials.
     # We're also installing credentials for use by sudoed invocations.
-    boto='src/private-overlays/chromeos-overlay/googlestorage_account.boto'
+    boto='src/private-overlays/coreos-overlay/googlestorage_account.boto'
     if [ -s "${FLAGS_trunk}/${boto}" ]; then
       if [ ! -L "${FLAGS_chroot}/home/${SUDO_USER}/.boto" ]; then
         user_symlink "trunk/${boto}" "${FLAGS_chroot}/home/${SUDO_USER}/.boto"
