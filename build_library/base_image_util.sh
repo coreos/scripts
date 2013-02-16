@@ -254,7 +254,8 @@ create_base_image() {
 
   # Zero rootfs free space to make it more compressible so auto-update
   # payloads become smaller
-  zero_free_space "${root_fs_dir}"
+  # TODO(ifup):
+  #zero_free_space "${root_fs_dir}"
 
   cleanup_mounts
 
