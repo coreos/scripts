@@ -468,6 +468,15 @@ early_enter_chroot "${CHROOT_TRUNK_DIR}/chromite/bin/cros_setup_toolchains" \
 info "Deselecting dhcpcd"
 early_enter_chroot $EMERGE_CMD --deselect dhcpcd
 
+# TODO: Hack! Link in functions.sh
+early_enter_chroot cp /etc/init.d/functions.sh /tmp
+
+# openrc is included in stage3. We don't need it.
+info "Unmerge openrc"
+early_enter_chroot $EMERGE_CMD --unmerge sys-apps/openrc sys-apps/sysvinit sys-fs/udev-init-scripts
+
+early_enter_chroot cp /tmp/functions.sh /etc/init.d/functions.sh
+
 info "Running emerge curl sudo ..."
 early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
   pbzip2 dev-libs/openssl net-misc/curl sudo
@@ -506,8 +515,6 @@ fi
 # As a final pass, build all desired cross-toolchains.
 info "Updating toolchains"
 
-# TODO: Hack! Link in functions.sh
-enter_chroot sudo cp /lib64/rc/sh/functions.sh /etc/init.d/functions.sh
 enter_chroot sudo -E "${CHROOT_TRUNK_DIR}/chromite/bin/cros_setup_toolchains" \
     "${TOOLCHAIN_ARGS[@]}"
 
