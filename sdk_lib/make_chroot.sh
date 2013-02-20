@@ -176,7 +176,7 @@ init_setup () {
      "${FLAGS_chroot}"/"${PORTAGE_STABLE_OVERLAY}"
 
    # Some operations need an mtab.
-   ln -s /proc/mounts "${FLAGS_chroot}/etc/mtab"
+   ln -sfT /proc/mounts "${FLAGS_chroot}/etc/mtab"
 
    # Set up sudoers.  Inside the chroot, the user can sudo without a password.
    # (Safe enough, since the only way into the chroot is to 'sudo chroot', so
