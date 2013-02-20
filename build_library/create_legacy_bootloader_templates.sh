@@ -49,8 +49,8 @@ if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
 fi
 
 # Common kernel command-line args
-common_args="quiet console=tty2 init=/sbin/init boot=local rootwait ro noresume"
-common_args="${common_args} noswap loglevel=1 ${FLAGS_boot_args}"
+common_args="init=/sbin/init console=tty0 boot=local rootwait ro noresume"
+common_args="${common_args} noswap ${FLAGS_boot_args}"
 
 # Common verified boot command-line args
 verity_common="dm_verity.error_behavior=${FLAGS_verity_error_behavior}"
