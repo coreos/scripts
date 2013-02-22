@@ -250,6 +250,7 @@ EOF
    info "Running post-inst configuration hacks"
    early_enter_chroot env-update
 
+
    # This is basically a sanity check of our chroot.  If any of these
    # don't exist, then either bind mounts have failed, an invocation
    # from above is broke, or some assumption about the stage3 is no longer
@@ -257,6 +258,8 @@ EOF
    early_enter_chroot ls -l /etc/portage/make.{conf,profile} \
      /usr/local/portage/coreos/profiles/default/linux/amd64/10.0
 
+   # Enable git terminal prompt
+   early_enter_chroot eselect bashcomp enable --global git-prompt
    target="${FLAGS_chroot}/etc/profile.d"
    mkdir -p "${target}"
    cat << EOF > "${target}/chromiumos-niceties.sh"
