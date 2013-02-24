@@ -258,8 +258,6 @@ EOF
    early_enter_chroot ls -l /etc/portage/make.{conf,profile} \
      /usr/local/portage/coreos/profiles/default/linux/amd64/10.0
 
-   # Enable git terminal prompt
-   early_enter_chroot eselect bashcomp enable --global git-prompt
    target="${FLAGS_chroot}/etc/profile.d"
    mkdir -p "${target}"
    cat << EOF > "${target}/chromiumos-niceties.sh"
@@ -446,7 +444,10 @@ early_enter_chroot eselect python set python2.6
 # fetch via remote git trees (for some bot configs).
 if [[ ! -e "${FLAGS_chroot}/usr/bin/git" ]]; then
   info "Installing early git"
-  early_enter_chroot $EMERGE_CMD -uNv $USEPKG dev-vcs/git
+  early_enter_chroot $EMERGE_CMD -uNv $USEPKG dev-vcs/git app-shells/bash-completion
+
+  # Enable git terminal prompt
+  early_enter_chroot eselect bashcomp enable --global git-prompt
 
   early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
       dev-libs/openssl net-misc/curl
