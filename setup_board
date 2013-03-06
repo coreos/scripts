@@ -374,7 +374,7 @@ if ${HOST_BOARD}; then
   cmds+=(
     "ln -sf '${CHROMIUMOS_CONFIG}/make.conf.${BOARD}' \
       '${BOARD_ETC}/make.conf'"
-    "cp -f '/etc/make.conf.host_setup' '${BOARD_ETC}/'"
+    "cp -f '/etc/portage/make.conf.host_setup' '${BOARD_ETC}/'"
 
     # Setting up symlinks for bootstrapping multilib.
     # See http://crosbug.com/14498
