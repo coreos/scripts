@@ -36,7 +36,6 @@ install_dev_packages() {
   sudo ln -s /usr/local/usr/lib/debug "${root_fs_dir}/usr/lib/debug"
 
   # Install the bare necessary files so that the "emerge" command works
-  sudo cp -a ${root_dev_dir}/share/portage ${root_fs_dir}/usr/share
   sudo sed -i s,/usr/bin/wget,wget, \
     ${root_fs_dir}/usr/share/portage/config/make.globals
 
