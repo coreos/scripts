@@ -316,9 +316,8 @@ setup_env() {
       fi
     fi
 
-    if [ -d "$SUDO_HOME/.subversion" ]; then
+    if [[ -d "$SUDO_HOME/.subversion" ]]; then
       TARGET="/home/${SUDO_USER}/.subversion"
-      user_mkdir "${FLAGS_chroot}${TARGET}"
       setup_mount "${SUDO_HOME}/.subversion" "--bind" "${TARGET}"
       # Symbolic-link the .subversion directory so sandboxed subversion.class
       # clients can use it.
