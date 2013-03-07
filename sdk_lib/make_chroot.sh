@@ -444,10 +444,7 @@ early_enter_chroot eselect python set python2.6
 # fetch via remote git trees (for some bot configs).
 if [[ ! -e "${FLAGS_chroot}/usr/bin/git" ]]; then
   info "Installing early git"
-  early_enter_chroot $EMERGE_CMD -uNv $USEPKG dev-vcs/git app-shells/bash-completion
-
-  # Enable git terminal prompt
-  early_enter_chroot eselect bashcomp enable --global git-prompt
+  early_enter_chroot $EMERGE_CMD -uNv $USEPKG dev-vcs/git
 
   early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
       dev-libs/openssl net-misc/curl
@@ -456,6 +453,11 @@ if [[ ! -e "${FLAGS_chroot}/usr/bin/git" ]]; then
   info "Installing openssh"
   early_enter_chroot $EMERGE_CMD -uNv $USEPKG net-misc/openssh --select $EMERGE_JOBS
 fi
+
+
+# Enable git terminal prompt
+early_enter_chroot $EMERGE_CMD -uNv $USEPKG app-shells/bash-completion
+early_enter_chroot eselect bashcomp enable --global git-prompt
 
 info "Updating host toolchain"
 early_enter_chroot $EMERGE_CMD -uNv crossdev
@@ -474,7 +476,8 @@ early_enter_chroot $EMERGE_CMD --deselect dhcpcd
 
 # openrc is included in stage3. We don't need it.
 info "Unmerge openrc"
-early_enter_chroot $EMERGE_CMD --unmerge sys-apps/openrc sys-apps/sysvinit sys-fs/udev-init-scripts
+early_enter_chroot $EMERGE_CMD --unmerge sys-apps/openrc sys-apps/sysvinit sys-fs/udev-init-scripts \
+	|| echo "openrc not installed, ignoring"
 
 early_enter_chroot INSTALL_MASK="" $EMERGE_CMD coreos-base/efunctions
 
