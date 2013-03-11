@@ -214,9 +214,9 @@ setup_env() {
     setup_mount none "-t sysfs" /sys
     setup_mount /dev "--bind" /dev
     setup_mount none "-t devpts" /dev/pts
-    if [ -d /run ]; then
+    if [[ -d /run ]]; then
       setup_mount /run "--bind" /run
-      if [ -d /run/shm ]; then
+      if [[ -d /run/shm && ! -L /run/shm ]]; then
         setup_mount /run/shm "--bind" /run/shm
       fi
     fi
