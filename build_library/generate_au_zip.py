@@ -18,7 +18,7 @@ import tempfile
 
 # GLOBALS
 image_sign_dir = '~/trunk/src/platform/vboot_reference/scripts/image_signing'
-STATIC_FILES = ['/usr/bin/cgpt',
+STATIC_FILES = ['/usr/bin/old_bins/cgpt',
                 '~/trunk/src/scripts/common.sh',
                 '/usr/bin/cros_generate_update_payload',
                 '~/trunk/src/scripts/chromeos-common.sh',
