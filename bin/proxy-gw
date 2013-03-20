@@ -1,0 +1,63 @@
+#!/bin/bash
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# $1 = hostname, $2 = port
+#
+# Use socat to connect to the specified host and port via one of the proxies
+# defined in the environment, if the target host does not appear in the
+# no_proxy environment variable.
+
+DEST_HOST="$1"
+DEST_PORT="$2"
+
+# Determine whether the destination host is in the "no_proxy" list.
+use_proxy="true"
+GLOBIGNORE="*"
+for a_host in ${no_proxy//,/ } ; do
+  case "${a_host}" in
+  "*")           # A "*" matches all hosts.
+    use_proxy="false"
+    break
+    ;;
+  .*)            # Items of the form ".some.fqdn" imply match-at-end.
+    if [[ "${DEST_HOST}" == *"${a_host}" ]]; then
+      use_proxy="false"
+      break
+    fi
+    ;;
+  ${DEST_HOST})  # Items of the form "some.fqdn" imply exact-match.
+    use_proxy="false"
+    break
+    ;;
+  esac
+done
+
+if [[ -n "${all_proxy}" ]]; then
+  PROXY="${all_proxy}"
+  TYPE=SOCKS4
+  PORT_ATTR=socksport
+elif [[ -n "${https_proxy}" ]]; then
+  PROXY="${https_proxy}"
+  TYPE=PROXY
+  PORT_ATTR=proxyport
+elif [[ -n "${http_proxy}" ]]; then
+  PROXY="${http_proxy}"
+  TYPE=PROXY
+  PORT_ATTR=proxyport
+else
+  use_proxy="false"
+fi
+
+if [[ "${use_proxy}" == "true" ]]; then
+  PROXY="${PROXY#*://}"
+  PROXY="${PROXY%%/*}"
+  PROXY_HOST="${PROXY%%:*}"
+  PROXY_PORT="${PROXY##*:}"
+  PARMS="${PROXY_HOST}:${DEST_HOST}:${DEST_PORT},${PORT_ATTR}=${PROXY_PORT}"
+  socat_args=( "${TYPE}:${PARMS}" )
+else
+  socat_args=( TCP:"${DEST_HOST}":"${DEST_PORT}" )
+fi
+exec socat STDIO "${socat_args[@]}"

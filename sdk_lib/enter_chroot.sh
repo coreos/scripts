@@ -460,6 +460,13 @@ for var in "${ENVIRONMENT_WHITELIST[@]}" ; do
   [ "${!var+set}" = "set" ] && CHROOT_PASSTHRU+=( "${var}=${!var}" )
 done
 
+# Set up GIT_PROXY_COMMAND so git:// URLs automatically work behind a proxy.
+if [[ -n "${all_proxy}" || -n "${https_proxy}" || -n "${http_proxy}" ]]; then
+  CHROOT_PASSTHRU+=(
+    "GIT_PROXY_COMMAND=${CHROOT_TRUNK_DIR}/src/scripts/bin/proxy-gw"
+  )
+fi
+
 # Run command or interactive shell.  Also include the non-chrooted path to
 # the source trunk for scripts that may need to print it (e.g.
 # build_image.sh).
