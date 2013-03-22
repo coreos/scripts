@@ -91,9 +91,9 @@ INNER_CHROME_ROOT=$FLAGS_chrome_root_mount  # inside chroot
 CHROME_ROOT_CONFIG="/var/cache/chrome_root"  # inside chroot
 FUSE_DEVICE="/dev/fuse"
 
-chmod 0777 "$FLAGS_chroot/var/lock"
-
-LOCKFILE="$FLAGS_chroot/var/lock/enter_chroot"
+# We can't use /var/lock because that might be a symlink to /run/lock outside
+# of the chroot.  Or /run on the host system might not exist.
+LOCKFILE="${FLAGS_chroot}/.enter_chroot.lock"
 MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
 
 # Reset the depot tools/internal trunk pathways to what they'll
