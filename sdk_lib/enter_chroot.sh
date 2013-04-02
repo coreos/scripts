@@ -221,7 +221,7 @@ setup_env() {
       fi
     fi
 
-    setup_mount "${FLAGS_trunk}" "--bind" "${CHROOT_TRUNK_DIR}"
+    setup_mount "${FLAGS_trunk}" "--rbind" "${CHROOT_TRUNK_DIR}"
 
     debug "Setting up referenced repositories if required."
     REFERENCE_DIR=$(git config --file  \
