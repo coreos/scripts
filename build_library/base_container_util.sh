@@ -7,8 +7,22 @@ install_dev_packages() {
 
   info "Adding developer packages to ${image_name}"
 
+  stateful_fs_dir="${BUILD_DIR}/stateful"
+
+  local dev_image=${stateful_fs_dir}/dev_image
+  local var_overaly=${stateful_fs_dir}/var_overlay
+  local stateful_home=${stateful_fs_dir}/home
+
+  sudo mkdir -p ${dev_image}
+  sudo mkdir -p ${var_overlay}
+  sudo mkdir -p ${stateful_home}/core
+
   # Determine the root dir for developer packages.
   local root_dev_dir="${root_fs_dir}/usr/local"
+
+  sudo mount -o bind ${dev_image} ${root_fs_dir}/usr/local
+  sudo mount -o bind ${var_overlay} ${root_fs_dir}/var
+  sudo mount -o bind ${stateful_home} ${root_fs_dir}/home
 
   # Install developer packages described in chromeos-dev.
   emerge_to_image --root="${root_dev_dir}" coreos-base/coreos-dev
@@ -38,6 +52,7 @@ install_dev_packages() {
   # is via crossystem cros_debug?1 (checks boot args for "cros_debug").
   sudo mkdir -p "${root_fs_dir}/root"
   sudo touch "${root_fs_dir}/root/.dev_mode"
+  sudo touch "${root_fs_dir}/root/.dev_container"
 
   # Additional changes to developer image.
 
@@ -179,6 +194,8 @@ create_base_container() {
   # Here development packages are rooted at /usr/local.  However, do not
   # create /usr/local or /var on host (already exist on target).
   setup_symlinks_on_root "/usr/local" "/var" "${stateful_fs_dir}"
+
+  sudo cp /etc/resolv.conf ${root_fs_dir}/etc/
 
   USE_DEV_KEYS=
   if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
