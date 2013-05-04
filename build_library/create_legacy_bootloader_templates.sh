@@ -67,6 +67,33 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
   # in the initramfs. When we figure that out, switch to root=UUID=${UUID}.
   sudo mkdir -p ${FLAGS_to}
 
+
+  # Build configuration files for pygrub/pvgrub
+  GRUB_DIR="${FLAGS_to}/grub"
+  sudo mkdir -p "${GRUB_DIR}"
+
+  cat <<EOF | sudo dd of="${GRUB_DIR}/menu.lst.A" 2>/dev/null
+timeout         0
+
+title           CoreOS A
+root            (hd0,0)
+kernel          /boot/vmlinuz.A ${common_args} root=HDROOTA cros_legacy
+
+title           CoreOS B
+root            (hd0,0)
+kernel          /boot/vmlinuz.B ${common_args} root=HDROOTB cros_legacy
+EOF
+  info "Emitted ${GRUB_DIR}/menu.lst.A"
+
+  cat <<EOF | sudo dd of="${GRUB_DIR}/menu.lst.B" 2>/dev/null
+default         1
+EOF
+  sudo sh -c "cat ${GRUB_DIR}/menu.lst.A >> ${GRUB_DIR}/menu.lst.B"
+  info "Emitted ${GRUB_DIR}/menu.lst.B"
+
+  # HDROOTA will be replaced in image_to_vm.sh
+  sudo cp ${GRUB_DIR}/menu.lst.A ${GRUB_DIR}/menu.lst
+
   # /boot/syslinux must be installed in partition 12 as /syslinux/.
   SYSLINUX_DIR="${FLAGS_to}/syslinux"
   sudo mkdir -p "${SYSLINUX_DIR}"
