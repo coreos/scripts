@@ -34,7 +34,7 @@ DEFINE_boolean factory_install $FLAGS_FALSE \
 # behavior from image_to_usb.sh
 DEFINE_boolean force_copy ${FLAGS_FALSE} "Always rebuild test image"
 DEFINE_string format "qemu" \
-  "Output format, either qemu, vmware or virtualbox"
+  "Output format, either xen, qemu, vmware or virtualbox"
 DEFINE_string from "" \
   "Directory containing rootfs.image and mbr.image"
 DEFINE_string disk_layout "vm" \
@@ -145,10 +145,12 @@ dd if="${SRC_IMAGE}" of="${TEMP_PMBR}" bs=512 count=1
 
 TEMP_MNT=$(mktemp -d)
 TEMP_ESP_MNT=$(mktemp -d)
+TEMP_STATE_MNT=$(mktemp -d)
 cleanup() {
   safe_umount "${TEMP_MNT}"
   safe_umount "${TEMP_ESP_MNT}"
-  rmdir "${TEMP_MNT}" "${TEMP_ESP_MNT}"
+  safe_umount "${TEMP_STATE_MNT}"
+  rmdir "${TEMP_MNT}" "${TEMP_ESP_MNT}" "${TEMP_STATE_MNT}"
 }
 trap cleanup INT TERM EXIT
 mkdir -p "${TEMP_MNT}"
@@ -159,6 +161,31 @@ sudo mount -o loop "${TEMP_ESP}" "${TEMP_ESP_MNT}"
 
 # Modify the unverified usb template which uses a default usb_disk of sdb3
 sudo sed -i -e 's/sdb3/sda3/g' "${TEMP_MNT}/boot/syslinux/usb.A.cfg"
+
+# HACKBP: this will need to move from STATE to BOOT
+# with the new partition layout
+BOOT_DIR=${TEMP_STATE_MNT}/boot
+GRUB_DIR=${BOOT_DIR}/grub
+
+mkdir -p "${TEMP_STATE_MNT}"
+enable_rw_mount "${TEMP_STATE}"
+sudo mount -o loop "${TEMP_STATE}" "${TEMP_STATE_MNT}"
+sudo mkdir -p "${GRUB_DIR}"
+sudo cp -R "${TEMP_ESP_MNT}"/grub/. ${GRUB_DIR}
+sudo cp -R "${TEMP_ESP_MNT}"/syslinux/vmlinuz.* "${BOOT_DIR}"
+cat ${GRUB_DIR}/menu.lst
+
+# Update the menu.lst to be right for xen pygrub/pv-grub or just guess for
+# everything else.
+if [ "${FLAGS_format}" = "xen" ]; then
+  sudo sed -i -e 's%HDROOTA%/dev/xvda3%g' ${GRUB_DIR}/menu.lst
+  sudo sed -i -e 's%HDROOTB%/dev/xvda5%g' ${GRUB_DIR}/menu.lst
+else
+  sudo sed -i -e 's%HDROOTA%/dev/sda3%g' ${GRUB_DIR}/menu.lst
+  sudo sed -i -e 's%HDROOTB%/dev/sda5%g' ${GRUB_DIR}/menu.lst
+fi
+
+cat ${GRUB_DIR}/menu.lst
 
 # Unmount everything prior to building a final image
 trap - INT TERM EXIT
@@ -194,7 +221,8 @@ ${SCRIPTS_DIR}/bin/cros_make_image_bootable $(dirname "${TEMP_IMG}") \
 
 echo Creating final image
 # Convert image to output format
-if [ "${FLAGS_format}" = "virtualbox" -o "${FLAGS_format}" = "qemu" ]; then
+if [ "${FLAGS_format}" = "virtualbox" -o "${FLAGS_format}" = "qemu" \
+     -o "${FLAGS_format}" = "xen" ]; then
   if [ "${FLAGS_format}" = "virtualbox" ]; then
     sudo VBoxManage convertdd "${TEMP_IMG}" "${FLAGS_to}/${FLAGS_vbox_disk}"
   else
