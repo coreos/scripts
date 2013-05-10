@@ -88,18 +88,6 @@ EOF
     sudo chmod a+rx "${path}"
   fi
 
-  # If python is installed on stateful-dev, fix python symlinks.
-  local python_path="/usr/local/bin/python2.6"
-  if [ -e "${root_fs_dir}${python_path}" ]; then
-    info "Fixing python symlinks for developer and test images."
-    local python_paths="/usr/bin/python /usr/local/bin/python \
-        /usr/bin/python2 /usr/local/bin/python2"
-    for path in ${python_paths}; do
-      sudo rm -f "${root_fs_dir}${path}"
-      sudo ln -s  ${python_path} "${root_fs_dir}${path}"
-    done
-  fi
-
   info "Developer image built and stored at ${image_name}"
 
   cleanup_mounts

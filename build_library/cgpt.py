@@ -294,16 +294,12 @@ def WriteLayoutFunction(options, sfile, func_name, image_type, config):
       sfile.write('$GPT add -i %d -b $CURR -s %s -t %s -l %s $1 && ' % (
           partition['num'], str(partition['var']), partition['type'],
           partition['label']))
+    if partition['type'] == 'efi':
+      sfile.write('$GPT boot -p -b $2 -i %d $1\n' % partition['num'])
 
     # Increment the CURR counter ready for the next partition.
     sfile.write('CURR=$(( $CURR + %s ))\n' % partition['var'])
 
-  # Set default priorities on kernel partitions
-  sfile.write('$GPT add -i 2 -S 0 -T 15 -P 15 $1\n')
-  sfile.write('$GPT add -i 4 -S 0 -T 15 -P 0 $1\n')
-  sfile.write('$GPT add -i 6 -S 0 -T 15 -P 0 $1\n')
-
-  sfile.write('$GPT boot -p -b $2 -i 12 $1\n')
   sfile.write('$GPT show $1\n')
   sfile.write('}\n')
 
@@ -458,6 +454,27 @@ def GetLabel(options, image_type, layout_filename, num):
     return 'UNTITLED'
 
 
+def GetNum(options, image_type, layout_filename, label):
+  """Returns the number for a given label.
+
+  Args:
+    options: Flags passed to the script
+    image_type: Type of image eg base/test/dev/factory_install
+    layout_filename: Path to partition configuration file
+    label: Label of the partition you want to read from
+  Returns:
+    Number of selected partition, or '-1' if there is no number
+  """
+
+  partitions = GetPartitionTableFromConfig(options, layout_filename, image_type)
+  partition = GetPartitionByLabel(partitions, label)
+
+  if 'num' in partition:
+    return partition['num']
+  else:
+    return '-1'
+
+
 def DoDebugOutput(options, image_type, layout_filename):
   """Prints out a human readable disk layout in on-disk order.
 
@@ -525,6 +542,10 @@ def main(argv):
     'readlabel': {
       'usage': ['<image_type>', '<partition_config_file>', '<partition_num>'],
       'func': GetLabel,
+    },
+    'readnum': {
+      'usage': ['<image_type>', '<partition_config_file>', '<label>'],
+      'func': GetNum,
     },
     'debug': {
       'usage': ['<image_type>', '<partition_config_file>'],

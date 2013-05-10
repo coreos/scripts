@@ -71,22 +71,26 @@ create_base_image() {
   trap "cleanup_mounts && delete_prompt" EXIT
   cleanup_mounts &> /dev/null
 
+  local root_fs_label="ROOT-A"
+  local root_fs_num=$(get_num ${image_type} ${root_fs_label})
   local root_fs_img="${BUILD_DIR}/rootfs.image"
-  local root_fs_bytes=$(get_filesystem_size ${image_type} 3)
-  local root_fs_label=$(get_label ${image_type} 3)
+  local root_fs_bytes=$(get_filesystem_size ${image_type} ${root_fs_num})
 
+  local stateful_fs_label="STATE"
+  local stateful_fs_num=$(get_num ${image_type} ${stateful_fs_label})
   local stateful_fs_img="${BUILD_DIR}/stateful.image"
-  local stateful_fs_bytes=$(get_filesystem_size ${image_type} 1)
-  local stateful_fs_label=$(get_label ${image_type} 1)
+  local stateful_fs_bytes=$(get_filesystem_size ${image_type} ${stateful_fs_num})
   local stateful_fs_uuid=$(uuidgen)
 
+  local esp_fs_label="EFI-SYSTEM"
+  local esp_fs_num=$(get_num ${image_type} ${esp_fs_label})
   local esp_fs_img="${BUILD_DIR}/esp.image"
-  local esp_fs_bytes=$(get_filesystem_size ${image_type} 12)
-  local esp_fs_label=$(get_label ${image_type} 12)
+  local esp_fs_bytes=$(get_filesystem_size ${image_type} ${esp_fs_num})
 
+  local oem_fs_label="OEM"
+  local oem_fs_num=$(get_num ${image_type} ${oem_fs_label})
   local oem_fs_img="${BUILD_DIR}/oem.image"
-  local oem_fs_bytes=$(get_filesystem_size ${image_type} 8)
-  local oem_fs_label=$(get_label ${image_type} 8)
+  local oem_fs_bytes=$(get_filesystem_size ${image_type} ${oem_fs_num})
   local oem_fs_uuid=$(uuidgen)
 
   local fs_block_size=$(get_fs_block_size)

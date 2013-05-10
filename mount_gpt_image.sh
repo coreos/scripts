@@ -102,18 +102,20 @@ get_usb_partitions() {
   [ ${FLAGS_read_only} -eq ${FLAGS_TRUE} -o \
     ${FLAGS_safe} -eq ${FLAGS_TRUE} ] && safe_flag="-o ro -t ext2"
 
-  sudo mount ${safe_flag} "${FLAGS_from}3" "${FLAGS_rootfs_mountpt}"
-  sudo mount ${ro_flag} "${FLAGS_from}1" "${FLAGS_stateful_mountpt}"
+  sudo mount ${safe_flag} "${FLAGS_from}4" "${FLAGS_rootfs_mountpt}"
+  sudo mount ${ro_flag} "${FLAGS_from}10" "${FLAGS_stateful_mountpt}"
   if [[ -n "${FLAGS_esp_mountpt}" ]]; then
-    sudo mount ${ro_flag} "${FLAGS_from}12" "${FLAGS_esp_mountpt}"
+    sudo mount ${ro_flag} "${FLAGS_from}2" "${FLAGS_esp_mountpt}"
   fi
 }
 
 get_gpt_partitions() {
   local filename="${FLAGS_image}"
 
+  legacy_offset_size_export "${FLAGS_from}/${FLAGS_image}"
+
   # Mount the rootfs partition using a loopback device.
-  local offset=$(partoffset "${FLAGS_from}/${filename}" 3)
+  local offset=$(partoffset "${FLAGS_from}/${filename}" ${NUM_ROOTFS_A})
   local ro_flag=""
   local safe_flag=""
 
@@ -139,7 +141,7 @@ get_gpt_partitions() {
   fi
 
   # Mount the stateful partition using a loopback device.
-  offset=$(partoffset "${FLAGS_from}/${filename}" 1)
+  offset=$(partoffset "${FLAGS_from}/${filename}" ${NUM_STATEFUL})
   if ! sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
       "${FLAGS_from}/${filename}" "${FLAGS_stateful_mountpt}" ; then
     error "mount failed: options=${ro_flag} offset=$(( offset * 512 ))" \
@@ -147,9 +149,9 @@ get_gpt_partitions() {
     return 1
   fi
 
-  # Mount the stateful partition using a loopback device.
+  # Mount the esp partition using a loopback device.
   if [[ -n "${FLAGS_esp_mountpt}" ]]; then
-    offset=$(partoffset "${FLAGS_from}/${filename}" 12)
+    offset=$(partoffset "${FLAGS_from}/${filename}" ${NUM_ESP})
     if ! sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
         "${FLAGS_from}/${filename}" "${FLAGS_esp_mountpt}" ; then
       error "mount failed: options=${ro_flag} offset=$(( offset * 512 ))" \

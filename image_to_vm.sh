@@ -100,6 +100,9 @@ else
   SRC_IMAGE="${FLAGS_from}/${CHROMEOS_IMAGE_NAME}"
 fi
 
+locate_gpt
+legacy_offset_size_export ${SRC_IMAGE}
+
 # Memory units are in MBs
 TEMP_IMG="$(dirname "${SRC_IMAGE}")/vm_temp_image.bin"
 
@@ -120,15 +123,14 @@ pushd "${TEMP_DIR}" >/dev/null
 popd >/dev/null
 
 # Fix the kernel command line
-TEMP_ESP="${TEMP_DIR}"/part_12
-TEMP_OEM="${TEMP_DIR}"/part_8
-TEMP_ROOTFS="${TEMP_DIR}"/part_3
-TEMP_STATE="${TEMP_DIR}"/part_1
-TEMP_KERN="${TEMP_DIR}"/part_2
+TEMP_ESP="${TEMP_DIR}"/part_${NUM_ESP}
+TEMP_OEM="${TEMP_DIR}"/part_${NUM_OEM}
+TEMP_ROOTFS="${TEMP_DIR}"/part_${NUM_ROOTFS_A}
+TEMP_STATE="${TEMP_DIR}"/part_${NUM_STATEFUL}
 if [ -n "${FLAGS_state_image}" ]; then
   TEMP_STATE="${FLAGS_state_image}"
 else
-  STATEFUL_SIZE_BYTES=$(get_filesystem_size "${FLAGS_disk_layout}" 1)
+  STATEFUL_SIZE_BYTES=$(get_filesystem_size "${FLAGS_disk_layout}" ${NUM_STATEFUL})
   STATEFUL_SIZE_MEGABYTES=$(( STATEFUL_SIZE_BYTES / 1024 / 1024 ))
   original_image_size=$(stat -c%s "${TEMP_STATE}")
   if [ "${original_image_size}" -gt "${STATEFUL_SIZE_BYTES}" ]; then
@@ -143,49 +145,36 @@ fi
 TEMP_PMBR="${TEMP_DIR}"/pmbr
 dd if="${SRC_IMAGE}" of="${TEMP_PMBR}" bs=512 count=1
 
-TEMP_MNT=$(mktemp -d)
+# Setup the bootloader configs to be correct for the image type
 TEMP_ESP_MNT=$(mktemp -d)
-TEMP_STATE_MNT=$(mktemp -d)
 cleanup() {
-  safe_umount "${TEMP_MNT}"
   safe_umount "${TEMP_ESP_MNT}"
-  safe_umount "${TEMP_STATE_MNT}"
-  rmdir "${TEMP_MNT}" "${TEMP_ESP_MNT}" "${TEMP_STATE_MNT}"
+  rmdir "${TEMP_ESP_MNT}"
 }
 trap cleanup INT TERM EXIT
-mkdir -p "${TEMP_MNT}"
-enable_rw_mount "${TEMP_ROOTFS}"
-sudo mount -o loop "${TEMP_ROOTFS}" "${TEMP_MNT}"
 mkdir -p "${TEMP_ESP_MNT}"
+enable_rw_mount "${TEMP_ESP}"
 sudo mount -o loop "${TEMP_ESP}" "${TEMP_ESP_MNT}"
 
-# Modify the unverified usb template which uses a default usb_disk of sdb3
-sudo sed -i -e 's/sdb3/sda3/g' "${TEMP_MNT}/boot/syslinux/usb.A.cfg"
-
-# HACKBP: this will need to move from STATE to BOOT
-# with the new partition layout
-BOOT_DIR=${TEMP_STATE_MNT}/boot
+SYSLINUX_DIR=${TEMP_ESP_MNT}/syslinux
+BOOT_DIR=${TEMP_ESP_MNT}/boot
 GRUB_DIR=${BOOT_DIR}/grub
 
-mkdir -p "${TEMP_STATE_MNT}"
-enable_rw_mount "${TEMP_STATE}"
-sudo mount -o loop "${TEMP_STATE}" "${TEMP_STATE_MNT}"
-sudo mkdir -p "${GRUB_DIR}"
-sudo cp -R "${TEMP_ESP_MNT}"/grub/. ${GRUB_DIR}
-sudo cp -R "${TEMP_ESP_MNT}"/syslinux/vmlinuz.* "${BOOT_DIR}"
-cat ${GRUB_DIR}/menu.lst
+# Assume that if we are booting syslinux we are fully virtualized
+sudo sed -i -e "s%HDROOTA%/dev/sda${NUM_ROOTFS_A}%g" ${SYSLINUX_DIR}/root.A.cfg
+sudo sed -i -e "s%HDROOTB%/dev/sda${NUM_ROOTFS_B}%g" ${SYSLINUX_DIR}/root.B.cfg
 
 # Update the menu.lst to be right for xen pygrub/pv-grub or just guess for
 # everything else.
 if [ "${FLAGS_format}" = "xen" ]; then
-  sudo sed -i -e 's%HDROOTA%/dev/xvda3%g' ${GRUB_DIR}/menu.lst
-  sudo sed -i -e 's%HDROOTB%/dev/xvda5%g' ${GRUB_DIR}/menu.lst
+  sudo sed -i -e "s%HDROOTA%/dev/xvda${NUM_ROOTFS_A}%g" ${GRUB_DIR}/menu.lst
+  sudo sed -i -e "s%HDROOTB%/dev/xvda${NUM_ROOTFS_B}%g" ${GRUB_DIR}/menu.lst
 else
-  sudo sed -i -e 's%HDROOTA%/dev/sda3%g' ${GRUB_DIR}/menu.lst
-  sudo sed -i -e 's%HDROOTB%/dev/sda5%g' ${GRUB_DIR}/menu.lst
+  sudo sed -i -e "s%HDROOTA%/dev/sda${NUM_ROOTFS_A}%g" ${GRUB_DIR}/menu.lst
+  sudo sed -i -e "s%HDROOTB%/dev/sda${NUM_ROOTFS_B}%g" ${GRUB_DIR}/menu.lst
 fi
 
-cat ${GRUB_DIR}/menu.lst
+cat ${GRUB_DIR}/menu.lst  ${SYSLINUX_DIR}/root.A.cfg
 
 # Unmount everything prior to building a final image
 trap - INT TERM EXIT
@@ -200,24 +189,13 @@ rm "${PARTITION_SCRIPT_PATH}"
 
 # Copy into the partition parts of the file
 dd if="${TEMP_ROOTFS}" of="${TEMP_IMG}" conv=notrunc bs=512 \
-  seek=$(partoffset ${TEMP_IMG} 3)
+  seek=$(partoffset ${TEMP_IMG} ${NUM_ROOTFS_A})
 dd if="${TEMP_STATE}"  of="${TEMP_IMG}" conv=notrunc bs=512 \
-  seek=$(partoffset ${TEMP_IMG} 1)
-dd if="${TEMP_KERN}"   of="${TEMP_IMG}" conv=notrunc bs=512 \
-  seek=$(partoffset ${TEMP_IMG} 2)
+  seek=$(partoffset ${TEMP_IMG} ${NUM_STATEFUL})
 dd if="${TEMP_ESP}"    of="${TEMP_IMG}" conv=notrunc bs=512 \
-  seek=$(partoffset ${TEMP_IMG} 12)
+  seek=$(partoffset ${TEMP_IMG} ${NUM_ESP})
 dd if="${TEMP_OEM}"    of="${TEMP_IMG}" conv=notrunc bs=512 \
-  seek=$(partoffset ${TEMP_IMG} 8)
-
-# Make the built-image bootable and ensure that the legacy default usb boot
-# uses /dev/sda instead of /dev/sdb3.
-# NOTE: The TEMP_IMG must live in the same image dir as the original image
-#       to operate automatically below.
-${SCRIPTS_DIR}/bin/cros_make_image_bootable $(dirname "${TEMP_IMG}") \
-                                            $(basename "${TEMP_IMG}") \
-                                            --usb_disk /dev/sda3 \
-                                            --force_developer_mode
+  seek=$(partoffset ${TEMP_IMG} ${NUM_OEM})
 
 echo Creating final image
 # Convert image to output format

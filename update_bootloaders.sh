@@ -20,8 +20,8 @@ assert_inside_chroot
 DEFINE_string arch "x86" \
   "The boot architecture: arm or x86. (Default: x86)"
 # TODO(wad) once extlinux is dead, we can remove this.
-DEFINE_boolean install_syslinux ${FLAGS_FALSE} \
-  "Controls whether syslinux is run on 'to'. (Default: false)"
+DEFINE_boolean install_syslinux ${FLAGS_TRUE} \
+  "Controls whether syslinux is run on 'to'. (Default: true)"
 DEFINE_string from "/tmp/boot" \
   "Path the legacy bootloader templates are copied from. (Default /tmp/boot)"
 DEFINE_string to "/tmp/esp.img" \
@@ -32,18 +32,6 @@ DEFINE_integer to_size -1 \
   "Size in bytes of 'to' to use if it is a file. -1 is ignored. (Default: -1)"
 DEFINE_string vmlinuz "/tmp/vmlinuz" \
   "Path to the vmlinuz file to use (Default: /tmp/vmlinuz)"
-# The kernel_partition and the kernel_cmdline each are used to supply
-# verified boot configuration: dm="".
-DEFINE_string kernel_partition "/tmp/vmlinuz.image" \
-  "Path to the signed kernel image. (Default: /tmp/vmlinuz.image)"
-DEFINE_string kernel_cmdline "" \
-  "Kernel commandline if no kernel_partition given. (Default: '')"
-DEFINE_string kernel_partition_offset "0" \
-  "Offset to the kernel partition [KERN-A] (Default: 0)"
-DEFINE_string kernel_partition_sectors "0" \
-  "Kernel partition sectors (Default: 0)"
-DEFINE_string usb_disk /dev/sdb3 \
-  "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -55,74 +43,6 @@ part_index_to_uuid() {
   local index="$2"
   cgpt show -i "$index" -u "$image"
 }
-
-# If not provided by chromeos-common.sh, this will update all of the
-# boot loader files (both A and B) with the data pulled
-# from the kernel_partition.  The default boot target should
-# be set when the rootfs is stuffed.
-if ! type -p update_x86_bootloaders; then
-  update_x86_bootloaders() {
-    local old_root="$1"  # e.g., /dev/sd%D%P or %U+1
-    local kernel_cmdline="$2"
-    local esp_fs_dir="$3"
-    local template_dir="$4"
-    local to="$5"
-
-    # Pull out the dm="" values
-    dm_table=
-    if echo "$kernel_cmdline" | grep -q 'dm="'; then
-      dm_table=$(echo "$kernel_cmdline" | sed -s 's/.*dm="\([^"]*\)".*/\1/')
-    fi
-
-    # Maintain cros_debug flag in developer and test images.
-    cros_flags="cros_legacy"
-    if echo "$kernel_cmdline" | grep -q 'cros_debug'; then
-      cros_flags="cros_legacy cros_debug"
-    fi
-
-    root_a_uuid="PARTUUID=$(part_index_to_uuid "$to" 3)"
-    root_b_uuid="PARTUUID=$(part_index_to_uuid "$to" 5)"
-
-    # Rewrite grub table
-    grub_dm_table_a=${dm_table//${old_root}/${root_a_uuid}}
-    grub_dm_table_b=${dm_table//${old_root}/${root_b_uuid}}
-    sed -e "s|DMTABLEA|${grub_dm_table_a}|g" \
-        -e "s|DMTABLEB|${grub_dm_table_b}|g" \
-        -e "s|cros_legacy|${cros_flags}|g" \
-        "${template_dir}"/efi/boot/grub.cfg |
-        sudo dd of="${esp_fs_dir}"/efi/boot/grub.cfg status=none
-    sed -e "s|/dev/\\\$linuxpartA|${root_a_uuid}|g" \
-        -e "s|/dev/\\\$linuxpartB|${root_b_uuid}|g" \
-        "${template_dir}"/efi/boot/grub.cfg |
-        sudo dd of="${esp_fs_dir}"/efi/boot/grub.cfg status=none
-
-    # Rewrite syslinux DM_TABLE
-    syslinux_dm_table_usb=${dm_table//${old_root}/${root_a_uuid}}
-    sed -e "s|DMTABLEA|${syslinux_dm_table_usb}|g" \
-        -e "s|cros_legacy|${cros_flags}|g" \
-        "${template_dir}"/syslinux/usb.A.cfg |
-        sudo dd of="${esp_fs_dir}"/syslinux/usb.A.cfg status=none
-
-    syslinux_dm_table_a=${dm_table//${old_root}/HDROOTA}
-    sed -e "s|DMTABLEA|${syslinux_dm_table_a}|g" \
-        -e "s|cros_legacy|${cros_flags}|g" \
-        "${template_dir}"/syslinux/root.A.cfg |
-        sudo dd of="${esp_fs_dir}"/syslinux/root.A.cfg status=none
-
-    syslinux_dm_table_b=${dm_table//${old_root}/HDROOTB}
-    sed -e "s|DMTABLEB|${syslinux_dm_table_b}|g" \
-        -e "s|cros_legacy|${cros_flags}|g" \
-        "${template_dir}"/syslinux/root.B.cfg |
-        sudo dd of="${esp_fs_dir}"/syslinux/root.B.cfg status=none
-
-    # Copy the vmlinuz's into place for syslinux
-    sudo cp -f "${template_dir}"/vmlinuz "${esp_fs_dir}"/syslinux/vmlinuz.A
-    sudo cp -f "${template_dir}"/vmlinuz "${esp_fs_dir}"/syslinux/vmlinuz.B
-
-    # The only work left for the installer is to pick the correct defaults
-    # and replace HDROOTA and HDROOTB with the correct /dev/sd%D%P/%U+1
-  }
-fi
 
 ESP_DEV=
 if [[ ! -e "${FLAGS_to}" ]]; then
@@ -185,9 +105,9 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
 
   # Copy over the grub configurations for cloud machines and the
   # kernel into both the A and B slot
-  sudo mkdir -p "${ESP_FS_DIR}"/grub
-  sudo cp -r "${FLAGS_from}"/grub/. "${ESP_FS_DIR}"/grub
-  sudo cp -r "${FLAGS_from}"/grub/menu.lst.A "${ESP_FS_DIR}"/grub/menu.lst
+  sudo mkdir -p "${ESP_FS_DIR}"/boot/grub
+  sudo cp -r "${FLAGS_from}"/boot/grub/. "${ESP_FS_DIR}"/boot/grub
+  sudo cp -r "${FLAGS_from}"/boot/grub/menu.lst.A "${ESP_FS_DIR}"/boot/grub/menu.lst
 
   # Prepopulate the syslinux directories too and update for verified boot values
   # after the rootfs work is done.
@@ -199,20 +119,8 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
   sudo cp -f "${FLAGS_vmlinuz}" "${ESP_FS_DIR}"/syslinux/vmlinuz.B
 
   # Extract kernel flags
-  kernel_cfg=
+  kernel_cfg="cros_debug"
   old_root="%U+1"
-  if [[ -n "${FLAGS_kernel_cmdline}" ]]; then
-    info "Using supplied kernel_cmdline to update templates."
-    kernel_cfg="${FLAGS_kernel_cmdline}"
-  elif [[ -n "${FLAGS_kernel_partition}" ]]; then
-    info "Extracting the kernel command line from ${FLAGS_kernel_partition}"
-    kernel_cfg=$(dump_kernel_config "${FLAGS_kernel_partition}")
-  fi
-  update_x86_bootloaders "${old_root}" \
-                         "${kernel_cfg}" \
-                         "${ESP_FS_DIR}" \
-                         "${FLAGS_from}" \
-                         "${FLAGS_to}"
 
   # Install the syslinux loader on the ESP image (part 12) so it is ready when
   # we cut over from rootfs booting (extlinux).

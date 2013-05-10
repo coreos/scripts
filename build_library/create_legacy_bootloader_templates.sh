@@ -69,7 +69,7 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
 
 
   # Build configuration files for pygrub/pvgrub
-  GRUB_DIR="${FLAGS_to}/grub"
+  GRUB_DIR="${FLAGS_to}/boot/grub"
   sudo mkdir -p "${GRUB_DIR}"
 
   cat <<EOF | sudo dd of="${GRUB_DIR}/menu.lst.A" 2>/dev/null
@@ -77,11 +77,11 @@ timeout         0
 
 title           CoreOS A
 root            (hd0,0)
-kernel          /boot/vmlinuz.A ${common_args} root=HDROOTA cros_legacy
+kernel          /syslinux/vmlinuz.A ${common_args} root=HDROOTA cros_legacy
 
 title           CoreOS B
 root            (hd0,0)
-kernel          /boot/vmlinuz.B ${common_args} root=HDROOTB cros_legacy
+kernel          /syslinux/vmlinuz.B ${common_args} root=HDROOTB cros_legacy
 EOF
   info "Emitted ${GRUB_DIR}/menu.lst.A"
 
@@ -105,72 +105,36 @@ TIMEOUT 0
 # the actual target
 include /syslinux/default.cfg
 
-# chromeos-usb.A
-include /syslinux/usb.A.cfg
-
-# chromeos-hd.A / chromeos-vhd.A
+# coreos.A
 include /syslinux/root.A.cfg
 
-# chromeos-hd.B / chromeos-vhd.B
+# coreos.B
 include /syslinux/root.B.cfg
 EOF
   info "Emitted ${SYSLINUX_DIR}/syslinux.cfg"
 
-  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-    # To change the active target, only this file needs to change.
-    cat <<EOF | sudo dd of="${SYSLINUX_DIR}/default.cfg" 2>/dev/null
-DEFAULT chromeos-vusb.A
+  # To change the active target, only this file needs to change.
+  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/default.cfg" 2>/dev/null
+DEFAULT coreos.A
 EOF
-  else
-    # To change the active target, only this file needs to change.
-    cat <<EOF | sudo dd of="${SYSLINUX_DIR}/default.cfg" 2>/dev/null
-DEFAULT chromeos-usb.A
-EOF
-  fi
   info "Emitted ${SYSLINUX_DIR}/default.cfg"
-
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/usb.A.cfg" 2>/dev/null
-label chromeos-usb.A
-  menu label chromeos-usb.A
-  kernel vmlinuz.A
-  append ${common_args} root=${FLAGS_usb_disk} i915.modeset=1 cros_legacy
-
-label chromeos-vusb.A
-  menu label chromeos-vusb.A
-  kernel vmlinuz.A
-  append ${common_args} ${verity_common} root=${ROOTDEV} \
-      i915.modeset=1 cros_legacy dm="DMTABLEA"
-EOF
-  info "Emitted ${SYSLINUX_DIR}/usb.A.cfg"
 
   # Different files are used so that the updater can only touch the file it
   # needs to for a given change.  This will minimize any potential accidental
   # updates issues, hopefully.
   cat <<EOF | sudo dd of="${SYSLINUX_DIR}/root.A.cfg" 2>/dev/null
-label chromeos-hd.A
-  menu label chromeos-hd.A
+label coreos.A
+  menu label coreos.A
   kernel vmlinuz.A
   append ${common_args} root=HDROOTA i915.modeset=1 cros_legacy
-
-label chromeos-vhd.A
-  menu label chromeos-vhd.A
-  kernel vmlinuz.A
-  append ${common_args} ${verity_common} root=${ROOTDEV} \
-      i915.modeset=1 cros_legacy dm="DMTABLEA"
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.A.cfg"
 
   cat <<EOF | sudo dd of="${SYSLINUX_DIR}/root.B.cfg" 2>/dev/null
-label chromeos-hd.B
-  menu label chromeos-hd.B
+label coreos.B
+  menu label coreos.B
   kernel vmlinuz.B
   append ${common_args} root=HDROOTB i915.modeset=1 cros_legacy
-
-label chromeos-vhd.B
-  menu label chromeos-vhd.B
-  kernel vmlinuz.B
-  append ${common_args} ${verity_common} root=${ROOTDEV} \
-      i915.modeset=1 cros_legacy dm="DMTABLEB"
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.B.cfg"
 

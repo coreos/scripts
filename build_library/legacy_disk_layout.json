@@ -7,73 +7,16 @@
   "layouts":{
     "base":[
       {
-        "num": 11,
-        "label":"RWFW",
-        "type":"firmware",
-        "blocks":"16384"
-      },
-      {
-        "num": 6,
-        "label":"KERN-C",
-        "type":"kernel",
-        "blocks":"1"
-      },
-      {
-        "num": 7,
-        "label":"ROOT-C",
-        "type":"rootfs",
-        "blocks":"1"
-      },
-      {
-        "num": 9,
-        "type":"reserved",
-        "label":"reserved",
-        "blocks":"1"
-      },
-      {
-        "num": 10,
-        "type":"reserved",
-        "label":"reserved",
-        "blocks":"1"
-      },
-      {
-        "type":"blank",
-        "blocks":"4028"
+        "num": 1,
+        "label":"EFI-SYSTEM",
+        "type":"efi",
+        "blocks":"262144"
       },
       {
         "num": 2,
-        "label":"KERN-A",
-        "type":"kernel",
+        "label":"BOOT-B",
+        "type":"reserved",
         "blocks":"32768"
-      },
-      {
-        "num": 4,
-        "label":"KERN-B",
-        "type":"kernel",
-        "blocks":"32768"
-      },
-      {
-        "num": 8,
-        "label":"OEM",
-        "type":"data",
-        "blocks":"32768"
-      },
-      {
-        "type":"blank",
-        "blocks":"131072"
-      },
-      {
-        "num": 12,
-        "label":"EFI-SYSTEM",
-        "type":"efi",
-        "blocks":"32768"
-      },
-      {
-        "num": 5,
-        "label":"ROOT-B",
-        "type":"rootfs",
-        "blocks":"4194304",
-        "fs_blocks":"262144"
       },
       {
         "num": 3,
@@ -83,7 +26,38 @@
         "fs_blocks":"262144"
       },
       {
-        "num": 1,
+        "num": 4,
+        "label":"ROOT-B",
+        "type":"rootfs",
+        "blocks":"4194304",
+        "fs_blocks":"262144"
+      },
+      {
+        "num": 5,
+        "label":"ROOT-C",
+        "type":"rootfs",
+        "blocks":"1"
+      },
+      {
+        "num": 6,
+        "label":"OEM",
+        "type":"data",
+        "blocks":"32768"
+      },
+      {
+        "num": 7,
+        "type":"reserved",
+        "label":"reserved",
+        "blocks":"1"
+      },
+      {
+        "num": 8,
+        "type":"reserved",
+        "label":"reserved",
+        "blocks":"1"
+      },
+      {
+        "num": 9,
         "label":"STATE",
         "type":"data",
         "blocks":"2097152",
@@ -99,7 +73,7 @@
         "fs_blocks":"262144"
       },
       {
-        "num": 5,
+        "num": 4,
         "label":"ROOT-B",
         "type":"rootfs",
         "blocks":"1"
@@ -108,9 +82,9 @@
     "factory_install": [
       {
         "num": 1,
-        "label":"STATE",
-        "type":"data",
-        "blocks":"286720"
+        "label":"EFI-SYSTEM",
+        "type":"efi",
+        "blocks":"65536"
       },
       {
         "num": 3,
@@ -120,111 +94,38 @@
         "fs_blocks":"102400"
       },
       {
-        "num": 5,
+        "num": 4,
         "label":"ROOT-B",
         "type":"rootfs",
         "blocks":"1"
       },
       {
-        "num": 12,
-        "label":"EFI-SYSTEM",
-        "type":"efi",
-        "blocks":"65536"
+        "num": 9,
+        "label":"STATE",
+        "type":"data",
+        "blocks":"286720"
       }
     ],
     "vm": [
       {
-        "num": 1,
+        "num": 3,
+        "label":"ROOT-A",
+        "type":"rootfs",
+        "blocks":"2097152",
+        "fs_blocks":"262144"
+      },
+      {
+        "num": 4,
+        "label":"ROOT-B",
+        "type":"rootfs",
+        "blocks":"2097152",
+        "fs_blocks":"262144"
+      },
+      {
+        "num": 9,
         "label":"STATE",
         "type":"data",
         "blocks":"6291456"
-      },
-      {
-        "num": 3,
-        "label":"ROOT-A",
-        "type":"rootfs",
-        "blocks":"2539520",
-        "fs_blocks":"262144"
-      },
-      {
-        "num": 5,
-        "label":"ROOT-B",
-        "type":"rootfs",
-        "blocks":"2539520",
-        "fs_blocks":"262144"
-      }
-    ],
-    "recovery": [
-      {
-        "num": 1,
-        "label":"STATE",
-        "type":"data",
-        "blocks":"4096"
-      },
-      {
-        "num": 3,
-        "label":"ROOT-A",
-        "type":"rootfs",
-        "blocks":"2539520",
-        "fs_blocks":"262144"
-      },
-      {
-        "num": 5,
-        "label":"ROOT-B",
-        "type":"rootfs",
-        "blocks":"4096"
-      }
-    ],
-    "2gb-rootfs": [
-      {
-        "num": 3,
-        "label":"ROOT-A",
-        "type":"rootfs",
-        "blocks":"4569600",
-        "fs_blocks":"512000"
-      },
-      {
-        "num": 5,
-        "label":"ROOT-B",
-        "type":"rootfs",
-        "blocks":"1"
-      }
-    ],
-    "2gb-rootfs-updatable": [
-      {
-        "num": 1,
-        "label":"STATE",
-        "type":"data",
-        "blocks":"6291456"
-      },
-      {
-        "num": 3,
-        "label":"ROOT-A",
-        "type":"rootfs",
-        "blocks":"4569600",
-        "fs_blocks":"512000"
-      },
-      {
-        "num": 5,
-        "label":"ROOT-B",
-        "type":"rootfs",
-        "blocks":"4569600",
-        "fs_blocks":"512000"
-      }
-    ],
-    "4gb-rootfs": [
-      {
-        "num": 3,
-        "label":"ROOT-A",
-        "type":"rootfs",
-        "blocks":"8729600",
-        "fs_blocks":"1024000"
-      },
-      {
-        "num": 5,
-        "label":"ROOT-B",
-        "type":"rootfs",
-        "blocks":"1"
       }
     ]
   }

@@ -83,8 +83,6 @@ DEFINE_string image "chromiumos_base.img" \
   "Full path to the chromiumos image to make bootable."
 DEFINE_string arch "x86" \
   "Architecture to make bootable for: arm, x86, or amd64"
-DEFINE_string usb_disk "/dev/sdb3" \
-  "Path syslinux should use to do a usb boot."
 DEFINE_boolean cleanup_dirs ${FLAGS_TRUE} \
   "Whether the mount dirs should be removed on completion."
 
@@ -190,6 +188,8 @@ make_image_bootable() {
     --image "$(basename ${image})" -r "${FLAGS_rootfs_mountpoint}" \
     -s "${FLAGS_statefulfs_mountpoint}"
 
+  legacy_offset_size_export ${image}
+
   # The rootfs should never be mounted rw again after this point without
   # re-calling make_image_bootable.
   sudo mount -o remount,ro "${FLAGS_rootfs_mountpoint}"
@@ -226,6 +226,7 @@ make_image_bootable() {
       -noI -noF -ef ${SCRIPTS_DIR}/exclude-list -wildcards ${squash_sort_flag}
     root_dev=$squashfs_img
   fi
+
   # Builds the kernel partition image.  The temporary files are kept around
   # so that we can perform a load_kernel_test later on the final image.
   ${SCRIPTS_DIR}/build_kernel_image.sh \
@@ -259,8 +260,8 @@ make_image_bootable() {
   fi
 
   local rootfs_hash_size=$(stat -c '%s' ${FLAGS_rootfs_hash})
-  local rootfs_fs_size=$(get_filesystem_size ${FLAGS_image_type} 3)
-  local rootfs_partition_size=$(get_partition_size ${FLAGS_image_type} 3)
+  local rootfs_fs_size=$(get_filesystem_size ${FLAGS_image_type} ${NUM_ROOTFS_A})
+  local rootfs_partition_size=$(get_partition_size ${FLAGS_image_type} ${NUM_ROOTFS_A})
   local rootfs_hash_pad=$(( rootfs_partition_size - rootfs_fs_size ))
   info "Appending rootfs.hash (${rootfs_hash_size} bytes) to the root fs"
   if [[ ${rootfs_hash_size} -gt ${rootfs_hash_pad} ]]
@@ -272,7 +273,7 @@ make_image_bootable() {
   # Unfortunately, mount_gpt_image uses mount and not losetup to create the
   # loop devices.  This means that they are not the correct size.  We have to
   # write directly to the image to append the hash tree data.
-  local hash_offset="$(partoffset ${image} 3)"
+  local hash_offset="$(partoffset ${image} ${NUM_ROOTFS_A})"
   if [ $FLAGS_enable_squashfs -eq $FLAGS_TRUE ]; then
     rootfs_file_size=$(stat -c '%s' ${root_dev})
     hash_offset=$((hash_offset + (${rootfs_file_size} / 512)))
@@ -294,31 +295,13 @@ make_image_bootable() {
   sudo cp "${FLAGS_output_dir}/vmlinuz_hd.vblock" \
           "${FLAGS_statefulfs_mountpoint}"
 
-  local koffset="$(partoffset ${image} 2)"
-  sudo dd if="${FLAGS_output_dir}/vmlinuz.image" of="${image}" \
-    conv=notrunc bs=512 seek=${koffset} status=none
-
-  # Update the bootloaders.  The EFI system partition will be updated.
-  local kernel_part=
-  local usb_disk="${FLAGS_usb_disk}"
-
   # We should update the esp in place in the image.
   local bootloader_to="${image}"
-  local esp_offset="$(partoffset ${image} 12)"
+  local esp_offset="$(partoffset ${image} ${NUM_ESP})"
   esp_offset=$((esp_offset * 512))  # sectors to bytes
-  local esp_size="$(partsize ${image} 12)"
+  local esp_size="$(partsize ${image} ${NUM_ESP})"
   esp_size=$((esp_size * 512))  # sectors to bytes
   local bootloader_to_flags="--to_offset=${esp_offset} --to_size=${esp_size}"
-
-  if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
-    # Use the kernel partition to acquire configuration flags.
-    kernel_part="--kernel_partition='${FLAGS_output_dir}/vmlinuz.image'"
-    # Install syslinux on the EFI System Partition.
-    kernel_part="${kernel_part} --install_syslinux"
-  elif [[ "${FLAGS_arch}" = "arm" ]]; then
-    # These flags are not used for ARM update_bootloaders.sh
-    kernel_part=""
-  fi
 
   # Update partition 12
   ${SCRIPTS_DIR}/update_bootloaders.sh \
@@ -326,9 +309,7 @@ make_image_bootable() {
     --to="${bootloader_to}" \
     --from="${FLAGS_rootfs_mountpoint}"/boot \
     --vmlinuz="${FLAGS_rootfs_mountpoint}"/boot/vmlinuz \
-    --usb_disk="${usb_disk}" \
-    ${bootloader_to_flags} \
-    $kernel_part
+    ${bootloader_to_flags}
 
   # We don't need to keep these files around anymore.
   sudo rm "${FLAGS_rootfs_hash}" "${FLAGS_output_dir}/vmlinuz.image" \
@@ -342,7 +323,7 @@ make_image_bootable() {
   if [ $FLAGS_enable_squashfs -eq $FLAGS_TRUE ]; then
     # copy the squashfs image to the partition
     info "copy the squashfs to the partition"
-    local part_offset="$(partoffset ${image} 3)"
+    local part_offset="$(partoffset ${image} ${NUM_ROOTFS_A})"
     sudo dd bs=512 if="${squashfs_img}" of="${image}" \
             seek=${part_offset} conv=notrunc status=none
     sudo rm "${squashfs_img}"

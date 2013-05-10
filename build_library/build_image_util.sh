@@ -135,7 +135,6 @@ create_boot_desc() {
   --image_type=${image_type}
   --arch="${ARCH}"
   --keys_dir="${DEVKEYSDIR}"
-  --usb_disk="${FLAGS_usb_disk}"
   --boot_args="${FLAGS_boot_args}"
   --nocleanup_dirs
   --verity_algorithm=sha1

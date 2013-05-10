@@ -29,8 +29,8 @@ DEFINE_string disk_layout "default" \
   "The disk layout type to use for this image."
 DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
   "Install standard backdoor credentials for testing"
-DEFINE_string usb_disk /dev/sdb3 \
-  "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
+DEFINE_string usb_disk /dev/sdb4 \
+  "Path syslinux should use to do a usb boot. Default: /dev/sdb4"
 DEFINE_string enable_serial "" \
   "Enable serial port for printks. Example values: ttyS0"
 

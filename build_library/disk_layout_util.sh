@@ -104,6 +104,14 @@ get_label() {
   cgpt_py readlabel "${image_type}" "${DISK_LAYOUT_PATH}" ${part_id}
 }
 
+get_num() {
+  local image_type=$1
+  local label=$2
+  get_disk_layout_path
+
+  cgpt_py readnum "${image_type}" "${DISK_LAYOUT_PATH}" ${label}
+}
+
 check_valid_layout() {
   local image_type=$1
   get_disk_layout_path
@@ -194,22 +202,34 @@ build_gpt() {
     sudo=sudo
   fi
 
+  local root_fs_label="ROOT-A"
+  local root_fs_num=$(get_num ${image_type} ${root_fs_label})
+
+  local stateful_fs_label="STATE"
+  local stateful_fs_num=$(get_num ${image_type} ${stateful_fs_label})
+
+  local esp_fs_label="EFI-SYSTEM"
+  local esp_fs_num=$(get_num ${image_type} ${esp_fs_label})
+
+  local oem_fs_label="OEM"
+  local oem_fs_num=$(get_num ${image_type} ${oem_fs_label})
+
   # Now populate the partitions.
   info "Copying stateful partition..."
   $sudo dd if="$stateful_img" of="$outdev" conv=notrunc bs=512 \
-      seek=$(partoffset ${outdev} 1) status=none
+      seek=$(partoffset ${outdev} ${stateful_fs_num}) status=none
 
   info "Copying rootfs..."
   $sudo dd if="$rootfs_img" of="$outdev" conv=notrunc bs=512 \
-      seek=$(partoffset ${outdev} 3) status=none
+      seek=$(partoffset ${outdev} ${root_fs_num}) status=none
 
   info "Copying EFI system partition..."
   $sudo dd if="$esp_img" of="$outdev" conv=notrunc bs=512 \
-      seek=$(partoffset ${outdev} 12) status=none
+      seek=$(partoffset ${outdev} ${esp_fs_num}) status=none
 
   info "Copying OEM partition..."
   $sudo dd if="$oem_img" of="$outdev" conv=notrunc bs=512 \
-      seek=$(partoffset ${outdev} 8) status=none
+      seek=$(partoffset ${outdev} ${oem_fs_num}) status=none
 
   # Pre-set "sucessful" bit in gpt, so we will never mark-for-death
   # a partition on an SDCard/USB stick.
