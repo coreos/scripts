@@ -216,8 +216,7 @@ class CrosEnv(object):
       return True
 
     if not self.cmd.Run(self.ChrootPath('/usr/bin/cros_generate_update_payload'),
-                        '--image=%s' % src, '--output=%s' % dst,
-                        '--patch_kernel'):
+                        '--image=%s' % src, '--output=%s' % dst):
       self.Error('generate_payload failed')
       return False
 
