@@ -120,12 +120,12 @@ get_gpt_partitions() {
   local safe_flag=""
 
   if [ ${FLAGS_read_only} -eq ${FLAGS_TRUE} ]; then
-    ro_flag="-o ro"
+    ro_flag=",ro"
   fi
 
   if [ ${FLAGS_read_only} -eq ${FLAGS_TRUE} -o \
        ${FLAGS_safe} -eq ${FLAGS_TRUE} ]; then
-    safe_flag="-o ro -t ext2"
+    safe_flag=",ro"
   else
     # Make sure any callers can actually mount and modify the fs
     # if desired.
@@ -133,7 +133,7 @@ get_gpt_partitions() {
     enable_rw_mount "${FLAGS_from}/${filename}" "$(( offset * 512 ))"
   fi
 
-  if ! sudo mount ${safe_flag} -o loop,offset=$(( offset * 512 )) \
+  if ! sudo mount -o loop,offset=$(( offset * 512 ))${safe_flag}  \
       "${FLAGS_from}/${filename}" "${FLAGS_rootfs_mountpt}" ; then
     error "mount failed: options=${safe_flag} offset=$(( offset * 512 ))" \
         "target=${FLAGS_rootfs_mountpt}"
@@ -142,7 +142,7 @@ get_gpt_partitions() {
 
   # Mount the stateful partition using a loopback device.
   offset=$(partoffset "${FLAGS_from}/${filename}" ${NUM_STATEFUL})
-  if ! sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
+  if ! sudo mount -o loop,offset=$(( offset * 512 ))${ro_flag} \
       "${FLAGS_from}/${filename}" "${FLAGS_stateful_mountpt}" ; then
     error "mount failed: options=${ro_flag} offset=$(( offset * 512 ))" \
         "target=${FLAGS_stateful_mountpt}"
@@ -152,7 +152,7 @@ get_gpt_partitions() {
   # Mount the esp partition using a loopback device.
   if [[ -n "${FLAGS_esp_mountpt}" ]]; then
     offset=$(partoffset "${FLAGS_from}/${filename}" ${NUM_ESP})
-    if ! sudo mount ${ro_flag} -o loop,offset=$(( offset * 512 )) \
+    if ! sudo mount -o loop,offset=$(( offset * 512 ))${ro_flag}  \
         "${FLAGS_from}/${filename}" "${FLAGS_esp_mountpt}" ; then
       error "mount failed: options=${ro_flag} offset=$(( offset * 512 ))" \
           "target=${FLAGS_esp_mountpt}"
