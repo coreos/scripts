@@ -28,5 +28,5 @@ fi
 
 cros_generate_update_payload --image $FILE --output /tmp/update.gz
 MD5SUM=$(md5sum $FILE | cut -f1 -d" ")
-core-admin new-version -k $KEY -v 9999.0.0 -a {e96281a6-d1af-4bde-9a0a-97b76e56dc57} -t developer-build -p $MD5SUM /tmp/update.gz
 gsutil cp /tmp/update.gz gs://update-storage.core-os.net/developer-build/$MD5SUM/update.gz
+core-admin new-version -k $KEY -v 9999.0.0 -a {e96281a6-d1af-4bde-9a0a-97b76e56dc57} -t developer-build -p $MD5SUM /tmp/update.gz
