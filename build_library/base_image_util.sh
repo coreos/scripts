@@ -203,6 +203,11 @@ create_base_image() {
   # trim the image size as much as possible.
   emerge_to_image --root="${root_fs_dir}" ${BASE_PACKAGE}
 
+  # Record directories installed to the stateful partition.
+  sudo "${SCRIPTS_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
+      --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image.conf" \
+      "${root_fs_dir}/var"
+
   # Set /etc/lsb-release on the image.
   "${OVERLAY_CHROMEOS_DIR}/scripts/cros_set_lsb_release" \
   --root="${root_fs_dir}" \
