@@ -74,7 +74,7 @@ def main():
 
     if opts.output:
         fd = open(opts.output, 'w')
-        fd.write('\n'.join(config))
+        fd.write('\n'.join(config)+'\n')
         fd.close()
     else:
         print '\n'.join(config)
