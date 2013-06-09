@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Copyright (c) 2013 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+if [[ ! -d /sys/fs/cgroup/systemd ]] || ! systemctl >/dev/null; then
+    echo "This script must be run in a systemd based environment."
+    echo "Namely not inside the cros_sdk chroot and not on Ubuntu."
+    exit 1
+fi
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "The board to build root to boot."
+FLAGS "$@" || exit 1
+
+if [[ -z "${FLAGS_board}" ]]; then
+  echo "Error: --board is required."
+  exit 1
+fi
+
+BOARD="${FLAGS_board}"
+ROOT="${DEFAULT_CHROOT_DIR}/build/${BOARD}"
+STATE="${ROOT}-STATE"
+
+[ -d "$STATE" ] || sudo mkdir -p "$STATE"
+sudo systemd-nspawn --boot --read-only --machine="$HOSTNAME-$BOARD" \
+    --directory="$ROOT" --bind="$STATE:/mnt/stateful_partition"
