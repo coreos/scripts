@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# Copyright (c) 2013 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+DEFINE_string portage "" \
+    "Path to an existing portage tree to update from instead of cvs."
+DEFINE_string portage_stable "${SRC_ROOT}/third_party/portage-stable" \
+    "Path to the portage-stable git checkout."
+DEFINE_string cvsroot ":pserver:anonymous@anoncvs.gentoo.org:/var/cvsroot" \
+    "CVS location for gentoo-x86 to use when --portage isn't provided."
+
+# Parse flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+switch_to_strict_mode
+
+# Accept arguments from STDIN for batch processing
+if [[ -z "$*" ]]; then
+    set -- $(</dev/stdin)
+fi
+
+if [[ -z "$*" ]]; then
+    die "No packages provided"
+fi
+
+export CVSROOT="${FLAGS_cvsroot}"
+cd "$FLAGS_portage_stable"
+
+for pkg in "$@"; do
+    # Only allow packages, not categories or the whole tree
+    if [[ ! "$pkg" =~ ^[a-z0-9-][a-z0-9-]*\/[a-zA-Z0-9-][a-zA-Z0-9-]*$ ]] &&
+       [[ ! "$pkg" =~ ^(eclass|licenses|profiles|scripts) ]]; then
+        die "Invalid name $pkg, must be category/package or special dir."
+    fi
+
+    if [[ -z "$FLAGS_portage" ]]; then
+        rm -rf "$pkg"
+        cvs export -D now -d "$pkg" "gentoo-x86/$pkg"
+    else
+        mkdir -p "$pkg"
+        rsync -av --del --exclude CVS "/usr/portage/$pkg/" "$pkg"
+    fi
+
+    # Make sure we don't change the repo name to 'gentoo'
+    if [[ "$pkg" =~ ^profiles ]]; then
+        echo portage-stable > profiles/repo_name
+    fi
+
+    git add -A "$pkg"
+
+    # TODO(marineam): Update metadata directory?
+done
+git status
