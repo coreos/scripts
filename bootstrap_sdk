@@ -1,0 +1,54 @@
+#!/bin/bash
+#
+# Copyright (c) 2013 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# This uses Gentoo's catalyst for very thoroughly building images from
+# scratch. Using images based on this will eliminate some of the hackery
+# in make_chroot.sh for building up the sdk from a stock stage3 tarball.
+# 
+# For reference the procedure it performs is this:
+# 
+# 1. snapshot: Grab a snapshot of portage-stable. Note that overalys are
+#    not snapshotted.
+# 2. stage1: Using a "seed" tarball as a build environment, build a
+#    minimal root file system into a clean directory using ROOT=...
+#    and USE=-* The restricted USE flags are key be small and avoid
+#    circular dependencies.
+# 3. stage2: Run portage-stable/scripts/bootstrap.sh
+#    This rebuilds the toolchain. Probably not strictly necessary most of
+#    the time but does super-duper-promise that the toolchain isn't linked
+#    to or otherwise influenced by whatever was in the "seed" tarball.
+# 4. stage3: Run emerge -e system to rebuild everything using the fresh
+#    toolchain using the normal USE flags provided by the profile. This
+#    will also pull in assorted base system packages that weren't included
+#    in the minimal environment stage1 created.
+# 5. stage4: Install any extra packages or other desired tweaks. For the
+#    sdk we just install all the packages normally make_chroot.sh does.
+#
+# Usage: bootstrap_sdk [stage1 stage2 etc]
+# By default all four stages will be built using the latest stage4 as a seed.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+TYPE="coreos-sdk"
+ARCH=$(portageq envvar ARCH)
+DEFAULT_PROFILE="coreos:default/linux/${ARCH}/10.0"
+
+. "${SCRIPT_ROOT}/lib/catalyst.sh" || exit 1
+
+## Define the stage4 config template
+catalyst_stage4() {
+cat <<EOF
+target: stage4
+pkgcache_path: $BINPKGS
+stage4/packages: dev-python/setuptools dev-vcs/git app-arch/pbzip2 net-misc/curl app-admin/sudo app-shells/bash-completion sys-devel/crossdev coreos-base/hard-host-depends
+stage4/fsscript: ${SCRIPT_ROOT}/lib/catalyst_stage4.sh
+EOF
+catalyst_stage_default
+}
+
+catalyst_init "$@"
+catalyst_build
