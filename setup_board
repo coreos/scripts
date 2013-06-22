@@ -21,6 +21,8 @@ DEFINE_boolean force $FLAGS_FALSE \
   "Force re-creating board root."
 DEFINE_boolean usepkg $FLAGS_TRUE \
   "Use binary packages to bootstrap."
+DEFINE_boolean getbinpkg $FLAGS_TRUE \
+  "Download binary packages from remote repository."
 
 FLAGS_HELP="usage: $(basename $0) [flags]
 
@@ -280,6 +282,11 @@ else
 fi
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=" --usepkg"
+  if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
+    UPDATE_ARGS+=" --getbinpkg "
+  else
+    UPDATE_ARGS+=" --nogetbinpkg "
+  fi
 else
   UPDATE_ARGS+=" --nousepkg"
 fi
@@ -514,7 +521,10 @@ else
     KERNEL_EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
     if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
           "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]]; then
-      KERNEL_EMERGE_FLAGS+=" --getbinpkg --usepkg"
+      KERNEL_EMERGE_FLAGS+=" --usepkg"
+      if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
+        KERNEL_EMERGE_FLAGS+=" --getbinpkg "
+      fi
     fi
 
     sudo -E "${EMERGE_WRAPPER}" ${KERNEL_EMERGE_FLAGS} \

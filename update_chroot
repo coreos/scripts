@@ -16,6 +16,8 @@ assert_not_root_user
 # Developer-visible flags.
 DEFINE_boolean usepkg $FLAGS_TRUE \
   "Use binary packages to bootstrap."
+DEFINE_boolean getbinpkg $FLAGS_TRUE \
+  "Download binary packages from remote repository."
 
 FLAGS_HELP="usage: $(basename $0) [flags]
 Performs an update of the chroot. This script is called as part of
@@ -62,7 +64,10 @@ info "Updating chroot"
 
 EMERGE_FLAGS="-uNv --with-bdeps=y --select"
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
-  EMERGE_FLAGS="${EMERGE_FLAGS} --getbinpkg"
+  EMERGE_FLAGS="${EMERGE_FLAGS} --usepkg"
+  if [ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]; then
+    EMERGE_FLAGS="${EMERGE_FLAGS} --getbinpkg"
+  fi
 
   # Only update toolchain when binpkgs are available. Toolchain rollout
   # process only takes place when the chromiumos sdk builder finishes
@@ -93,6 +98,8 @@ if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" ]; then
   # This should really only be skipped while bootstrapping.
   if [ "${FLAGS_usepkg}" -eq "${FLAGS_FALSE}" ]; then
     TOOLCHAIN_FLAGS+=( --nousepkg )
+  elif [ "${FLAGS_getbinpkg}" -eq "${FLAGS_FALSE}" ]; then
+    TOOLCHAIN_FLAGS+=( --nogetbinpkg )
   fi
   # Expand the path before sudo, as root doesn't have the same path magic.
   sudo -E $(type -p cros_setup_toolchains) "${TOOLCHAIN_FLAGS[@]}"
