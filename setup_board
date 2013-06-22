@@ -62,14 +62,6 @@ DEFINE_string variant "" \
 DEFINE_boolean regen_configs ${FLAGS_FALSE} \
   "Regenerate all config files (useful for modifying profiles w/out rebuild)."
 
-# The --reuse_pkgs_from_local_boards flag tells Portage to share binary
-# packages between boards that are built locally, so that the total time
-# required to build several boards is reduced. This flag is only useful
-# when you are not able to use remote binary packages, since remote binary
-# packages are usually more up to date than anything you have locally.
-DEFINE_boolean reuse_pkgs_from_local_boards $FLAGS_FALSE \
-  "Bootstrap from local packages instead of remote packages."
-
 
 # builds wrappers like equery-arm-generic.
 # args:
@@ -151,111 +143,6 @@ EOF
 
 install_toolchain() {
   "${GCLIENT_ROOT}/src/scripts/install_toolchain" --board="${BOARD_VARIANT}"
-}
-
-# Print contents of $BOARD_ETC/make.conf.board. This file sources make.conf
-# from each overlay, and then calculates the prebuilt URLs based on the
-# various binhost configuration files.
-print_board_make_conf() {
-  echo "# AUTO-GENERATED FILE. DO NOT EDIT."
-  echo
-  echo "# Source make.conf from each overlay."
-  local boto_config=""
-  for overlay in $BOARD_OVERLAY_LIST; do
-    if [[ -f "$overlay/make.conf" ]]; then
-      echo source "$overlay/make.conf"
-    fi
-    if [[ -f "$overlay/googlestorage_account.boto" ]]; then
-      boto_config="$overlay/googlestorage_account.boto"
-    fi
-  done
-  local chromeos_overlay="$SRC_ROOT/private-overlays/coreos-overlay"
-  if [[ -f "$chromeos_overlay/googlestorage_account.boto" ]]; then
-    boto_config="$chromeos_overlay/googlestorage_account.boto"
-  fi
-  local gsutil_cmd='gsutil cp \"${URI}\" \"${DISTDIR}/${FILE}\"'
-  echo
-  echo FETCHCOMMAND_GS="\"bash -c 'BOTO_CONFIG=$boto_config $gsutil_cmd'\""
-  echo RESUMECOMMAND_GS='"$FETCHCOMMAND_GS"'
-  echo
-  if [[ -n ${FLAGS_accept_licenses} ]]; then
-    echo "ACCEPT_LICENSE='${FLAGS_accept_licenses}'"
-    echo
-  fi
-}
-
-print_binhost_config() {
-  if [ "$1" == "--local" ]; then
-    cros_generate_local_binhosts --board "${BOARD_VARIANT}"
-    echo 'PORTAGE_BINHOST="$LOCAL_BINHOST"'
-    return 0
-  elif [ $# -ne 0 ]; then
-    die "Invalid arguments for print_binhost_config: $@"
-  fi
-
-  local binhost_dir="$CHROMIUMOS_OVERLAY/coreos/binhost/target"
-  local preflight_binhost="$binhost_dir/$BOARD-PREFLIGHT_BINHOST.conf"
-  local chrome_binhost_suffix="LATEST_RELEASE_CHROME_BINHOST.conf"
-  local chrome_binhost="$binhost_dir/$BOARD-$chrome_binhost_suffix"
-  if [[ $ARCH = x86 && ! -f "$preflight_binhost" ]]; then
-    preflight_binhost="$binhost_dir/x86-generic-PREFLIGHT_BINHOST.conf"
-  elif [[ $ARCH = amd64 && ! -f "$preflight_binhost" ]]; then
-    preflight_binhost="$binhost_dir/amd64-generic-PREFLIGHT_BINHOST.conf"
-  fi
-  if [[ $ARCH = x86 && ! -f "$chrome_binhost" ]]; then
-    chrome_binhost="$binhost_dir/x86-generic-$chrome_binhost_suffix"
-  elif [[ $ARCH = amd64 && ! -f "$chrome_binhost" ]]; then
-    chrome_binhost="$binhost_dir/amd64-generic-$chrome_binhost_suffix"
-  fi
-
-  local partner_overlay="$SRC_ROOT/private-overlays/coreos-partner-overlay"
-  local internal_binhost_dir="$partner_overlay/coreos/binhost/target"
-  local internal_binhost="$internal_binhost_dir/$BOARD-PREFLIGHT_BINHOST.conf"
-
-  cat <<'EOF'
-# FULL_BINHOST is populated by the full builders. It is listed first because it
-# is the lowest priority binhost. It is better to download packages from the
-# preflight binhost because they are fresher packages.
-PORTAGE_BINHOST="$FULL_BINHOST"
-
-EOF
-
-  if [[ -f "$preflight_binhost" && -z "$IGNORE_PREFLIGHT_BINHOST" ]]; then
-    cat <<'EOF'
-# PREFLIGHT_BINHOST is populated by the preflight builders. If the same
-# package is provided by both the preflight and full binhosts, the package is
-# downloaded from the preflight binhost.
-EOF
-    echo source "$preflight_binhost"
-    echo 'PORTAGE_BINHOST="$PORTAGE_BINHOST $PREFLIGHT_BINHOST"'
-    echo
-  fi
-
-  if [[ -f "$internal_binhost"  && -z "$IGNORE_PREFLIGHT_BINHOST" ]]; then
-    cat <<'EOF'
-# The internal PREFLIGHT_BINHOST is populated by the internal preflight
-# builders. It takes priority over the public preflight binhost.
-EOF
-    echo source "$internal_binhost"
-    echo 'PORTAGE_BINHOST="$PORTAGE_BINHOST $PREFLIGHT_BINHOST"'
-    echo
-  fi
-
-  if [[ -f "$chrome_binhost" ]]; then
-    cat <<'EOF'
-# LATEST_RELEASE_CHROME_BINHOST provides prebuilts for chromeos-chrome only.
-EOF
-    echo source "$chrome_binhost"
-    echo 'PORTAGE_BINHOST="$PORTAGE_BINHOST $LATEST_RELEASE_CHROME_BINHOST"'
-  fi
-}
-
-print_board_binhost_config() {
-  if [ "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]; then
-    print_binhost_config --local
-  else
-    print_binhost_config
-  fi
 }
 
 # Parse command line flags
@@ -350,10 +237,6 @@ if [ -d "${BOARD_ROOT}" ]; then
     sudo mv "${BOARD_ROOT}" "${TEMP_DIR}"
     sudo rm -rf "${TEMP_DIR}" &
   elif [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
-    if ! ${HOST_BOARD}; then
-      { print_board_make_conf; print_board_binhost_config; } | \
-        sudo_clobber $BOARD_ETC/make.conf.board
-    fi
     if [[ ${FLAGS_quiet} -eq ${FLAGS_FALSE} ]]; then
       warn "Board output directory '$BOARD_ROOT' already exists."
       warn "Not setting up board root. "
@@ -407,6 +290,11 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_TRUE} ]]; then
   SAVED_VERSION=$(grep -s ^LIBC_VERSION= ${BOARD_SETUP} || true)
 fi
 
+ACCEPT_LICENSE=
+if [[ -n ${FLAGS_accept_licenses} ]]; then
+  ACCEPT_LICENSE="ACCEPT_LICENSE='${FLAGS_accept_licenses}'"
+fi
+
 sudo_clobber "${BOARD_SETUP}" <<EOF
 # Created by setup_board
 CHOST="${FLAGS_toolchain}"
@@ -416,12 +304,12 @@ MAKEOPTS="-j${NUM_JOBS}"
 PKG_CONFIG="pkg-config-${BOARD_VARIANT}"
 BOARD_USE="${BOARD_VARIANT}"
 ${SAVED_VERSION}
+${ACCEPT_LICENSE}
 EOF
 
 if ! ${HOST_BOARD}; then
   sudo ln -sf "${CHROMIUMOS_CONFIG}/make.conf.${ARCH}-target" \
     "${BOARD_ETC}/make.conf"
-  print_board_make_conf | sudo_clobber $BOARD_ETC/make.conf.board
 
   # We install the toolchain related bits after the BOARD_ROOT, BOARD_PROFILE
   # and BOARD_ETC directories have been created.
@@ -511,16 +399,11 @@ if ${HOST_BOARD}; then
   sudo find $BOARD_ROOT -type f -name '*.la' | xargs sudo \
       sed -i -e "s|$BOARD_ROOT/|/|g"
 else
-  # Now that the portageq-* wrappers have been created, we can add the binhost
-  # config to make.conf.board.
-  print_board_binhost_config | sudo_append $BOARD_ETC/make.conf.board
-
   if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
     # Emerge the kernel headers into the board build root.  Use rdeps to
     # avoid pulling any spurious DEPEND things in that we don't care about.
     KERNEL_EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
-    if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
-          "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]]; then
+    if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
       KERNEL_EMERGE_FLAGS+=" --usepkg"
       if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
         KERNEL_EMERGE_FLAGS+=" --getbinpkg "
