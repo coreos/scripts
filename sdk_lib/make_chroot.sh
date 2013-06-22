@@ -36,6 +36,8 @@ assert_root_user
 DEFINE_string chroot "$DEFAULT_CHROOT_DIR" \
   "Destination dir for the chroot environment."
 DEFINE_boolean usepkg $FLAGS_TRUE "Use binary packages to bootstrap."
+DEFINE_boolean getbinpkg $FLAGS_TRUE \
+  "Download binary packages from remote repository."
 DEFINE_boolean delete $FLAGS_FALSE "Delete an existing chroot."
 DEFINE_boolean replace $FLAGS_FALSE "Overwrite existing chroot, if any."
 DEFINE_integer jobs -1 "How many packages to build in parallel at maximum."
@@ -79,7 +81,10 @@ if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
   # Use binary packages. Include all build-time dependencies,
   # so as to avoid unnecessary differences between source
   # and binary builds.
-  USEPKG="--getbinpkg --usepkg --with-bdeps y"
+  USEPKG="--usepkg --with-bdeps y"
+  if [[ $FLAGS_getbinpkg -eq $FLAGS_TRUE ]]; then
+    USEPKG="$USEPKG --getbinpkg"
+  fi
 fi
 
 # Support faster build if necessary.
@@ -435,6 +440,8 @@ early_enter_chroot $EMERGE_CMD -uNv crossdev
 TOOLCHAIN_ARGS=( --deleteold )
 if [[ ${FLAGS_usepkg} -eq ${FLAGS_FALSE} ]]; then
   TOOLCHAIN_ARGS+=( --nousepkg )
+elif [[ ${FLAGS_getbinpkg} -eq ${FLAGS_FALSE} ]]; then
+  TOOLCHAIN_ARGS+=( --nogetbinpkg )
 fi
 # Note: early_enter_chroot executes as root.
 early_enter_chroot "${CHROOT_TRUNK_DIR}/chromite/bin/cros_setup_toolchains" \
@@ -453,6 +460,11 @@ fi
 UPDATE_ARGS=( --skip_toolchain_update )
 if [[ ${FLAGS_usepkg} -eq ${FLAGS_TRUE} ]]; then
   UPDATE_ARGS+=( --usepkg )
+  if [[ ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
+    UPDATE_ARGS+=( --getbinpkg )
+  else
+    UPDATE_ARGS+=( --nogetbinpkg )
+  fi
 else
   UPDATE_ARGS+=( --nousepkg )
 fi

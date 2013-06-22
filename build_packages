@@ -16,6 +16,8 @@ DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build packages for."
 DEFINE_boolean usepkg "${FLAGS_TRUE}" \
   "Use binary packages to bootstrap when possible."
+DEFINE_boolean getbinpkg "${FLAGS_TRUE}" \
+  "Download binary packages from remote repository."
 DEFINE_boolean noworkon "${FLAGS_FALSE}" \
   "Don't force-build workon packages."
 DEFINE_boolean showoutput "${FLAGS_FALSE}" \
@@ -100,6 +102,11 @@ else
 fi
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=( --usepkg )
+  if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
+    UPDATE_ARGS+=( --getbinpkg )
+  else
+    UPDATE_ARGS+=( --nogetbinpkg )
+  fi
 else
   UPDATE_ARGS+=( --nousepkg )
 fi
@@ -140,7 +147,10 @@ if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
   # Use binary packages. Include all build-time dependencies,
   # so as to avoid unnecessary differences between source
   # and binary builds.
-  EMERGE_FLAGS+=( --getbinpkg --usepkg --with-bdeps y )
+  EMERGE_FLAGS+=( --usepkg --with-bdeps y )
+  if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
+      EMERGE_FLAGS+=( --getbinpkg )
+  fi
 fi
 
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
