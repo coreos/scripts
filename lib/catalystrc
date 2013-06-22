@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# setup some configs catalyst doesn't handle
+# i.e: update locale.gen to speed up builds
+maybe_append() {
+    [[ -f "$1" && ! -w "$1" ]] && return
+    if ! grep -q "^$2" "$1"; then
+        echo "$2" >> "$1"
+    fi
+}
+
+fixup_rootfs() {
+    mkdir -p "$1/etc" 2>/dev/null || return
+    maybe_append "$1/etc/locale.gen" "en_US ISO-8859-1"
+    maybe_append "$1/etc/locale.gen" "en_US.UTF-8 UTF-8"
+}
+
+# Fix both / and $ROOT (if it exists)
+fixup_rootfs
+[[ "${ROOT:-/}" != / ]] && fixup_rootfs "$ROOT"
+unset fixup_rootfs maybe_append
