@@ -427,36 +427,7 @@ echo STAGE3=$STAGE3 > $CHROOT_STATE
 info "Updating portage"
 early_enter_chroot emerge -uNv --quiet portage
 
-
-info "Unmerge openssh temporarily"
-early_enter_chroot emerge --unmerge net-misc/openssh
-
-
-info "Install python-2.6"
-early_enter_chroot emerge -uNv --quiet python:2.6 dev-python/setuptools
-early_enter_chroot eselect python set python2.6
-
-
-# Packages that inherit cros-workon commonly get a circular dependency
-# curl->openssl->git->curl that is broken by emerging an early version of git
-# without curl (and webdav that depends on it).
-# We also need to do this before the toolchain as those will sometimes also
-# fetch via remote git trees (for some bot configs).
-if [[ ! -e "${FLAGS_chroot}/usr/bin/git" ]]; then
-  info "Installing early git"
-  early_enter_chroot $EMERGE_CMD -uNv $USEPKG dev-vcs/git
-
-  early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
-      dev-libs/openssl net-misc/curl
-
-  # (Re-)emerge the full version of git.
-  info "Installing openssh"
-  early_enter_chroot $EMERGE_CMD -uNv $USEPKG net-misc/openssh --select $EMERGE_JOBS
-fi
-
-
 # Enable git terminal prompt
-early_enter_chroot $EMERGE_CMD -uNv $USEPKG app-shells/bash-completion
 early_enter_chroot eselect bashcomp enable --global git-prompt
 
 info "Updating host toolchain"
@@ -468,22 +439,6 @@ fi
 # Note: early_enter_chroot executes as root.
 early_enter_chroot "${CHROOT_TRUNK_DIR}/chromite/bin/cros_setup_toolchains" \
     --hostonly "${TOOLCHAIN_ARGS[@]}"
-
-# dhcpcd is included in 'world' by the stage3 that we pull in for some reason.
-# We have no need to install it in our host environment, so pull it out here.
-info "Deselecting dhcpcd"
-early_enter_chroot $EMERGE_CMD --deselect dhcpcd
-
-# openrc is included in stage3. We don't need it.
-info "Unmerge openrc"
-early_enter_chroot $EMERGE_CMD --unmerge sys-apps/openrc sys-apps/sysvinit sys-fs/udev-init-scripts \
-	|| echo "openrc not installed, ignoring"
-
-early_enter_chroot INSTALL_MASK="" $EMERGE_CMD coreos-base/efunctions
-
-info "Running emerge curl sudo ..."
-early_enter_chroot $EMERGE_CMD -uNv $USEPKG --select $EMERGE_JOBS \
-  pbzip2 dev-libs/openssl net-misc/curl sudo
 
 if [ -n "${INITIALIZE_CHROOT}" ]; then
   # If we're creating a new chroot, we also want to set it to the latest
