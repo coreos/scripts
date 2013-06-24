@@ -13,6 +13,9 @@ DEFINE_string portage_stable "${SRC_ROOT}/third_party/portage-stable" \
     "Path to the portage-stable git checkout."
 DEFINE_string cvsroot ":pserver:anonymous@anoncvs.gentoo.org:/var/cvsroot" \
     "CVS location for gentoo-x86 to use when --portage isn't provided."
+DEFINE_boolean commit ${FLAGS_FALSE} \
+    "Commit all changes after updating portage-stable."
+
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -55,4 +58,19 @@ for pkg in "$@"; do
 
     # TODO(marineam): Update metadata directory?
 done
-git status
+
+if [[ $FLAGS_commit -eq $FLAGS_TRUE ]]; then
+    if [[ $# -eq 1 ]]; then
+        git commit -e -m "bump($1): sync with upstream"
+    else
+        cat > .git/COMMIT_EDITMSG <<EOF
+bump($1): sync with upstream
+
+Packages updated:
+$(for p in "$@"; do echo "  $p"; done | sort)
+EOF
+    fi
+    git commit -e -F .git/COMMIT_EDITMSG
+else
+    git status
+fi
