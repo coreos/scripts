@@ -1,0 +1,82 @@
+#!/bin/bash
+
+# Copyright (c) 2013 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+DEFINE_boolean dry_run ${FLAGS_FALSE} "Trial run, makes no changes."
+DEFINE_boolean upload ${FLAGS_FALSE} "Upload distfile mirror via gsutil."
+
+MIRROR_ROOT="${DEFAULT_BUILD_ROOT}/mirror"
+UPLOAD_ROOT="gs://storage.core-os.net/mirror"
+
+# Parse flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+switch_to_strict_mode
+
+if [[ $# -eq 0 ]]; then
+    eval set -- portage-stable coreos
+fi
+
+update_local_mirror() {
+    local repo_name="$1"
+    local repo_mirror="${MIRROR_ROOT}/$repo_name"
+    local extra_flags=""
+
+    if [[ ${FLAGS_dry_run} == ${FLAGS_TRUE} ]]; then
+        info "Pretend distfiles update for $repo_name"
+        extra_flags+=" --dry-run "
+    else
+        info "Starting distfiles update for $repo_name"
+    fi
+
+    mkdir -p "${repo_mirror}/"{distfiles,info,log}
+    emirrordist --mirror --verbose $extra_flags \
+        --jobs=${NUM_JOBS} --repo="${repo_name}" \
+        --distfiles="${repo_mirror}/distfiles" \
+        --distfiles-local="/var/lib/portage/distfiles" \
+        --fetch-log-dir="${repo_mirror}/log" \
+        --failure-log="${repo_mirror}/log/failure.log" \
+        --success-log="${repo_mirror}/log/success.log" \
+        --scheduled-deletion-log="${repo_mirror}/log/deletion.log" \
+        --deletion-db="${repo_mirror}/info/deletion.db" \
+        --distfiles-db="${repo_mirror}/info/distfiles.db" \
+        --deletion-delay=$((86400 * 14)) \
+        --restrict-mirror-exemptions="gentoo" \
+        --verify-existing-digest
+}
+upload_mirror() {
+    local repo_name="$1"
+    local local_mirror="${MIRROR_ROOT}/$repo_name"
+    local remote_mirror="${UPLOAD_ROOT}/$repo_name"
+
+    info "Uploading public distfiles for $repo_name"
+    gsutil -m cp -n \
+        "${local_mirror}/distfiles/*" "${remote_mirror}/distfiles"
+
+    info "Uploading private metadata for $repo_name"
+    gsutil cp -a project-private \
+        "${local_mirror}/info/*" "${remote_mirror}/info"
+}
+
+for repo in "$@"; do
+    if ! portageq get_repo_path / "$repo" >/dev/null; then
+        die_notrace "Unknown repo name '$repo'"
+    fi
+    update_local_mirror "$repo"
+done
+
+if [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]]; then
+    if [[ ! -f "$HOME/.boto" ]]; then
+        die_notrace "Please run gsutil config to create ~/.boto"
+    fi
+    for repo in "$@"; do
+        upload_mirror "$repo"
+    done
+fi
+
+info "Done!"
