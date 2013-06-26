@@ -36,8 +36,13 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 TYPE="coreos-sdk"
 ARCH=$(portageq envvar ARCH)
 DEFAULT_PROFILE="coreos:default/linux/${ARCH}/10.0"
+UPLOAD_ROOT="gs://storage.core-os.net/coreos/sdk/${ARCH}"
 
 . "${SCRIPT_ROOT}/lib/catalyst.sh" || exit 1
+
+DEFINE_boolean parallel ${FLAGS_TRUE} "Enable parallelism in gsutil."
+DEFINE_boolean upload ${FLAGS_FALSE} \
+    "Upload final tarball and all packages via gsutil."
 
 ## Define the stage4 config template
 catalyst_stage4() {
@@ -51,6 +56,21 @@ catalyst_stage_default
 }
 
 catalyst_init "$@"
+
+# Search for .boto, this runs under sudo so ~/.boto may not be right
+if [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]]; then
+    for boto in "$HOME/.boto" "/home/$SUDO_USER/.boto" /etc/boto.cfg; do
+        if [[ -f "$boto" ]]; then
+            info "Using boto config $boto"
+            export BOTO_CONFIG="$boto"
+            break
+        fi
+    done
+    if [[ ! -f "$BOTO_CONFIG" ]]; then
+        die_notrace "Please run gsutil config to create ~/.boto"
+    fi
+fi
+
 catalyst_build
 
 info "Build complete! Changing output name to something more sensible."
@@ -75,3 +95,22 @@ for hash_type in md5 sha1 sha512; do
 done
 
 info "SDK ready: $BUILDS/${release_name}"
+
+GSUTIL_OPTS=
+if [[ ${FLAGS_parallel} -eq ${FLAGS_TRUE} ]]; then
+    GSUTIL_OPTS="-m"
+fi
+
+if [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]]; then
+    info "Uploading tarball"
+    gsutil ${GSUTIL_OPTS} cp \
+        "$BUILDS/${release_name}" \
+        "$BUILDS/${release_name}.CONTENTS" \
+        "$BUILDS/${release_name}.DIGESTS" \
+        "${UPLOAD_ROOT}/${FLAGS_version}/"
+    info "Uploading packages"
+    gsutil ${GSUTIL_OPTS} cp -R "${BINPKGS}"/* \
+        "${UPLOAD_ROOT}/${FLAGS_version}/pkgs/"
+fi
+
+info "Done!"
