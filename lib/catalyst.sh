@@ -22,6 +22,12 @@ DISTDIR=
 TEMPDIR=
 STAGES=
 
+# For searching for alternatives when DEFAULT_SEED doesn't exist
+# unset SDK_SEARCH=1 to disable this fallback
+SDK_VERSION_FILE="coreos/binhost/host/sdk_version.conf"
+SDK_TARBALL_FMT="coreos-sdk-${ARCH}-%s.tar.bz2"
+SDK_SEARCH=1
+
 DEFINE_string catalyst_root "${DEFAULT_CATALYST_ROOT}" \
     "Path to directory for all catalyst images and other files."
 DEFINE_string portage_stable "${SRC_ROOT}/third_party/portage-stable" \
@@ -166,7 +172,10 @@ catalyst_init() {
     TEMPDIR="$CATALYST_ROOT/tmp/$TYPE"
     DISTDIR="$CATALYST_ROOT/distfiles"
 
-    # check for recent seed
+    # possibly search for existing seeds
+    search_for_sdk_seed
+
+    # confirm seed exists
     if [[ ! -f "$FLAGS_seed_tarball" ]]; then
         die_notrace "Seed tarball not found: $FLAGS_seed_tarball"
     fi
@@ -190,6 +199,36 @@ catalyst_init() {
         SEED="seed/${FLAGS_seed_tarball##*/}"
         SEED="${SEED%.tar.bz2}"
     fi
+}
+
+# search_for_sdk_seed
+# As a fallback search around for an existing SDK tarball we
+# can use as a seed when the default doesn't exist.
+search_for_sdk_seed() {
+    # Search disabled
+    [[ "${SDK_SEARCH}" != 1 ]] && return
+    # Seed already exists
+    [[ -f "${FLAGS_seed_tarball}" ]] && return
+    # User set the option so we shouldn't change it
+    [[ "${FLAGS_seed_tarball}" != "${DEFAULT_SEED}" ]] && return
+
+    local SDK_LATEST_VERSION SDK_TARBALL check_path
+    eval $(grep "^SDK_LATEST_VERSION=" \
+            "${FLAGS_coreos_overlay}/${SDK_VERSION_FILE}")
+    SDK_TARBALL=$(printf "${SDK_TARBALL_FMT}" "${SDK_LATEST_VERSION}")
+
+    for check_path in \
+        "${CATALYST_ROOT}/builds/coreos-sdk/${SDK_TARBALL}" \
+        "${CATALYST_ROOT}/builds/seeds/${SDK_TARBALL}" \
+        "/var/cache/chromeos-cache/sdks/${SDK_TARBALL}" \
+        "/mnt/host/source/.cache/sdks/${SDK_TARBALL}"
+    do
+        if [[ -f "${check_path}" ]]; then
+            info "Using SDK for seed: ${check_path}"
+            FLAGS_seed_tarball="${check_path}"
+            return
+        fi
+    done
 }
 
 write_configs() {
