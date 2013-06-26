@@ -8,6 +8,7 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
 DEFINE_boolean dry_run ${FLAGS_FALSE} "Trial run, makes no changes."
+DEFINE_boolean parallel ${FLAGS_TRUE} "Enable parallelism in gsutil."
 DEFINE_boolean upload ${FLAGS_FALSE} "Upload distfile mirror via gsutil."
 
 # FIXME(marineam): We need to add gs support to emirrordist so it
@@ -26,6 +27,12 @@ switch_to_strict_mode
 if [[ $# -eq 0 ]]; then
     eval set -- portage-stable coreos
 fi
+
+GSUTIL_OPTS=
+if [[ ${FLAGS_parallel} -eq ${FLAGS_TRUE} ]]; then
+    GSUTIL_OPTS="-m"
+fi
+
 
 update_local_mirror() {
     local repo_name="$1"
@@ -60,11 +67,11 @@ upload_mirror() {
     local remote_mirror="${UPLOAD_ROOT}/$repo_name"
 
     info "Uploading public distfiles for $repo_name"
-    gsutil -m cp -n \
+    gsutil ${GSUTIL_OPTS} cp -n \
         "${local_mirror}/distfiles/*" "${remote_mirror}/distfiles"
 
     info "Uploading private metadata for $repo_name"
-    gsutil cp -a project-private \
+    gsutil ${GSUTIL_OPTS} cp -a project-private \
         "${local_mirror}/info/*" "${remote_mirror}/info"
 }
 download_mirror() {
@@ -74,11 +81,11 @@ download_mirror() {
 
     info "Downloading public distfiles for $repo_name"
     mkdir -p "${local_mirror}/"{distfiles,info}
-    gsutil -m cp -n \
+    gsutil ${GSUTIL_OPTS} cp -n \
         "${remote_mirror}/distfiles/*" "${local_mirror}/distfiles"
 
     info "Downloading private metadata for $repo_name"
-    gsutil cp "${remote_mirror}/info/*" "${local_mirror}/info"
+    gsutil ${GSUTIL_OPTS} cp "${remote_mirror}/info/*" "${local_mirror}/info"
 }
 
 if [[ ${FLAGS_download} -eq ${FLAGS_TRUE} ]]; then
