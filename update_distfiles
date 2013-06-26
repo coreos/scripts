@@ -46,7 +46,7 @@ update_local_mirror() {
         info "Starting distfiles update for $repo_name"
     fi
 
-    mkdir -p "${repo_mirror}/"{distfiles,info,log}
+    mkdir -p "${repo_mirror}/"{distfiles,info,log,tmp}
     emirrordist --mirror --verbose $extra_flags \
         --jobs=${NUM_JOBS} --repo="${repo_name}" \
         --distfiles="${repo_mirror}/distfiles" \
@@ -59,6 +59,7 @@ update_local_mirror() {
         --distfiles-db="${repo_mirror}/info/distfiles.db" \
         --deletion-delay=$((86400 * 14)) \
         --restrict-mirror-exemptions="gentoo" \
+        --temp-dir="${repo_mirror}/tmp" \
         --verify-existing-digest
 }
 upload_mirror() {
