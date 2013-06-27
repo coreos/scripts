@@ -83,6 +83,8 @@ FILES_TO_COPY_TO_CHROOT=(
   .gdata_token                # Auth token for Google Docs on chromium.org
   .disable_build_stats_upload # Presence of file disables command stats upload
   .netrc                      # May contain required source fetching credentials
+  .boto                       # Auth information for gsutil
+  .boto-key.p12               # Service account key for gsutil
 )
 
 INNER_CHROME_ROOT=$FLAGS_chrome_root_mount  # inside chroot
@@ -433,18 +435,6 @@ setup_env() {
     # Fix permissions on shared memory to allow non-root users access to POSIX
     # semaphores.
     chmod -R 777 "${FLAGS_chroot}/dev/shm"
-
-    # If the private overlays are installed, gsutil can use those credentials.
-    # We're also installing credentials for use by sudoed invocations.
-    boto='src/private-overlays/coreos-overlay/googlestorage_account.boto'
-    if [ -s "${FLAGS_trunk}/${boto}" ]; then
-      if [ ! -L "${FLAGS_chroot}/home/${SUDO_USER}/.boto" ]; then
-        user_symlink "trunk/${boto}" "${FLAGS_chroot}/home/${SUDO_USER}/.boto"
-      fi
-      if [ ! -L "${FLAGS_chroot}/root/.boto" ]; then
-        ln -sf "${CHROOT_TRUNK_DIR}/${boto}" "${FLAGS_chroot}/root/.boto"
-      fi
-    fi
 
     # Have found a few chroots where ~/.gsutil is owned by root:root, probably
     # as a result of old gsutil or tools. This causes permission errors when
