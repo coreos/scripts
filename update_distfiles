@@ -8,7 +8,13 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
 DEFINE_boolean dry_run ${FLAGS_FALSE} "Trial run, makes no changes."
+DEFINE_boolean parallel ${FLAGS_TRUE} "Enable parallelism in gsutil."
 DEFINE_boolean upload ${FLAGS_FALSE} "Upload distfile mirror via gsutil."
+
+# FIXME(marineam): We need to add gs support to emirrordist so it
+# doesn't have to operate on a local copy of the complete mirror.
+DEFINE_boolean download ${FLAGS_FALSE} \
+    "Download the current mirror before making updates to it."
 
 MIRROR_ROOT="${DEFAULT_BUILD_ROOT}/mirror"
 UPLOAD_ROOT="gs://storage.core-os.net/mirror"
@@ -22,6 +28,12 @@ if [[ $# -eq 0 ]]; then
     eval set -- portage-stable coreos
 fi
 
+GSUTIL_OPTS=
+if [[ ${FLAGS_parallel} -eq ${FLAGS_TRUE} ]]; then
+    GSUTIL_OPTS="-m"
+fi
+
+
 update_local_mirror() {
     local repo_name="$1"
     local repo_mirror="${MIRROR_ROOT}/$repo_name"
@@ -34,7 +46,7 @@ update_local_mirror() {
         info "Starting distfiles update for $repo_name"
     fi
 
-    mkdir -p "${repo_mirror}/"{distfiles,info,log}
+    mkdir -p "${repo_mirror}/"{distfiles,info,log,tmp}
     emirrordist --mirror --verbose $extra_flags \
         --jobs=${NUM_JOBS} --repo="${repo_name}" \
         --distfiles="${repo_mirror}/distfiles" \
@@ -47,6 +59,7 @@ update_local_mirror() {
         --distfiles-db="${repo_mirror}/info/distfiles.db" \
         --deletion-delay=$((86400 * 14)) \
         --restrict-mirror-exemptions="gentoo" \
+        --temp-dir="${repo_mirror}/tmp" \
         --verify-existing-digest
 }
 upload_mirror() {
@@ -55,13 +68,35 @@ upload_mirror() {
     local remote_mirror="${UPLOAD_ROOT}/$repo_name"
 
     info "Uploading public distfiles for $repo_name"
-    gsutil -m cp -n \
+    gsutil ${GSUTIL_OPTS} cp -n \
         "${local_mirror}/distfiles/*" "${remote_mirror}/distfiles"
 
     info "Uploading private metadata for $repo_name"
-    gsutil cp -a project-private \
+    gsutil ${GSUTIL_OPTS} cp -a project-private \
         "${local_mirror}/info/*" "${remote_mirror}/info"
 }
+download_mirror() {
+    local repo_name="$1"
+    local local_mirror="${MIRROR_ROOT}/$repo_name"
+    local remote_mirror="${UPLOAD_ROOT}/$repo_name"
+
+    info "Downloading public distfiles for $repo_name"
+    mkdir -p "${local_mirror}/"{distfiles,info}
+    gsutil ${GSUTIL_OPTS} cp -n \
+        "${remote_mirror}/distfiles/*" "${local_mirror}/distfiles"
+
+    info "Downloading private metadata for $repo_name"
+    gsutil ${GSUTIL_OPTS} cp "${remote_mirror}/info/*" "${local_mirror}/info"
+}
+
+if [[ ${FLAGS_download} -eq ${FLAGS_TRUE} ]]; then
+    if [[ ! -f "$HOME/.boto" ]]; then
+        die_notrace "Please run gsutil config to create ~/.boto"
+    fi
+    for repo in "$@"; do
+        download_mirror "$repo"
+    done
+fi
 
 for repo in "$@"; do
     if ! portageq get_repo_path / "$repo" >/dev/null; then
@@ -69,6 +104,11 @@ for repo in "$@"; do
     fi
     update_local_mirror "$repo"
 done
+
+if [[ ${FLAGS_dry_run} == ${FLAGS_TRUE} ]]; then
+    info "Dry-run complete."
+    exit
+fi
 
 if [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]]; then
     if [[ ! -f "$HOME/.boto" ]]; then
