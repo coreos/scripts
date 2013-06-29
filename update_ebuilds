@@ -69,8 +69,8 @@ bump($1): sync with upstream
 Packages updated:
 $(for p in "$@"; do echo "  $p"; done | sort)
 EOF
+        git commit -e -F .git/COMMIT_EDITMSG
     fi
-    git commit -e -F .git/COMMIT_EDITMSG
 else
     git status
 fi
