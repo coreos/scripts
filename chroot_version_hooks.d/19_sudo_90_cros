@@ -11,7 +11,7 @@ if [ ! -e ${frag} ]; then
   tmp=$(mktemp 2>/dev/null || echo /tmp/17_upgrade_hook.$$)
   cat <<EOF > "${tmp}" || exit 1
 Defaults env_keep += CROS_WORKON_SRCROOT
-Defaults env_keep += CHROMEOS_OFFICIAL
+Defaults env_keep += COREOS_OFFICIAL
 Defaults env_keep += PORTAGE_USERNAME
 Defaults env_keep += http_proxy
 Defaults env_keep += ftp_proxy

@@ -28,7 +28,7 @@ DEFINE_string chrome_root_mount "/home/${SUDO_USER}/chrome_root" \
 DEFINE_string cache_dir "" "Directory to use for caching."
 
 DEFINE_boolean official_build $FLAGS_FALSE \
-  "Set CHROMEOS_OFFICIAL=1 for release builds."
+  "Set COREOS_OFFICIAL=1 for release builds."
 DEFINE_boolean ssh_agent $FLAGS_TRUE "Import ssh agent."
 DEFINE_boolean early_make_chroot $FLAGS_FALSE \
   "Internal flag.  If set, the command is run as root without sudo."
@@ -66,7 +66,7 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 
 if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
-   CHROMEOS_OFFICIAL=1
+   COREOS_OFFICIAL=1
 fi
 
 [ -z "${FLAGS_cache_dir}" ] && \
