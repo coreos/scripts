@@ -303,6 +303,18 @@ SRC_INTERNAL="${GCLIENT_ROOT}/src-internal"
 SCRIPTS_DIR="${SRC_ROOT}/scripts"
 BUILD_LIBRARY_DIR="${SCRIPTS_DIR}/build_library"
 
+# Source COREOS_* from manifest for version information.
+COREOS_VERSION_FILE="${GCLIENT_ROOT}/.repo/manifests/version.txt"
+source "$COREOS_VERSION_FILE" || die "Cannot source $COREOS_VERSION_FILE"
+
+# Official builds must set COREOS_OFFICIAL=1 to use an official version.
+if [ ${COREOS_OFFICIAL:-0} -ne 1 ]; then
+  COREOS_PATCH=$(date +%Y_%m_%d_%H%M)
+fi
+
+# Full version string.
+COREOS_VERSION_STRING="${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}"
+
 # Load developer's custom settings.  Default location is in scripts dir,
 # since that's available both inside and outside the chroot.  By convention,
 # settings from this file are variables starting with 'CHROMEOS_'

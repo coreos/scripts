@@ -90,9 +90,6 @@ eval set -- "${FLAGS_ARGV}"
 # so will die prematurely if 'switch_to_strict_mode' is specified before now.
 switch_to_strict_mode
 
-# Determine build version.
-OVERLAY_CHROMEOS_DIR="${SRC_ROOT}/third_party/coreos-overlay/coreos"
-. "${OVERLAY_CHROMEOS_DIR}/config/coreos_version.sh" || exit 1
 # N.B.  Ordering matters for some of the libraries below, because
 # some of the files contain initialization used by later files.
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1

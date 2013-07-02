@@ -209,7 +209,7 @@ create_base_image() {
       "${root_fs_dir}/var"
 
   # Set /etc/lsb-release on the image.
-  "${OVERLAY_CHROMEOS_DIR}/scripts/cros_set_lsb_release" \
+  "${BUILD_LIBRARY_DIR}/set_lsb_release" \
   --root="${root_fs_dir}" \
   --board="${BOARD}"
 
