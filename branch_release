@@ -14,7 +14,7 @@ DEFINE_integer build "${TODAYS_VERSION}" \
     "Branch name (aka 'build'), should be days since 2013-7-1"
 DEFINE_integer branch 0 "Branch revision, should be 0"
 DEFINE_string patch 0 "Branch patch id, should be 0"
-DEFINE_string track "dev" "Set the given track to this new branch"
+DEFINE_string track "dev-channel" "Set the given track to this new branch"
 DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
 DEFINE_string remote "origin" "Remote name or URL to push to."
 
