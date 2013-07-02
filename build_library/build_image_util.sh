@@ -11,12 +11,10 @@
 
 # Use canonical path since some tools (e.g. mount) do not like symlinks.
 # Append build attempt to output directory.
-IMAGE_SUBDIR="R${CHROME_BRANCH}"
 if [ -z "${FLAGS_version}" ]; then
-  IMAGE_SUBDIR="${IMAGE_SUBDIR}-${CHROMEOS_VERSION_STRING}-a\
-${FLAGS_build_attempt}"
+  IMAGE_SUBDIR="${COREOS_VERSION_STRING}-a${FLAGS_build_attempt}"
 else
-  IMAGE_SUBDIR="${IMAGE_SUBDIR}-${FLAGS_version}"
+  IMAGE_SUBDIR="${FLAGS_version}"
 fi
 BUILD_DIR="${FLAGS_output_root}/${BOARD}/${IMAGE_SUBDIR}"
 OUTSIDE_OUTPUT_DIR="../build/images/${BOARD}/${IMAGE_SUBDIR}"
