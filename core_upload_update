@@ -1,8 +1,30 @@
 #!/bin/bash
 
-usage="
-usage: $0 <image.bin> <track> <api key> <public-rsa-key> <private-rsa-key>\n
-\n
+# Copyright (c) 2013 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+DEFINE_string image "${SRC_ROOT}/build/images/amd64-generic/latest/chromiumos_image.bin" \
+    "Path to the basic image (not qemu/xen/etc)"
+# TODO: use version.txt
+DEFINE_string version "${COREOS_VERSION_STRING}" \
+    "Version number of this build."
+DEFINE_string track "dev-channel" \
+    "Track that this update goes into."
+DEFINE_string api_key "" \
+    "API secret key for access to the administrative interface."
+DEFINE_string public_key "" \
+    "Path to the public RSA key that will sign this build."
+DEFINE_string private_key "" \
+    "Path to the private RSA key that will sign this build."
+DEFINE_string app_id "{e96281a6-d1af-4bde-9a0a-97b76e56dc57}" \
+    "GUID of the app that this update is for."
+
+FLAGS_HELPS="usage: $SCRIPTNAME [flags]
+
 Setting everything up for use\n
 
 1) Run 'gsutil config' and use project id coreos.com:core-update-storage\n
@@ -12,38 +34,30 @@ NOTE: Use the chromiumos_image.bin not a qemu/xen/etc image for generating the
 update.
 "
 
-FILE=$1
-TRACK=$2
-APIKEY=$3
-PUB=$4
-KEY=$5
+# Parse flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+switch_to_strict_mode
 
-if [ $# -ne 5 ]; then
-  echo -e $usage
-  exit
-fi
-
-if [ ! -f $FILE ]; then
-  echo "ERROR: No such file $FILE"
-  echo -e $usage
-  exit
-fi
-
-
+[[ -z "${FLAGS_api_key}" ]] && die "--api_key is required"
+[[ -z "${FLAGS_private_key}" ]] && die "--private_key is required"
+[[ -z "${FLAGS_public_key}" ]] && die "--public_key is required"
 
 # Generate a payload and sign it with our private key
-cros_generate_update_payload --image $FILE --output /tmp/update.gz --private_key $KEY
+cros_generate_update_payload --image ${FLAGS_image} --output /tmp/update.gz \
+	--private_key ${FLAGS_private_key}
 
 # Verify that the payload signature is OK
-delta_generator -in_file /tmp/update.gz -public_key $PUB || exit
+delta_generator -in_file /tmp/update.gz -public_key ${FLAGS_public_key}
 
 # Generate the metadata payload
-delta_generator -out_metadata /tmp/update.metadata -private_key $KEY -in_file /tmp/update.gz || exit
+delta_generator -out_metadata /tmp/update.metadata -private_key ${FLAGS_private_key} \
+	-in_file /tmp/update.gz
 
-MD5SUM=$(md5sum $FILE | cut -f1 -d" ")
-gsutil cp /tmp/update.gz gs://update-storage.core-os.net/$TRACK/$MD5SUM/update.gz
+MD5SUM=$(md5sum ${FLAGS_image} | cut -f1 -d" ")
+gsutil cp /tmp/update.gz gs://update-storage.core-os.net/${FLAGS_track}/$MD5SUM/update.gz
 CORE_UPDATE_URL="https://core-api.appspot.com" core-admin new-version \
-	-k $APIKEY -v 9999.0.0 \
-	-a {e96281a6-d1af-4bde-9a0a-97b76e56dc57} \
+	-k ${FLAGS_api_key} -v ${FLAGS_version} \
+	-a ${FLAGS_app_id} \
 	-m /tmp/update.metadata \
-	-t $TRACK -p $MD5SUM /tmp/update.gz
+	-t ${FLAGS_track} -p $MD5SUM /tmp/update.gz
