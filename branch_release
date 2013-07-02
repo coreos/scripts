@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Copyright (c) 2013 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+COREOS_EPOCH=1372636800  # Mon Jul  1 00:00:00 UTC 2013
+TODAYS_VERSION=$(( (`date +%s` - ${COREOS_EPOCH}) / 86400 ))
+
+DEFINE_integer build "${TODAYS_VERSION}" \
+    "Branch name (aka 'build'), should be days since 2013-7-1"
+DEFINE_integer branch 0 "Branch revision, should be 0"
+DEFINE_string patch 0 "Branch patch id, should be 0"
+DEFINE_string track "dev" "Set the given track to this new branch"
+DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
+DEFINE_string remote "origin" "Remote name or URL to push to."
+
+# Parse flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+switch_to_strict_mode
+
+# Make sure we pad with 0s for a consistent look
+FLAGS_build=$(printf "%04d" "${FLAGS_build}")
+BRANCH_NAME="build-${FLAGS_build}"
+TAG_NAME="v${FLAGS_build}.${FLAGS_branch}.${FLAGS_patch}"
+
+cd "${GCLIENT_ROOT}/.repo/manifests"
+git checkout -b "${BRANCH_NAME}"
+repo manifest -o "${BRANCH_NAME}.xml" -r
+ln -sf "${BRANCH_NAME}.xml" default.xml
+tee version.txt <<EOF
+COREOS_BUILD=${FLAGS_build}
+COREOS_BRANCH=${FLAGS_branch}
+COREOS_PATCH=${FLAGS_patch}
+EOF
+git add "${BRANCH_NAME}.xml" default.xml version.txt
+info "Creating ${BRANCH_NAME} with tag ${TAG_NAME}"
+git commit -m "add(${BRANCH_NAME}): Add branched manifest for ${TAG_NAME}"
+git tag -m "CoreOS ${TAG_NAME}" "${TAG_NAME}" "${BRANCH_NAME}"
+
+
+PUSH_TRACK=
+if [[ -n "${FLAGS_track}" ]]; then
+    git branch -f "${FLAGS_track}" "${BRANCH_NAME}"
+    info "Setting ${FLAGS_track} to ${BRANCH_NAME}"
+    PUSH_TRACK=1
+fi
+
+if [[ ${FLAGS_push} -eq ${FLAGS_TRUE} ]]; then
+    git push "${FLAGS_remote}" "refs/heads/${BRANCH_NAME}" \
+        ${PUSH_TRACK:+"+refs/heads/${FLAGS_track}"} \
+        "refs/tags/${TAG_NAME}"
+fi
