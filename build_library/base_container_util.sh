@@ -181,7 +181,7 @@ create_base_container() {
   emerge_to_image --root="${root_fs_dir}" ${BASE_PACKAGE}
 
   # Set /etc/lsb-release on the image.
-  "${OVERLAY_CHROMEOS_DIR}/scripts/cros_set_lsb_release" \
+  "${BUILD_LIBRARY_DIR}/set_lsb_release" \
   --root="${root_fs_dir}" \
   --board="${BOARD}"
 
