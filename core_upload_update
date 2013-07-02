@@ -42,6 +42,9 @@ switch_to_strict_mode
 [[ -z "${FLAGS_private_key}" ]] && die "--private_key is required"
 [[ -z "${FLAGS_public_key}" ]] && die "--public_key is required"
 
+# Put our public key in a place that update_engine can find it
+${SRC_ROOT}/platform/vboot_reference/scripts/image_signing/insert_au_publickey.sh ${FLAGS_image} ${FLAGS_public_key}
+
 # Generate a payload and sign it with our private key
 cros_generate_update_payload --image ${FLAGS_image} --output /tmp/update.gz \
 	--private_key ${FLAGS_private_key}
