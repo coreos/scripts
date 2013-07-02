@@ -7,7 +7,7 @@
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
-DEFINE_string image "${SRC_ROOT}/build/images/amd64-generic/latest/chromiumos_image.bin" \
+DEFINE_string image "${SRC_ROOT}/build/images/amd64-generic/latest/${COREOS_BASE_IMAGE_NAME}" \
     "Path to the basic image (not qemu/xen/etc)"
 DEFINE_string version "${COREOS_VERSION_STRING}" \
     "Version number of this build."
