@@ -9,7 +9,6 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 
 DEFINE_string image "${SRC_ROOT}/build/images/amd64-generic/latest/chromiumos_image.bin" \
     "Path to the basic image (not qemu/xen/etc)"
-# TODO: use version.txt
 DEFINE_string version "${COREOS_VERSION_STRING}" \
     "Version number of this build."
 DEFINE_string track "dev-channel" \
