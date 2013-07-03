@@ -37,11 +37,15 @@ TYPE="coreos-sdk"
 ARCH=$(portageq envvar ARCH)
 DEFAULT_PROFILE="coreos:default/linux/${ARCH}/10.0"
 UPLOAD_ROOT="gs://storage.core-os.net/coreos/sdk/${ARCH}"
+UPLOAD_DEFAULT=${FLAGS_FALSE}
+if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
+    UPLOAD_DEFAULT=${FLAGS_TRUE}
+fi
 
 . "${SCRIPT_ROOT}/lib/catalyst.sh" || exit 1
 
 DEFINE_boolean parallel ${FLAGS_TRUE} "Enable parallelism in gsutil."
-DEFINE_boolean upload ${FLAGS_FALSE} \
+DEFINE_boolean upload ${UPLOAD_DEFAULT} \
     "Upload final tarball and all packages via gsutil."
 
 ## Define the stage4 config template
