@@ -7,7 +7,7 @@
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
-DEFINE_string image "${SRC_ROOT}/build/images/amd64-generic/latest/chromiumos_image.bin" \
+DEFINE_string image "${SRC_ROOT}/build/images/amd64-generic/latest/${COREOS_BASE_IMAGE_NAME}" \
     "Path to the basic image (not qemu/xen/etc)"
 DEFINE_string version "${COREOS_VERSION_STRING}" \
     "Version number of this build."
@@ -41,6 +41,9 @@ switch_to_strict_mode
 [[ -z "${FLAGS_api_key}" ]] && die "--api_key is required"
 [[ -z "${FLAGS_private_key}" ]] && die "--private_key is required"
 [[ -z "${FLAGS_public_key}" ]] && die "--public_key is required"
+
+# Put our public key in a place that update_engine can find it
+${SRC_ROOT}/platform/vboot_reference/scripts/image_signing/insert_au_publickey.sh ${FLAGS_image} ${FLAGS_public_key}
 
 # Generate a payload and sign it with our private key
 cros_generate_update_payload --image ${FLAGS_image} --output /tmp/update.gz \
