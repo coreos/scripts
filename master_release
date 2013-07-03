@@ -7,10 +7,6 @@
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
-COREOS_EPOCH=1372636800  # Mon Jul  1 00:00:00 UTC 2013
-TODAYS_VERSION=$(( (`date +%s` - ${COREOS_EPOCH}) / 86400 ))
-TODAYS_VERSION=$(printf "%04d" "${TODAYS_VERSION}")
-
 DEFINE_string master "master" "Manifest master branch to update."
 DEFINE_string branch "build-${TODAYS_VERSION}" \
     "Manifest branch, tag, or other ref to get version from."

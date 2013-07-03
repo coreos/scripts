@@ -315,6 +315,12 @@ fi
 # Full version string.
 COREOS_VERSION_STRING="${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}"
 
+# Calculate what today's build version should be, used by release
+# scripts to provide a reasonable default value. The value is the number
+# of days since COREOS_EPOCH, Mon Jul  1 00:00:00 UTC 2013
+readonly COREOS_EPOCH=1372636800
+TODAYS_VERSION=$(printf "%04d" $(( (`date +%s` - ${COREOS_EPOCH}) / 86400 )) )
+
 # Load developer's custom settings.  Default location is in scripts dir,
 # since that's available both inside and outside the chroot.  By convention,
 # settings from this file are variables starting with 'CHROMEOS_'
