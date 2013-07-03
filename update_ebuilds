@@ -7,12 +7,17 @@
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
-DEFINE_string portage "" \
-    "Path to an existing portage tree to update from instead of cvs."
+# Default RSYNC options emerge --sync uses
+RSYNC_OPTS="--recursive --links --safe-links --perms --times --compress --force --whole-file --delete --timeout=180"
+
+DEFINE_string portage "rsync" \
+    "Path to a local portage tree or 'rsync' or 'cvs' to fetch from remote."
 DEFINE_string portage_stable "${SRC_ROOT}/third_party/portage-stable" \
     "Path to the portage-stable git checkout."
 DEFINE_string cvsroot ":pserver:anonymous@anoncvs.gentoo.org:/var/cvsroot" \
-    "CVS location for gentoo-x86 to use when --portage isn't provided."
+    "CVS location for gentoo-x86 to use with --portage=cvs"
+DEFINE_string rsync "rsync://rsync.gentoo.org/gentoo-portage" \
+    "Rsync location for gentoo-portage to use with --portage=rsync"
 DEFINE_boolean commit ${FLAGS_FALSE} \
     "Commit all changes after updating portage-stable."
 
@@ -41,12 +46,15 @@ for pkg in "$@"; do
         die "Invalid name $pkg, must be category/package or special dir."
     fi
 
-    if [[ -z "$FLAGS_portage" ]]; then
+    if [[ "$FLAGS_portage" == cvs ]]; then
         rm -rf "$pkg"
         cvs export -D now -d "$pkg" "gentoo-x86/$pkg"
     else
+        if [[ "$FLAGS_portage" == rsync ]]; then
+            FLAGS_portage="${FLAGS_rsync}"
+	fi
         mkdir -p "$pkg"
-        rsync -av --del --exclude CVS "/usr/portage/$pkg/" "$pkg"
+        rsync $RSYNC_OPTS -v --exclude CVS "$FLAGS_portage/$pkg/" "$pkg"
     fi
 
     # Make sure we don't change the repo name to 'gentoo'
