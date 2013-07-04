@@ -11,6 +11,12 @@ restart_in_chroot_if_needed "$@"
 
 assert_not_root_user
 
+UPLOAD_ROOT="gs://storage.core-os.net/coreos"
+UPLOAD_DEFAULT=${FLAGS_FALSE}
+if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
+  UPLOAD_DEFAULT=${FLAGS_TRUE}
+fi
+
 # Developer-visible flags.
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build packages for."
@@ -26,6 +32,10 @@ DEFINE_boolean withautotest "${FLAGS_TRUE}" \
   "Build autotest client code."
 DEFINE_boolean fetchonly "${FLAGS_FALSE}" \
   "Don't build anything, instead only fetch what is needed."
+DEFINE_boolean parallel ${FLAGS_TRUE} \
+  "Enable parallelism in gsutil."
+DEFINE_boolean upload ${UPLOAD_DEFAULT} \
+  "Upload all packages via gsutil."
 
 FLAGS_HELP="usage: $(basename $0) [flags] [packages]
 
@@ -85,6 +95,10 @@ if [[ -z "${FLAGS_board}" ]]; then
   exit 1
 fi
 
+if [[ ${FLAGS_download} -eq ${FLAGS_TRUE} && ! -f "$HOME/.boto" ]]; then
+  die_notrace "Please run gsutil config to create ~/.boto"
+fi
+
 CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
 
 # Before we can run any tools, we need to update chroot or setup_board.
@@ -121,6 +135,9 @@ if [ "${FLAGS_skip_chroot_upgrade}" -eq "${FLAGS_TRUE}" ]; then
 fi
 
 "${SCRIPTS_DIR}"/setup_board --quiet --board=${FLAGS_board} "${UPDATE_ARGS[@]}"
+
+# set BOARD and BOARD_ROOT
+. "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 
 # Setup all the emerge command/flags.
 EMERGE_FLAGS=( -uDNv --backtrack=30 --select )
@@ -228,6 +245,18 @@ info "Merging board packages now"
   sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" "${PACKAGES[@]}" | \
     tee "${tmpfile}"
 )
+
+if [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]]; then
+  GSUTIL_OPTS=
+  if [[ ${FLAGS_parallel} -eq ${FLAGS_TRUE} ]]; then
+      GSUTIL_OPTS="-m"
+  fi
+
+  BOARD_PACKAGES="${BOARD_ROOT}/packages"
+  UPLOAD_PATH="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}/pkgs/"
+  info "Uploading packages"
+  gsutil ${GSUTIL_OPTS} cp -R "${BOARD_PACKAGES}"/* "${UPLOAD_PATH}"
+fi
 
 # Extract total package count from emerge output.
 package_count=$(awk '$0 ~ /^Total: [0-9]+ packages/ { print $2 }' "${tmpfile}")
