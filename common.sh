@@ -400,16 +400,13 @@ CHROMEOS_IMAGE_NAME="chromiumos_image.bin"
 CHROMEOS_DEVELOPER_IMAGE_NAME="chromiumos_image.bin"
 CHROMEOS_RECOVERY_IMAGE_NAME="recovery_image.bin"
 CHROMEOS_TEST_IMAGE_NAME="chromiumos_test_image.bin"
-CHROMEOS_FACTORY_TEST_IMAGE_NAME="chromiumos_factory_image.bin"
-CHROMEOS_FACTORY_INSTALL_SHIM_NAME="factory_install_shim.bin"
 
 COREOS_BASE_IMAGE_NAME=${CHROMEOS_BASE_IMAGE_NAME}
 COREOS_IMAGE_NAME=${CHROMEOS_IMAGE_NAME}
 COREOS_DEVELOPER_IMAGE_NAME=${CHROMEOS_DEVELOPER_IMAGE_NAME}
+COREOS_PRODUCTION_IMAGE_NAME="coreos_production_image.bin"
 COREOS_RECOVERY_IMAGE_NAME=${CHROMEOS_RECOVERY_IMAGE_NAME}
 COREOS_TEST_IMAGE_NAME=${CHROMEOS_TEST_IMAGE_NAME}
-COREOS_FACTORY_TEST_IMAGE_NAME=${CHROMEOS_FACTORY_TEST_IMAGE_NAME}
-COREOS_FACTORY_INSTALL_SHIM_NAME=${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}
 
 # Install make for portage ebuilds.  Used by build_image and gmergefs.
 # TODO: Is /usr/local/autotest-chrome still used by anyone?
@@ -451,51 +448,6 @@ DEFAULT_INSTALL_MASK="
   /lib/modules/*/build
   /lib/modules/*/source
   test_*.ko
-  "
-
-# Mask for factory test image (build_image --factory)
-FACTORY_TEST_INSTALL_MASK="
-  ${COMMON_INSTALL_MASK}
-  */.svn
-  */CVS
-  /usr/local/autotest/[^c]*
-  /usr/local/autotest/conmux
-  /usr/local/autotest/client/deps/chrome_test
-  /usr/local/autotest/client/deps/piglit
-  /usr/local/autotest/client/deps/pyauto_dep
-  /usr/local/autotest/client/deps/realtimecomm_*
-  /usr/local/autotest/client/site_tests/graphics_WebGLConformance
-  /usr/local/autotest/client/site_tests/platform_ToolchainOptions
-  /usr/local/autotest/client/site_tests/realtimecomm_GTalk*
-  /usr/local/autotest/client/tests
-  /usr/local/factory/bundle
-  "
-
-# Mask for factory install shim (build_image factory_install)
-FACTORY_SHIM_INSTALL_MASK="
-  ${DEFAULT_INSTALL_MASK}
-  /opt/[^g]*
-  /opt/google/chrome
-  /opt/google/o3d
-  /opt/google/talkplugin
-  /usr/lib/dri
-  /usr/lib/python2.6/test
-  /usr/lib64/dri
-  /usr/local/autotest-pkgs
-  /usr/share/X11
-  /usr/share/chewing
-  /usr/share/chromeos-assets
-  /usr/share/fonts
-  /usr/share/ibus-pinyin
-  /usr/share/libhangul
-  /usr/share/locale
-  /usr/share/m17n
-  /usr/share/mime
-  /usr/share/oem
-  /usr/share/pyzy
-  /usr/share/sounds
-  /usr/share/tts
-  /usr/share/zoneinfo
   "
 
 # -----------------------------------------------------------------------------
