@@ -95,7 +95,7 @@ if [[ -z "${FLAGS_board}" ]]; then
   exit 1
 fi
 
-if [[ ${FLAGS_download} -eq ${FLAGS_TRUE} && ! -f "$HOME/.boto" ]]; then
+if [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} && ! -f "$HOME/.boto" ]]; then
   die_notrace "Please run gsutil config to create ~/.boto"
 fi
 
