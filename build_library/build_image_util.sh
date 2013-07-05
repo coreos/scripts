@@ -36,6 +36,9 @@ get_images_to_build() {
   for image_to_build in $*; do
     # Shflags leaves "'"s around ARGV.
     case ${image_to_build} in
+      \'prod\' )
+        IMAGES_TO_BUILD="${IMAGES_TO_BUILD} ${COREOS_PRODUCTION_IMAGE_NAME}"
+        ;;
       \'base\' )
         IMAGES_TO_BUILD="${IMAGES_TO_BUILD} ${CHROMEOS_BASE_IMAGE_NAME}"
         ;;

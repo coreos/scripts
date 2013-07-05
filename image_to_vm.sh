@@ -25,10 +25,8 @@ DEFINE_string adjust_part "" \
   "Adjustments to apply to the partition table"
 DEFINE_string board "${DEFAULT_BOARD}" \
   "Board for which the image was built"
-DEFINE_boolean factory $FLAGS_FALSE \
-    "Modify the image for manufacturing testing"
-DEFINE_boolean factory_install $FLAGS_FALSE \
-    "Modify the image for factory install shim"
+DEFINE_boolean prod $FLAGS_FALSE \
+    "Build prod image"
 
 # We default to TRUE so the buildbot gets its image. Note this is different
 # behavior from image_to_usb.sh
@@ -47,6 +45,8 @@ DEFINE_string state_image "" \
   "Stateful partition image (defaults to creating new statful partition)"
 DEFINE_boolean test_image "${FLAGS_FALSE}" \
   "Copies normal image to ${CHROMEOS_TEST_IMAGE_NAME}, modifies it for test."
+DEFINE_boolean prod_image "${FLAGS_FALSE}" \
+  "Copies normal image to ${COREOS_OFFICIAL_IMAGE_NAME}, modifies it for test."
 DEFINE_string to "" \
   "Destination folder for VM output file(s)"
 DEFINE_string vbox_disk "${DEFAULT_VBOX_DISK}" \
@@ -91,8 +91,8 @@ if [ -z "${FLAGS_to}" ] ; then
   FLAGS_to="${FLAGS_from}"
 fi
 
-if [ ${FLAGS_factory} -eq ${FLAGS_TRUE} ]; then
-  SRC_IMAGE="${FLAGS_from}/${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
+if [ ${FLAGS_prod_image} -eq ${FLAGS_TRUE} ]; then
+  SRC_IMAGE="${FLAGS_from}/${COREOS_PRODUCTION_IMAGE_NAME}"
 elif [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ]; then
   SRC_IMAGE="${FLAGS_from}/${CHROMEOS_TEST_IMAGE_NAME}"
 else

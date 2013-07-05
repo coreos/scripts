@@ -35,10 +35,11 @@ DEFINE_string enable_serial "" \
   "Enable serial port for printks. Example values: ttyS0"
 
 FLAGS_HELP="USAGE: build_image [flags] [list of images to build].
-This script is used to build a Chromium OS image. Chromium OS comes in many
+This script is used to build a CoreOS image. CoreOS comes in many
 different forms.  This scripts can be used to build the following:
 
-base - Pristine Chromium OS image. As similar to Chrome OS as possible.
+base - Pristine CoreOS image for generating update payloads or a dev/prod image.
+prod - Production image for CoreOS. This image is for booting.
 dev - Developer image. Like base but with additional developer packages.
 test - Like dev, but with additional test specific packages and can be easily
   used for automated testing using scripts like run_remote_tests, etc.
@@ -158,6 +159,12 @@ if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME} \
   install_dev_packages ${CHROMEOS_DEVELOPER_IMAGE_NAME}
 fi
 
+if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
+  copy_image ${CHROMEOS_BASE_IMAGE_NAME} ${COREOS_PRODUCTION_IMAGE_NAME}
+  ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
+     ${COREOS_PRODUCTION_IMAGE_NAME}
+fi
+
 # From a developer image create a test|factory_test image.
 if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
   copy_image  ${CHROMEOS_DEVELOPER_IMAGE_NAME} ${CHROMEOS_TEST_IMAGE_NAME}
@@ -173,28 +180,34 @@ ln -sfT $(basename ${BUILD_DIR}) ${LINK_NAME}
 
 echo "Done. Image(s) created in ${BUILD_DIR}"
 
+print_image_to_vm() {
+  flags=
+  if [ $# = 1 ]; then
+    flags="--${1}_image"
+  fi
+
+  cat << EOF
+To convert it to a VMWare image, use:
+  ./image_to_vm.sh --from=${OUTSIDE_OUTPUT_DIR} --board=${BOARD} ${flags}
+EOF
+}
+
 # Print out the images we generated.
-if should_build_image ${CHROMEOS_BASE_IMAGE_NAME}; then
-  echo "Non-developer Chromium OS image created as ${PRISTINE_IMAGE_NAME}"
+if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
+  echo "CoreOS Production image created as ${COREOS_PRODUCTION_IMAGE_NAME}"
+  print_image_to_vm "prod"
 fi
-if should_build_image ${CHROMEOS_FACTORY_SHIM_NAME}; then
-  echo "Chromium OS Factory install shim created as ${PRISTINE_IMAGE_NAME}"
+if should_build_image ${CHROMEOS_BASE_IMAGE_NAME}; then
+  echo "Non-developer CoreOS image created as ${PRISTINE_IMAGE_NAME}"
 fi
 if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME}; then
   echo "Developer image created as ${CHROMEOS_DEVELOPER_IMAGE_NAME}"
 fi
-if should_build_image ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}; then
-  echo "Factory test image created as ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}"
-fi
 if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
   echo "Test image created as ${CHROMEOS_TEST_IMAGE_NAME}"
+  print_image_to_vm "test"
 fi
 
 command_completed
 
-cat << EOF
-To copy the image to a USB key, use:
-  ./image_to_usb.sh --from=${OUTSIDE_OUTPUT_DIR}
-To convert it to a VMWare image, use:
-  ./image_to_vm.sh --from=${OUTSIDE_OUTPUT_DIR} --board=${BOARD}
-EOF
+
