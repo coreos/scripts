@@ -248,8 +248,7 @@ fi
 if [ "${FLAGS_format}" == "qemu" ]; then
   echo "If you have qemu-kvm installed, you can start the image by:"
   echo "qemu-kvm -m ${FLAGS_mem} -curses -pidfile /tmp/kvm.pid -net nic,model=virtio \\"
-  echo "  -net user,hostfwd=tcp::2222-:22,hostfwd=tcp::8080-:8080,hostfwd=::8000-:8000 \\"
-  echo "  -hda ${FLAGS_to}/${DEFAULT_QEMU_IMAGE}"
+  echo "  -net user,hostfwd=tcp::2222-:22 -hda ${FLAGS_to}/${DEFAULT_QEMU_IMAGE}"
   echo "SSH into the host with:"
   echo "ssh 127.0.0.1 -p 2222"
 fi
