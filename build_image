@@ -42,15 +42,10 @@ base - Pristine Chromium OS image. As similar to Chrome OS as possible.
 dev - Developer image. Like base but with additional developer packages.
 test - Like dev, but with additional test specific packages and can be easily
   used for automated testing using scripts like run_remote_tests, etc.
-factory_test - Like test but with extra packages and modifications used to
-  test images in a factory setting.  Cannot be built along with a test image.
-factory_install - Install shim for bootstrapping the factory test process.
-  Cannot be built along with any other image.
 
 Examples:
 
 build_image --board=<board> dev test - builds developer and test images.
-build_image --board=<board> factory_install - builds a factory install shim.
 ...
 "
 show_help_if_requested "$@"
@@ -110,44 +105,9 @@ for overlay in $(cros_list_overlays --board "$BOARD"); do
   fi
 done
 
-# TODO: <prebuild hook>
-
 BASE_PACKAGE="coreos-base/coreos"
-# Tweak flags, configure extra USE flags, and set base packages for the factory
-# install shim.
-if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-  # TODO: Build a separated ebuild for the install shim to reduce size.
-  INSTALL_MASK="${FACTORY_SHIM_INSTALL_MASK}"
 
-  # Add the cros_factory_install boot arg.
-  FLAGS_boot_args="${FLAGS_boot_args} cros_factory_install"
-
-  BASE_PACKAGE="coreos-base/chromeos-installshim"
-
-  export USE="${USE} initramfs vfat tpm i2cdev"
-
-  # On ARM, fbconsole is required to fix a display driver bug.
-  if [ "${ARCH}" = "arm" ] ; then
-    export USE="${USE} fbconsole"
-  fi
-fi
-
-if should_build_image ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}; then
-  # Disable module restrictions on factory test image to allow for
-  # external third party drivers in /usr/local.
-  FLAGS_boot_args="${FLAGS_boot_args} lsm.module_locking=0"
-fi
-
-# TODO: </prebuild hook>
-
-# If we are creating a developer image, also create a pristine image with a
-# different name.
-PRISTINE_IMAGE_NAME=
-if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-  PRISTINE_IMAGE_NAME=${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}
-else
-  PRISTINE_IMAGE_NAME=${CHROMEOS_BASE_IMAGE_NAME}
-fi
+PRISTINE_IMAGE_NAME=${CHROMEOS_BASE_IMAGE_NAME}
 
 DEVKEYSDIR="/usr/share/vboot/devkeys"
 
@@ -193,7 +153,7 @@ fi
 
 # Create a developer image if an image that is based on it is requested.
 if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME} \
-    ${CHROMEOS_TEST_IMAGE_NAME} ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}; then
+    ${CHROMEOS_TEST_IMAGE_NAME}; then
   copy_image ${CHROMEOS_BASE_IMAGE_NAME} ${CHROMEOS_DEVELOPER_IMAGE_NAME}
   install_dev_packages ${CHROMEOS_DEVELOPER_IMAGE_NAME}
 fi
@@ -202,11 +162,6 @@ fi
 if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
   copy_image  ${CHROMEOS_DEVELOPER_IMAGE_NAME} ${CHROMEOS_TEST_IMAGE_NAME}
   mod_image_for_test  ${CHROMEOS_TEST_IMAGE_NAME}
-fi
-if should_build_image ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}; then
-  copy_image  ${CHROMEOS_DEVELOPER_IMAGE_NAME} \
-    ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}
-  mod_image_for_test  ${CHROMEOS_FACTORY_TEST_IMAGE_NAME}
 fi
 
 # Generating AU generator zip file to run outside chroot
