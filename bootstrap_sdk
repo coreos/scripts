@@ -117,4 +117,4 @@ if [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]]; then
         "${UPLOAD_ROOT}/${FLAGS_version}/pkgs/"
 fi
 
-info "Done!"
+command_completed
