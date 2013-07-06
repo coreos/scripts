@@ -34,6 +34,9 @@ DEFINE_string usb_disk /dev/sdb4 \
 DEFINE_string enable_serial "" \
   "Enable serial port for printks. Example values: ttyS0"
 
+# include upload options
+. "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
+
 FLAGS_HELP="USAGE: build_image [flags] [list of images to build].
 This script is used to build a CoreOS image. CoreOS comes in many
 different forms.  This scripts can be used to build the following:
@@ -85,6 +88,8 @@ eval set -- "${FLAGS_ARGV}"
 # Only now can we die on error.  shflags functions leak non-zero error codes,
 # so will die prematurely if 'switch_to_strict_mode' is specified before now.
 switch_to_strict_mode
+
+check_gsutil_opts
 
 # N.B.  Ordering matters for some of the libraries below, because
 # some of the files contain initialization used by later files.
@@ -146,6 +151,7 @@ mkdir -p "${BUILD_DIR}"
 # Create the base image.
 create_base_image ${PRISTINE_IMAGE_NAME} ${FLAGS_enable_rootfs_verification} \
   ${FLAGS_enable_bootcache}
+upload_image "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
 
 # Running board-specific setup if any exists.
 if type board_setup &>/dev/null; then
@@ -157,22 +163,26 @@ if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME} \
     ${CHROMEOS_TEST_IMAGE_NAME}; then
   copy_image ${CHROMEOS_BASE_IMAGE_NAME} ${CHROMEOS_DEVELOPER_IMAGE_NAME}
   install_dev_packages ${CHROMEOS_DEVELOPER_IMAGE_NAME}
+  upload_image "${BUILD_DIR}/${CHROMEOS_DEVELOPER_IMAGE_NAME}"
 fi
 
 if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
   copy_image ${CHROMEOS_BASE_IMAGE_NAME} ${COREOS_PRODUCTION_IMAGE_NAME}
   ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
      ${COREOS_PRODUCTION_IMAGE_NAME}
+  upload_image "${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"
 fi
 
 # From a developer image create a test|factory_test image.
 if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
   copy_image  ${CHROMEOS_DEVELOPER_IMAGE_NAME} ${CHROMEOS_TEST_IMAGE_NAME}
   mod_image_for_test  ${CHROMEOS_TEST_IMAGE_NAME}
+  upload_image "${BUILD_DIR}/${CHROMEOS_TEST_IMAGE_NAME}"
 fi
 
 # Generating AU generator zip file to run outside chroot
 generate_au_zip || echo "Failed generating AU zip file - ignoring Error..."
+upload_image "${BUILD_DIR}/au-generator.zip"
 
 # Create a named symlink.
 LINK_NAME="${FLAGS_output_root}/${BOARD}/${FLAGS_symlink}"
