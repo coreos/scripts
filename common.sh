@@ -82,7 +82,7 @@ _dump_trace() {
       ! (( p -= ${BASH_ARGC[${n} - 1]} ))
     fi
     if [[ ${n} == ${#FUNCNAME[@]} ]]; then
-      error "script called: ${0##/*} ${args}"
+      error "script called: ${0##*/} ${args}"
       error "Backtrace:  (most recent call is last)"
     else
       error "$(printf '  file %s, line %s, called: %s %s' \
