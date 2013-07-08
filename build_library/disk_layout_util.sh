@@ -112,6 +112,14 @@ get_num() {
   cgpt_py readnum "${image_type}" "${DISK_LAYOUT_PATH}" ${label}
 }
 
+get_uuid() {
+  local image_type=$1
+  local label=$2
+  get_disk_layout_path
+
+  cgpt_py readuuid "${image_type}" "${DISK_LAYOUT_PATH}" ${label}
+}
+
 check_valid_layout() {
   local image_type=$1
   get_disk_layout_path

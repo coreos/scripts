@@ -21,6 +21,7 @@
       {
         "num": 3,
         "label":"ROOT-A",
+        "uuid":"7130c94a-213a-4e5a-8e26-6cce9662f132",
         "type":"coreos-rootfs",
         "blocks":"4194304",
         "fs_blocks":"262144"
@@ -28,6 +29,7 @@
       {
         "num": 4,
         "label":"ROOT-B",
+        "uuid":"e03dd35c-7c2d-4a47-b3fe-27f15780a57c",
         "type":"coreos-rootfs",
         "blocks":"4194304",
         "fs_blocks":"262144"
@@ -35,6 +37,7 @@
       {
         "num": 5,
         "label":"ROOT-C",
+        "uuid":"d82521b4-07ac-4f1c-8840-ddefedc332f3",
         "type":"coreos-rootfs",
         "blocks":"1"
       },
@@ -68,6 +71,7 @@
       {
         "num": 3,
         "label":"ROOT-A",
+        "uuid":"7130c94a-213a-4e5a-8e26-6cce9662f132",
         "type":"coreos-rootfs",
         "blocks":"2539520",
         "fs_blocks":"262144"
@@ -75,6 +79,7 @@
       {
         "num": 4,
         "label":"ROOT-B",
+        "uuid":"e03dd35c-7c2d-4a47-b3fe-27f15780a57c",
         "type":"coreos-rootfs",
         "blocks":"1"
       }
@@ -89,6 +94,7 @@
       {
         "num": 3,
         "label":"ROOT-A",
+        "uuid":"7130c94a-213a-4e5a-8e26-6cce9662f132",
         "type":"coreos-rootfs",
         "blocks":"860160",
         "fs_blocks":"102400"
@@ -96,6 +102,7 @@
       {
         "num": 4,
         "label":"ROOT-B",
+        "uuid":"e03dd35c-7c2d-4a47-b3fe-27f15780a57c",
         "type":"coreos-rootfs",
         "blocks":"1"
       },
@@ -110,6 +117,7 @@
       {
         "num": 3,
         "label":"ROOT-A",
+        "uuid":"7130c94a-213a-4e5a-8e26-6cce9662f132",
         "type":"coreos-rootfs",
         "blocks":"2097152",
         "fs_blocks":"262144"
@@ -117,6 +125,7 @@
       {
         "num": 4,
         "label":"ROOT-B",
+        "uuid":"e03dd35c-7c2d-4a47-b3fe-27f15780a57c",
         "type":"coreos-rootfs",
         "blocks":"2097152",
         "fs_blocks":"262144"
