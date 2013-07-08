@@ -4,17 +4,14 @@
 
 GSUTIL_OPTS=
 UPLOAD_ROOT="gs://storage.core-os.net/coreos"
-UPLOAD_DEFAULT=${FLAGS_FALSE}
-if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
-  UPLOAD_DEFAULT=${FLAGS_TRUE}
-fi
+
 
 IMAGE_ZIPPER="lbzip2 --compress --keep"
 IMAGE_ZIPEXT=".bz2"
 
 DEFINE_boolean parallel ${FLAGS_TRUE} \
   "Enable parallelism in gsutil."
-DEFINE_boolean upload ${UPLOAD_DEFAULT} \
+DEFINE_boolean upload ${FLAGS_FALSE} \
   "Upload all packages/images via gsutil."
 
 check_gsutil_opts() {
