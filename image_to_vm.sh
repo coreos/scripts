@@ -145,41 +145,6 @@ fi
 TEMP_PMBR="${TEMP_DIR}"/pmbr
 dd if="${SRC_IMAGE}" of="${TEMP_PMBR}" bs=512 count=1
 
-# Setup the bootloader configs to be correct for the image type
-TEMP_ESP_MNT=$(mktemp -d)
-cleanup() {
-  safe_umount "${TEMP_ESP_MNT}"
-  rmdir "${TEMP_ESP_MNT}"
-}
-trap cleanup INT TERM EXIT
-mkdir -p "${TEMP_ESP_MNT}"
-enable_rw_mount "${TEMP_ESP}"
-sudo mount -o loop "${TEMP_ESP}" "${TEMP_ESP_MNT}"
-
-SYSLINUX_DIR=${TEMP_ESP_MNT}/syslinux
-BOOT_DIR=${TEMP_ESP_MNT}/boot
-GRUB_DIR=${BOOT_DIR}/grub
-
-# Assume that if we are booting syslinux we are fully virtualized
-sudo sed -i -e "s%HDROOTA%/dev/sda${NUM_ROOTFS_A}%g" ${SYSLINUX_DIR}/root.A.cfg
-sudo sed -i -e "s%HDROOTB%/dev/sda${NUM_ROOTFS_B}%g" ${SYSLINUX_DIR}/root.B.cfg
-
-# Update the menu.lst to be right for xen pygrub/pv-grub or just guess for
-# everything else.
-if [ "${FLAGS_format}" = "xen" ]; then
-  sudo sed -i -e "s%HDROOTA%/dev/xvda${NUM_ROOTFS_A}%g" ${GRUB_DIR}/menu.lst
-  sudo sed -i -e "s%HDROOTB%/dev/xvda${NUM_ROOTFS_B}%g" ${GRUB_DIR}/menu.lst
-else
-  sudo sed -i -e "s%HDROOTA%/dev/sda${NUM_ROOTFS_A}%g" ${GRUB_DIR}/menu.lst
-  sudo sed -i -e "s%HDROOTB%/dev/sda${NUM_ROOTFS_B}%g" ${GRUB_DIR}/menu.lst
-fi
-
-cat ${GRUB_DIR}/menu.lst  ${SYSLINUX_DIR}/root.A.cfg
-
-# Unmount everything prior to building a final image
-trap - INT TERM EXIT
-cleanup
-
 # Set up a new partition table
 PARTITION_SCRIPT_PATH=$( tempfile )
 write_partition_script "${FLAGS_disk_layout}" "${PARTITION_SCRIPT_PATH}"

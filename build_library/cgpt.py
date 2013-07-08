@@ -485,6 +485,26 @@ def GetNum(options, image_type, layout_filename, label):
     return '-1'
 
 
+def GetUuid(options, image_type, layout_filename, label):
+  """Returns the unique partition UUID for a given label.
+
+  Note: Only useful if the UUID is specified in the config file, otherwise
+  the value returned unlikely to be what is actually used in the image.
+
+  Args:
+    options: Flags passed to the script
+    image_type: Type of image eg base/test/dev/prod
+    layout_filename: Path to partition configuration file
+    label: Label of the partition you want to read from
+  Returns:
+    String containing the requested UUID
+  """
+
+  partitions = GetPartitionTableFromConfig(options, layout_filename, image_type)
+  partition = GetPartitionByLabel(partitions, label)
+  return partition['uuid']
+
+
 def DoDebugOutput(options, image_type, layout_filename):
   """Prints out a human readable disk layout in on-disk order.
 
@@ -556,6 +576,10 @@ def main(argv):
     'readnum': {
       'usage': ['<image_type>', '<partition_config_file>', '<label>'],
       'func': GetNum,
+    },
+    'readuuid': {
+      'usage': ['<image_type>', '<partition_config_file>', '<label>'],
+      'func': GetUuid,
     },
     'debug': {
       'usage': ['<image_type>', '<partition_config_file>'],
