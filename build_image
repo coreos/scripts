@@ -212,6 +212,7 @@ if should_build_image ${CHROMEOS_BASE_IMAGE_NAME}; then
 fi
 if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME}; then
   echo "Developer image created as ${CHROMEOS_DEVELOPER_IMAGE_NAME}"
+  print_image_to_vm
 fi
 if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
   echo "Test image created as ${CHROMEOS_TEST_IMAGE_NAME}"
