@@ -15,27 +15,27 @@
       {
         "num": 2,
         "label":"BOOT-B",
-        "type":"reserved",
+        "type":"coreos-reserved",
         "blocks":"32768"
       },
       {
         "num": 3,
         "label":"ROOT-A",
-        "type":"rootfs",
+        "type":"coreos-rootfs",
         "blocks":"4194304",
         "fs_blocks":"262144"
       },
       {
         "num": 4,
         "label":"ROOT-B",
-        "type":"rootfs",
+        "type":"coreos-rootfs",
         "blocks":"4194304",
         "fs_blocks":"262144"
       },
       {
         "num": 5,
         "label":"ROOT-C",
-        "type":"rootfs",
+        "type":"coreos-rootfs",
         "blocks":"1"
       },
       {
@@ -46,14 +46,14 @@
       },
       {
         "num": 7,
-        "type":"reserved",
-        "label":"reserved",
+        "type":"coreos-reserved",
+        "label":"coreos-reserved",
         "blocks":"1"
       },
       {
         "num": 8,
-        "type":"reserved",
-        "label":"reserved",
+        "type":"coreos-reserved",
+        "label":"coreos-reserved",
         "blocks":"1"
       },
       {
@@ -68,14 +68,14 @@
       {
         "num": 3,
         "label":"ROOT-A",
-        "type":"rootfs",
+        "type":"coreos-rootfs",
         "blocks":"2539520",
         "fs_blocks":"262144"
       },
       {
         "num": 4,
         "label":"ROOT-B",
-        "type":"rootfs",
+        "type":"coreos-rootfs",
         "blocks":"1"
       }
     ],
@@ -89,14 +89,14 @@
       {
         "num": 3,
         "label":"ROOT-A",
-        "type":"rootfs",
+        "type":"coreos-rootfs",
         "blocks":"860160",
         "fs_blocks":"102400"
       },
       {
         "num": 4,
         "label":"ROOT-B",
-        "type":"rootfs",
+        "type":"coreos-rootfs",
         "blocks":"1"
       },
       {
@@ -110,14 +110,14 @@
       {
         "num": 3,
         "label":"ROOT-A",
-        "type":"rootfs",
+        "type":"coreos-rootfs",
         "blocks":"2097152",
         "fs_blocks":"262144"
       },
       {
         "num": 4,
         "label":"ROOT-B",
-        "type":"rootfs",
+        "type":"coreos-rootfs",
         "blocks":"2097152",
         "fs_blocks":"262144"
       },
