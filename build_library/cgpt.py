@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import uuid
 from optparse import OptionParser
 
 # First sector we can use.
@@ -35,7 +36,7 @@ def LoadPartitionConfig(filename):
   valid_keys = set(('_comment', 'metadata', 'layouts'))
   valid_layout_keys = set((
       '_comment', 'type', 'num', 'label', 'blocks', 'block_size', 'fs_blocks',
-      'fs_block_size', 'features'))
+      'fs_block_size', 'features', 'uuid'))
 
   if not os.path.exists(filename):
     raise ConfigNotFound('Partition config %s was not found!' % filename)
@@ -77,6 +78,15 @@ def LoadPartitionConfig(filename):
             raise InvalidLayout(
                 'Filesystem may not be larger than partition: %s %s: %d > %d' %
                 (layout_name, part['label'], part['fs_bytes'], part['bytes']))
+
+        if 'uuid' in part:
+          try:
+            # double check the string formatting
+            part['uuid'] = str(uuid.UUID(part['uuid']))
+          except ValueError as e:
+            raise InvalidLayout('Invalid uuid %r: %s' % (part['uuid'], e))
+        else:
+          part['uuid'] = str(uuid.uuid4())
   except KeyError as e:
     raise InvalidLayout('Layout is missing required entries: %s' % e)
 
@@ -291,9 +301,9 @@ def WriteLayoutFunction(options, sfile, func_name, image_type, config):
   # Pass 2: Write out all the cgpt add commands.
   for partition in partitions:
     if partition['type'] != 'blank':
-      sfile.write('$GPT add -i %d -b $CURR -s %s -t %s -l %s $1 && ' % (
+      sfile.write('$GPT add -i %d -b $CURR -s %s -t %s -l %s -u %s $1 && ' % (
           partition['num'], str(partition['var']), partition['type'],
-          partition['label']))
+          partition['label'], partition['uuid']))
     if partition['type'] == 'efi':
       sfile.write('$GPT boot -p -b $2 -i %d $1\n' % partition['num'])
 
