@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import uuid
 from optparse import OptionParser
 
 # First sector we can use.
@@ -35,7 +36,7 @@ def LoadPartitionConfig(filename):
   valid_keys = set(('_comment', 'metadata', 'layouts'))
   valid_layout_keys = set((
       '_comment', 'type', 'num', 'label', 'blocks', 'block_size', 'fs_blocks',
-      'fs_block_size', 'features'))
+      'fs_block_size', 'features', 'uuid'))
 
   if not os.path.exists(filename):
     raise ConfigNotFound('Partition config %s was not found!' % filename)
@@ -77,6 +78,15 @@ def LoadPartitionConfig(filename):
             raise InvalidLayout(
                 'Filesystem may not be larger than partition: %s %s: %d > %d' %
                 (layout_name, part['label'], part['fs_bytes'], part['bytes']))
+
+        if 'uuid' in part:
+          try:
+            # double check the string formatting
+            part['uuid'] = str(uuid.UUID(part['uuid']))
+          except ValueError as e:
+            raise InvalidLayout('Invalid uuid %r: %s' % (part['uuid'], e))
+        else:
+          part['uuid'] = str(uuid.uuid4())
   except KeyError as e:
     raise InvalidLayout('Layout is missing required entries: %s' % e)
 
@@ -291,9 +301,9 @@ def WriteLayoutFunction(options, sfile, func_name, image_type, config):
   # Pass 2: Write out all the cgpt add commands.
   for partition in partitions:
     if partition['type'] != 'blank':
-      sfile.write('$GPT add -i %d -b $CURR -s %s -t %s -l %s $1 && ' % (
+      sfile.write('$GPT add -i %d -b $CURR -s %s -t %s -l %s -u %s $1 && ' % (
           partition['num'], str(partition['var']), partition['type'],
-          partition['label']))
+          partition['label'], partition['uuid']))
     if partition['type'] == 'efi':
       sfile.write('$GPT boot -p -b $2 -i %d $1\n' % partition['num'])
 
@@ -475,6 +485,26 @@ def GetNum(options, image_type, layout_filename, label):
     return '-1'
 
 
+def GetUuid(options, image_type, layout_filename, label):
+  """Returns the unique partition UUID for a given label.
+
+  Note: Only useful if the UUID is specified in the config file, otherwise
+  the value returned unlikely to be what is actually used in the image.
+
+  Args:
+    options: Flags passed to the script
+    image_type: Type of image eg base/test/dev/prod
+    layout_filename: Path to partition configuration file
+    label: Label of the partition you want to read from
+  Returns:
+    String containing the requested UUID
+  """
+
+  partitions = GetPartitionTableFromConfig(options, layout_filename, image_type)
+  partition = GetPartitionByLabel(partitions, label)
+  return partition['uuid']
+
+
 def DoDebugOutput(options, image_type, layout_filename):
   """Prints out a human readable disk layout in on-disk order.
 
@@ -546,6 +576,10 @@ def main(argv):
     'readnum': {
       'usage': ['<image_type>', '<partition_config_file>', '<label>'],
       'func': GetNum,
+    },
+    'readuuid': {
+      'usage': ['<image_type>', '<partition_config_file>', '<label>'],
+      'func': GetUuid,
     },
     'debug': {
       'usage': ['<image_type>', '<partition_config_file>'],
