@@ -26,6 +26,7 @@ STATIC_FILES = ['/usr/bin/old_bins/cgpt',
                 ]
 
 DYNAMIC_EXECUTABLES = ['/usr/bin/delta_generator',
+                       '/usr/bin/core-admin',
                        '/usr/bin/bsdiff',
                        '/usr/bin/bspatch']
 
