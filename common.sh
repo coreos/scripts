@@ -311,8 +311,9 @@ fi
 source "$COREOS_VERSION_FILE" || die "Cannot source version.txt"
 
 # Official builds must set COREOS_OFFICIAL=1 to use an official version.
+# Unofficial builds always appended the date/time as a build identifier.
 if [ ${COREOS_OFFICIAL:-0} -ne 1 ]; then
-  COREOS_PATCH=$(date +%Y_%m_%d_%H%M)
+  COREOS_PATCH="${COREOS_PATCH}+$(date +%Y-%m-%d-%H%M)"
 fi
 
 # Full version string.
@@ -322,7 +323,7 @@ COREOS_VERSION_STRING="${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}"
 # scripts to provide a reasonable default value. The value is the number
 # of days since COREOS_EPOCH, Mon Jul  1 00:00:00 UTC 2013
 readonly COREOS_EPOCH=1372636800
-TODAYS_VERSION=$(printf "%04d" $(( (`date +%s` - ${COREOS_EPOCH}) / 86400 )) )
+TODAYS_VERSION=$(( (`date +%s` - ${COREOS_EPOCH}) / 86400 ))
 
 # Load developer's custom settings.  Default location is in scripts dir,
 # since that's available both inside and outside the chroot.  By convention,
