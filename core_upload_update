@@ -45,6 +45,15 @@ switch_to_strict_mode
 [[ -z "${FLAGS_private_key}" ]] && die "--private_key is required"
 [[ -z "${FLAGS_public_key}" ]] && die "--public_key is required"
 
+# Add the current directory to $PATH if we seem to be from a au bundle
+if ! which cros_generate_update_payload &>/dev/null; then
+    if [[ -e "${SCRIPT_ROOT}/cros_generate_update_payload" ]]; then
+        export PATH="${SCRIPT_ROOT}:${PATH}"
+    else
+        die_notrace "Cannot find cros_generate_update_payload"
+    fi
+fi
+
 OUTPUT_DIR=$(mktemp -d)
 trap "rm -rf ${OUTPUT_DIR}" INT TERM EXIT
 
