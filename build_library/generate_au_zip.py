@@ -17,16 +17,16 @@ import sys
 import tempfile
 
 # GLOBALS
-image_sign_dir = '~/trunk/src/platform/vboot_reference/scripts/image_signing'
-STATIC_FILES = ['/usr/bin/cgpt',
-                '~/trunk/src/scripts/common.sh',
+STATIC_FILES = ['/usr/bin/old_bins/cgpt',
                 '/usr/bin/cros_generate_update_payload',
+                '~/trunk/.repo/manifests/version.txt',
                 '~/trunk/src/scripts/chromeos-common.sh',
-                os.path.join(image_sign_dir, 'convert_recovery_to_ssd.sh'),
-                os.path.join(image_sign_dir, 'common_minimal.sh'),
+                '~/trunk/src/scripts/common.sh',
+                '~/trunk/src/scripts/core_upload_update',
                 ]
 
 DYNAMIC_EXECUTABLES = ['/usr/bin/delta_generator',
+                       '/usr/bin/core-admin',
                        '/usr/bin/bsdiff',
                        '/usr/bin/bspatch']
 

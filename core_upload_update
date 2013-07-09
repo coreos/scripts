@@ -5,6 +5,9 @@
 # found in the LICENSE file.
 
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+# We have to simple-mindedly set GCLIENT_ROOT in case we're running from
+# au-generator.zip because common.sh will fail while auto-detect it.
+export GCLIENT_ROOT=$(readlink -f "${SCRIPT_ROOT}/../../")
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
 DEFINE_string image "${SRC_ROOT}/build/images/amd64-generic/latest/${COREOS_BASE_IMAGE_NAME}" \
@@ -42,24 +45,33 @@ switch_to_strict_mode
 [[ -z "${FLAGS_private_key}" ]] && die "--private_key is required"
 [[ -z "${FLAGS_public_key}" ]] && die "--public_key is required"
 
-# Put our public key in a place that update_engine can find it
-${SRC_ROOT}/platform/vboot_reference/scripts/image_signing/insert_au_publickey.sh ${FLAGS_image} ${FLAGS_public_key}
+# Add the current directory to $PATH if we seem to be from a au bundle
+if ! which cros_generate_update_payload &>/dev/null; then
+    if [[ -e "${SCRIPT_ROOT}/cros_generate_update_payload" ]]; then
+        export PATH="${SCRIPT_ROOT}:${PATH}"
+    else
+        die_notrace "Cannot find cros_generate_update_payload"
+    fi
+fi
+
+OUTPUT_DIR=$(mktemp -d)
+trap "rm -rf ${OUTPUT_DIR}" INT TERM EXIT
 
 # Generate a payload and sign it with our private key
-cros_generate_update_payload --image ${FLAGS_image} --output /tmp/update.gz \
-	--private_key ${FLAGS_private_key}
-
-# Verify that the payload signature is OK
-delta_generator -in_file /tmp/update.gz -public_key ${FLAGS_public_key}
-
-# Generate the metadata payload
-delta_generator -out_metadata /tmp/update.metadata -private_key ${FLAGS_private_key} \
-	-in_file /tmp/update.gz
+cros_generate_update_payload \
+    --image "${FLAGS_image}" \
+    --output "${OUTPUT_DIR}/update.gz" \
+    --metadata_output "${OUTPUT_DIR}/update.metadata" \
+    --private_key "${FLAGS_private_key}" \
+    --public_key "${FLAGS_public_key}" \
+    --outside_chroot
 
 MD5SUM=$(md5sum ${FLAGS_image} | cut -f1 -d" ")
-gsutil cp /tmp/update.gz gs://update-storage.core-os.net/${FLAGS_track}/$MD5SUM/update.gz
+gsutil cp "${OUTPUT_DIR}/update.gz" \
+    gs://update-storage.core-os.net/${FLAGS_track}/$MD5SUM/update.gz
 CORE_UPDATE_URL="https://core-api.appspot.com" core-admin new-version \
-	-k ${FLAGS_api_key} -v ${FLAGS_version} \
-	-a ${FLAGS_app_id} \
-	-m /tmp/update.metadata \
-	-t ${FLAGS_track} -p $MD5SUM /tmp/update.gz
+    -k ${FLAGS_api_key} \
+    -a ${FLAGS_app_id} \
+    -v ${FLAGS_version} \
+    -m "${OUTPUT_DIR}/update.metadata" \
+    -t ${FLAGS_track} -p $MD5SUM "${OUTPUT_DIR}/update.gz"
