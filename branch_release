@@ -20,8 +20,6 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 switch_to_strict_mode
 
-# Make sure we pad with 0s for a consistent look
-FLAGS_build=$(printf "%04d" "${FLAGS_build}")
 BRANCH_NAME="build-${FLAGS_build}"
 TAG_NAME="v${FLAGS_build}.${FLAGS_branch}.${FLAGS_patch}"
 
