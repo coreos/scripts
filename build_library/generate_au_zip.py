@@ -19,6 +19,7 @@ import tempfile
 # GLOBALS
 STATIC_FILES = ['/usr/bin/old_bins/cgpt',
                 '/usr/bin/cros_generate_update_payload',
+                '~/trunk/.repo/manifests/version.txt',
                 '~/trunk/src/scripts/chromeos-common.sh',
                 '~/trunk/src/scripts/common.sh',
                 ]
