@@ -305,7 +305,10 @@ BUILD_LIBRARY_DIR="${SCRIPTS_DIR}/build_library"
 
 # Source COREOS_* from manifest for version information.
 COREOS_VERSION_FILE="${GCLIENT_ROOT}/.repo/manifests/version.txt"
-source "$COREOS_VERSION_FILE" || die "Cannot source $COREOS_VERSION_FILE"
+if [[ ! -f "${COREOS_VERSION_FILE}" ]]; then
+    COREOS_VERSION_FILE="${SCRIPT_LOCATION}/version.txt"
+fi
+source "$COREOS_VERSION_FILE" || die "Cannot source version.txt"
 
 # Official builds must set COREOS_OFFICIAL=1 to use an official version.
 if [ ${COREOS_OFFICIAL:-0} -ne 1 ]; then
