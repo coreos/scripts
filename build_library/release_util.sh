@@ -4,6 +4,7 @@
 
 GSUTIL_OPTS=
 UPLOAD_ROOT="gs://storage.core-os.net/coreos"
+UPLOAD_PATH=
 UPLOAD_DEFAULT=${FLAGS_FALSE}
 if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
   UPLOAD_DEFAULT=${FLAGS_TRUE}
@@ -16,12 +17,19 @@ DEFINE_boolean parallel ${FLAGS_TRUE} \
   "Enable parallelism in gsutil."
 DEFINE_boolean upload ${UPLOAD_DEFAULT} \
   "Upload all packages/images via gsutil."
+DEFINE_string upload_path "" \
+  "Upload files to an alternative location. Must be a full gs:// URL."
 
 check_gsutil_opts() {
     [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]] || return 0
 
     if [[ ${FLAGS_parallel} -eq ${FLAGS_TRUE} ]]; then
         GSUTIL_OPTS="-m"
+    fi
+
+    if [[ -n "${FLAGS_upload_path}" ]]; then
+        # Make sure the path doesn't end with a slash
+        UPLOAD_PATH="${FLAGS_upload_path%%/}"
     fi
 
     if [[ ! -f "$HOME/.boto" ]]; then
@@ -34,9 +42,10 @@ upload_packages() {
     [[ -n "${BOARD}" ]] || die "board_options.sh must be sourced first"
 
     local BOARD_PACKAGES="${1:-"${BOARD_ROOT}/packages"}"
-    local UPLOAD_PATH="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}/pkgs/"
+    : ${UPLOAD_PATH:="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"}
+
     info "Uploading packages"
-    gsutil ${GSUTIL_OPTS} cp -R "${BOARD_PACKAGES}"/* "${UPLOAD_PATH}"
+    gsutil ${GSUTIL_OPTS} cp -R "${BOARD_PACKAGES}"/* "${UPLOAD_PATH}/pkgs/"
 }
 
 make_digests() {
@@ -57,7 +66,7 @@ upload_image() {
     [[ -n "${BOARD}" ]] || die "board_options.sh must be sourced first"
 
     local BUILT_IMAGE="$1"
-    local UPLOAD_PATH="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}/"
+    : ${UPLOAD_PATH:="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"}
 
     if [[ ! -f "${BUILT_IMAGE}" ]]; then
         die "Image '${BUILT_IMAGE}' does not exist!"
@@ -76,5 +85,5 @@ upload_image() {
 
     info "Uploading ${BUILT_IMAGE##*/}"
     gsutil ${GSUTIL_OPTS} cp "${BUILT_IMAGE}" \
-        "${BUILT_IMAGE}.DIGESTS" "${UPLOAD_PATH}"
+        "${BUILT_IMAGE}.DIGESTS" "${UPLOAD_PATH}/"
 }
