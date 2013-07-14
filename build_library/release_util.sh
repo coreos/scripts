@@ -32,20 +32,55 @@ check_gsutil_opts() {
         UPLOAD_PATH="${FLAGS_upload_path%%/}"
     fi
 
-    if [[ ! -f "$HOME/.boto" ]]; then
+    # Search for .boto, may be run via sudo
+    local boto
+    for boto in "$HOME/.boto" "/home/$SUDO_USER/.boto"; do
+        if [[ -f "$boto" ]]; then
+            info "Using boto config $boto"
+            export BOTO_CONFIG="$boto"
+            break
+        fi
+    done
+    if [[ ! -f "$BOTO_CONFIG" ]]; then
         die_notrace "Please run gsutil config to create ~/.boto"
     fi
+}
+
+# Generic upload function
+# Usage: upload_files "file type" "${UPLOAD_ROOT}/default/path" "" files...
+#  arg1: file type reported via log
+#  arg2: default upload path, overridden by --upload_path
+#  arg3: upload path suffix that can't be overridden, must end in /
+#  argv: remaining args are files or directories to upload
+upload_files() {
+    [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]] || return 0
+
+    local msg="$1"
+    local local_upload_path="$2"
+    local extra_upload_suffix="$3"
+    shift 3
+
+    if [[ -n "${UPLOAD_PATH}" ]]; then
+        local_upload_path="${UPLOAD_PATH}"
+    fi
+
+    if [[ -n "${extra_upload_suffix}" && "${extra_upload_suffix}" != */ ]]
+    then
+        die "upload suffix '${extra_upload_suffix}' doesn't end in /"
+    fi
+
+    info "Uploading ${msg} to ${local_upload_path}"
+    gsutil ${GSUTIL_OPTS} cp -R "$@" \
+        "${local_upload_path}/${extra_upload_suffix}"
 }
 
 upload_packages() {
     [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]] || return 0
     [[ -n "${BOARD}" ]] || die "board_options.sh must be sourced first"
 
-    local BOARD_PACKAGES="${1:-"${BOARD_ROOT}/packages"}"
-    : ${UPLOAD_PATH:="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"}
-
-    info "Uploading packages"
-    gsutil ${GSUTIL_OPTS} cp -R "${BOARD_PACKAGES}"/* "${UPLOAD_PATH}/pkgs/"
+    local board_packages="${1:-"${BOARD_ROOT}/packages"}"
+    local def_upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
+    upload_files packages ${def_upload_path} "pkgs/" "${board_packages}"/*
 }
 
 make_digests() {
@@ -66,7 +101,6 @@ upload_image() {
     [[ -n "${BOARD}" ]] || die "board_options.sh must be sourced first"
 
     local BUILT_IMAGE="$1"
-    : ${UPLOAD_PATH:="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"}
 
     if [[ ! -f "${BUILT_IMAGE}" ]]; then
         die "Image '${BUILT_IMAGE}' does not exist!"
@@ -83,7 +117,8 @@ upload_image() {
     # produces for the SDK tarballs and up upload it too.
     make_digests "${BUILT_IMAGE}"
 
-    info "Uploading ${BUILT_IMAGE##*/}"
-    gsutil ${GSUTIL_OPTS} cp "${BUILT_IMAGE}" \
-        "${BUILT_IMAGE}.DIGESTS" "${UPLOAD_PATH}/"
+    local log_msg="${BUILT_IMAGE##*/}"
+    local def_upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
+    upload_files "${log_msg}" "${def_upload_path}" "" \
+        "${BUILT_IMAGE}" "${BUILT_IMAGE}.DIGESTS"
 }
