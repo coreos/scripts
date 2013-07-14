@@ -24,8 +24,7 @@ STAGES=
 
 # For searching for alternatives when DEFAULT_SEED doesn't exist
 # unset SDK_SEARCH=1 to disable this fallback
-SDK_VERSION_FILE="coreos/binhost/host/sdk_version.conf"
-SDK_TARBALL_FMT="coreos-sdk-${ARCH}-%s.tar.bz2"
+SDK_TARBALL="coreos-sdk-${ARCH}-${COREOS_SDK_VERSION}.tar.bz2"
 SDK_SEARCH=1
 
 DEFINE_string catalyst_root "${DEFAULT_CATALYST_ROOT}" \
@@ -212,11 +211,7 @@ search_for_sdk_seed() {
     # User set the option so we shouldn't change it
     [[ "${FLAGS_seed_tarball}" != "${DEFAULT_SEED}" ]] && return
 
-    local SDK_LATEST_VERSION SDK_TARBALL check_path
-    eval $(grep "^SDK_LATEST_VERSION=" \
-            "${FLAGS_coreos_overlay}/${SDK_VERSION_FILE}")
-    SDK_TARBALL=$(printf "${SDK_TARBALL_FMT}" "${SDK_LATEST_VERSION}")
-
+    local check_path
     for check_path in \
         "${CATALYST_ROOT}/builds/coreos-sdk/${SDK_TARBALL}" \
         "${CATALYST_ROOT}/builds/seeds/${SDK_TARBALL}" \
