@@ -474,7 +474,7 @@ is_nfs() {
 
 warn_if_nfs() {
   if is_nfs "$1"; then
-    warn "$1 is on NFS. This is unsupported."
+    warn "$1 is on NFS. This is untested. You can send patches if it's broken."
   fi
 }
 
