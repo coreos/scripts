@@ -41,8 +41,6 @@ DEFINE_string profile "${DEFAULT_PROFILE}" \
     "Portage profile, may be prefixed with repo:"
 DEFINE_boolean rebuild ${FLAGS_FALSE} \
     "Rebuild and overwrite stages that already exist."
-DEFINE_integer make_jobs ${NUM_JOBS} "Tune make's concurrency."
-DEFINE_integer emerge_jobs ${NUM_JOBS} "Tune emerge's concurrency."
 DEFINE_boolean debug ${FLAGS_FALSE} "Enable verbose output from catalyst."
 
 #####################
@@ -73,9 +71,9 @@ EOF
 }
 
 catalystrc() {
-cat "${SCRIPTS_DIR}/lib/catalystrc"
-echo "export MAKEOPTS=-j$FLAGS_make_jobs"
-echo "export EMERGE_DEFAULT_OPTS=--jobs=$FLAGS_emerge_jobs"
+echo "export MAKEOPTS='--jobs=${NUM_JOBS} --load-average=${NUM_JOBS}'"
+echo "export EMERGE_DEFAULT_OPTS=--jobs=${NUM_JOBS}"
+echo "export FEATURES='parallel-install -ebuild-locks'"
 }
 
 # Common values for all stage spec files
