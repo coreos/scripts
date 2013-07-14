@@ -91,9 +91,9 @@ INNER_CHROME_ROOT=$FLAGS_chrome_root_mount  # inside chroot
 CHROME_ROOT_CONFIG="/var/cache/chrome_root"  # inside chroot
 FUSE_DEVICE="/dev/fuse"
 
-chmod 0777 "$FLAGS_chroot/var/lock"
-
-LOCKFILE="$FLAGS_chroot/var/lock/enter_chroot"
+# We can't use /var/lock because that might be a symlink to /run/lock outside
+# of the chroot.  Or /run on the host system might not exist.
+LOCKFILE="${FLAGS_chroot}/.enter_chroot.lock"
 MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
 
 # Reset the depot tools/internal trunk pathways to what they'll
@@ -197,6 +197,38 @@ promote_api_keys() {
   fi
 }
 
+generate_locales() {
+  # Make sure user's requested locales are available
+  # http://crosbug.com/19139
+  # And make sure en_US{,.UTF-8} are always available as
+  # that what buildbot forces internally
+  local l locales gen_locales=()
+
+  locales=$(printf '%s\n' en_US en_US.UTF-8 ${LANG} \
+    $LC_{ADDRESS,ALL,COLLATE,CTYPE,IDENTIFICATION,MEASUREMENT,MESSAGES} \
+    $LC_{MONETARY,NAME,NUMERIC,PAPER,TELEPHONE,TIME} | \
+    sort -u | sed '/^C$/d')
+  for l in ${locales}; do
+    if [[ ${l} == *.* ]]; then
+      enc=${l#*.}
+    else
+      enc="ISO-8859-1"
+    fi
+    case $(echo ${enc//-} | tr '[:upper:]' '[:lower:]') in
+    utf8) enc="UTF-8";;
+    esac
+    gen_locales+=("${l} ${enc}")
+  done
+  if [[ ${#gen_locales[@]} -gt 0 ]] ; then
+    # Force LC_ALL=C to workaround slow string parsing in bash
+    # with long multibyte strings.  Newer setups have this fixed,
+    # but locale-gen doesn't need to be run in any locale in the
+    # first place, so just go with C to keep it fast.
+    chroot "${FLAGS_chroot}" env LC_ALL=C locale-gen -q -u \
+      -G "$(printf '%s\n' "${gen_locales[@]}")"
+  fi
+}
+
 setup_env() {
   (
     flock 200
@@ -213,15 +245,18 @@ setup_env() {
     setup_mount none "-t proc" /proc
     setup_mount none "-t sysfs" /sys
     setup_mount /dev "--bind" /dev
-    setup_mount none "-t devpts" /dev/pts
-    if [ -d /run ]; then
+    setup_mount /dev/pts "--bind" /dev/pts
+    if [[ -d /run ]]; then
       setup_mount /run "--bind" /run
-      if [ -d /run/shm ]; then
+      if [[ -d /run/shm && ! -L /run/shm ]]; then
         setup_mount /run/shm "--bind" /run/shm
       fi
     fi
 
-    setup_mount "${FLAGS_trunk}" "--bind" "${CHROOT_TRUNK_DIR}"
+    # Do this early as it's slow and only needs basic mounts (above).
+    generate_locales &
+
+    setup_mount "${FLAGS_trunk}" "--rbind" "${CHROOT_TRUNK_DIR}"
 
     debug "Setting up referenced repositories if required."
     REFERENCE_DIR=$(git config --file  \
@@ -316,9 +351,8 @@ setup_env() {
       fi
     fi
 
-    if [ -d "$SUDO_HOME/.subversion" ]; then
+    if [[ -d "$SUDO_HOME/.subversion" ]]; then
       TARGET="/home/${SUDO_USER}/.subversion"
-      user_mkdir "${FLAGS_chroot}${TARGET}"
       setup_mount "${SUDO_HOME}/.subversion" "--bind" "${TARGET}"
       # Symbolic-link the .subversion directory so sandboxed subversion.class
       # clients can use it.
@@ -403,35 +437,6 @@ setup_env() {
     done
     promote_api_keys
 
-    # Make sure user's requested locales are available
-    # http://crosbug.com/19139
-    # And make sure en_US{,.UTF-8} are always available as
-    # that what buildbot forces internally
-    locales=$(printf '%s\n' en_US en_US.UTF-8 ${LANG} \
-      $LC_{ADDRESS,ALL,COLLATE,CTYPE,IDENTIFICATION,MEASUREMENT,MESSAGES} \
-      $LC_{MONETARY,NAME,NUMERIC,PAPER,TELEPHONE,TIME} | \
-      sort -u | sed '/^C$/d')
-    gen_locales=()
-    for l in ${locales}; do
-      if [[ ${l} == *.* ]]; then
-        enc=${l#*.}
-      else
-        enc="ISO-8859-1"
-      fi
-      case $(echo ${enc//-} | tr '[:upper:]' '[:lower:]') in
-        utf8) enc="UTF-8";;
-      esac
-      gen_locales=("${gen_locales[@]}" "${l} ${enc}")
-    done
-    if [[ ${#gen_locales[@]} -gt 0 ]] ; then
-      # Force LC_ALL=C to workaround slow string parsing in bash
-      # with long multibyte strings.  Newer setups have this fixed,
-      # but locale-gen doesn't need to be run in any locale in the
-      # first place, so just go with C to keep it fast.
-      chroot "$FLAGS_chroot" env LC_ALL=C locale-gen -q -u \
-        -G "$(printf '%s\n' "${gen_locales[@]}")"
-    fi
-
     # Fix permissions on shared memory to allow non-root users access to POSIX
     # semaphores.
     chmod -R 777 "${FLAGS_chroot}/dev/shm"
@@ -460,6 +465,13 @@ load_environment_whitelist
 for var in "${ENVIRONMENT_WHITELIST[@]}" ; do
   [ "${!var+set}" = "set" ] && CHROOT_PASSTHRU+=( "${var}=${!var}" )
 done
+
+# Set up GIT_PROXY_COMMAND so git:// URLs automatically work behind a proxy.
+if [[ -n "${all_proxy}" || -n "${https_proxy}" || -n "${http_proxy}" ]]; then
+  CHROOT_PASSTHRU+=(
+    "GIT_PROXY_COMMAND=${CHROOT_TRUNK_DIR}/src/scripts/bin/proxy-gw"
+  )
+fi
 
 # Run command or interactive shell.  Also include the non-chrooted path to
 # the source trunk for scripts that may need to print it (e.g.
