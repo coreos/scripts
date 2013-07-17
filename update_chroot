@@ -92,7 +92,7 @@ fi
 # can cause serious issues later.
 if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" ]; then
   # First update crossdev.
-  sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} crossdev
+  sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} crossdev sysroot-wrappers
 
   TOOLCHAIN_FLAGS=( "--include-boards=${FLAGS_toolchain_boards}" )
   # This should really only be skipped while bootstrapping.
