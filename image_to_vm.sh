@@ -12,6 +12,7 @@ SCRIPT_ROOT=$(dirname "$(readlink -f "$0")")
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 . "${SCRIPT_ROOT}/build_library/disk_layout_util.sh" || exit 1
 . "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
+. "${SCRIPT_ROOT}/build_library/build_image_util.sh" || exit 1
 
 # Need to be inside the chroot to load chromeos-common.sh
 assert_inside_chroot
@@ -142,6 +143,32 @@ else
   sudo e2fsck -pf "${TEMP_STATE}"
   sudo resize2fs "${TEMP_STATE}" ${STATEFUL_SIZE_MEGABYTES}M
 fi
+
+# handle OEM stuff if needed
+TEMP_OEM_MNT="${TEMP_DIR}"/oem_mnt
+mkdir -p $TEMP_OEM_MNT
+sudo mount -o loop ${TEMP_OEM} ${TEMP_OEM_MNT}
+
+# oem hacks
+if [ "${FLAGS_format}" == "ami" ]; then
+	echo ami
+	emerge_to_image --root="${TEMP_OEM_MNT}" oem-ami
+	# sudo rm -rf, how could this go wrong?
+	# TODO: figure out how to keep portage from putting these
+	# portage files on disk, we don't need or want them.
+	sudo rm -rvf ${TEMP_OEM_MNT}/var
+	sudo rm -rvf ${TEMP_OEM_MNT}/etc
+	sudo rm -rvf ${TEMP_OEM_MNT}/tmp
+	if [ ! -e ${TEMP_OEM_MNT}/run.sh ]; then
+		echo "ERROR: requires oem/run.sh for oem partition to work" 1>&2
+		exit 1
+	fi
+fi
+
+sudo umount ${TEMP_OEM_MNT}
+rm -rf ${TEMP_OEM_MNT}
+
+
 TEMP_PMBR="${TEMP_DIR}"/pmbr
 dd if="${SRC_IMAGE}" of="${TEMP_PMBR}" bs=512 count=1
 
@@ -174,6 +201,20 @@ if [ "${FLAGS_format}" = "virtualbox" -o "${FLAGS_format}" = "qemu" \
 elif [ "${FLAGS_format}" = "vmware" ]; then
   qemu-img convert -f raw "${TEMP_IMG}" \
     -O vmdk "${FLAGS_to}/${FLAGS_vmdk}"
+elif [ "${FLAGS_format}" = "ami" ]; then
+  /usr/sbin/gdisk ${TEMP_IMG} <<EOF
+r
+h
+1
+N
+c
+Y
+N
+w
+Y
+Y
+EOF
+  mv ${TEMP_IMG} ${FLAGS_to}/${DEFAULT_QEMU_IMAGE/qemu/ami}
 else
   die_notrace "Invalid format: ${FLAGS_format}"
 fi
