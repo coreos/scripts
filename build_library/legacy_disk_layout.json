@@ -16,7 +16,7 @@
         "num": 2,
         "label":"BOOT-B",
         "type":"coreos-reserved",
-        "blocks":"32768"
+        "blocks":"131072"
       },
       {
         "num": 3,
