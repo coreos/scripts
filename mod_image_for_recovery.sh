@@ -21,16 +21,12 @@ DEFINE_string board "$DEFAULT_BOARD" \
   b
 DEFINE_integer statefulfs_sectors 4096 \
   "number of sectors in stateful filesystem when minimizing"
-DEFINE_string kernel_image "" \
-  "path to a pre-built recovery kernel"
 DEFINE_string kernel_outfile "" \
   "emit recovery kernel to path/file ($RECOVERY_KERNEL_NAME if empty)"
 DEFINE_string image "" \
   "source image to use ($CHROMEOS_IMAGE_NAME if empty)"
 DEFINE_string to "" \
   "emit recovery image to path/file ($CHROMEOS_RECOVERY_IMAGE_NAME if empty)"
-DEFINE_boolean kernel_image_only $FLAGS_FALSE \
-  "only emit recovery kernel"
 DEFINE_boolean sync_keys $FLAGS_TRUE \
   "update install kernel with the vblock from stateful"
 DEFINE_boolean minimize_image $FLAGS_TRUE \
@@ -90,143 +86,6 @@ get_install_vblock() {
   rmdir "$stateful_mnt"
   switch_to_strict_mode
   echo "$out"
-}
-
-create_recovery_kernel_image() {
-  local sysroot="$FACTORY_ROOT"
-  local vmlinuz="$sysroot/boot/vmlinuz"
-  local root_offset=$(partoffset "${RECOVERY_IMAGE}" 3)
-  local root_size=$(partsize "${RECOVERY_IMAGE}" 3)
-
-  local enable_rootfs_verification_flag=--noenable_rootfs_verification
-  if grep -q enable_rootfs_verification "${IMAGE_DIR}/boot.desc"; then
-    enable_rootfs_verification_flag=--enable_rootfs_verification
-  fi
-
-  # Tie the installed recovery kernel to the final kernel.  If we don't
-  # do this, a normal recovery image could be used to drop an unsigned
-  # kernel on without a key-change check.
-  # Doing this here means that the kernel and initramfs creation can
-  # be done independently from the image to be modified as long as the
-  # chromeos-recovery interfaces are the same.  It allows for the signer
-  # to just compute the new hash and update the kernel command line during
-  # recovery image generation.  (Alternately, it means an image can be created,
-  # modified for recovery, then passed to a signer which can then sign both
-  # partitions appropriately without needing any external dependencies.)
-  local kern_offset=$(partoffset "${RECOVERY_IMAGE}" 2)
-  local kern_size=$(partsize "${RECOVERY_IMAGE}" 2)
-  local kern_tmp=$(mktemp)
-  local kern_hash=
-
-  dd if="${RECOVERY_IMAGE}" bs=512 count=$kern_size \
-     skip=$kern_offset of="$kern_tmp" 1>&2
-  # We're going to use the real signing block.
-  if [ $FLAGS_sync_keys -eq $FLAGS_TRUE ]; then
-    dd if="$INSTALL_VBLOCK" of="$kern_tmp" conv=notrunc 1>&2
-  fi
-  local kern_hash=$(sha1sum "$kern_tmp" | cut -f1 -d' ')
-  rm "$kern_tmp"
-
-  # TODO(wad) add FLAGS_boot_args support too.
-  ${SCRIPTS_DIR}/build_kernel_image.sh \
-    --arch="${ARCH}" \
-    --to="$RECOVERY_KERNEL_IMAGE" \
-    --hd_vblock="$RECOVERY_KERNEL_VBLOCK" \
-    --vmlinuz="$vmlinuz" \
-    --working_dir="${IMAGE_DIR}" \
-    --boot_args="noinitrd panic=60 cros_recovery kern_b_hash=$kern_hash" \
-    --keep_work \
-    --keys_dir="${FLAGS_keys_dir}" \
-    ${enable_rootfs_verification_flag} \
-    --nouse_dev_keys 1>&2 || failboat "build_kernel_image"
-  #sudo mount | sed 's/^/16651 /'
-  #sudo losetup -a | sed 's/^/16651 /'
-  trap - RETURN
-
-  # Update the EFI System Partition configuration so that the kern_hash check
-  # passes.
-  local block_size=$(get_block_size)
-
-  local efi_offset=$(partoffset "${RECOVERY_IMAGE}" 12)
-  local efi_size=$(partsize "${RECOVERY_IMAGE}" 12)
-  local efi_offset_bytes=$(( $efi_offset * $block_size ))
-  local efi_size_bytes=$(( $efi_size * $block_size ))
-
-  local efi_dir=$(mktemp -d)
-  sudo mount -o loop,offset=${efi_offset_bytes},sizelimit=${efi_size_bytes} \
-    "${RECOVERY_IMAGE}" "${efi_dir}"
-
-  sudo sed  -i -e "s/cros_legacy/cros_legacy kern_b_hash=$kern_hash/g" \
-    "$efi_dir/syslinux/usb.A.cfg" || true
-  # This will leave the hash in the kernel for all boots, but that should be
-  # safe.
-  sudo sed  -i -e "s/cros_efi/cros_efi kern_b_hash=$kern_hash/g" \
-    "$efi_dir/efi/boot/grub.cfg" || true
-  safe_umount "$efi_dir"
-  rmdir "$efi_dir"
-  trap - EXIT
-}
-
-install_recovery_kernel() {
-  local kern_a_offset=$(partoffset "$RECOVERY_IMAGE" 2)
-  local kern_a_size=$(partsize "$RECOVERY_IMAGE" 2)
-  local kern_b_offset=$(partoffset "$RECOVERY_IMAGE" 4)
-  local kern_b_size=$(partsize "$RECOVERY_IMAGE" 4)
-
-  if [ $kern_b_size -eq 1 ]; then
-    echo "Image was created with no KERN-B partition reserved!" 1>&2
-    echo "Cannot proceed." 1>&2
-    return 1
-  fi
-
-  # Backup original kernel to KERN-B
-  dd if="$RECOVERY_IMAGE" of="$RECOVERY_IMAGE" bs=512 \
-     count=$kern_a_size \
-     skip=$kern_a_offset \
-     seek=$kern_b_offset \
-     conv=notrunc
-
-  # We're going to use the real signing block.
-  if [ $FLAGS_sync_keys -eq $FLAGS_TRUE ]; then
-    dd if="$INSTALL_VBLOCK" of="$RECOVERY_IMAGE" bs=512 \
-       seek=$kern_b_offset \
-       conv=notrunc
-  fi
-
-  # Install the recovery kernel as primary.
-  dd if="$RECOVERY_KERNEL_IMAGE" of="$RECOVERY_IMAGE" bs=512 \
-     seek=$kern_a_offset \
-     count=$kern_a_size \
-     conv=notrunc
-
-  # Set the 'Success' flag to 1 (to prevent the firmware from updating
-  # the 'Tries' flag).
-  sudo $GPT add -i 2 -S 1 "$RECOVERY_IMAGE"
-
-  # Repeat for the legacy bioses.
-  # Replace vmlinuz.A with the recovery version we built.
-  # TODO(wad): Extract the $RECOVERY_KERNEL_IMAGE and grab vmlinuz from there.
-  local sysroot="$FACTORY_ROOT"
-  local vmlinuz="$sysroot/boot/vmlinuz"
-  local failed=0
-
-  if [ "$ARCH" = "x86" ]; then
-    # There is no syslinux on ARM, so this copy only makes sense for x86.
-    set +e
-    local esp_offset=$(partoffset "$RECOVERY_IMAGE" 12)
-    local esp_mnt=$(mktemp -d)
-    sudo mount -o loop,offset=$((esp_offset * 512)) "$RECOVERY_IMAGE" "$esp_mnt"
-    sudo cp "$vmlinuz" "$esp_mnt/syslinux/vmlinuz.A" || failed=1
-    safe_umount "$esp_mnt"
-    rmdir "$esp_mnt"
-    switch_to_strict_mode
-  fi
-
-  if [ $failed -eq 1 ]; then
-    echo "Failed to copy recovery kernel to ESP"
-    return 1
-  fi
-  return 0
 }
 
 maybe_resize_stateful() {
@@ -307,11 +166,6 @@ SCRIPTS_DIR=${SCRIPT_ROOT}
 # If not, resize stateful to 1 sector.
 #
 
-if [ $FLAGS_kernel_image_only -eq $FLAGS_TRUE -a \
-     -n "$FLAGS_kernel_image" ]; then
-  die_notrace "Cannot use --kernel_image_only with --kernel_image"
-fi
-
 if [ $FLAGS_modify_in_place -eq $FLAGS_TRUE ]; then
   if [ $FLAGS_minimize_image -eq $FLAGS_TRUE ]; then
     die_notrace "Cannot use --modify_in_place and --minimize_image together."
@@ -333,19 +187,6 @@ FACTORY_ROOT="${BOARD_ROOT}/factory-root"
 RECOVERY_KERNEL_FLAGS="fbconsole initramfs vfat tpm i2cdev"
 USE="${RECOVERY_KERNEL_FLAGS}" emerge_custom_kernel "$FACTORY_ROOT" ||
   failboat "Cannot emerge custom kernel"
-
-if [ -z "$FLAGS_kernel_image" ]; then
-  create_recovery_kernel_image
-  echo "Recovery kernel created at $RECOVERY_KERNEL_IMAGE"
-else
-  RECOVERY_KERNEL_IMAGE="$FLAGS_kernel_image"
-fi
-
-if [ $FLAGS_kernel_image_only -eq $FLAGS_TRUE ]; then
-  echo "Kernel emitted. Stopping there."
-  rm "$INSTALL_VBLOCK"
-  exit 0
-fi
 
 trap cleanup EXIT
 
