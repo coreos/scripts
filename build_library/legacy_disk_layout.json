@@ -45,7 +45,7 @@
         "num": 6,
         "label":"OEM",
         "type":"data",
-        "blocks":"32768"
+        "blocks":"262144"
       },
       {
         "num": 7,
