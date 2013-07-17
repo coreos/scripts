@@ -89,14 +89,6 @@ DEFINE_boolean cleanup_dirs ${FLAGS_TRUE} \
 DEFINE_string boot_args "noinitrd" \
   "Additional boot arguments to pass to the commandline"
 
-DEFINE_integer rootfs_size 720 \
-  "rootfs filesystem size in MBs."
-# ceil(0.1 * rootfs_size) is a good minimum.
-DEFINE_integer rootfs_hash_pad 8 \
-  "MBs reserved at the end of the rootfs image."
-
-DEFINE_string rootfs_hash "/tmp/rootfs.hash" \
-  "Path where the rootfs hash should be stored."
 # TODO(taysom): when we turn on boot cache, both verification and
 # bootcache should have their default be FLAGS_TRUE.
 DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
@@ -227,74 +219,6 @@ make_image_bootable() {
     root_dev=$squashfs_img
   fi
 
-  # Builds the kernel partition image.  The temporary files are kept around
-  # so that we can perform a load_kernel_test later on the final image.
-  ${SCRIPTS_DIR}/build_kernel_image.sh \
-    --arch="${FLAGS_arch}" \
-    --to="${FLAGS_output_dir}/vmlinuz.image" \
-    --hd_vblock="${FLAGS_output_dir}/vmlinuz_hd.vblock" \
-    --vmlinuz="${FLAGS_rootfs_mountpoint}/boot/vmlinuz" \
-    --working_dir="${FLAGS_output_dir}" \
-    --boot_args="${FLAGS_boot_args}" \
-    --keep_work \
-    --rootfs_image=${root_dev} \
-    --rootfs_hash=${FLAGS_rootfs_hash} \
-    --verity_hash_alg=${FLAGS_verity_algorithm} \
-    --verity_max_ios=${FLAGS_verity_max_ios} \
-    --verity_error_behavior=${FLAGS_verity_error_behavior} \
-    --verity_salt=${FLAGS_verity_salt} \
-    --keys_dir="${FLAGS_keys_dir}" \
-    --enable_serial="${FLAGS_enable_serial}" \
-    ${enable_rootfs_verification_flag} \
-    ${enable_bootcache_flag} \
-    ${use_dev_keys}
-
-  # Check the size of kernel image and issue warning when image size is
-  # near the limit.
-  local kernel_image_size=$(stat -c '%s' ${FLAGS_output_dir}/vmlinuz.image)
-  info "Kernel image size is ${kernel_image_size} bytes."
-  if [[ ${kernel_image_size} -gt $((16 * 1024 * 1024)) ]]; then
-    die "Kernel image is larger than 16 MB."
-  elif [[ ${kernel_image_size} -gt $((14 * 1024 * 1024)) ]]; then
-    warn "Kernel image is larger than 14 MB. Limit is 16 MB."
-  fi
-
-  local rootfs_hash_size=$(stat -c '%s' ${FLAGS_rootfs_hash})
-  local rootfs_fs_size=$(get_filesystem_size ${FLAGS_image_type} ${NUM_ROOTFS_A})
-  local rootfs_partition_size=$(get_partition_size ${FLAGS_image_type} ${NUM_ROOTFS_A})
-  local rootfs_hash_pad=$(( rootfs_partition_size - rootfs_fs_size ))
-  info "Appending rootfs.hash (${rootfs_hash_size} bytes) to the root fs"
-  if [[ ${rootfs_hash_size} -gt ${rootfs_hash_pad} ]]
-  then
-    die "rootfs_partition_size - rootfs_fs_size is less than the needed " \
-        "rootfs_hash_size (${rootfs_hash_size}), update your disk layout " \
-        "configuration"
-  fi
-  # Unfortunately, mount_gpt_image uses mount and not losetup to create the
-  # loop devices.  This means that they are not the correct size.  We have to
-  # write directly to the image to append the hash tree data.
-  local hash_offset="$(partoffset ${image} ${NUM_ROOTFS_A})"
-  if [ $FLAGS_enable_squashfs -eq $FLAGS_TRUE ]; then
-    rootfs_file_size=$(stat -c '%s' ${root_dev})
-    hash_offset=$((hash_offset + (${rootfs_file_size} / 512)))
-  else
-    hash_offset=$((hash_offset + (${rootfs_fs_size} / 512)))
-  fi
-  sudo dd bs=512 \
-          seek=${hash_offset} \
-          if="${FLAGS_rootfs_hash}" \
-          of="${image}" \
-          conv=notrunc \
-          status=none
-
-  # Move the verification block needed for the hard disk install to the
-  # stateful partition. Mount stateful fs, copy file, and umount fs.
-  # In original CL: http://codereview.chromium.org/2868044, this was done in
-  # create_base_image(). However, it could break the build if it is a clean
-  # build because vmlinuz_hd.vblock hasn't been created by build_kernel_image.sh
-  sudo cp "${FLAGS_output_dir}/vmlinuz_hd.vblock" \
-          "${FLAGS_statefulfs_mountpoint}"
-
   # We should update the esp in place in the image.
   local bootloader_to="${image}"
   local esp_offset="$(partoffset ${image} ${NUM_ESP})"
@@ -310,10 +234,6 @@ make_image_bootable() {
     --from="${FLAGS_rootfs_mountpoint}"/boot \
     --vmlinuz="${FLAGS_rootfs_mountpoint}"/boot/vmlinuz \
     ${bootloader_to_flags}
-
-  # We don't need to keep these files around anymore.
-  sudo rm "${FLAGS_rootfs_hash}" "${FLAGS_output_dir}/vmlinuz.image" \
-          "${FLAGS_output_dir}/vmlinuz_hd.vblock"
 
   trap - EXIT
   ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${FLAGS_rootfs_mountpoint}" \
@@ -350,7 +270,6 @@ command line parameters are correct"
 
 # Store output and temporary files next to image.
 FLAGS_output_dir="${IMAGE_DIR}"
-FLAGS_rootfs_hash="${IMAGE_DIR}/rootfs.hash"
 FLAGS_rootfs_mountpoint="${IMAGE_DIR}/rootfs_dir"
 FLAGS_statefulfs_mountpoint="${IMAGE_DIR}/stateful_dir"
 FLAGS_espfs_mountpoint="${IMAGE_DIR}/esp"
