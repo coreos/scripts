@@ -72,6 +72,10 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
   cat <<EOF | sudo dd of="${GRUB_DIR}/menu.lst.A" 2>/dev/null
 timeout         0
 
+title           CoreOS bootengine
+root            (hd0,0)
+kernel          /syslinux/vmlinuz-boot_kernel ${common_args} root=gptprio: cros_legacy
+
 title           CoreOS A
 root            (hd0,0)
 kernel          /syslinux/vmlinuz.A ${common_args} root=${ROOTA} cros_legacy
@@ -82,12 +86,8 @@ kernel          /syslinux/vmlinuz.B ${common_args} root=${ROOTB} cros_legacy
 EOF
   info "Emitted ${GRUB_DIR}/menu.lst.A"
 
-  cat <<EOF | sudo dd of="${GRUB_DIR}/menu.lst.B" 2>/dev/null
-default         1
-EOF
-  sudo sh -c "cat ${GRUB_DIR}/menu.lst.A >> ${GRUB_DIR}/menu.lst.B"
+  sudo cp ${GRUB_DIR}/menu.lst.A ${GRUB_DIR}/menu.lst.B
   info "Emitted ${GRUB_DIR}/menu.lst.B"
-
   sudo cp ${GRUB_DIR}/menu.lst.A ${GRUB_DIR}/menu.lst
 
   # /boot/syslinux must be installed in partition 12 as /syslinux/.
@@ -97,9 +97,9 @@ EOF
   cat <<EOF | sudo dd of="${SYSLINUX_DIR}/syslinux.cfg" 2>/dev/null
 PROMPT 0
 TIMEOUT 0
+DEFAULT boot_kernel
 
-# the actual target
-include /syslinux/default.cfg
+include /syslinux/boot_kernel.cfg
 
 # coreos.A
 include /syslinux/root.A.cfg
@@ -109,15 +109,16 @@ include /syslinux/root.B.cfg
 EOF
   info "Emitted ${SYSLINUX_DIR}/syslinux.cfg"
 
-  # To change the active target, only this file needs to change.
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/default.cfg" 2>/dev/null
-DEFAULT coreos.A
-EOF
-  info "Emitted ${SYSLINUX_DIR}/default.cfg"
-
   # Different files are used so that the updater can only touch the file it
   # needs to for a given change.  This will minimize any potential accidental
   # updates issues, hopefully.
+  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/boot_kernel.cfg" 2>/dev/null
+label boot_kernel
+  menu label boot_kernel
+  kernel vmlinuz-boot_kernel
+  append ${common_args} root=gptprio: cros_legacy
+EOF
+  info "Emitted ${SYSLINUX_DIR}/boot_kernel.cfg"
   cat <<EOF | sudo dd of="${SYSLINUX_DIR}/root.A.cfg" 2>/dev/null
 label coreos.A
   menu label coreos.A

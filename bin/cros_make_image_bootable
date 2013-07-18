@@ -232,6 +232,7 @@ make_image_bootable() {
     --arch=${FLAGS_arch} \
     --to="${bootloader_to}" \
     --from="${FLAGS_rootfs_mountpoint}"/boot \
+    --vmlinuz_boot_kernel="${FLAGS_rootfs_mountpoint}"/boot/vmlinuz-boot_kernel \
     --vmlinuz="${FLAGS_rootfs_mountpoint}"/boot/vmlinuz \
     ${bootloader_to_flags}
 
