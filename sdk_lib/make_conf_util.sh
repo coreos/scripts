@@ -87,7 +87,8 @@ _create_host_setup() {
     _make_conf_fetchcommand "$fetchtype"
     _make_conf_private "$fetchtype"
     _make_conf_prebuilt
-    echo 'MAKEOPTS="-j'${NUM_JOBS}'"' ) | sudo_clobber "$host_setup"
+    echo "MAKEOPTS='--jobs=${NUM_JOBS} --load-average=${NUM_JOBS}'"
+  ) | sudo_clobber "$host_setup"
   sudo chmod 644 "$host_setup"
 }
 
