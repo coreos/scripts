@@ -55,13 +55,6 @@ fi
 common_args="init=/sbin/init console=tty0 boot=local rootwait ro noresume"
 common_args="${common_args} noswap ${FLAGS_boot_args}"
 
-# Common verified boot command-line args
-verity_common="dm_verity.error_behavior=${FLAGS_verity_error_behavior}"
-verity_common="${verity_common} dm_verity.max_bios=${FLAGS_verity_max_ios}"
-# Ensure that dm-verity waits for its device.
-# TODO(wad) should add a timeout that display a useful message
-verity_common="${verity_common} dm_verity.dev_wait=${dev_wait}"
-
 # Populate the x86 rootfs to support legacy and EFI bios config templates.
 # The templates are used by the installer to populate partition 12 with
 # the correct bootloader configuration.
