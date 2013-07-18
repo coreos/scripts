@@ -32,6 +32,8 @@ DEFINE_integer to_size -1 \
   "Size in bytes of 'to' to use if it is a file. -1 is ignored. (Default: -1)"
 DEFINE_string vmlinuz "/tmp/vmlinuz" \
   "Path to the vmlinuz file to use (Default: /tmp/vmlinuz)"
+DEFINE_string vmlinuz_boot_kernel "/tmp/vmlinuz-boot_kernel" \
+  "Path to the vmlinuz-boot_kernel file to use (Default: /tmp/vmlinuz)"
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -96,13 +98,6 @@ trap cleanup EXIT
 sudo mount "${ESP_DEV}" "${ESP_FS_DIR}"
 
 if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
-  # Populate the EFI bootloader configuration
-  sudo mkdir -p "${ESP_FS_DIR}/efi/boot"
-  sudo cp "${FLAGS_from}"/efi/boot/bootx64.efi \
-          "${ESP_FS_DIR}/efi/boot/bootx64.efi"
-  sudo cp "${FLAGS_from}/efi/boot/grub.cfg" \
-          "${ESP_FS_DIR}/efi/boot/grub.cfg"
-
   # Copy over the grub configurations for cloud machines and the
   # kernel into both the A and B slot
   sudo mkdir -p "${ESP_FS_DIR}"/boot/grub
@@ -115,6 +110,7 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
   sudo cp -r "${FLAGS_from}"/syslinux/. "${ESP_FS_DIR}"/syslinux
 
   # Stage both kernels with the only one we built.
+  sudo cp -f "${FLAGS_vmlinuz_boot_kernel}" "${ESP_FS_DIR}"/syslinux/vmlinuz-boot_kernel
   sudo cp -f "${FLAGS_vmlinuz}" "${ESP_FS_DIR}"/syslinux/vmlinuz.A
   sudo cp -f "${FLAGS_vmlinuz}" "${ESP_FS_DIR}"/syslinux/vmlinuz.B
 

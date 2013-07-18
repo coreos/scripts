@@ -55,13 +55,6 @@ fi
 common_args="init=/sbin/init console=tty0 boot=local rootwait ro noresume"
 common_args="${common_args} noswap ${FLAGS_boot_args}"
 
-# Common verified boot command-line args
-verity_common="dm_verity.error_behavior=${FLAGS_verity_error_behavior}"
-verity_common="${verity_common} dm_verity.max_bios=${FLAGS_verity_max_ios}"
-# Ensure that dm-verity waits for its device.
-# TODO(wad) should add a timeout that display a useful message
-verity_common="${verity_common} dm_verity.dev_wait=${dev_wait}"
-
 # Populate the x86 rootfs to support legacy and EFI bios config templates.
 # The templates are used by the installer to populate partition 12 with
 # the correct bootloader configuration.
@@ -79,6 +72,10 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
   cat <<EOF | sudo dd of="${GRUB_DIR}/menu.lst.A" 2>/dev/null
 timeout         0
 
+title           CoreOS bootengine
+root            (hd0,0)
+kernel          /syslinux/vmlinuz-boot_kernel ${common_args} root=gptprio: cros_legacy
+
 title           CoreOS A
 root            (hd0,0)
 kernel          /syslinux/vmlinuz.A ${common_args} root=${ROOTA} cros_legacy
@@ -89,12 +86,8 @@ kernel          /syslinux/vmlinuz.B ${common_args} root=${ROOTB} cros_legacy
 EOF
   info "Emitted ${GRUB_DIR}/menu.lst.A"
 
-  cat <<EOF | sudo dd of="${GRUB_DIR}/menu.lst.B" 2>/dev/null
-default         1
-EOF
-  sudo sh -c "cat ${GRUB_DIR}/menu.lst.A >> ${GRUB_DIR}/menu.lst.B"
+  sudo cp ${GRUB_DIR}/menu.lst.A ${GRUB_DIR}/menu.lst.B
   info "Emitted ${GRUB_DIR}/menu.lst.B"
-
   sudo cp ${GRUB_DIR}/menu.lst.A ${GRUB_DIR}/menu.lst
 
   # /boot/syslinux must be installed in partition 12 as /syslinux/.
@@ -104,9 +97,9 @@ EOF
   cat <<EOF | sudo dd of="${SYSLINUX_DIR}/syslinux.cfg" 2>/dev/null
 PROMPT 0
 TIMEOUT 0
+DEFAULT boot_kernel
 
-# the actual target
-include /syslinux/default.cfg
+include /syslinux/boot_kernel.cfg
 
 # coreos.A
 include /syslinux/root.A.cfg
@@ -116,15 +109,16 @@ include /syslinux/root.B.cfg
 EOF
   info "Emitted ${SYSLINUX_DIR}/syslinux.cfg"
 
-  # To change the active target, only this file needs to change.
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/default.cfg" 2>/dev/null
-DEFAULT coreos.A
-EOF
-  info "Emitted ${SYSLINUX_DIR}/default.cfg"
-
   # Different files are used so that the updater can only touch the file it
   # needs to for a given change.  This will minimize any potential accidental
   # updates issues, hopefully.
+  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/boot_kernel.cfg" 2>/dev/null
+label boot_kernel
+  menu label boot_kernel
+  kernel vmlinuz-boot_kernel
+  append ${common_args} root=gptprio: cros_legacy
+EOF
+  info "Emitted ${SYSLINUX_DIR}/boot_kernel.cfg"
   cat <<EOF | sudo dd of="${SYSLINUX_DIR}/root.A.cfg" 2>/dev/null
 label coreos.A
   menu label coreos.A
@@ -141,63 +135,6 @@ label coreos.B
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.B.cfg"
 
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/README" 2>/dev/null
-Partition 12 contains the active bootloader configuration when
-booting from a non-Chrome OS BIOS.  EFI BIOSes use /efi/*
-and legacy BIOSes use this syslinux configuration.
-EOF
-  info "Emitted ${SYSLINUX_DIR}/README"
-
-  # To cover all of our bases, now populate templated boot support for efi.
-  sudo mkdir -p "${FLAGS_to}"/efi/boot
-
-  if [[ -f /bin/grub2-mkimage ]];then
-    # Use the newer grub2 1.99+
-    sudo grub2-mkimage -p /efi/boot -O x86_64-efi \
-     -o "${FLAGS_to}/efi/boot/bootx64.efi" \
-     part_gpt fat ext2 hfs hfsplus normal boot chain configfile linux
-  else
-    # Remove this else case after a few weeks (sometime in Dec 2011)
-    sudo grub-mkimage -p /efi/boot -o "${FLAGS_to}/efi/boot/bootx64.efi" \
-     part_gpt fat ext2 normal boot sh chain configfile linux
-  fi
-  # Templated variables:
-  #  DMTABLEA, DMTABLEB -> '0 xxxx verity ... '
-  # This should be replaced during postinst when updating the ESP.
-  cat <<EOF | sudo dd of="${FLAGS_to}/efi/boot/grub.cfg" 2>/dev/null
-set default=0
-set timeout=2
-
-# NOTE: These magic grub variables are a Chrome OS hack. They are not portable.
-
-menuentry "local image A" {
-  linux \$grubpartA/boot/vmlinuz ${common_args} i915.modeset=1 cros_efi root=/dev/\$linuxpartA
-}
-
-menuentry "local image B" {
-  linux \$grubpartB/boot/vmlinuz ${common_args} i915.modeset=1 cros_efi root=/dev/\$linuxpartB
-}
-
-menuentry "verified image A" {
-  linux \$grubpartA/boot/vmlinuz ${common_args} ${verity_common} \
-      i915.modeset=1 cros_efi root=${ROOTDEV} dm=\\"DMTABLEA\\"
-}
-
-menuentry "verified image B" {
-  linux \$grubpartB/boot/vmlinuz ${common_args} ${verity_common} \
-      i915.modeset=1 cros_efi root=${ROOTDEV} dm=\\"DMTABLEB\\"
-}
-
-# FIXME: usb doesn't support verified boot for now
-menuentry "Alternate USB Boot" {
-  linux (hd0,3)/boot/vmlinuz ${common_args} root=/dev/sdb3 i915.modeset=1 cros_efi
-}
-EOF
-  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-    sudo sed -i -e 's/^set default=.*/set default=2/' \
-       "${FLAGS_to}/efi/boot/grub.cfg"
-  fi
-  info "Emitted ${FLAGS_to}/efi/boot/grub.cfg"
   exit 0
 fi
 
