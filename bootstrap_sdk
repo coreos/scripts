@@ -36,17 +36,11 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 TYPE="coreos-sdk"
 ARCH=$(portageq envvar ARCH)
 DEFAULT_PROFILE="coreos:default/linux/${ARCH}/10.0"
-UPLOAD_ROOT="gs://storage.core-os.net/coreos/sdk/${ARCH}"
-UPLOAD_DEFAULT=${FLAGS_FALSE}
-if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
-    UPLOAD_DEFAULT=${FLAGS_TRUE}
-fi
 
 . "${SCRIPT_ROOT}/lib/catalyst.sh" || exit 1
 
-DEFINE_boolean parallel ${FLAGS_TRUE} "Enable parallelism in gsutil."
-DEFINE_boolean upload ${UPLOAD_DEFAULT} \
-    "Upload final tarball and all packages via gsutil."
+# include upload options
+. "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
 
 ## Define the stage4 config template
 catalyst_stage4() {
@@ -60,21 +54,7 @@ catalyst_stage_default
 }
 
 catalyst_init "$@"
-
-# Search for .boto, this runs under sudo so ~/.boto may not be right
-if [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]]; then
-    for boto in "$HOME/.boto" "/home/$SUDO_USER/.boto" /etc/boto.cfg; do
-        if [[ -f "$boto" ]]; then
-            info "Using boto config $boto"
-            export BOTO_CONFIG="$boto"
-            break
-        fi
-    done
-    if [[ ! -f "$BOTO_CONFIG" ]]; then
-        die_notrace "Please run gsutil config to create ~/.boto"
-    fi
-fi
-
+check_gsutil_opts
 catalyst_build
 
 info "Build complete! Changing output name to something more sensible."
@@ -100,21 +80,9 @@ done
 
 info "SDK ready: $BUILDS/${release_name}"
 
-GSUTIL_OPTS=
-if [[ ${FLAGS_parallel} -eq ${FLAGS_TRUE} ]]; then
-    GSUTIL_OPTS="-m"
-fi
-
-if [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]]; then
-    info "Uploading tarball"
-    gsutil ${GSUTIL_OPTS} cp \
-        "$BUILDS/${release_name}" \
-        "$BUILDS/${release_name}.CONTENTS" \
-        "$BUILDS/${release_name}.DIGESTS" \
-        "${UPLOAD_ROOT}/${FLAGS_version}/"
-    info "Uploading packages"
-    gsutil ${GSUTIL_OPTS} cp -R "${BINPKGS}"/* \
-        "${UPLOAD_ROOT}/${FLAGS_version}/pkgs/"
-fi
+def_upload_path="${UPLOAD_ROOT}/coreos/sdk/${ARCH}/${FLAGS_version}"
+upload_files "tarball" "${def_upload_path}" "" "$BUILDS/${release_name}" \
+    "$BUILDS/${release_name}.CONTENTS" "$BUILDS/${release_name}.DIGESTS"
+upload_files "packages" "${def_upload_path}" "pkgs/" "${BINPKGS}"/*
 
 command_completed
