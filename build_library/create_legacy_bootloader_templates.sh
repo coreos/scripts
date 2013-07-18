@@ -134,63 +134,6 @@ label coreos.B
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.B.cfg"
 
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/README" 2>/dev/null
-Partition 12 contains the active bootloader configuration when
-booting from a non-Chrome OS BIOS.  EFI BIOSes use /efi/*
-and legacy BIOSes use this syslinux configuration.
-EOF
-  info "Emitted ${SYSLINUX_DIR}/README"
-
-  # To cover all of our bases, now populate templated boot support for efi.
-  sudo mkdir -p "${FLAGS_to}"/efi/boot
-
-  if [[ -f /bin/grub2-mkimage ]];then
-    # Use the newer grub2 1.99+
-    sudo grub2-mkimage -p /efi/boot -O x86_64-efi \
-     -o "${FLAGS_to}/efi/boot/bootx64.efi" \
-     part_gpt fat ext2 hfs hfsplus normal boot chain configfile linux
-  else
-    # Remove this else case after a few weeks (sometime in Dec 2011)
-    sudo grub-mkimage -p /efi/boot -o "${FLAGS_to}/efi/boot/bootx64.efi" \
-     part_gpt fat ext2 normal boot sh chain configfile linux
-  fi
-  # Templated variables:
-  #  DMTABLEA, DMTABLEB -> '0 xxxx verity ... '
-  # This should be replaced during postinst when updating the ESP.
-  cat <<EOF | sudo dd of="${FLAGS_to}/efi/boot/grub.cfg" 2>/dev/null
-set default=0
-set timeout=2
-
-# NOTE: These magic grub variables are a Chrome OS hack. They are not portable.
-
-menuentry "local image A" {
-  linux \$grubpartA/boot/vmlinuz ${common_args} i915.modeset=1 cros_efi root=/dev/\$linuxpartA
-}
-
-menuentry "local image B" {
-  linux \$grubpartB/boot/vmlinuz ${common_args} i915.modeset=1 cros_efi root=/dev/\$linuxpartB
-}
-
-menuentry "verified image A" {
-  linux \$grubpartA/boot/vmlinuz ${common_args} ${verity_common} \
-      i915.modeset=1 cros_efi root=${ROOTDEV} dm=\\"DMTABLEA\\"
-}
-
-menuentry "verified image B" {
-  linux \$grubpartB/boot/vmlinuz ${common_args} ${verity_common} \
-      i915.modeset=1 cros_efi root=${ROOTDEV} dm=\\"DMTABLEB\\"
-}
-
-# FIXME: usb doesn't support verified boot for now
-menuentry "Alternate USB Boot" {
-  linux (hd0,3)/boot/vmlinuz ${common_args} root=/dev/sdb3 i915.modeset=1 cros_efi
-}
-EOF
-  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-    sudo sed -i -e 's/^set default=.*/set default=2/' \
-       "${FLAGS_to}/efi/boot/grub.cfg"
-  fi
-  info "Emitted ${FLAGS_to}/efi/boot/grub.cfg"
   exit 0
 fi
 
