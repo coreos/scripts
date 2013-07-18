@@ -80,7 +80,7 @@ done
 
 info "SDK ready: $BUILDS/${release_name}"
 
-def_upload_path="${UPLOAD_ROOT}/coreos/sdk/${ARCH}/${FLAGS_version}"
+def_upload_path="${UPLOAD_ROOT}/sdk/${ARCH}/${FLAGS_version}"
 upload_files "tarball" "${def_upload_path}" "" "$BUILDS/${release_name}" \
     "$BUILDS/${release_name}.CONTENTS" "$BUILDS/${release_name}.DIGESTS"
 upload_files "packages" "${def_upload_path}" "pkgs/" "${BINPKGS}"/*
