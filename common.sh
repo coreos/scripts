@@ -690,6 +690,15 @@ safe_umount() {
   fi
 }
 
+# Check if a single path is mounted.
+is_mounted() {
+  if grep -q "$(readlink -f "$1")" /proc/self/mounts; then
+    return 0
+  else
+    return 1
+  fi
+}
+
 get_git_id() {
   git var GIT_COMMITTER_IDENT | sed -e 's/^.*<\(\S\+\)>.*$/\1/'
 }

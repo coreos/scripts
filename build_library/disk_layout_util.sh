@@ -61,7 +61,9 @@ run_partition_script() {
     ;;
   esac
 
-  safe_umount "${root_fs_dir}"
+  if is_mounted "${root_fs_dir}"; then
+    safe_umount "${root_fs_dir}"
+  fi
   sudo mount -o loop "${root_fs_img}" "${root_fs_dir}"
   . "${root_fs_dir}/${PARTITION_SCRIPT_PATH}"
   write_partition_table "${outdev}" "${pmbr_img}"
