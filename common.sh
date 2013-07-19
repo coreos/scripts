@@ -643,7 +643,7 @@ sub_mounts() {
   # will).  As such, we have to unmount in reverse order to cleanly
   # unmount submounts (think /dev/pts and /dev).
   awk -v path=$1 -v len="${#1}" \
-    '(substr($2, 1, len) == path) { print $2 }' /proc/mounts | \
+    '(substr($2, 1, len) == path) { print $2 }' /proc/self/mounts | \
     tac | \
     sed -e 's/\\040(deleted)$//'
   # Hack(zbehan): If a bind mount's source is mysteriously removed,
@@ -663,9 +663,9 @@ safe_umount_tree() {
     return 0
   fi
 
-  # First try to unmount in one shot to speed things up.
-  if safe_umount -d ${mounts}; then
-    return 0
+  # First try to unmount, this might fail because of nested binds.
+  if sudo umount -d ${mounts}; then
+    return 0;
   fi
 
   # Check whether our mounts were successfully unmounted.
@@ -675,45 +675,28 @@ safe_umount_tree() {
     return 0
   fi
 
-  # Well that didn't work, so lazy unmount remaining ones.
+  # Try one more time, this one will die hard if it fails.
   warn "Failed to unmount ${mounts}"
-  warn "Doing a lazy unmount"
-  if ! safe_umount -d -l ${mounts}; then
-    mounts=$(sub_mounts "$1")
-    die "Failed to lazily unmount ${mounts}"
-  fi
+  safe_umount -d ${mounts}
 }
 
 
 # Run umount as root.
 safe_umount() {
-  local ret=0
-  local out=""
-  set +e
-  for i in $(seq 1 4); do
-    out=`$([[ ${UID:-$(id -u)} != 0 ]] && echo sudo) umount "$@" 2>&1`
-    ret=$?
-    if [[ $ret -eq 0 ]]; then
-      set -e
-      return 0
-    fi
-    # Mount is not found
-    if [[ `expr index "${out}" "not found"` -ne "0" ]]; then
-      set -e
-      return 0
-    fi
-    # Mount is not mounted.
-    if [[ `expr index "${out}" "not mounted"` -ne "0" ]]; then
-      set -e
-      return 0
-    fi
-    sleep 1
-    # Mount is actually busy.
-    if [[ `expr index "${out}" "busy"` -ne "0" ]]; then
-      continue
-    fi
-  done
-  return $ret
+  if sudo umount "$@"; then
+    return 0;
+  else
+    failboat safe_umount
+  fi
+}
+
+# Check if a single path is mounted.
+is_mounted() {
+  if grep -q "$(readlink -f "$1")" /proc/self/mounts; then
+    return 0
+  else
+    return 1
+  fi
 }
 
 get_git_id() {
@@ -1162,9 +1145,9 @@ okboat() {
     .  o ..
     o . o o.o
          ...oo_
-           _[__\___
-        __|_o_o_o_o\__
-    OK  \' ' ' ' ' ' /
+           _[__\\___
+        __|_o_o_o_o\\__
+    OK  \\' ' ' ' ' ' /
     ^^^^^^^^^^^^^^^^^^^^
 BOAT
   echo -e "${V_VIDOFF}"
@@ -1176,10 +1159,10 @@ failboat() {
              '
         '    )
          ) (
-        ( .')  __/\
-          (.  /o/` \
-           __/o/`   \
-    FAIL  / /o/`    /
+        ( .')  __/\\
+          (.  /o/\` \\
+           __/o/\`   \\
+    FAIL  / /o/\`    /
     ^^^^^^^^^^^^^^^^^^^^
 BOAT
   echo -e "${V_VIDOFF}"
