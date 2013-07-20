@@ -240,12 +240,13 @@ make_image_bootable() {
   esp_size=$((esp_size * 512))  # sectors to bytes
   local bootloader_to_flags="--to_offset=${esp_offset} --to_size=${esp_size}"
 
-  # Update partition 12
+  # Update ESP partition
+  # NOTE: Boot kernel is identical to regular kernel for now
   ${SCRIPTS_DIR}/update_bootloaders.sh \
     --arch=${FLAGS_arch} \
     --to="${bootloader_to}" \
     --from="${FLAGS_rootfs_mountpoint}"/boot \
-    --vmlinuz_boot_kernel="${FLAGS_rootfs_mountpoint}"/boot/vmlinuz-boot_kernel \
+    --vmlinuz_boot_kernel="${FLAGS_rootfs_mountpoint}"/boot/vmlinuz \
     --vmlinuz="${FLAGS_rootfs_mountpoint}"/boot/vmlinuz \
     ${bootloader_to_flags}
 
