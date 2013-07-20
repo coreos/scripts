@@ -107,6 +107,9 @@ DEFINE_string verity_salt "" \
 DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
   "Directory containing the signing keys."
 
+DEFINE_string au_key "" \
+  "Filename of the au_key to install"
+
 DEFINE_string rootfs_mountpoint "/tmp/rootfs" \
   "Path where the rootfs can be safely mounted"
 DEFINE_string statefulfs_mountpoint "/tmp/statefulfs" \
@@ -181,6 +184,16 @@ make_image_bootable() {
     -s "${FLAGS_statefulfs_mountpoint}"
 
   legacy_offset_size_export ${image}
+
+
+  # Install an auto update key on the root before sealing it off
+  if [ ! -z "${FLAGS_au_key}" ]; then
+    local key_location=${FLAGS_rootfs_mountpoint}"/usr/share/update_engine/"
+    sudo cp "${FLAGS_au_key}" "$key_location/update-payload-key.pub.pem"
+    sudo chown root:root "$key_location/update-payload-key.pub.pem"
+    sudo chmod 644 "$key_location/update-payload-key.pub.pem"
+    echo "AU verification key was installed. Do not forget to resign the image!"
+  fi
 
   # The rootfs should never be mounted rw again after this point without
   # re-calling make_image_bootable.
