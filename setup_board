@@ -319,9 +319,8 @@ if ! ${HOST_BOARD}; then
 fi
 # Setup make.globals and the profile.
 cmds=(
-  "touch /etc/make.conf.user"
-  "ln -sf /etc/make.globals '${BOARD_ROOT}/etc/make.globals'"
-  "ln -sf /etc/make.conf.user '${BOARD_ROOT}/etc/make.conf.user'"
+  "touch /etc/portage/make.conf.user"
+  "ln -sf /etc/portage/make.conf.user '${BOARD_ROOT}/etc/make.conf.user'"
   "mkdir -p '${BOARD_ROOT}/etc/portage/hooks'"
 )
 for d in "${SCRIPTS_DIR}"/hooks/*; do
