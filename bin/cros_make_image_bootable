@@ -79,8 +79,8 @@ DEFINE_string image_type "base" \
   "Type of image we're building for (base/factory_install)."
 DEFINE_string output_dir "/tmp" \
   "Directory to place output in."
-DEFINE_string image "chromiumos_base.img" \
-  "Full path to the chromiumos image to make bootable."
+DEFINE_string image "coreos_base.img" \
+  "Full path to the coreos image to make bootable."
 DEFINE_string arch "x86" \
   "Architecture to make bootable for: arm, x86, or amd64"
 DEFINE_boolean cleanup_dirs ${FLAGS_TRUE} \
