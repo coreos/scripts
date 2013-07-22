@@ -172,6 +172,7 @@ if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
   ${SCRIPTS_DIR}/bin/cros_make_image_bootable \
     "${BUILD_DIR}" \
      ${COREOS_PRODUCTION_IMAGE_NAME} \
+    --official_lsb_release \
     --au_key=${SRC_ROOT}/third_party/coreos-overlay/coreos-base/coreos-au-key/files/update-payload-key.pub.pem
 
   upload_image "${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"
