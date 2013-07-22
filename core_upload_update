@@ -32,7 +32,7 @@ Setting everything up for use\n
 1) Run 'gsutil config' and use project id coreos.com:core-update-storage\n
 2) Ensure core-admin is installed, it is a recent addition\n
 
-NOTE: Use the chromiumos_image.bin not a qemu/xen/etc image for generating the
+NOTE: Use the coreos_image.bin not a qemu/xen/etc image for generating the
 update.
 "
 

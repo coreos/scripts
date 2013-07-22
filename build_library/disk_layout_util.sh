@@ -153,7 +153,7 @@ emit_gpt_scripts() {
 TARGET=\${1:-}
 if [[ -z \${TARGET} ]]; then
   echo "Usage: \$0 <image>" 1>&2
-  echo "Example: \$0 chromiumos_image.bin" 1>&2
+  echo "Example: \$0 coreos_image.bin" 1>&2
   exit 1
 fi
 set -x

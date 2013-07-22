@@ -36,7 +36,7 @@ assert_inside_chroot
 
 locate_gpt
 
-DEFINE_string from "chromiumos_image.bin" \
+DEFINE_string from "coreos_image.bin" \
   "Input file name of Chrome OS image to re-sign."
 DEFINE_string datakey "" \
   "Private Kernel Data Key (.vbprivk) to use for re-signing."
