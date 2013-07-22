@@ -189,6 +189,7 @@ make_image_bootable() {
   # Install an auto update key on the root before sealing it off
   if [ ! -z "${FLAGS_au_key}" ]; then
     local key_location=${FLAGS_rootfs_mountpoint}"/usr/share/update_engine/"
+    sudo mkdir -p "${key_location}"
     sudo cp "${FLAGS_au_key}" "$key_location/update-payload-key.pub.pem"
     sudo chown root:root "$key_location/update-payload-key.pub.pem"
     sudo chmod 644 "$key_location/update-payload-key.pub.pem"
