@@ -35,8 +35,8 @@ from dev import autoupdate_lib
 
 
 # This is the default filename within the image directory to load updates from
-DEFAULT_IMAGE_NAME = 'chromiumos_image.bin'
-DEFAULT_IMAGE_NAME_TEST = 'chromiumos_test_image.bin'
+DEFAULT_IMAGE_NAME = 'coreos_image.bin'
+DEFAULT_IMAGE_NAME_TEST = 'coreos_test_image.bin'
 
 # The filenames we provide to clients to pull updates
 UPDATE_FILENAME = 'update.gz'

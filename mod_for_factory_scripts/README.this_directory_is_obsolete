@@ -1,3 +1,0 @@
-Please do not add new files to this directory.  Instead, use:
-
-src/third_party/chromiumos-overlay/chromeos-base/factorytest-init/factorytest-init-9999.ebuild

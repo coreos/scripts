@@ -237,7 +237,7 @@ init_setup () {
    # Add chromite/bin and depot_tools into the path globally; note that the
    # chromite wrapper itself might also be found in depot_tools.
    # We rely on 'env-update' getting called below.
-   target="${FLAGS_chroot}/etc/env.d/99chromiumos"
+   target="${FLAGS_chroot}/etc/env.d/99coreos"
    cat <<EOF > "${target}"
 PATH=${CHROOT_TRUNK_DIR}/chromite/bin:${DEPOT_TOOLS_DIR}
 CROS_WORKON_SRCROOT="${CHROOT_TRUNK_DIR}"
@@ -265,7 +265,7 @@ EOF
 
    target="${FLAGS_chroot}/etc/profile.d"
    mkdir -p "${target}"
-   cat << EOF > "${target}/chromiumos-niceties.sh"
+   cat << EOF > "${target}/coreos-niceties.sh"
 # Niceties for interactive logins. (cr) denotes this is a chroot, the
 # __git_branch_ps1 prints current git branch in ./ . The $r behavior is to
 # make sure we don't reset the previous $? value which later formats in

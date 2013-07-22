@@ -399,11 +399,11 @@ DEFAULT_FAST=${FLAGS_TRUE}
 BUILD_DIR=
 
 # Standard filenames
-CHROMEOS_BASE_IMAGE_NAME="chromiumos_base_image.bin"
-CHROMEOS_IMAGE_NAME="chromiumos_image.bin"
-CHROMEOS_DEVELOPER_IMAGE_NAME="chromiumos_image.bin"
+CHROMEOS_BASE_IMAGE_NAME="coreos_base_image.bin"
+CHROMEOS_IMAGE_NAME="coreos_image.bin"
+CHROMEOS_DEVELOPER_IMAGE_NAME="coreos_image.bin"
 CHROMEOS_RECOVERY_IMAGE_NAME="recovery_image.bin"
-CHROMEOS_TEST_IMAGE_NAME="chromiumos_test_image.bin"
+CHROMEOS_TEST_IMAGE_NAME="coreos_test_image.bin"
 
 COREOS_BASE_IMAGE_NAME=${CHROMEOS_BASE_IMAGE_NAME}
 COREOS_IMAGE_NAME=${CHROMEOS_IMAGE_NAME}
