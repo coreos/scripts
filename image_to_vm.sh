@@ -151,18 +151,11 @@ sudo mount -o loop ${TEMP_OEM} ${TEMP_OEM_MNT}
 
 # oem hacks
 if [ "${FLAGS_format}" == "ami" ]; then
-	echo ami
-	emerge_to_image --root="${TEMP_OEM_MNT}" oem-ami
-	# sudo rm -rf, how could this go wrong?
-	# TODO: figure out how to keep portage from putting these
+	# TODO(polvi): figure out how to keep portage from putting these
 	# portage files on disk, we don't need or want them.
-	sudo rm -rvf ${TEMP_OEM_MNT}/var
-	sudo rm -rvf ${TEMP_OEM_MNT}/etc
-	sudo rm -rvf ${TEMP_OEM_MNT}/tmp
-	if [ ! -e ${TEMP_OEM_MNT}/run.sh ]; then
-		echo "ERROR: requires oem/run.sh for oem partition to work" 1>&2
-		exit 1
-	fi
+	emerge-${BOARD} --root="${TEMP_OEM_MNT}" --root-deps=rdeps oem-ami
+elif [ "${FLAGS_format}" == "rackspace" ]; then
+	emerge-${BOARD} --root="${TEMP_OEM_MNT}" --root-deps=rdeps oem-rackspace
 fi
 
 sudo umount ${TEMP_OEM_MNT}
@@ -215,6 +208,8 @@ Y
 Y
 EOF
   mv ${TEMP_IMG} ${FLAGS_to}/${DEFAULT_QEMU_IMAGE/qemu/ami}
+elif [ "${FLAGS_format}" = "rackspace" ]; then
+  mv ${TEMP_IMG} ${FLAGS_to}/${DEFAULT_QEMU_IMAGE/qemu/rackspace}
 else
   die_notrace "Invalid format: ${FLAGS_format}"
 fi
