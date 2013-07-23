@@ -242,6 +242,12 @@ setup_env() {
 
     debug "Mounting chroot environment."
     MOUNT_CACHE=$(echo $(awk '{print $2}' /proc/mounts))
+
+    # The cros_sdk script created a new filesystem namespace but the system
+    # default (namely on systemd hosts) may be for everything to be shared.
+    # Using 'slave' means we see global changes but cannot change global state.
+    mount --make-rslave /
+
     setup_mount none "-t proc" /proc
     setup_mount none "-t sysfs" /sys
     setup_mount /dev "--bind" /dev
