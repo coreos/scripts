@@ -310,18 +310,11 @@ EOF
 if ! ${HOST_BOARD}; then
   sudo ln -sf "${CHROMIUMOS_CONFIG}/make.conf.${ARCH}-target" \
     "${BOARD_ETC}/make.conf"
-
-  # We install the toolchain related bits after the BOARD_ROOT, BOARD_PROFILE
-  # and BOARD_ETC directories have been created.
-  if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
-    install_toolchain
-  fi
 fi
 # Setup make.globals and the profile.
 cmds=(
-  "touch /etc/make.conf.user"
-  "ln -sf /etc/make.globals '${BOARD_ROOT}/etc/make.globals'"
-  "ln -sf /etc/make.conf.user '${BOARD_ROOT}/etc/make.conf.user'"
+  "touch /etc/portage/make.conf.user"
+  "ln -sf /etc/portage/make.conf.user '${BOARD_ROOT}/etc/make.conf.user'"
   "mkdir -p '${BOARD_ROOT}/etc/portage/hooks'"
 )
 for d in "${SCRIPTS_DIR}"/hooks/*; do
@@ -400,6 +393,14 @@ if ${HOST_BOARD}; then
       sed -i -e "s|$BOARD_ROOT/|/|g"
 else
   if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
+    # First thing first, install baselayout with USE=build to create a
+    # working directory tree. Don't use binpkgs due to the use flag change.
+    sudo -E USE=build "${EMERGE_WRAPPER}" --usepkg=n --buildpkg=n \
+        --oneshot --quiet --nodeps sys-apps/baselayout
+
+    # Now time for tool chain happy fun time
+    install_toolchain
+
     # Emerge the kernel headers into the board build root.  Use rdeps to
     # avoid pulling any spurious DEPEND things in that we don't care about.
     KERNEL_EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
