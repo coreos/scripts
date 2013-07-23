@@ -52,7 +52,7 @@ if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
 fi
 
 # Common kernel command-line args
-common_args="init=/sbin/init console=tty0 boot=local rootwait ro noresume"
+common_args="console=tty0 rootwait ro"
 common_args="${common_args} noswap ${FLAGS_boot_args}"
 
 # Populate the x86 rootfs to support legacy and EFI bios config templates.
