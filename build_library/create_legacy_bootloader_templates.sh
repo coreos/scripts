@@ -69,28 +69,31 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
   GRUB_DIR="${FLAGS_to}/boot/grub"
   sudo mkdir -p "${GRUB_DIR}"
 
+  # Add hvc0 for hypervisors
+  grub_args="${common_args} console=hvc0"
+
   cat <<EOF | sudo dd of="${GRUB_DIR}/menu.lst.A" 2>/dev/null
 timeout         0
 
 title           CoreOS A Kernel
 root            (hd0,0)
-kernel          /syslinux/vmlinuz.A ${common_args} root=gptprio: cros_legacy
+kernel          /syslinux/vmlinuz.A ${grub_args} root=gptprio: cros_legacy
 
 title           CoreOS B Kernel
 root            (hd0,0)
-kernel          /syslinux/vmlinuz.B ${common_args} root=gptprio: cros_legacy
+kernel          /syslinux/vmlinuz.B ${grub_args} root=gptprio: cros_legacy
 
 title           CoreOS bootengine
 root            (hd0,0)
-kernel          /syslinux/vmlinuz-boot_kernel ${common_args} root=gptprio: cros_legacy
+kernel          /syslinux/vmlinuz-boot_kernel ${grub_args} root=gptprio: cros_legacy
 
 title           CoreOS A Root Rescue
 root            (hd0,0)
-kernel          /syslinux/vmlinuz.A ${common_args} root=${ROOTA} cros_legacy
+kernel          /syslinux/vmlinuz.A ${grub_args} root=${ROOTA} cros_legacy
 
 title           CoreOS B Root Rescue
 root            (hd0,0)
-kernel          /syslinux/vmlinuz.B ${common_args} root=${ROOTB} cros_legacy
+kernel          /syslinux/vmlinuz.B ${grub_args} root=${ROOTB} cros_legacy
 EOF
   info "Emitted ${GRUB_DIR}/menu.lst.A"
 
