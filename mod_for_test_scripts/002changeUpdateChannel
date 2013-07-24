@@ -9,4 +9,4 @@
 
 echo "Modifying Release Track for Test (testimage-channel)."
 FILE="${ROOT_FS_DIR}/etc/lsb-release"
-sed -i 's/^\(CHROMEOS_RELEASE_TRACK=\).*/\1testimage-channel/' $FILE
+sed -i 's/^\(COREOS_RELEASE_TRACK=\).*/\1testimage-channel/' $FILE

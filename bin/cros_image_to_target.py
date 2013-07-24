@@ -600,7 +600,7 @@ def main(argv):
     rel = cros_env.GetRemoteRelease()
     if not rel:
       cros_env.Fatal('Could not retrieve remote lsb-release')
-    board = rel.get('CHROMEOS_RELEASE_BOARD', '(None)')
+    board = rel.get('COREOS_RELEASE_BOARD', '(None)')
     if not options.board:
       options.board = board
     elif board != options.board and not options.force_mismatch:
