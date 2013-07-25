@@ -202,9 +202,9 @@ install_oem_package() {
     mkdir -p "${oem_mnt}"
     sudo mount -o loop "${TEMP_OEM}" "${oem_mnt}"
 
-	# TODO(polvi): figure out how to keep portage from putting these
-	# portage files on disk, we don't need or want them.
-	emerge-${BOARD} --root="${oem_mnt}" --root-deps=rdeps "${oem_pkg}"
+    # TODO(polvi): figure out how to keep portage from putting these
+    # portage files on disk, we don't need or want them.
+    emerge-${BOARD} --root="${oem_mnt}" --root-deps=rdeps "${oem_pkg}"
 
     sudo umount "${oem_mnt}"
     rm -rf "${oem_mnt}"
