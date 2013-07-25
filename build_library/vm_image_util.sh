@@ -296,7 +296,7 @@ _write_qemu_conf() {
 [drive]
     media = "disk"
     index = "0"
-    #if = "virtio"
+#   if = "virtio"
     file = "${dst_name}"
     format = "raw"
 
