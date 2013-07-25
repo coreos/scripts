@@ -977,6 +977,13 @@ reinterpret_path_for_chroot() {
   fi
 }
 
+# Get the relative path between two locations. Handy for printing paths to
+# the user that will usually make sense both inside and outside the chroot.
+relpath() {
+  local py='import sys, os; print os.path.relpath(sys.argv[1], sys.argv[2])'
+  python2 -c "${py}" "${1}" "${2:-.}"
+}
+
 emerge_custom_kernel() {
   local install_root=$1
   local root=/build/${FLAGS_board}
