@@ -110,8 +110,8 @@ DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
 DEFINE_string au_key "" \
   "Filename of the au_key to install"
 
-DEFINE_boolean official_lsb_release ${FLAGS_FALSE} \
-  "Install the official lsb-release"
+DEFINE_string production_track "" \
+    "Use production values and a given track for update service."
 
 DEFINE_string rootfs_mountpoint "/tmp/rootfs" \
   "Path where the rootfs can be safely mounted"
@@ -188,9 +188,10 @@ make_image_bootable() {
 
   legacy_offset_size_export ${image}
 
-  if [ ${FLAGS_official_lsb_release} -eq ${FLAGS_TRUE} ]; then
-    # Set /etc/lsb-release on the image.
-    COREOS_OFFICIAL=1 "${BUILD_LIBRARY_DIR}/set_lsb_release" \
+  if [ -n "${FLAGS_production_track}" ]; then
+    # Replace /etc/lsb-release on the image.
+    "${BUILD_LIBRARY_DIR}/set_lsb_release" \
+      --production_track="${FLAGS_production_track}" \
       --root="${FLAGS_rootfs_mountpoint}" \
       --board="${BOARD}"
   fi
