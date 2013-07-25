@@ -2,6 +2,8 @@
 #
 # This expects to run on an EC2 instance.
 #
+# mad props to Eric Hammond for the initial script
+#  https://github.com/alestic/alestic-hardy-ebs/blob/master/bin/alestic-hardy-ebs-build-ami
 
 # AKI ids from:
 #  http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/UserProvidedkernels.html
@@ -84,7 +86,7 @@ fi
 
 # if it is on the local fs, just use it, otherwise try to download it
 if [ -e "$binurl" ]; then
-	bzcat $binurl | dd of=$dev bs=128M
+	bunzip2 -c $binurl | dd of=$dev bs=128M
 else
 	curl -s $binurl | bunzip2 | dd of=$dev bs=128M
 fi
@@ -103,8 +105,7 @@ amiid=$(ec2-register                                  \
   --architecture "$arch"                              \
   --kernel "$akiid"                                   \
   --block-device-mapping /dev/sda=$snapshotid::true   \
-  --block-device-mapping $ephemeraldev=ephemeral0     \
-  --snapshot "$snapshotid" |
+  --block-device-mapping $ephemeraldev=ephemeral0     |
   cut -f2)
 
 ec2-delete-volume "$volumeid"
