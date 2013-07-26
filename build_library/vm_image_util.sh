@@ -26,6 +26,9 @@ VM_README=
 VM_NAME=
 VM_UUID=
 
+# Contains a list of all generated files
+VM_GENERATED_FILES=()
+
 ## DEFAULT
 # If set to 1 use a hybrid GPT/MBR format instead of plain GPT
 IMG_DEFAULT_HYBRID_MBR=0
@@ -228,8 +231,9 @@ write_vm_disk() {
     fi
 
     local disk_format=$(_get_vm_opt DISK_FORMAT)
-    info "Writing $disk_format image to $(relpath "${VM_DST_IMG}")"
+    info "Writing $disk_format image $(basename "${VM_DST_IMG}")"
     _write_${disk_format}_disk "${VM_TMP_IMG}" "${VM_DST_IMG}"
+    VM_GENERATED_FILES+=( "${VM_DST_IMG}" )
 }
 
 _write_hybrid_mbr() {
@@ -319,6 +323,8 @@ qemu-system-x86_64 -curses -m ${vm_mem} -readconfig "${conf_path##*/}"
 SSH into that host with:
 ssh 127.0.0.1 -p 2222
 EOF
+
+    VM_GENERATED_FILES+=( "${conf_path}" "${VM_README}" )
 }
 
 # Generate the vmware config file
@@ -346,6 +352,7 @@ guestOS = "otherlinux"
 ethernet0.addressType = "generated"
 floppy0.present = "FALSE""
 EOF
+    VM_GENERATED_FILES+=( "${vmx_path}" )
 }
 
 # Generate a new-style (xl) Xen config file for both pvgrub and pygrub
@@ -393,6 +400,7 @@ xl console ${VM_NAME}
 Kill the vm with:
 xl destroy ${VM_NAME}
 EOF
+    VM_GENERATED_FILES+=( "${pygrub}" "${pvgrub}" "${VM_README}" )
 }
 
 vm_cleanup() {
@@ -401,6 +409,12 @@ vm_cleanup() {
 }
 
 print_readme() {
+    local filename
+    info "Files written to $(relpath "$(dirname "${VM_DST_IMG}")")"
+    for filename in "${VM_GENERATED_FILES[@]}"; do
+        info " - $(basename "${filename}")"
+    done
+
     if [[ -f "${VM_README}" ]]; then
         cat "${VM_README}"
     fi

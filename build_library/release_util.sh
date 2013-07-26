@@ -85,40 +85,50 @@ upload_packages() {
 
 make_digests() {
     local dirname=$(dirname "$1")
-    local filename=$(basename "$1")
+    local basename=$(basename "$1")
+
     cd "${dirname}"
-    info "Computing DIGESTS for ${filename}"
-    echo -n > "${filename}.DIGESTS"
-    for hash in md5 sha1 sha512; do
-        echo "# $hash HASH" | tr "a-z" "A-Z" >> "${filename}.DIGESTS"
-        ${hash}sum "${filename}" >> "${filename}.DIGESTS"
+    echo -n > "${basename}.DIGESTS"
+    for filename in "$@"; do
+        filename=$(basename "$filename")
+        info "Computing DIGESTS for ${filename}"
+        for hash in md5 sha1 sha512; do
+            echo "# $hash HASH" | tr "a-z" "A-Z" >> "${basename}.DIGESTS"
+            ${hash}sum "${filename}" >> "${basename}.DIGESTS"
+        done
     done
     cd -
 }
 
+# Upload a image along with optional supporting files
+# The image file must be the first argument
 upload_image() {
     [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]] || return 0
     [[ -n "${BOARD}" ]] || die "board_options.sh must be sourced first"
 
-    local BUILT_IMAGE="$1"
+    local uploads=()
+    local filename
+    for filename in "$@"; do
+        if [[ ! -f "${filename}" ]]; then
+            die "File '${filename}' does not exist!"
+        fi
 
-    if [[ ! -f "${BUILT_IMAGE}" ]]; then
-        die "Image '${BUILT_IMAGE}' does not exist!"
-    fi
-
-    # Compress raw images
-    if [[ "${BUILT_IMAGE}" =~ \.(img|bin)$ ]]; then
-        info "Compressing ${BUILT_IMAGE##*/}"
-        $IMAGE_ZIPPER "${BUILT_IMAGE}"
-        BUILT_IMAGE="${BUILT_IMAGE}${IMAGE_ZIPEXT}"
-    fi
+        # Compress disk images
+        if [[ "${filename}" =~ \.(img|bin|vdi|vmdk)$ ]]; then
+            info "Compressing ${filename##*/}"
+            $IMAGE_ZIPPER -f "${filename}"
+            uploads+=( "${filename}${IMAGE_ZIPEXT}" )
+        else
+            uploads+=( "${filename}" )
+        fi
+    done
 
     # For consistency generate a .DIGESTS file similar to the one catalyst
     # produces for the SDK tarballs and up upload it too.
-    make_digests "${BUILT_IMAGE}"
+    make_digests "${uploads[@]}"
+    uploads+=( "${uploads[0]}.DIGESTS" )
 
-    local log_msg="${BUILT_IMAGE##*/}"
+    local log_msg="${1##*/}"
     local def_upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
-    upload_files "${log_msg}" "${def_upload_path}" "" \
-        "${BUILT_IMAGE}" "${BUILT_IMAGE}.DIGESTS"
+    upload_files "${log_msg}" "${def_upload_path}" "" "${uploads[@]}"
 }
