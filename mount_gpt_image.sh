@@ -179,15 +179,15 @@ mount_image() {
   fi
 
   # Mount directories and setup symlinks.
-  sudo mount --bind "${FLAGS_stateful_mountpt}/var_overlay" \
+  sudo mount --bind "${FLAGS_stateful_mountpt}/overlays/var" \
     "${FLAGS_rootfs_mountpt}/var"
-  sudo mount --bind "${FLAGS_stateful_mountpt}/dev_image" \
+  sudo mount --bind "${FLAGS_stateful_mountpt}/overlays/usr/local" \
     "${FLAGS_rootfs_mountpt}/usr/local"
   # Setup symlinks in /usr/local so you can emerge packages into /usr/local.
 
   if [ ${FLAGS_read_only} -eq ${FLAGS_FALSE} ]; then
-    setup_symlinks_on_root "${FLAGS_stateful_mountpt}/dev_image" \
-      "${FLAGS_stateful_mountpt}/var_overlay" "${FLAGS_stateful_mountpt}"
+    setup_symlinks_on_root "${FLAGS_stateful_mountpt}/overlays/usr/local" \
+      "${FLAGS_stateful_mountpt}/overlays/var" "${FLAGS_stateful_mountpt}"
   fi
   info "Image specified by ${FLAGS_from} mounted at"\
     "${FLAGS_rootfs_mountpt} successfully."

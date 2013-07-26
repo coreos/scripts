@@ -4,6 +4,9 @@
 
 . "${SRC_ROOT}/platform/dev/toolchain_utils.sh" || exit 1
 
+# Overlays are parts of the disk that live on the stateful partition
+ROOT_OVERLAYS=(var opt srv home usr/local)
+
 cleanup_mounts() {
   local prev_ret=$?
 
@@ -142,21 +145,35 @@ create_base_image() {
   sudo mount -o loop "${oem_fs_img}" "${oem_fs_dir}"
 
   # Prepare stateful partition with some pre-created directories.
-  sudo mkdir "${stateful_fs_dir}/dev_image"
-  sudo mkdir "${stateful_fs_dir}/var_overlay"
+  for i in ${ROOT_OVERLAYS}; do
+    sudo mkdir -p "${stateful_fs_dir}/overlays/$i"
+    sudo mkdir -p "${root_fs_dir}/$i"
+    sudo mount --bind "${stateful_fs_dir}/overlays/$i" "${root_fs_dir}/$i"
+  done
+
+  sudo mkdir -p "${stateful_fs_dir}/overlays/usr/local"
 
   # Create symlinks so that /usr/local/usr based directories are symlinked to
   # /usr/local/ directories e.g. /usr/local/usr/bin -> /usr/local/bin, etc.
-  setup_symlinks_on_root "${stateful_fs_dir}/dev_image" \
-    "${stateful_fs_dir}/var_overlay" "${stateful_fs_dir}"
+  setup_symlinks_on_root "${stateful_fs_dir}/overlays/usr/local" \
+    "${stateful_fs_dir}/overlays/var" \
+    "${stateful_fs_dir}"
 
   # Perform binding rather than symlinking because directories must exist
   # on rootfs so that we can bind at run-time since rootfs is read-only.
   info "Binding directories from stateful partition onto the rootfs"
+
+  # Setup the dev image for developer tools
   sudo mkdir -p "${root_fs_dir}/usr/local"
-  sudo mount --bind "${stateful_fs_dir}/dev_image" "${root_fs_dir}/usr/local"
-  sudo mkdir -p "${root_fs_dir}/var"
-  sudo mount --bind "${stateful_fs_dir}/var_overlay" "${root_fs_dir}/var"
+  sudo mount --bind "${stateful_fs_dir}/overlays/usr/local" "${root_fs_dir}/usr/local"
+
+  # TODO(bp): remove these temporary fixes for /mnt/stateful_partition going moving
+  sudo mkdir -p "${root_fs_dir}/mnt/stateful_partition/"
+  sudo ln -s /media/state/overlays/usr/local "${root_fs_dir}/mnt/stateful_partition/dev_image"
+  sudo ln -s /media/state/overlays/home "${root_fs_dir}/mnt/stateful_partition/home"
+  sudo ln -s /media/state/overlays/var "${root_fs_dir}/mnt/stateful_partition/var_overlay"
+  sudo ln -s /media/state/etc "${root_fs_dir}/mnt/stateful_partition/etc"
+
   sudo mkdir -p "${root_fs_dir}/dev"
 
   info "Binding directories from OEM partition onto the rootfs"
