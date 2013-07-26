@@ -28,4 +28,4 @@ STATE="${ROOT}-STATE"
 
 [ -d "$STATE" ] || sudo mkdir -p "$STATE"
 sudo systemd-nspawn --boot --read-only --machine="$HOSTNAME-$BOARD" \
-    --directory="$ROOT" --bind="$STATE:/mnt/stateful_partition"
+    --directory="$ROOT" --bind="$STATE:/media/state"
