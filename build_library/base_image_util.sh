@@ -163,6 +163,11 @@ create_base_image() {
   sudo mkdir -p "${root_fs_dir}/usr/share/oem"
   sudo mount --bind "${oem_fs_dir}" "${root_fs_dir}/usr/share/oem"
 
+  # First thing first, install baselayout with USE=build to create a
+  # working directory tree. Don't use binpkgs due to the use flag change.
+  sudo -E USE=build ${EMERGE_BOARD_CMD} --root="${root_fs_dir}" \
+      --usepkg=n --buildpkg=n --oneshot --quiet --nodeps sys-apps/baselayout
+
   # We need to install libc manually from the cross toolchain.
   # TODO: Improve this? It would be ideal to use emerge to do this.
   PKGDIR="/var/lib/portage/pkgs"
@@ -181,6 +186,8 @@ create_base_image() {
     'usr/include' 'sys-include'
     # Link-time objects.
     '*.[ao]'
+    # Empty lib dirs, replaced by symlinks
+    'lib'
   )
   pbzip2 -dc --ignore-trailing-garbage=1 "${LIBC_PATH}" | \
     sudo tar xpf - -C "${root_fs_dir}" ./usr/${CHOST} \
