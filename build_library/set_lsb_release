@@ -85,8 +85,8 @@ EOF
 # Aaaannd for the new systemd world order
 # os-release provides a seperate build-id field, so split it from version
 OS_ID=$(tr '[:upper:]' '[:lower:]' <<<"$COREOS_VERSION_NAME")
-OS_VERION_ID="${COREOS_VERSION_STRING#*+}"
-OS_BUILD_ID="${COREOS_VERSION_STRING%%+*}"
+OS_VERION_ID="${COREOS_VERSION_STRING%%+*}"
+OS_BUILD_ID="${COREOS_VERSION_STRING#*+}"
 sudo_clobber "${ROOT_FS_DIR}/etc/os-release" <<EOF
 NAME=$COREOS_VERSION_NAME
 ID=$OS_ID
