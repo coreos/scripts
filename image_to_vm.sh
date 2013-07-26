@@ -52,6 +52,9 @@ DEFINE_boolean prod_image "${FLAGS_FALSE}" \
 DEFINE_string to "" \
   "Destination folder for VM output file(s)"
 
+# include upload options
+. "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
+
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -115,6 +118,9 @@ write_vm_conf "${FLAGS_mem}"
 
 vm_cleanup
 trap - EXIT
+
+# Optionally upload all of our hard work
+upload_image "${VM_GENERATED_FILES[@]}"
 
 # Ready to set sail!
 okboat
