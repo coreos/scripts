@@ -735,7 +735,7 @@ setup_symlinks_on_root() {
   # Give args better names.
   local dev_image_target=$1
   local var_target=$2
-  local dev_image_root="$3/images/dev"
+  local dev_image_root="$3/overlays/usr/local"
 
   # If our var target is actually the standard var, we are cleaning up the
   # symlinks (could also check for /usr/local for the dev_image_target).

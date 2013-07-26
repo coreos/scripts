@@ -5,7 +5,7 @@
 . "${SRC_ROOT}/platform/dev/toolchain_utils.sh" || exit 1
 
 # Overlays are parts of the disk that live on the stateful partition
-ROOT_OVERLAYS=(var opt srv home)
+ROOT_OVERLAYS=(var opt srv home usr/local)
 
 cleanup_mounts() {
   local prev_ret=$?
@@ -151,11 +151,11 @@ create_base_image() {
     sudo mount --bind "${stateful_fs_dir}/overlays/$i" "${root_fs_dir}/$i"
   done
 
-  sudo mkdir -p "${stateful_fs_dir}/images/dev"
+  sudo mkdir -p "${stateful_fs_dir}/overlays/usr/local"
 
   # Create symlinks so that /usr/local/usr based directories are symlinked to
   # /usr/local/ directories e.g. /usr/local/usr/bin -> /usr/local/bin, etc.
-  setup_symlinks_on_root "${stateful_fs_dir}/images/dev" \
+  setup_symlinks_on_root "${stateful_fs_dir}/overlays/usr/local" \
     "${stateful_fs_dir}/overlays/var" \
     "${stateful_fs_dir}"
 
@@ -165,7 +165,7 @@ create_base_image() {
 
   # Setup the dev image for developer tools
   sudo mkdir -p "${root_fs_dir}/usr/local"
-  sudo mount --bind "${stateful_fs_dir}/images/dev" "${root_fs_dir}/usr/local"
+  sudo mount --bind "${stateful_fs_dir}/overlays/usr/local" "${root_fs_dir}/usr/local"
 
   sudo mkdir -p "${root_fs_dir}/dev"
 
