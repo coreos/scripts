@@ -167,6 +167,13 @@ create_base_image() {
   sudo mkdir -p "${root_fs_dir}/usr/local"
   sudo mount --bind "${stateful_fs_dir}/overlays/usr/local" "${root_fs_dir}/usr/local"
 
+  # TODO(bp): remove these temporary fixes for /mnt/stateful_partition going moving
+  sudo mkdir -p "${root_fs_dir}/mnt/stateful_partition/"
+  sudo ln -s /media/state/overlays/usr/local "${root_fs_dir}/mnt/stateful_partition/dev_image"
+  sudo ln -s /media/state/overlays/home "${root_fs_dir}/mnt/stateful_partition/home"
+  sudo ln -s /media/state/overlays/var "${root_fs_dir}/mnt/stateful_partition/var_overlay"
+  sudo ln -s /media/state/etc "${root_fs_dir}/mnt/stateful_partition/etc"
+
   sudo mkdir -p "${root_fs_dir}/dev"
 
   info "Binding directories from OEM partition onto the rootfs"
