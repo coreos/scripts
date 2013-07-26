@@ -108,11 +108,10 @@ enter_chroot() {
 
 # Invoke enter_chroot running the command as root, and w/out sudo.
 # This should be used prior to sudo being merged.
-early_env=()
 early_enter_chroot() {
   "$ENTER_CHROOT" --chroot "$FLAGS_chroot" --early_make_chroot \
     --cache_dir "${FLAGS_cache_dir}" \
-    -- "${ENTER_CHROOT_ARGS[@]}" "${early_env[@]}" "$@"
+    -- "${ENTER_CHROOT_ARGS[@]}" "$@"
 }
 
 # Run a command within the chroot.  The main usage of this is to avoid
@@ -378,7 +377,7 @@ then
 else
   info "Unpacking STAGE3..."
   case ${STAGE3} in
-    *.tbz2|*.tar.bz2) DECOMPRESS=$(type -p pbzip2 || echo bzip2) ;;
+    *.tbz2|*.tar.bz2) DECOMPRESS=$(type -p lbzip2 || echo bzip2) ;;
     *.tar.xz) DECOMPRESS="xz" ;;
     *) die "Unknown tarball compression: ${STAGE3}";;
   esac
@@ -407,15 +406,6 @@ create_bootstrap_host_setup "${FLAGS_chroot}"
 
 if ! [ -f "$CHROOT_STATE" ];then
   INITIALIZE_CHROOT=1
-fi
-
-
-if ! early_enter_chroot bash -c 'type -P pbzip2' >/dev/null ; then
-  # This chroot lacks pbzip2 early on, so we need to disable it.
-  early_env+=(
-    PORTAGE_BZIP2_COMMAND="bzip2"
-    PORTAGE_BUNZIP2_COMMAND="bunzip2"
-  )
 fi
 
 if [ -z "${INITIALIZE_CHROOT}" ];then
