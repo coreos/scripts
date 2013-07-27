@@ -168,7 +168,7 @@ EOF
     local file="part_${part}"
     local dir="dir_${part}"
     local target='"${TARGET}"'
-    local dd_args="bs=512 count=${size}"
+    local dd_args="bs=512 count=${size} conv=sparse"
     local start_b=$(( start * 512 ))
     local size_b=$(( size * 512 ))
     echo "dd if=${target} of=${file} ${dd_args} skip=${start}" >>"${unpack}"
@@ -226,19 +226,19 @@ build_gpt() {
 
   # Now populate the partitions.
   info "Copying stateful partition..."
-  $sudo dd if="$stateful_img" of="$outdev" conv=notrunc bs=512 \
+  $sudo dd if="$stateful_img" of="$outdev" conv=notrunc,sparse bs=512 \
       seek=$(partoffset ${outdev} ${stateful_fs_num}) status=none
 
   info "Copying rootfs..."
-  $sudo dd if="$rootfs_img" of="$outdev" conv=notrunc bs=512 \
+  $sudo dd if="$rootfs_img" of="$outdev" conv=notrunc,sparse bs=512 \
       seek=$(partoffset ${outdev} ${root_fs_num}) status=none
 
   info "Copying EFI system partition..."
-  $sudo dd if="$esp_img" of="$outdev" conv=notrunc bs=512 \
+  $sudo dd if="$esp_img" of="$outdev" conv=notrunc,sparse bs=512 \
       seek=$(partoffset ${outdev} ${esp_fs_num}) status=none
 
   info "Copying OEM partition..."
-  $sudo dd if="$oem_img" of="$outdev" conv=notrunc bs=512 \
+  $sudo dd if="$oem_img" of="$outdev" conv=notrunc,sparse bs=512 \
       seek=$(partoffset ${outdev} ${oem_fs_num}) status=none
 
   # Pre-set "sucessful" bit in gpt, so we will never mark-for-death
@@ -317,11 +317,11 @@ update_partition_table() {
              -t ${tguid} -u ${uguid} ${dst_img}
     if [ "${label}" != "STATE" ]; then
       # Copy source partition as-is.
-      dd if="${src_img}" of="${dst_img}" conv=notrunc bs=512 \
+      dd if="${src_img}" of="${dst_img}" conv=notrunc,sparse bs=512 \
         skip=${src_start} seek=${dst_start} count=${size} status=none
     else
       # Copy new stateful partition into place.
-      dd if="${src_state}" of="${dst_img}" conv=notrunc bs=512 \
+      dd if="${src_state}" of="${dst_img}" conv=notrunc,sparse bs=512 \
         seek=${dst_start} status=none
     fi
   done
