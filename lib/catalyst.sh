@@ -59,7 +59,7 @@ cat <<EOF
 contents="auto"
 digests="md5 sha1 sha512 whirlpool"
 hash_function="crc32"
-options="autoresume ccache kerncache pkgcache"
+options="autoresume ccache pkgcache"
 sharedir="/usr/lib/catalyst"
 storedir="$CATALYST_ROOT"
 distdir="$DISTDIR"
@@ -261,6 +261,8 @@ build_stage() {
         -c "$TEMPDIR/catalyst.conf" \
         -f "$TEMPDIR/${stage}.spec" \
         -C "source_subpath=$srcpath"
+    # Catalyst doesn't clean up after itself...
+    rm -rf "$TEMPDIR/$stage-${ARCH}-${FLAGS_version}"
     ln -sf "$stage-${ARCH}-${FLAGS_version}.tar.bz2" \
         "$BUILDS/$stage-${ARCH}-latest.tar.bz2"
     info "Finished building $target_tarball"
@@ -313,4 +315,7 @@ catalyst_build() {
         build_stage stage4 "$SEED"
         used_seed=1
     fi
+
+    # Cleanup snapshots, we don't use them
+    rm -rf "$CATALYST_ROOT/snapshots/portage-${FLAGS_version}.tar.bz2"*
 }
