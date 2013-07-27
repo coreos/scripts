@@ -88,6 +88,10 @@ EOF
     sudo chmod a+rx "${path}"
   fi
 
+  # Zero all fs free space, not fatal since it won't work on linux < 3.2
+  sudo fstrim "${root_fs_dir}" || true
+  sudo fstrim "${stateful_fs_dir}" || true
+
   info "Developer image built and stored at ${image_name}"
 
   cleanup_mounts

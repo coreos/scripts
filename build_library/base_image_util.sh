@@ -36,17 +36,6 @@ cleanup_mounts() {
   set -e
 }
 
-zero_free_space() {
-  local fs_mount_point=$1
-  info "Zeroing freespace in ${fs_mount_point}"
-  # dd is a silly thing and will produce a "No space left on device" message
-  # that cannot be turned off and is confusing to unsuspecting victims.
-  info "${fs_mount_point}/filler"
-  ( sudo dd if=/dev/zero of="${fs_mount_point}/filler" bs=4096 conv=fdatasync \
-      status=noxfer || true ) 2>&1 | grep -v "No space left on device"
-  sudo rm "${fs_mount_point}/filler"
-}
-
 create_base_image() {
   local image_name=$1
   local rootfs_verification_enabled=$2
@@ -281,10 +270,10 @@ create_base_image() {
   # create /usr/local or /var on host (already exist on target).
   setup_symlinks_on_root "/usr/local" "/var" "${stateful_fs_dir}"
 
-  # Zero rootfs free space to make it more compressible so auto-update
-  # payloads become smaller
-  # TODO(ifup):
-  #zero_free_space "${root_fs_dir}"
+  # Zero all fs free space to make it more compressible so auto-update
+  # payloads become smaller, not fatal since it won't work on linux < 3.2
+  sudo fstrim "${root_fs_dir}" || true
+  sudo fstrim "${stateful_fs_dir}" || true
 
   cleanup_mounts
 
