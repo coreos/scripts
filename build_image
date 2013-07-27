@@ -151,7 +151,9 @@ mkdir -p "${BUILD_DIR}"
 # Create the base image.
 create_base_image ${PRISTINE_IMAGE_NAME} ${FLAGS_enable_rootfs_verification} \
   ${FLAGS_enable_bootcache}
-upload_image "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
+if should_build_image ${PRISTINE_IMAGE_NAME}; then
+  upload_image "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
+fi
 
 # Running board-specific setup if any exists.
 if type board_setup &>/dev/null; then
@@ -161,7 +163,12 @@ fi
 # Create a developer image if an image that is based on it is requested.
 if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME} \
     ${CHROMEOS_TEST_IMAGE_NAME}; then
-  copy_image ${CHROMEOS_BASE_IMAGE_NAME} ${CHROMEOS_DEVELOPER_IMAGE_NAME}
+  if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
+    cp "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}" \
+        "${BUILD_DIR}/${CHROMEOS_DEVELOPER_IMAGE_NAME}"
+  else
+    copy_image ${PRISTINE_IMAGE_NAME} ${CHROMEOS_DEVELOPER_IMAGE_NAME}
+  fi
   install_dev_packages ${CHROMEOS_DEVELOPER_IMAGE_NAME}
   upload_image "${BUILD_DIR}/${CHROMEOS_DEVELOPER_IMAGE_NAME}"
 fi
@@ -176,6 +183,10 @@ if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
     --au_key=${SRC_ROOT}/third_party/coreos-overlay/coreos-base/coreos-au-key/files/update-payload-key.pub.pem
 
   upload_image "${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"
+fi
+
+if ! should_build_image ${PRISTINE_IMAGE_NAME}; then
+  rm -f "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
 fi
 
 # From a developer image create a test|factory_test image.

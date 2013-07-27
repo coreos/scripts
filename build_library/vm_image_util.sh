@@ -164,7 +164,7 @@ unpack_source_disk() {
     TEMP_STATE="${VM_TMP_DIR}"/part_${NUM_STATEFUL}
     # Copy the replacement STATE image if it is set
     if [[ -n "${alternate_state_image}" ]]; then
-        cp "${alternate_state_image}" "${TEMP_STATE}"
+        cp --sparse=always "${alternate_state_image}" "${TEMP_STATE}"
     fi
 
     TEMP_PMBR="${VM_TMP_DIR}"/pmbr
@@ -216,14 +216,14 @@ install_oem_package() {
 # Write the vm disk image to the target directory in the proper format
 write_vm_disk() {
     info "Writing partitions to new disk image"
-    dd if="${TEMP_ROOTFS}" of="${VM_TMP_IMG}" conv=notrunc bs=512 \
-      seek=$(partoffset ${VM_TMP_IMG} ${NUM_ROOTFS_A})
-    dd if="${TEMP_STATE}"  of="${VM_TMP_IMG}" conv=notrunc bs=512 \
-      seek=$(partoffset ${VM_TMP_IMG} ${NUM_STATEFUL})
-    dd if="${TEMP_ESP}"    of="${VM_TMP_IMG}" conv=notrunc bs=512 \
-      seek=$(partoffset ${VM_TMP_IMG} ${NUM_ESP})
-    dd if="${TEMP_OEM}"    of="${VM_TMP_IMG}" conv=notrunc bs=512 \
-      seek=$(partoffset ${VM_TMP_IMG} ${NUM_OEM})
+    dd if="${TEMP_ROOTFS}" of="${VM_TMP_IMG}" conv=notrunc,sparse \
+        bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_ROOTFS_A})
+    dd if="${TEMP_STATE}"  of="${VM_TMP_IMG}" conv=notrunc,sparse \
+        bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_STATEFUL})
+    dd if="${TEMP_ESP}"    of="${VM_TMP_IMG}" conv=notrunc,sparse \
+        bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_ESP})
+    dd if="${TEMP_OEM}"    of="${VM_TMP_IMG}" conv=notrunc,sparse \
+        bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_OEM})
 
     if [[ $(_get_vm_opt HYBRID_MBR) -eq 1 ]]; then
         info "Creating hybrid MBR"

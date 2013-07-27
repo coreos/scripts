@@ -14,23 +14,6 @@ fi
 # Ensure that any sub scripts we invoke get the max proc count.
 export NUM_JOBS
 
-# Returns the pv command if it's available, otherwise plain-old cat. Note that
-# this function echoes the command, rather than running it, so it can be used
-# as an argument to other commands (like sudo).
-pv_cat_cmd() {
-  if type -P pv >&/dev/null; then
-    # Limit pv's output to 80 columns, for readability.
-    local term_cols=$(stty size 2>/dev/null | cut -d' ' -f2)
-    if [[ ${term_cols:-0} -gt 80 ]]; then
-      echo pv -w 80
-    else
-      echo pv
-    fi
-  else
-    echo cat
-  fi
-}
-
 # Make sure we have the location and name of the calling script, using
 # the current value if it is already set.
 : ${SCRIPT_LOCATION:=$(dirname "$(readlink -f "$0")")}
