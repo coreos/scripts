@@ -8,7 +8,7 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
 DEFINE_string master "master" "Manifest master branch to update."
-DEFINE_string branch "build-${TODAYS_VERSION}" \
+DEFINE_string branch "origin/build-${TODAYS_VERSION}" \
     "Manifest branch, tag, or other ref to get version from."
 DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
 DEFINE_string remote "origin" "Remote name or URL to push to."
@@ -23,6 +23,7 @@ repo init -b "${FLAGS_master}"
 
 info "Updating version.txt from ${FLAGS_branch}"
 cd "${GCLIENT_ROOT}/.repo/manifests"
+git fetch --all
 git checkout "${FLAGS_branch}" version.txt
 git add version.txt
 git commit -m "bump(version): Update version from ${FLAGS_branch}"
