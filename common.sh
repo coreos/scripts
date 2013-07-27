@@ -400,8 +400,8 @@ BUILD_DIR=
 
 # Standard filenames
 CHROMEOS_BASE_IMAGE_NAME="coreos_base_image.bin"
-CHROMEOS_IMAGE_NAME="coreos_image.bin"
-CHROMEOS_DEVELOPER_IMAGE_NAME="coreos_image.bin"
+CHROMEOS_DEVELOPER_IMAGE_NAME="coreos_developer_image.bin"
+CHROMEOS_IMAGE_NAME="$CHROMEOS_DEVELOPER_IMAGE_NAME"
 CHROMEOS_RECOVERY_IMAGE_NAME="recovery_image.bin"
 CHROMEOS_TEST_IMAGE_NAME="coreos_test_image.bin"
 

@@ -11,7 +11,7 @@ export GCLIENT_ROOT=$(readlink -f "${SCRIPT_ROOT}/../../")
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
 DEFINE_string image "${SRC_ROOT}/build/images/amd64-generic/latest/${COREOS_BASE_IMAGE_NAME}" \
-    "Path to the basic image (not qemu/xen/etc)"
+    "Path to the production image (not base/dev/qemu/xen/etc)"
 DEFINE_string version "${COREOS_VERSION_STRING}" \
     "Version number of this build."
 DEFINE_string track "dev-channel" \
@@ -32,8 +32,7 @@ Setting everything up for use\n
 1) Run 'gsutil config' and use project id coreos.com:core-update-storage\n
 2) Ensure core-admin is installed, it is a recent addition\n
 
-NOTE: Use the coreos_image.bin not a qemu/xen/etc image for generating the
-update.
+NOTE: Use the coreos_production_image.bin not base, developer, vm, etc...
 "
 
 # Parse flags

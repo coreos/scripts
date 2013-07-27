@@ -32,7 +32,7 @@ DEFINE_boolean unmount $FLAGS_FALSE \
   "Unmount previously mounted dir." u
 DEFINE_string from "/dev/sdc" \
   "Directory, image, or device with image on it" f
-DEFINE_string image "coreos_image.bin"\
+DEFINE_string image "$COREOS_IMAGE_NAME" \
   "Name of the bin file if a directory is specified in the from flag" i
 DEFINE_string "rootfs_mountpt" "/tmp/m" "Mount point for rootfs" "r"
 DEFINE_string "stateful_mountpt" "/tmp/s" \
@@ -56,7 +56,7 @@ fi
 # Check for conflicting args.
 # If --from is a block device, --image can't also be specified.
 if [ -b "${FLAGS_from}" ]; then
-  if [ "${FLAGS_image}" != "coreos_image.bin" ]; then
+  if [ "${FLAGS_image}" != "$COREOS_IMAGE_NAME" ]; then
     die_notrace "-i ${FLAGS_image} can't be used with block device ${FLAGS_from}"
   fi
 fi
@@ -64,7 +64,7 @@ fi
 # Allow --from /foo/file.bin
 if [ -f "${FLAGS_from}" ]; then
   # If --from is specified as a file, --image cannot be also specified.
-  if [ "${FLAGS_image}" != "coreos_image.bin" ]; then
+  if [ "${FLAGS_image}" != "$COREOS_IMAGE_NAME" ]; then
     die_notrace "-i ${FLAGS_image} can't be used with --from file ${FLAGS_from}"
   fi
   pathname=$(dirname "${FLAGS_from}")
