@@ -42,7 +42,7 @@ copy_image() {
   local dst="${BUILD_DIR}/$2"
   if should_build_image $1; then
     echo "Creating $2 from $1..."
-    $(pv_cat_cmd) "${src}" >"${dst}" || die "Cannot copy $1 to $2"
+    cp "${src}" "${dst}" || die "Cannot copy $1 to $2"
   else
     mv "${src}" "${dst}" || die "Cannot move $1 to $2"
   fi
