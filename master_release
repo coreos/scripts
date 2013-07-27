@@ -23,10 +23,11 @@ repo init -b "${FLAGS_master}"
 
 info "Updating version.txt from ${FLAGS_branch}"
 cd "${GCLIENT_ROOT}/.repo/manifests"
-git fetch --all
+git fetch --all --tags
 git checkout "${FLAGS_branch}" version.txt
 git add version.txt
-git commit -m "bump(version): Update version from ${FLAGS_branch}"
+tag=$(git describe --exact --tags "${FLAGS_branch}" 2>/dev/null || true)
+git commit -m "bump(version): Update version from ${tag:-$FLAGS_branch}"
 
 if [[ ${FLAGS_push} -eq ${FLAGS_TRUE} ]]; then
     info "Pushing to ${FLAGS_remote} ${FLAGS_master}"
