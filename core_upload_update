@@ -68,7 +68,7 @@ cros_generate_update_payload \
 MD5SUM=$(md5sum ${FLAGS_image} | cut -f1 -d" ")
 gsutil cp "${OUTPUT_DIR}/update.gz" \
     gs://update-storage.core-os.net/${FLAGS_track}/$MD5SUM/update.gz
-CORE_UPDATE_URL="https://core-api.appspot.com" core-admin new-version \
+core-admin new-version \
     -k ${FLAGS_api_key} \
     -a ${FLAGS_app_id} \
     -v ${FLAGS_version} \
