@@ -29,8 +29,6 @@ DEFINE_string adjust_part "" \
   "Adjustments to apply to the partition table"
 DEFINE_string board "${DEFAULT_BOARD}" \
   "Board for which the image was built"
-DEFINE_boolean prod $FLAGS_FALSE \
-    "Build prod image"
 
 # We default to TRUE so the buildbot gets its image. Note this is different
 # behavior from image_to_usb.sh
