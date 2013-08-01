@@ -88,6 +88,12 @@ fi
 FLAGS_from=`eval readlink -f $FLAGS_from`
 FLAGS_to=`eval readlink -f $FLAGS_to`
 
+# If source includes version.txt switch to its version information
+if [ -f "${FLAGS_from}/version.txt" ]; then
+    source "${FLAGS_from}/version.txt"
+    COREOS_VERSION_STRING="${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}"
+fi
+
 if [ ${FLAGS_prod_image} -eq ${FLAGS_TRUE} ]; then
   set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${COREOS_PRODUCTION_IMAGE_NAME}"
 elif [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ]; then

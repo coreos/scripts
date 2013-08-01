@@ -9,6 +9,7 @@ VALID_IMG_TYPES=(
     ami
     qemu
     rackspace
+    vagrant
     virtualbox
     vmware
     xen
@@ -56,6 +57,11 @@ IMG_xen_CONF_FORMAT=xl
 
 ## virtualbox
 IMG_virtualbox_DISK_FORMAT=vdi
+IMG_virtualbox_CONF_FORMAT=vbox
+
+## vagrant
+IMG_vagrant_DISK_FORMAT=vdi  # created but discarded
+IMG_vagrant_CONF_FORMAT=vagrant
 
 ## vmware
 IMG_vmware_DISK_FORMAT=vmdk
@@ -99,14 +105,7 @@ set_vm_paths() {
     VM_DST_IMG="${dst_dir}/${dst_name}"
     VM_TMP_DIR="${dst_dir}/${dst_name}.vmtmpdir"
     VM_TMP_IMG="${VM_TMP_DIR}/disk_image.bin"
-
-    # If src_dir happens to be in the build directory figure out the version
-    # from the directory name and use it in the vm name for config files.
-    VM_NAME=$(_src_to_dst_name "${src_name}" "")
-    if [[ "${src_dir}" =~ /build/images/${BOARD}/\d+\.\d+\.[^/]*$ ]]; then
-        VM_NAME+="-$(basename ${src_dir})"
-    fi
-
+    VM_NAME="$(_src_to_dst_name "${src_name}" "")-${COREOS_VERSION_STRING}"
     VM_UUID=$(uuidgen)
     VM_README="${dst_dir}/$(_src_to_dst_name "${src_name}" ".README")"
 }
@@ -257,8 +256,8 @@ _write_raw_disk() {
 }
 
 _write_vdi_disk() {
-    sudo VBoxManage convertdd "$1" "$2"
-    sudo chown $(id -un) "$2"
+    rm -f "$2"
+    VBoxManage convertfromraw "$1" "$2"
 }
 
 _write_vmdk_disk() {
@@ -401,6 +400,82 @@ Kill the vm with:
 xl destroy ${VM_NAME}
 EOF
     VM_GENERATED_FILES+=( "${pygrub}" "${pvgrub}" "${VM_README}" )
+}
+
+# VirtualBox setup shared by plain virtualbox and vagrant
+# These alter state in the caller's home directory because VirtualBox
+_create_vbox() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+
+    VBoxManage createvm --name "${VM_NAME}" \
+                        --uuid "${VM_UUID}" \
+                        --ostype 'Oracle_64' \
+                        --basefolder "${VM_TMP_DIR}" \
+                        --register
+
+    VBoxManage modifyvm "${VM_UUID}" \
+                        --boot1 disk \
+                        --boot2 dvd \
+                        --boot3 none \
+                        --boot4 none \
+                        --cpus 1 \
+                        --memory "${vm_mem}"
+
+    VBoxManage storagectl "${VM_UUID}" \
+                        --name 'IDE Controller' \
+                        --add ide
+}
+
+_write_vbox_conf() {
+    local src_name=$(basename "$VM_SRC_IMG")
+    local dst_name=$(basename "$VM_DST_IMG")
+    local dst_dir=$(dirname "$VM_DST_IMG")
+    local vbox="${dst_dir}/$(_src_to_dst_name "${src_name}" ".vbox")"
+
+    _create_vbox "$1"
+    VBoxManage unregistervm "${VM_UUID}"
+
+    mv "${VM_TMP_DIR}/${VM_NAME}/${VM_NAME}.vbox" "${vbox}"
+    cat > "${VM_README}" <<EOF
+This image must be registered with VirtualBox be using:
+ cp "$(relpath "${vbox}")" ~/.VirtualBox/
+ VBoxManage registervm "$(basename "${vbox}")"
+ VBoxManage storageattach "${VM_NAME}" --storagectl 'IDE Controller' \
+     --port 0 --device 0 --type hdd --medium "$(relpath "$VM_DST_IMG")"
+
+After that you should be able to start the VM.
+EOF
+    VM_GENERATED_FILES+=( "${vbox}" "${VM_README}" )
+}
+
+# This is actually a complete image, not a config
+_write_vagrant_conf() {
+    local box="${dst_dir}/$(_src_to_dst_name "${src_name}" ".box")"
+
+    _create_vbox "$1"
+    VBoxManage storageattach "${VM_UUID}" \
+            --storagectl 'IDE Controller' \
+            --port 0 --device 0 --type hdd \
+            --medium "${VM_DST_IMG}"
+
+    cat >"${VM_TMP_DIR}/Vagrantfile.pkg" <<EOF
+Vagrant.configure("2") do |config|
+# SSH in as the 'core' user
+config.ssh.username = "core"
+ 
+# Disable the base shared folder, guest additions are not available
+config.vm.synced_folder ".", "/vagrant", disabled: true
+end
+EOF
+
+    vagrant package --base "${VM_NAME}" --output "${box}" \
+            --vagrantfile "${VM_TMP_DIR}/Vagrantfile.pkg"
+    
+    # This also removes the .vdi
+    VBoxManage unregistervm "${VM_UUID}" --delete
+
+    # Only a single output file
+    VM_GENERATED_FILES=( "${box}" )
 }
 
 vm_cleanup() {
