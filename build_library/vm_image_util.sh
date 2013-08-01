@@ -38,7 +38,7 @@ IMG_DEFAULT_HYBRID_MBR=0
 IMG_DEFAULT_OEM_PACKAGE=
 
 # Name of the target image format.
-# May be raw, vdi (virtualbox), or vmdk (vmware)
+# May be raw or vmdk (vmware, virtualbox)
 IMG_DEFAULT_DISK_FORMAT=raw
 
 # Name of the target config format, default is no config
@@ -60,7 +60,8 @@ IMG_virtualbox_DISK_FORMAT=vmdk
 IMG_virtualbox_CONF_FORMAT=ovf
 
 ## vagrant
-IMG_vagrant_DISK_FORMAT=vdi
+IMG_vagrant_DISK_FORMAT=vmdk
+IMG_vagrant_CONF_FORMAT=vagrant
 IMG_vagrant_OEM_PACKAGE=oem-vagrant
 
 ## vmware
@@ -255,10 +256,6 @@ _write_raw_disk() {
     mv "$1" "$2"
 }
 
-_write_vdi_disk() {
-    qemu-img convert -f raw "$1" -O vdi "$2"
-}
-
 _write_vmdk_disk() {
     qemu-img convert -f raw "$1" -O vmdk "$2"
 }
@@ -426,6 +423,37 @@ EOF
 vm_cleanup() {
     info "Cleaning up temporary files"
     rm -rf "${VM_TMP_DIR}"
+}
+
+_write_vagrant_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local src_name=$(basename "$VM_SRC_IMG")
+    local dst_name=$(basename "$VM_DST_IMG")
+    local dst_dir=$(dirname "$VM_DST_IMG")
+    local ovf="${dst_dir}/$(_src_to_dst_name "${src_name}" ".ovf")"
+    local vfile="${dst_dir}/$(_src_to_dst_name "${src_name}" ".Vagrantfile")"
+
+    "${BUILD_LIBRARY_DIR}/virtualbox_ovf.sh" \
+            --vm_name "$VM_NAME" \
+            --disk_vmdk "$VM_DST_IMG" \
+            --memory_size "$vm_mem" \
+            > "$ovf"
+
+    cat > "${vfile}" <<EOF
+Vagrant.configure("2") do |config|
+# SSH in as the default 'core' user, it has the vagrant ssh key.
+config.ssh.username = "core"
+
+# Disable the base shared folder, guest additions are unavailable.
+config.vm.synced_folder ".", "/vagrant", disabled: true
+end
+EOF
+
+    cat > "${VM_README}" <<EOF
+Vagrant >= 1.2 is required.
+EOF
+
+    VM_GENERATED_FILES+=( "$ovf" "${vfile}" "${VM_README}" )
 }
 
 print_readme() {
