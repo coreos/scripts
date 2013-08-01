@@ -9,6 +9,7 @@ VALID_IMG_TYPES=(
     ami
     qemu
     rackspace
+    vagrant
     virtualbox
     vmware
     xen
@@ -56,6 +57,10 @@ IMG_xen_CONF_FORMAT=xl
 
 ## virtualbox
 IMG_virtualbox_DISK_FORMAT=vdi
+
+## vagrant
+IMG_vagrant_DISK_FORMAT=vdi
+IMG_vagrant_OEM_PACKAGE=oem-vagrant
 
 ## vmware
 IMG_vmware_DISK_FORMAT=vmdk
@@ -250,8 +255,7 @@ _write_raw_disk() {
 }
 
 _write_vdi_disk() {
-    sudo VBoxManage convertdd "$1" "$2"
-    sudo chown $(id -un) "$2"
+    qemu-img convert -f raw "$1" -O vdi "$2"
 }
 
 _write_vmdk_disk() {
