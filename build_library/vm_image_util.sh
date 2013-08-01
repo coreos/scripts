@@ -56,7 +56,8 @@ IMG_xen_HYBRID_MBR=1
 IMG_xen_CONF_FORMAT=xl
 
 ## virtualbox
-IMG_virtualbox_DISK_FORMAT=vdi
+IMG_virtualbox_DISK_FORMAT=vmdk
+IMG_virtualbox_CONF_FORMAT=ovf
 
 ## vagrant
 IMG_vagrant_DISK_FORMAT=vdi
@@ -398,6 +399,28 @@ Kill the vm with:
 xl destroy ${VM_NAME}
 EOF
     VM_GENERATED_FILES+=( "${pygrub}" "${pvgrub}" "${VM_README}" )
+}
+
+_write_ovf_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local src_name=$(basename "$VM_SRC_IMG")
+    local dst_name=$(basename "$VM_DST_IMG")
+    local dst_dir=$(dirname "$VM_DST_IMG")
+    local ovf="${dst_dir}/$(_src_to_dst_name "${src_name}" ".ovf")"
+
+    "${BUILD_LIBRARY_DIR}/virtualbox_ovf.sh" \
+            --vm_name "$VM_NAME" \
+            --disk_vmdk "$VM_DST_IMG" \
+            --memory_size "$vm_mem" \
+            > "$ovf"
+
+    local ovf_name=$(basename "${ovf}")
+    cat > "${VM_README}" <<EOF
+Copy ${dst_name} and ${ovf_name} to a VirtualBox host and run:
+VBoxManage import ${ovf_name}
+EOF
+
+    VM_GENERATED_FILES+=( "$ovf" "${VM_README}" )
 }
 
 vm_cleanup() {
