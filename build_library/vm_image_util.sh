@@ -409,7 +409,7 @@ _write_ovf_conf() {
             --vm_name "$VM_NAME" \
             --disk_vmdk "$VM_DST_IMG" \
             --memory_size "$vm_mem" \
-            > "$ovf"
+            --output_ovf "$ovf"
 
     local ovf_name=$(basename "${ovf}")
     cat > "${VM_README}" <<EOF
@@ -420,40 +420,45 @@ EOF
     VM_GENERATED_FILES+=( "$ovf" "${VM_README}" )
 }
 
-vm_cleanup() {
-    info "Cleaning up temporary files"
-    rm -rf "${VM_TMP_DIR}"
-}
-
 _write_vagrant_conf() {
     local vm_mem="${1:-$(_get_vm_opt MEM)}"
     local src_name=$(basename "$VM_SRC_IMG")
     local dst_name=$(basename "$VM_DST_IMG")
     local dst_dir=$(dirname "$VM_DST_IMG")
-    local ovf="${dst_dir}/$(_src_to_dst_name "${src_name}" ".ovf")"
-    local vfile="${dst_dir}/$(_src_to_dst_name "${src_name}" ".Vagrantfile")"
+    local ovf="${VM_TMP_DIR}/box.ovf"
+    local vfile="${VM_TMP_DIR}/Vagrantfile"
+    local box="${dst_dir}/$(_src_to_dst_name "${src_name}" ".box")"
+
+    # Move the disk image to tmp, it won't be a final output file
+    mv "${VM_DST_IMG}" "${VM_TMP_DIR}/${dst_name}"
 
     "${BUILD_LIBRARY_DIR}/virtualbox_ovf.sh" \
             --vm_name "$VM_NAME" \
-            --disk_vmdk "$VM_DST_IMG" \
+            --disk_vmdk "${VM_TMP_DIR}/${dst_name}" \
             --memory_size "$vm_mem" \
-            > "$ovf"
+            --output_ovf "$ovf" \
+            --output_vagrant "$vfile"
 
-    cat > "${vfile}" <<EOF
-Vagrant.configure("2") do |config|
-# SSH in as the default 'core' user, it has the vagrant ssh key.
-config.ssh.username = "core"
-
-# Disable the base shared folder, guest additions are unavailable.
-config.vm.synced_folder ".", "/vagrant", disabled: true
-end
-EOF
+    tar -cf "${box}" -C "${VM_TMP_DIR}" "box.ovf" "Vagrantfile" "${dst_name}"
 
     cat > "${VM_README}" <<EOF
-Vagrant >= 1.2 is required.
+Vagrant >= 1.2 is required. Use something like the following to get started:
+vagrant box add coreos path/to/$(basename "${box}")
+vagrant init coreos
+vagrant up
+vagrant ssh
+
+You will get a warning about "No guest additions were detected...",
+this is expected and should be ignored. SSH should work just dandy.
 EOF
 
-    VM_GENERATED_FILES+=( "$ovf" "${vfile}" "${VM_README}" )
+    # Replace list, not append, since we packaged up the disk image.
+    VM_GENERATED_FILES=( "${box}" "${VM_README}" )
+}
+
+vm_cleanup() {
+    info "Cleaning up temporary files"
+    rm -rf "${VM_TMP_DIR}"
 }
 
 print_readme() {

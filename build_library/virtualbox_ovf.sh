@@ -9,6 +9,8 @@ SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 DEFINE_string vm_name "CoreOS" "Name for this VM"
 DEFINE_string disk_vmdk "" "Disk image to reference, only basename is used."
 DEFINE_integer memory_size 1024 "Memory size in MB"
+DEFINE_string output_ovf "" "Path to write ofv file to, required."
+DEFINE_string output_vagrant "" "Path to write Vagrantfile to, optional."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -19,6 +21,11 @@ switch_to_strict_mode
 
 if [[ ! -e "${FLAGS_disk_vmdk}" ]]; then
     echo "No such disk image '${FLAGS_disk_vmdk}'" >&2
+    exit 1
+fi
+
+if [[ -z "${FLAGS_output_ovf}" ]]; then
+    echo "No ovf file path provided." >&2
     exit 1
 fi
 
@@ -39,12 +46,29 @@ macgen() {
     hexdump -n3 -e "\"${VBOX_MAC_PREFIX}%X\n\"" /dev/urandom
 }
 
-# Date format as used in this file
+# Used in both the ovf and Vagrantfile
+PRIMARY_MAC=$(macgen)
+
+# Date format as used in ovf
 datez() {
     date -u "+%Y-%m-%dT%H:%M:%SZ"
 }
 
-cat <<EOF
+if [[ -n "${FLAGS_output_vagrant}" ]]; then
+    cat >"${FLAGS_output_vagrant}" <<EOF
+Vagrant.configure("2") do |config|
+config.vm.base_mac = "${PRIMARY_MAC}"
+
+# SSH in as the default 'core' user, it has the vagrant ssh key.
+config.ssh.username = "core"
+
+# Disable the base shared folder, guest additions are unavailable.
+config.vm.synced_folder ".", "/vagrant", disabled: true
+end
+EOF
+fi
+
+cat >"${FLAGS_output_ovf}" <<EOF
 <?xml version="1.0"?>
 <Envelope ovf:version="1.0" xml:lang="en-US" xmlns="http://schemas.dmtf.org/ovf/envelope/1" xmlns:ovf="http://schemas.dmtf.org/ovf/envelope/1" xmlns:rasd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ResourceAllocationSettingData" xmlns:vssd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_VirtualSystemSettingData" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:vbox="http://www.virtualbox.org/ovf/machine">
   <References>
@@ -164,7 +188,7 @@ cat <<EOF
         </BIOS>
         <USBController enabled="false" enabledEhci="false"/>
         <Network>
-          <Adapter slot="0" enabled="true" MACAddress="$(macgen)" cable="true" speed="0" type="82540EM">
+          <Adapter slot="0" enabled="true" MACAddress="${PRIMARY_MAC}" cable="true" speed="0" type="82540EM">
             <DisabledModes/>
             <NAT>
               <DNS pass-domain="true" use-proxy="false" use-host-resolver="false"/>
