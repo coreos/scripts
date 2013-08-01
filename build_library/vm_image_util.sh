@@ -99,14 +99,7 @@ set_vm_paths() {
     VM_DST_IMG="${dst_dir}/${dst_name}"
     VM_TMP_DIR="${dst_dir}/${dst_name}.vmtmpdir"
     VM_TMP_IMG="${VM_TMP_DIR}/disk_image.bin"
-
-    # If src_dir happens to be in the build directory figure out the version
-    # from the directory name and use it in the vm name for config files.
-    VM_NAME=$(_src_to_dst_name "${src_name}" "")
-    if [[ "${src_dir}" =~ /build/images/${BOARD}/\d+\.\d+\.[^/]*$ ]]; then
-        VM_NAME+="-$(basename ${src_dir})"
-    fi
-
+    VM_NAME="$(_src_to_dst_name "${src_name}" "")-${COREOS_VERSION_STRING}"
     VM_UUID=$(uuidgen)
     VM_README="${dst_dir}/$(_src_to_dst_name "${src_name}" ".README")"
 }
