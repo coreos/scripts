@@ -7,6 +7,7 @@
 
 VALID_IMG_TYPES=(
     ami
+    openstack
     qemu
     rackspace
     vagrant
@@ -38,7 +39,7 @@ IMG_DEFAULT_HYBRID_MBR=0
 IMG_DEFAULT_OEM_PACKAGE=
 
 # Name of the target image format.
-# May be raw or vmdk (vmware, virtualbox)
+# May be raw, qcow2 (qemu), or vmdk (vmware, virtualbox)
 IMG_DEFAULT_DISK_FORMAT=raw
 
 # Name of the target config format, default is no config
@@ -72,6 +73,10 @@ IMG_vmware_CONF_FORMAT=vmx
 ## ami
 IMG_ami_HYBRID_MBR=1
 IMG_ami_OEM_PACKAGE=oem-ami
+
+## openstack, supports ec2's metadata format so use oem-ami
+IMG_openstack_DISK_FORMAT=qcow2
+IMG_openstack_OEM_PACKAGE=oem-ami
 
 ## rackspace
 # TODO: package doesn't exist yet
