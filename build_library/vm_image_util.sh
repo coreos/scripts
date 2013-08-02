@@ -48,6 +48,7 @@ IMG_DEFAULT_CONF_FORMAT=
 IMG_DEFAULT_MEM=1024
 
 ## qemu
+IMG_qemu_DISK_FORMAT=qcow2
 IMG_qemu_CONF_FORMAT=qemu
 
 ## xen
@@ -131,6 +132,7 @@ _disk_ext() {
     local disk_format=$(_get_vm_opt DISK_FORMAT)
     case ${disk_format} in
         raw) echo bin;;
+        qcow2) echo img;;
         *) echo "${disk_format}";;
     esac
 }
@@ -254,6 +256,10 @@ EOF
 
 _write_raw_disk() {
     mv "$1" "$2"
+}
+
+_write_qcow2_disk() {
+    qemu-img convert -f raw "$1" -O qcow2 "$2"
 }
 
 _write_vmdk_disk() {
