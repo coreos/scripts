@@ -198,7 +198,16 @@ fi
 
 # Generating AU generator zip file to run outside chroot
 generate_au_zip || echo "Failed generating AU zip file - ignoring Error..."
-upload_image "${BUILD_DIR}/au-generator.zip"
+
+# Write out a version.txt file, this will be used by image_to_vm.sh
+tee "${BUILD_DIR}/version.txt" <<EOF
+COREOS_BUILD=${COREOS_BUILD}
+COREOS_BRANCH=${COREOS_BRANCH}
+COREOS_PATCH=${COREOS_PATCH}
+COREOS_SDK_VERSION=${COREOS_SDK_VERSION}
+EOF
+
+upload_image "${BUILD_DIR}/au-generator.zip" "${BUILD_DIR}/version.txt"
 
 # Create a named symlink.
 LINK_NAME="${FLAGS_output_root}/${BOARD}/${FLAGS_symlink}"
@@ -213,8 +222,10 @@ print_image_to_vm() {
   fi
 
   cat << EOF
-To convert it to a VMWare image, use:
+To convert it to a virtual machine image, use:
   ./image_to_vm.sh --from=${OUTSIDE_OUTPUT_DIR} --board=${BOARD} ${flags}
+
+The default type is qemu, see ./image_to_vm.sh --help for other options.
 EOF
 }
 
