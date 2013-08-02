@@ -439,7 +439,7 @@ _write_vagrant_conf() {
             --output_ovf "$ovf" \
             --output_vagrant "$vfile"
 
-    tar -cf "${box}" -C "${VM_TMP_DIR}" "box.ovf" "Vagrantfile" "${dst_name}"
+    tar -czf "${box}" -C "${VM_TMP_DIR}" "box.ovf" "Vagrantfile" "${dst_name}"
 
     cat > "${VM_README}" <<EOF
 Vagrant >= 1.2 is required. Use something like the following to get started:
