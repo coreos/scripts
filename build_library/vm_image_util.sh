@@ -7,6 +7,7 @@
 
 VALID_IMG_TYPES=(
     ami
+    openstack
     qemu
     rackspace
     vagrant
@@ -38,7 +39,7 @@ IMG_DEFAULT_HYBRID_MBR=0
 IMG_DEFAULT_OEM_PACKAGE=
 
 # Name of the target image format.
-# May be raw or vmdk (vmware, virtualbox)
+# May be raw, qcow2 (qemu), or vmdk (vmware, virtualbox)
 IMG_DEFAULT_DISK_FORMAT=raw
 
 # Name of the target config format, default is no config
@@ -48,6 +49,7 @@ IMG_DEFAULT_CONF_FORMAT=
 IMG_DEFAULT_MEM=1024
 
 ## qemu
+IMG_qemu_DISK_FORMAT=qcow2
 IMG_qemu_CONF_FORMAT=qemu
 
 ## xen
@@ -71,6 +73,10 @@ IMG_vmware_CONF_FORMAT=vmx
 ## ami
 IMG_ami_HYBRID_MBR=1
 IMG_ami_OEM_PACKAGE=oem-ami
+
+## openstack, supports ec2's metadata format so use oem-ami
+IMG_openstack_DISK_FORMAT=qcow2
+IMG_openstack_OEM_PACKAGE=oem-ami
 
 ## rackspace
 # TODO: package doesn't exist yet
@@ -131,6 +137,7 @@ _disk_ext() {
     local disk_format=$(_get_vm_opt DISK_FORMAT)
     case ${disk_format} in
         raw) echo bin;;
+        qcow2) echo img;;
         *) echo "${disk_format}";;
     esac
 }
@@ -256,6 +263,10 @@ _write_raw_disk() {
     mv "$1" "$2"
 }
 
+_write_qcow2_disk() {
+    qemu-img convert -f raw "$1" -O qcow2 "$2"
+}
+
 _write_vmdk_disk() {
     qemu-img convert -f raw "$1" -O vmdk "$2"
 }
@@ -274,52 +285,36 @@ _write_qemu_conf() {
     local src_name=$(basename "$VM_SRC_IMG")
     local dst_name=$(basename "$VM_DST_IMG")
     local dst_dir=$(dirname "$VM_DST_IMG")
-    local conf_path="${dst_dir}/$(_src_to_dst_name "${src_name}" ".conf")"
+    local script="${dst_dir}/$(_src_to_dst_name "${src_name}" ".sh")"
 
-    # FIXME qemu 1.4/5 doesn't support these options in config files
-    # Seems like submitting a patch to fix that and documenting this
-    # format would be a worthy projects...
-    #  name=${VM_NAME}
-    #  uuid=${VM_UUID}
-    #  m=${vm_mem}
-    #  cpu=kvm64
-    #  smp=2
+    cat >"${script}" <<EOF
+#!/bin/sh
 
-    cat >"${conf_path}" <<EOF
-# qemu config file
+SCRIPT_DIR="\`dirname "\$0"\`"
+DISK_IMAGE="\${SCRIPT_DIR}/${dst_name}"
 
 # Default to KVM, fall back on full emulation
-[machine]
-    accel = "kvm:tcg"
-
-[drive]
-    media = "disk"
-    index = "0"
-#   if = "virtio"
-    file = "${dst_name}"
-    format = "raw"
-
-[net]
-    type = "nic"
-    vlan = "0"
-    model = "virtio"
-
-[net]
-    type = "user"
-    vlan = "0"
-    hostfwd = "tcp::2222-:22"
+exec qemu-system-x86_64 \
+    -name "${VM_NAME}" \
+    -uuid "${VM_UUID}" \
+    -m ${vm_mem} \
+    -machine accel=kvm:tcg \
+    -drive index=0,if=virtio,media=disk,format=qcow2,file="\${DISK_IMAGE}" \
+    -net nic,vlan=0,model=virtio \
+    -net user,vlan=0,hostfwd=tcp::2222-:22 \
+    "\$@"
 EOF
+    chmod +x "${script}"
 
     cat >"${VM_README}" <<EOF
 If you have qemu installed, you can start the image with:
-cd $(relpath "${dst_dir}")
-qemu-system-x86_64 -curses -m ${vm_mem} -readconfig "${conf_path##*/}"
+./path/to/$(basename "${script}") -curses
 
 SSH into that host with:
 ssh 127.0.0.1 -p 2222
 EOF
 
-    VM_GENERATED_FILES+=( "${conf_path}" "${VM_README}" )
+    VM_GENERATED_FILES+=( "${script}" "${VM_README}" )
 }
 
 # Generate the vmware config file
