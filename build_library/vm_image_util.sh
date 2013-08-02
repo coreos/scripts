@@ -442,7 +442,7 @@ _write_vagrant_conf() {
     tar -czf "${box}" -C "${VM_TMP_DIR}" "box.ovf" "Vagrantfile" "${dst_name}"
 
     cat > "${VM_README}" <<EOF
-Vagrant >= 1.2 is required. Use something like the following to get started:
+Vagrant >= 1.2.3 is required. Use something like the following to get started:
 vagrant box add coreos path/to/$(basename "${box}")
 vagrant init coreos
 vagrant up
