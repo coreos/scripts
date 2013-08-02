@@ -9,6 +9,7 @@ VALID_IMG_TYPES=(
     ami
     qemu
     rackspace
+    vagrant
     virtualbox
     vmware
     xen
@@ -37,7 +38,7 @@ IMG_DEFAULT_HYBRID_MBR=0
 IMG_DEFAULT_OEM_PACKAGE=
 
 # Name of the target image format.
-# May be raw, vdi (virtualbox), or vmdk (vmware)
+# May be raw or vmdk (vmware, virtualbox)
 IMG_DEFAULT_DISK_FORMAT=raw
 
 # Name of the target config format, default is no config
@@ -55,7 +56,13 @@ IMG_xen_HYBRID_MBR=1
 IMG_xen_CONF_FORMAT=xl
 
 ## virtualbox
-IMG_virtualbox_DISK_FORMAT=vdi
+IMG_virtualbox_DISK_FORMAT=vmdk
+IMG_virtualbox_CONF_FORMAT=ovf
+
+## vagrant
+IMG_vagrant_DISK_FORMAT=vmdk
+IMG_vagrant_CONF_FORMAT=vagrant
+IMG_vagrant_OEM_PACKAGE=oem-vagrant
 
 ## vmware
 IMG_vmware_DISK_FORMAT=vmdk
@@ -99,14 +106,7 @@ set_vm_paths() {
     VM_DST_IMG="${dst_dir}/${dst_name}"
     VM_TMP_DIR="${dst_dir}/${dst_name}.vmtmpdir"
     VM_TMP_IMG="${VM_TMP_DIR}/disk_image.bin"
-
-    # If src_dir happens to be in the build directory figure out the version
-    # from the directory name and use it in the vm name for config files.
-    VM_NAME=$(_src_to_dst_name "${src_name}" "")
-    if [[ "${src_dir}" =~ /build/images/${BOARD}/\d+\.\d+\.[^/]*$ ]]; then
-        VM_NAME+="-$(basename ${src_dir})"
-    fi
-
+    VM_NAME="$(_src_to_dst_name "${src_name}" "")-${COREOS_VERSION_STRING}"
     VM_UUID=$(uuidgen)
     VM_README="${dst_dir}/$(_src_to_dst_name "${src_name}" ".README")"
 }
@@ -256,11 +256,6 @@ _write_raw_disk() {
     mv "$1" "$2"
 }
 
-_write_vdi_disk() {
-    sudo VBoxManage convertdd "$1" "$2"
-    sudo chown $(id -un) "$2"
-}
-
 _write_vmdk_disk() {
     qemu-img convert -f raw "$1" -O vmdk "$2"
 }
@@ -401,6 +396,64 @@ Kill the vm with:
 xl destroy ${VM_NAME}
 EOF
     VM_GENERATED_FILES+=( "${pygrub}" "${pvgrub}" "${VM_README}" )
+}
+
+_write_ovf_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local src_name=$(basename "$VM_SRC_IMG")
+    local dst_name=$(basename "$VM_DST_IMG")
+    local dst_dir=$(dirname "$VM_DST_IMG")
+    local ovf="${dst_dir}/$(_src_to_dst_name "${src_name}" ".ovf")"
+
+    "${BUILD_LIBRARY_DIR}/virtualbox_ovf.sh" \
+            --vm_name "$VM_NAME" \
+            --disk_vmdk "$VM_DST_IMG" \
+            --memory_size "$vm_mem" \
+            --output_ovf "$ovf"
+
+    local ovf_name=$(basename "${ovf}")
+    cat > "${VM_README}" <<EOF
+Copy ${dst_name} and ${ovf_name} to a VirtualBox host and run:
+VBoxManage import ${ovf_name}
+EOF
+
+    VM_GENERATED_FILES+=( "$ovf" "${VM_README}" )
+}
+
+_write_vagrant_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local src_name=$(basename "$VM_SRC_IMG")
+    local dst_name=$(basename "$VM_DST_IMG")
+    local dst_dir=$(dirname "$VM_DST_IMG")
+    local ovf="${VM_TMP_DIR}/box.ovf"
+    local vfile="${VM_TMP_DIR}/Vagrantfile"
+    local box="${dst_dir}/$(_src_to_dst_name "${src_name}" ".box")"
+
+    # Move the disk image to tmp, it won't be a final output file
+    mv "${VM_DST_IMG}" "${VM_TMP_DIR}/${dst_name}"
+
+    "${BUILD_LIBRARY_DIR}/virtualbox_ovf.sh" \
+            --vm_name "$VM_NAME" \
+            --disk_vmdk "${VM_TMP_DIR}/${dst_name}" \
+            --memory_size "$vm_mem" \
+            --output_ovf "$ovf" \
+            --output_vagrant "$vfile"
+
+    tar -cf "${box}" -C "${VM_TMP_DIR}" "box.ovf" "Vagrantfile" "${dst_name}"
+
+    cat > "${VM_README}" <<EOF
+Vagrant >= 1.2 is required. Use something like the following to get started:
+vagrant box add coreos path/to/$(basename "${box}")
+vagrant init coreos
+vagrant up
+vagrant ssh
+
+You will get a warning about "No guest additions were detected...",
+this is expected and should be ignored. SSH should work just dandy.
+EOF
+
+    # Replace list, not append, since we packaged up the disk image.
+    VM_GENERATED_FILES=( "${box}" "${VM_README}" )
 }
 
 vm_cleanup() {

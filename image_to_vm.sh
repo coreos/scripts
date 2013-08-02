@@ -29,8 +29,6 @@ DEFINE_string adjust_part "" \
   "Adjustments to apply to the partition table"
 DEFINE_string board "${DEFAULT_BOARD}" \
   "Board for which the image was built"
-DEFINE_boolean prod $FLAGS_FALSE \
-    "Build prod image"
 
 # We default to TRUE so the buildbot gets its image. Note this is different
 # behavior from image_to_usb.sh
@@ -87,6 +85,12 @@ fi
 # chars like ~ are processed; just doing FOO=`readlink -f $FOO` won't work.
 FLAGS_from=`eval readlink -f $FLAGS_from`
 FLAGS_to=`eval readlink -f $FLAGS_to`
+
+# If source includes version.txt switch to its version information
+if [ -f "${FLAGS_from}/version.txt" ]; then
+    source "${FLAGS_from}/version.txt"
+    COREOS_VERSION_STRING="${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}"
+fi
 
 if [ ${FLAGS_prod_image} -eq ${FLAGS_TRUE} ]; then
   set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${COREOS_PRODUCTION_IMAGE_NAME}"
