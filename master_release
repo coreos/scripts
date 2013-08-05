@@ -10,6 +10,8 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 DEFINE_string master "master" "Manifest master branch to update."
 DEFINE_string branch "origin/build-${TODAYS_VERSION}" \
     "Manifest branch, tag, or other ref to get version from."
+DEFINE_boolean update_sdk ${FLAGS_TRUE} \
+    "Use new build as the SDK version instead of the SDK in version.txt"
 DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
 DEFINE_string remote "origin" "Remote name or URL to push to."
 
@@ -18,6 +20,13 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 switch_to_strict_mode
 
+update_sdk_version() {
+    source version.txt
+    COREOS_SDK_VERSION="${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}"
+    sed -i -e '/^COREOS_SDK_VERSION=/d' version.txt
+    echo "COREOS_SDK_VERSION=${COREOS_SDK_VERSION}" >> version.txt
+}
+
 info "Running repo init -b ${FLAGS_master}"
 repo init -b "${FLAGS_master}"
 
@@ -25,6 +34,9 @@ info "Updating version.txt from ${FLAGS_branch}"
 cd "${GCLIENT_ROOT}/.repo/manifests"
 git fetch --all --tags
 git checkout "${FLAGS_branch}" version.txt
+if [[ ${FLAGS_update_sdk} -eq ${FLAGS_TRUE} ]]; then
+    update_sdk_version
+fi
 git add version.txt
 tag=$(git describe --exact --tags "${FLAGS_branch}" 2>/dev/null || true)
 git commit -m "bump(version): Update version from ${tag:-$FLAGS_branch}"
