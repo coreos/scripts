@@ -10,7 +10,7 @@ VALID_IMG_TYPES=(
     qemu
     rackspace
     vagrant
-    vagrant_vmware
+    vagrant_vmware_fusion
     virtualbox
     vmware
     xen
@@ -66,9 +66,9 @@ IMG_vagrant_CONF_FORMAT=vagrant
 IMG_vagrant_OEM_PACKAGE=oem-vagrant
 
 ## vagrant_vmware
-IMG_vagrant_vmware_DISK_FORMAT=vmdk
-IMG_vagrant_vmware_CONF_FORMAT=vagrant_vmware
-IMG_vagrant_vmware_OEM_PACKAGE=oem-vagrant
+IMG_vagrant_vmware_fusion_DISK_FORMAT=vmdk
+IMG_vagrant_vmware_fusion_CONF_FORMAT=vagrant_vmware_fusion
+IMG_vagrant_vmware_fusion_OEM_PACKAGE=oem-vagrant
 
 ## vmware
 IMG_vmware_DISK_FORMAT=vmdk
@@ -466,7 +466,7 @@ EOF
     VM_GENERATED_FILES=( "${box}" "${VM_README}" )
 }
 
-_write_vagrant_vmware_conf() {
+_write_vagrant_vmware_fusion_conf() {
     local vm_mem="${1:-$(_get_vm_opt MEM)}"
     local src_name=$(basename "$VM_SRC_IMG")
     local dst_name=$(basename "$VM_DST_IMG")
