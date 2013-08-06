@@ -24,11 +24,6 @@ if [[ ! -e "${FLAGS_disk_vmdk}" ]]; then
     exit 1
 fi
 
-if [[ -z "${FLAGS_output_ovf}" ]]; then
-    echo "No ovf file path provided." >&2
-    exit 1
-fi
-
 DISK_NAME=$(basename "${FLAGS_disk_vmdk}")
 DISK_UUID=$(uuidgen)
 DISK_SIZE_BYTES=$(qemu-img info -f vmdk "${FLAGS_disk_vmdk}" \
@@ -68,7 +63,8 @@ end
 EOF
 fi
 
-cat >"${FLAGS_output_ovf}" <<EOF
+if [[ -n "${FLAGS_output_ovf}" ]]; then
+    cat >"${FLAGS_output_ovf}" <<EOF
 <?xml version="1.0"?>
 <Envelope ovf:version="1.0" xml:lang="en-US" xmlns="http://schemas.dmtf.org/ovf/envelope/1" xmlns:ovf="http://schemas.dmtf.org/ovf/envelope/1" xmlns:rasd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ResourceAllocationSettingData" xmlns:vssd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_VirtualSystemSettingData" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:vbox="http://www.virtualbox.org/ovf/machine">
   <References>
@@ -289,3 +285,4 @@ cat >"${FLAGS_output_ovf}" <<EOF
   </VirtualSystem>
 </Envelope>
 EOF
+fi

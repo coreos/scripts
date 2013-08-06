@@ -10,6 +10,7 @@ VALID_IMG_TYPES=(
     qemu
     rackspace
     vagrant
+    vagrant_vmware
     virtualbox
     vmware
     xen
@@ -63,6 +64,11 @@ IMG_virtualbox_CONF_FORMAT=ovf
 IMG_vagrant_DISK_FORMAT=vmdk
 IMG_vagrant_CONF_FORMAT=vagrant
 IMG_vagrant_OEM_PACKAGE=oem-vagrant
+
+## vagrant_vmware
+IMG_vagrant_vmware_DISK_FORMAT=vmdk
+IMG_vagrant_vmware_CONF_FORMAT=vagrant_vmware
+IMG_vagrant_vmware_OEM_PACKAGE=oem-vagrant
 
 ## vmware
 IMG_vmware_DISK_FORMAT=vmdk
@@ -345,7 +351,7 @@ sound.virtualDev = "es1371"
 displayName = "CoreOS"
 guestOS = "otherlinux"
 ethernet0.addressType = "generated"
-floppy0.present = "FALSE""
+floppy0.present = "FALSE"
 EOF
     VM_GENERATED_FILES+=( "${vmx_path}" )
 }
@@ -439,10 +445,58 @@ _write_vagrant_conf() {
             --output_ovf "$ovf" \
             --output_vagrant "$vfile"
 
-    tar -czf "${box}" -C "${VM_TMP_DIR}" "box.ovf" "Vagrantfile" "${dst_name}"
+    cat > "${VM_TMP_DIR}"/metadata.json <<EOF
+{"provider": "virtualbox"}
+EOF
+
+    tar -czf "${box}" -C "${VM_TMP_DIR}" "box.ovf" "Vagrantfile" "${dst_name}" "metadata.json"
 
     cat > "${VM_README}" <<EOF
 Vagrant >= 1.2 is required. Use something like the following to get started:
+vagrant box add coreos path/to/$(basename "${box}")
+vagrant init coreos
+vagrant up
+vagrant ssh
+
+You will get a warning about "No guest additions were detected...",
+this is expected and should be ignored. SSH should work just dandy.
+EOF
+
+    # Replace list, not append, since we packaged up the disk image.
+    VM_GENERATED_FILES=( "${box}" "${VM_README}" )
+}
+
+_write_vagrant_vmware_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local src_name=$(basename "$VM_SRC_IMG")
+    local dst_name=$(basename "$VM_DST_IMG")
+    local dst_dir=$(dirname "$VM_DST_IMG")
+    local vmx_path="${dst_dir}/$(_src_to_dst_name "${src_name}" ".vmx")"
+    local vmx_file=$(basename "${vmx_path}")
+    local vfile="${VM_TMP_DIR}/Vagrantfile"
+    local box="${dst_dir}/$(_src_to_dst_name "${src_name}" ".box")"
+
+    # Move the disk image to tmp, it won't be a final output file
+    mv "${VM_DST_IMG}" "${VM_TMP_DIR}/${dst_name}"
+
+    _write_vmx_conf ${vm_mem}
+    "${BUILD_LIBRARY_DIR}/virtualbox_ovf.sh" \
+            --vm_name "$VM_NAME" \
+            --disk_vmdk "${VM_TMP_DIR}/${dst_name}" \
+            --memory_size "$vm_mem" \
+            --output_vagrant "$vfile"
+
+    cat > "${VM_TMP_DIR}"/metadata.json <<EOF
+{"provider": "vmware_fusion"}
+EOF
+
+    mv "${vmx_path}" "${VM_TMP_DIR}/"
+
+    tar -czf "${box}" -C "${VM_TMP_DIR}" "Vagrantfile" "${dst_name}" \
+        "${vmx_file}" "metadata.json"
+
+    cat > "${VM_README}" <<EOF
+Vagrant master (unreleased) currently has full CoreOS support. In the meantime, you may encounter an error about networking that can be ignored
 vagrant box add coreos path/to/$(basename "${box}")
 vagrant init coreos
 vagrant up
