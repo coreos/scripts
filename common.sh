@@ -159,6 +159,19 @@ die_notrace() {
   exit 1
 }
 
+# Simple version comparison routine
+# Note: not a true semver comparison and build revisions are ignored
+cmp_ver() {
+  local rev a="${2%%+*}" b="${3%%+*}"
+  case "$1" in
+    le) rev="" ;;
+    ge) rev="-R" ;;
+    *) die "Invalid operator $1" ;;
+  esac
+  printf '%s\n%s\n' "$a" "$b" | sort --version-sort --check=quiet $rev
+  return $?
+}
+
 # Directory locations inside the dev chroot; try the new default,
 # falling back to user specific paths if the upgrade has yet to
 # happen.

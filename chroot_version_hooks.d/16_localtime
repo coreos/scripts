@@ -1,9 +1,0 @@
-# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
-
-# We used to install an /etc/localtime symlink for the cros sdk when
-# we really only wanted it for the target boards.
-sudo rm -f /etc/._cfg????_localtime
-
-exit 0

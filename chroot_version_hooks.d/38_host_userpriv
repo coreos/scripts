@@ -1,7 +1,0 @@
-# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
-
-# The previous one had a bug, so we moved it to 39 and fixed the bug
-# (missing -H flag to find).
-exit 0

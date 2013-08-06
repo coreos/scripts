@@ -183,10 +183,20 @@ init_setup () {
    # Make sure the sudoers.d subdir exists as older stage3 base images lack it.
    mkdir -p "${FLAGS_chroot}/etc/sudoers.d"
 
-   # Use the standardized upgrade script to setup proxied vars.
+   # Setup proxied vars.
    load_environment_whitelist
-   bash -e "${SCRIPT_ROOT}/chroot_version_hooks.d/45_rewrite_sudoers.d" \
-     "${FLAGS_chroot}" "${SUDO_USER}" "${ENVIRONMENT_WHITELIST[@]}"
+   local extended_whitelist=(
+        "${ENVIRONMENT_WHITELIST[@]}"
+        CROS_WORKON_SRCROOT
+        PORTAGE_USERNAME
+   )
+
+   cat > "${FLAGS_chroot}/etc/sudoers.d/90_cros" <<EOF
+Defaults env_keep += "${extended_whitelist[*]}"
+%adm ALL=(ALL) ALL
+root ALL=(ALL) ALL
+${SUDO_USER} ALL=NOPASSWD: ALL
+EOF
 
    find "${FLAGS_chroot}/etc/"sudoers* -type f -exec chmod 0440 {} +
    # Fix bad group for some.
@@ -436,13 +446,6 @@ fi
 # Note: early_enter_chroot executes as root.
 early_enter_chroot "${CHROOT_TRUNK_DIR}/chromite/bin/cros_setup_toolchains" \
     --hostonly "${TOOLCHAIN_ARGS[@]}"
-
-if [ -n "${INITIALIZE_CHROOT}" ]; then
-  # If we're creating a new chroot, we also want to set it to the latest
-  # version.
-  enter_chroot \
-    "${CHROOT_TRUNK_DIR}/src/scripts/run_chroot_version_hooks" --force_latest
-fi
 
 # Update chroot.
 # Skip toolchain update because it already happened above, and the chroot is
