@@ -57,32 +57,34 @@ catalyst_init "$@"
 check_gsutil_opts
 catalyst_build
 
-info "Build complete! Changing output name to something more sensible."
-build_name="stage4-${ARCH}-${FLAGS_version}.tar.bz2"
-release_name="${TYPE}-${ARCH}-${FLAGS_version}.tar.bz2"
-ln -f "$BUILDS/${build_name}" "$BUILDS/${release_name}"
-ln -f "$BUILDS/${build_name}.CONTENTS" "$BUILDS/${release_name}.CONTENTS"
-sed -e "s/${build_name}/${release_name}/" \
-    "$BUILDS/${build_name}.DIGESTS" > "$BUILDS/${release_name}.DIGESTS"
+if [[ "$STAGES" =~ stage4 ]]; then
+    info "Build complete! Changing output name to something more sensible."
+    build_name="stage4-${ARCH}-${FLAGS_version}.tar.bz2"
+    release_name="${TYPE}-${ARCH}-${FLAGS_version}.tar.bz2"
+    ln -f "$BUILDS/${build_name}" "$BUILDS/${release_name}"
+    ln -f "$BUILDS/${build_name}.CONTENTS" "$BUILDS/${release_name}.CONTENTS"
+    sed -e "s/${build_name}/${release_name}/" \
+        "$BUILDS/${build_name}.DIGESTS" > "$BUILDS/${release_name}.DIGESTS"
 
-# Validate we didn't break the DIGESTS with sed
-for hash_type in md5 sha1 sha512; do
-    info "Validating ${hash_type} DIGESTS"
-    # shash is what's used to generate these multi-hash digests but it
-    # doesn't exit with non-zero on failure. I mean seriously...
-    #shash -c "$BUILDS/${release_name}.DIGESTS" -a "${hash_type}"
-    # So we do it the hard way...
-    grep -qi "^# ${hash_type} HASH$" "$BUILDS/${release_name}.DIGESTS"
-    (cd "$BUILDS" && grep -A1 -i "^# ${hash_type} HASH$" \
-        "${release_name}.DIGESTS" | grep -v '^--$' | \
-        ${hash_type}sum -c - --strict)
-done
+    # Validate we didn't break the DIGESTS with sed
+    for hash_type in md5 sha1 sha512; do
+        info "Validating ${hash_type} DIGESTS"
+        # shash is what's used to generate these multi-hash digests but it
+        # doesn't exit with non-zero on failure. I mean seriously...
+        #shash -c "$BUILDS/${release_name}.DIGESTS" -a "${hash_type}"
+        # So we do it the hard way...
+        grep -qi "^# ${hash_type} HASH$" "$BUILDS/${release_name}.DIGESTS"
+        (cd "$BUILDS" && grep -A1 -i "^# ${hash_type} HASH$" \
+            "${release_name}.DIGESTS" | grep -v '^--$' | \
+            ${hash_type}sum -c - --strict)
+    done
 
-info "SDK ready: $BUILDS/${release_name}"
+    info "SDK ready: $BUILDS/${release_name}"
 
-def_upload_path="${UPLOAD_ROOT}/sdk/${ARCH}/${FLAGS_version}"
-upload_files "tarball" "${def_upload_path}" "" "$BUILDS/${release_name}" \
-    "$BUILDS/${release_name}.CONTENTS" "$BUILDS/${release_name}.DIGESTS"
-upload_files "packages" "${def_upload_path}" "pkgs/" "${BINPKGS}"/*
+    def_upload_path="${UPLOAD_ROOT}/sdk/${ARCH}/${FLAGS_version}"
+    upload_files "tarball" "${def_upload_path}" "" "$BUILDS/${release_name}" \
+        "$BUILDS/${release_name}.CONTENTS" "$BUILDS/${release_name}.DIGESTS"
+    upload_files "packages" "${def_upload_path}" "pkgs/" "${BINPKGS}"/*
+fi
 
 command_completed
