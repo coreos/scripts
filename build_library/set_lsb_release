@@ -67,6 +67,7 @@ fi
 # COREOS_RELEASE_TRACK and COREOS_RELEASE_VERSION are used by the software
 #   update service.
 # DISTRIB_* are the standard names for the same values.
+sudo mkdir -p "${ROOT_FS_DIR}/etc"
 sudo_clobber "${ROOT_FS_DIR}/etc/lsb-release" <<EOF
 DISTRIB_ID=$COREOS_VERSION_NAME
 DISTRIB_RELEASE=$COREOS_VERSION_STRING
