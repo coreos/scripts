@@ -49,12 +49,23 @@ target: stage4
 pkgcache_path: $BINPKGS
 stage4/packages: dev-python/setuptools dev-vcs/git app-arch/pbzip2 net-misc/curl app-admin/sudo app-shells/bash-completion sys-devel/crossdev coreos-base/hard-host-depends
 stage4/fsscript: ${SCRIPT_ROOT}/lib/catalyst_sdk_stage4.sh
+stage4/root_overlay: ${TEMPDIR}/stage4_overlay
 EOF
 catalyst_stage_default
 }
 
 catalyst_init "$@"
 check_gsutil_opts
+
+if [[ "$STAGES" =~ stage4 ]]; then
+    info "Setting release to ${COREOS_VERSION_STRING}"
+    rm -rf "${TEMPDIR}/stage4_overlay"
+    mkdir -p "${TEMPDIR}/stage4_overlay"
+    "${BUILD_LIBRARY_DIR}/set_lsb_release" \
+        --root "${TEMPDIR}/stage4_overlay" \
+        --production_track sdk --board "${ARCH}-host"
+fi
+
 catalyst_build
 
 if [[ "$STAGES" =~ stage4 ]]; then
