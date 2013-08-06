@@ -57,7 +57,6 @@ fi
 for update_script in ${SCRIPTS_DIR}/sdk_lib/updates/*.sh; do
   update_name="${update_script##*/}"
   update_ver="${update_name%%_*}"
-  echo "$COREOS_VERSION_STRING" "$update_ver"
   # Run newer updates but don't pass our current version
   if ! cmp_ver le "$update_ver" "$COREOS_VERSION_STRING"; then
       warn "Skipping update from the future: $update_name"
