@@ -447,13 +447,6 @@ fi
 early_enter_chroot "${CHROOT_TRUNK_DIR}/chromite/bin/cros_setup_toolchains" \
     --hostonly "${TOOLCHAIN_ARGS[@]}"
 
-if [ -n "${INITIALIZE_CHROOT}" ]; then
-  # If we're creating a new chroot, we also want to set it to the latest
-  # version.
-  enter_chroot \
-    "${CHROOT_TRUNK_DIR}/src/scripts/run_chroot_version_hooks" --force_latest
-fi
-
 # Update chroot.
 # Skip toolchain update because it already happened above, and the chroot is
 # not ready to emerge all cross toolchains.
