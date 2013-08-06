@@ -1,9 +1,0 @@
-# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
-
-# Rebuild openssl to pick up the 0.9.8 -> 1.0.1 ABI change. Fetch everything
-# first, since this upgrade will break curl.
-sudo ~/trunk/chromite/bin/parallel_emerge -uDNvgf --rebuilt-binaries world
-sudo ~/trunk/chromite/bin/parallel_emerge -uDNvg --rebuilt-binaries world
-sudo update-ca-certificates
