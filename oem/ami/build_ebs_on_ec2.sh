@@ -73,7 +73,7 @@ else
     if [[ -z "$IMG_URL" ]]; then
         IMG_URL=$(printf "$URL_FMT" "$VERSION")
     fi
-    if ! curl -s --head "$IMG_URL" >/dev/null; then
+    if ! curl --fail -s --head "$IMG_URL" >/dev/null; then
         echo "$0: Image URL unavailable: $IMG_URL" >&2
         exit 1
     fi
@@ -97,7 +97,7 @@ name=$(sed -e "s%[^A-Za-z0-9()\\./_-]%_%g" <<< "CoreOS-$VERSION")
 description="CoreOS $VERSION"
 
 zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
-zone=$(curl -s $zoneurl)
+zone=$(curl --fail -s $zoneurl)
 region=$(echo $zone | sed 's/.$//')
 akiid=${AKI[$region]}
 
@@ -125,7 +125,7 @@ echo "Building AMI in zone $zone, region id $akiid"
 # Create and mount temporary EBS volume with file system to hold new AMI image
 volumeid=$(ec2-create-volume --size $size --availability-zone $zone |
   cut -f2)
-instanceid=$(curl -s http://instance-data/latest/meta-data/instance-id)
+instanceid=$(curl --fail -s http://instance-data/latest/meta-data/instance-id)
 echo "Attaching new volume $volumeid locally (instance $instanceid)"
 ec2-attach-volume --device /dev/sdi --instance "$instanceid" "$volumeid"
 while [ ! -e /dev/sdi -a ! -e /dev/xvdi ]
@@ -147,7 +147,7 @@ if [[ -n "$IMG_PATH" ]]; then
         dd if="$IMG_PATH" of=$dev bs=1M
     fi
 else
-    curl "$IMG_URL" | bunzip2 | dd of=$dev bs=1M
+    curl --fail "$IMG_URL" | bunzip2 | dd of=$dev bs=1M
 fi
 
 echo "Detaching $volumeid and creating snapshot"
