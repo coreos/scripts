@@ -46,12 +46,27 @@ switch_to_strict_mode
 
 . ${SCRIPTS_DIR}/sdk_lib/make_conf_util.sh
 
+# Create /etc/make.conf.host_setup.  The file content is regenerated
+# from scratch every update.  There are various reasons to do this:
+#  + It's cheap, so this is an easy way to guarantee correct content
+#    after an upgrade.
+#  + Inside make_chroot.sh, we use a temporary version of the file
+#    which must be updated before the script completes; that final
+#    update happens here.
+#  + If the repositories change to add or remove the private
+#    overlay, the file may need to be regenerated.
+create_host_setup
+
 # Run version hooks as pre-update
 if [[ -f /etc/lsb-release ]]; then
   OLDVER=$(grep "^COREOS_RELEASE_VERSION=" /etc/lsb-release | cut -d = -f 2-)
 else
   OLDVER="0.0.0"
 fi
+
+info "Updating chroot:"
+info " chroot version: $OLDVER"
+info " CoreOS version: $COREOS_VERSION_STRING"
 
 # Updates should be of the form 1.2.3_desc.sh
 for update_script in ${SCRIPTS_DIR}/sdk_lib/updates/*.sh; do
@@ -70,19 +85,6 @@ done
 "${BUILD_LIBRARY_DIR}/set_lsb_release" \
     --root / --production_track sdk \
     --board "$(portageq envvar ARCH)-host"
-
-# Create /etc/make.conf.host_setup.  The file content is regenerated
-# from scratch every update.  There are various reasons to do this:
-#  + It's cheap, so this is an easy way to guarantee correct content
-#    after an upgrade.
-#  + Inside make_chroot.sh, we use a temporary version of the file
-#    which must be updated before the script completes; that final
-#    update happens here.
-#  + If the repositories change to add or remove the private
-#    overlay, the file may need to be regenerated.
-create_host_setup
-
-info "Updating chroot"
 
 EMERGE_FLAGS="-uNv --with-bdeps=y --select"
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then

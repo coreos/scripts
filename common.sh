@@ -165,7 +165,7 @@ cmp_ver() {
   local rev a="${2%%+*}" b="${3%%+*}"
   case "$1" in
     le) rev="" ;;
-    ge) rev="-R" ;;
+    ge) rev="--reverse" ;;
     *) die "Invalid operator $1" ;;
   esac
   printf '%s\n%s\n' "$a" "$b" | sort --version-sort --check=quiet $rev
