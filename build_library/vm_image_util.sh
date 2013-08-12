@@ -300,24 +300,31 @@ SCRIPT_DIR="\`dirname "\$0"\`"
 DISK_IMAGE="\${SCRIPT_DIR}/${dst_name}"
 
 # Default to KVM, fall back on full emulation
-exec qemu-system-x86_64 \
-    -name "${VM_NAME}" \
-    -uuid "${VM_UUID}" \
-    -m ${vm_mem} \
-    -machine accel=kvm:tcg \
-    -drive index=0,if=virtio,media=disk,format=qcow2,file="\${DISK_IMAGE}" \
-    -net nic,vlan=0,model=virtio \
-    -net user,vlan=0,hostfwd=tcp::2222-:22 \
+exec qemu-system-x86_64 \\
+    -name "${VM_NAME}" \\
+    -uuid "${VM_UUID}" \\
+    -m ${vm_mem} \\
+    -machine accel=kvm:tcg \\
+    -drive index=0,if=virtio,media=disk,format=qcow2,file="\${DISK_IMAGE}" \\
+    -net nic,vlan=0,model=virtio \\
+    -net user,vlan=0,hostfwd=tcp::2222-:22 \\
     "\$@"
 EOF
     chmod +x "${script}"
 
     cat >"${VM_README}" <<EOF
-If you have qemu installed, you can start the image with:
-./path/to/$(basename "${script}") -curses
+If you have qemu installed (or in the SDK), you can start the image with:
+  cd path/to/image
+  ./$(basename "${script}") -curses
+
+If you wish to log in via a ssh key:
+  mkdir /tmp/meta-data
+  cp ~/.ssh/id_dsa.pub /tmp/meta-data/authorized_keys
+  ./$(basename "${script}") -curses -virtfs \
+    local,path=/tmp/meta-data,mount_tag=meta-data,security_model=none,readonly
 
 SSH into that host with:
-ssh 127.0.0.1 -p 2222
+  ssh 127.0.0.1 -p 2222
 EOF
 
     VM_GENERATED_FILES+=( "${script}" "${VM_README}" )

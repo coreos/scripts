@@ -424,6 +424,7 @@ COMMON_INSTALL_MASK="
   /usr/lib/debug
   /usr/lib/gcc
   /usr/lib*/pkgconfig
+  /usr/lib/systemd/system/local-fs.target.wants
   /usr/local/autotest-chrome
   /usr/man
   /usr/share/aclocal
