@@ -320,7 +320,7 @@ If you have qemu installed (or in the SDK), you can start the image with:
 If you wish to log in via a ssh key:
   mkdir /tmp/meta-data
   cp ~/.ssh/id_dsa.pub /tmp/meta-data/authorized_keys
-  ./$(basename "${script}") -curses -virtfs \
+  ./$(basename "${script}") -curses -virtfs \\
     local,path=/tmp/meta-data,mount_tag=meta-data,security_model=none,readonly
 
 SSH into that host with:
