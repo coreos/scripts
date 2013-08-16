@@ -97,7 +97,12 @@ EOF
   SYSLINUX_DIR="${FLAGS_to}/syslinux"
   sudo mkdir -p "${SYSLINUX_DIR}"
 
+  # Add ttyS0 as a secondary console, useful for qemu -nographic
+  # This leaves /dev/console mapped to tty0 (vga) which is reasonable default.
+  syslinux_args="console=ttyS0,115200n8 ${common_args}"
+
   cat <<EOF | sudo dd of="${SYSLINUX_DIR}/syslinux.cfg" 2>/dev/null
+SERIAL 0 115200
 PROMPT 0
 TIMEOUT 0
 DEFAULT boot_kernel
@@ -119,14 +124,14 @@ EOF
 label boot_kernel
   menu label boot_kernel
   kernel vmlinuz-boot_kernel
-  append ${common_args} root=gptprio:
+  append ${syslinux_args} root=gptprio:
 EOF
   info "Emitted ${SYSLINUX_DIR}/boot_kernel.cfg"
   cat <<EOF | sudo dd of="${SYSLINUX_DIR}/root.A.cfg" 2>/dev/null
 label coreos.A
   menu label coreos.A
   kernel vmlinuz.A
-  append ${common_args} root=${ROOTA}
+  append ${syslinux_args} root=${ROOTA}
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.A.cfg"
 
@@ -134,7 +139,7 @@ EOF
 label coreos.B
   menu label coreos.B
   kernel vmlinuz.B
-  append ${common_args} root=${ROOTB}
+  append ${syslinux_args} root=${ROOTB}
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.B.cfg"
 
