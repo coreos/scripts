@@ -40,20 +40,9 @@ switch_to_strict_mode
 # Useful for getting partition UUID values
 . "${BUILD_LIBRARY_DIR}/disk_layout_util.sh" || exit 1
 
-# Only let dm-verity block if rootfs verification is configured.
-# Also, set which device mapper correspondes to verity
-dev_wait=0
-ROOTDEV=/dev/dm-0
-if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-  dev_wait=1
-  if [[ ${FLAGS_enable_bootcache} -eq ${FLAGS_TRUE} ]]; then
-    ROOTDEV=/dev/dm-1
-  fi
-fi
-
 # Common kernel command-line args
-common_args="console=tty0 rootwait ro"
-common_args="${common_args} noswap ${FLAGS_boot_args}"
+common_args="console=tty0 ro noswap cros_legacy"
+common_args="${common_args} ${FLAGS_boot_args}"
 
 # Populate the x86 rootfs to support legacy and EFI bios config templates.
 # The templates are used by the installer to populate partition 12 with
@@ -77,23 +66,23 @@ timeout         0
 
 title           CoreOS A Kernel
 root            (hd0,0)
-kernel          /syslinux/vmlinuz.A ${grub_args} root=gptprio: cros_legacy
+kernel          /syslinux/vmlinuz.A ${grub_args} root=gptprio:
 
 title           CoreOS B Kernel
 root            (hd0,0)
-kernel          /syslinux/vmlinuz.B ${grub_args} root=gptprio: cros_legacy
+kernel          /syslinux/vmlinuz.B ${grub_args} root=gptprio:
 
 title           CoreOS bootengine
 root            (hd0,0)
-kernel          /syslinux/vmlinuz-boot_kernel ${grub_args} root=gptprio: cros_legacy
+kernel          /syslinux/vmlinuz-boot_kernel ${grub_args} root=gptprio:
 
 title           CoreOS A Root Rescue
 root            (hd0,0)
-kernel          /syslinux/vmlinuz.A ${grub_args} root=${ROOTA} cros_legacy
+kernel          /syslinux/vmlinuz.A ${grub_args} root=${ROOTA}
 
 title           CoreOS B Root Rescue
 root            (hd0,0)
-kernel          /syslinux/vmlinuz.B ${grub_args} root=${ROOTB} cros_legacy
+kernel          /syslinux/vmlinuz.B ${grub_args} root=${ROOTB}
 EOF
   info "Emitted ${GRUB_DIR}/menu.lst.A"
 
@@ -108,7 +97,12 @@ EOF
   SYSLINUX_DIR="${FLAGS_to}/syslinux"
   sudo mkdir -p "${SYSLINUX_DIR}"
 
+  # Add ttyS0 as a secondary console, useful for qemu -nographic
+  # This leaves /dev/console mapped to tty0 (vga) which is reasonable default.
+  syslinux_args="console=ttyS0,115200n8 ${common_args}"
+
   cat <<EOF | sudo dd of="${SYSLINUX_DIR}/syslinux.cfg" 2>/dev/null
+SERIAL 0 115200
 PROMPT 0
 TIMEOUT 0
 DEFAULT boot_kernel
@@ -130,14 +124,14 @@ EOF
 label boot_kernel
   menu label boot_kernel
   kernel vmlinuz-boot_kernel
-  append ${common_args} root=gptprio: cros_legacy
+  append ${syslinux_args} root=gptprio:
 EOF
   info "Emitted ${SYSLINUX_DIR}/boot_kernel.cfg"
   cat <<EOF | sudo dd of="${SYSLINUX_DIR}/root.A.cfg" 2>/dev/null
 label coreos.A
   menu label coreos.A
   kernel vmlinuz.A
-  append ${common_args} root=${ROOTA} i915.modeset=1 cros_legacy
+  append ${syslinux_args} root=${ROOTA}
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.A.cfg"
 
@@ -145,7 +139,7 @@ EOF
 label coreos.B
   menu label coreos.B
   kernel vmlinuz.B
-  append ${common_args} root=${ROOTB} i915.modeset=1 cros_legacy
+  append ${syslinux_args} root=${ROOTB}
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.B.cfg"
 
