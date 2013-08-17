@@ -18,19 +18,12 @@ DEFINE_string arch "x86" \
   "The boot architecture: arm or x86. (Default: x86)"
 DEFINE_string to "/tmp/boot" \
   "Path to populate with bootloader templates (Default: /tmp/boot)"
-DEFINE_string usb_disk /dev/sdb3 \
-  "Path syslinux should use to do a usb boot. Default: /dev/sdb3"
 DEFINE_string boot_args "" \
   "Additional boot arguments to pass to the commandline (Default: '')"
 DEFINE_boolean enable_bootcache ${FLAGS_FALSE} \
   "Default all bootloaders to NOT use boot cache."
 DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
   "Controls if verity is used for root filesystem checking (Default: false)"
-DEFINE_integer verity_error_behavior 3 \
-  "Verified boot error behavior [0: I/O errors, 1: reboot, 2: nothing] \
-(Default: 3)"
-DEFINE_integer verity_max_ios -1 \
-  "Optional number of outstanding I/O operations. (Default: 1024)"
 
 # Parse flags
 FLAGS "$@" || exit 1

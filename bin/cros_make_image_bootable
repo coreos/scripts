@@ -95,14 +95,6 @@ DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
   "Default all bootloaders to NOT use kernel-based root fs integrity checking."
 DEFINE_boolean enable_bootcache ${FLAGS_FALSE} \
   "Default all bootloaders to NOT use bootcache."
-DEFINE_integer verity_error_behavior 3 \
-  "Kernel verified boot error behavior (0: I/O errors, 1: reboot, 2: nothing)"
-DEFINE_integer verity_max_ios -1 \
-  "Number of outstanding I/O operations dm-verity caps at."
-DEFINE_string verity_algorithm "sha1" \
-  "Cryptographic hash algorithm used for kernel vboot."
-DEFINE_string verity_salt "" \
-  "Salt for rootfs hash tree."
 
 DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
   "Directory containing the signing keys."
@@ -141,14 +133,10 @@ DEFINE_boolean enable_squashfs ${FLAGS_FALSE} \
 DEFINE_string squash_sort_file "" \
   "Specify the priority of files when squashing the rootfs."
 
-DEFINE_string enable_serial "" \
-  "Enable serial port for printks. Example values: ttyS0"
 
 # Parse the boot.desc and any overrides
 eval set -- "${BOOT_DESC} ${FLAG_OVERRIDES}"
 FLAGS "${@}" || exit 1
-
-[ -z "${FLAGS_verity_salt}" ] && FLAGS_verity_salt=$(make_salt)
 
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 
