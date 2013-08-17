@@ -63,8 +63,7 @@
         "num": 9,
         "label":"STATE",
         "type":"data",
-        "blocks":"2097152",
-        "features":["expand"]
+        "blocks":"2097152"
       }
     ],
     "usb": [

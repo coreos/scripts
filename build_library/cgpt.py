@@ -93,41 +93,6 @@ def LoadPartitionConfig(filename):
   return config
 
 
-def GetTableTotals(config, partitions):
-  """Calculates total sizes/counts for a partition table.
-
-  Args:
-    config: Partition configuration file object
-    partitions: List of partitions to process
-  Returns:
-    Dict containing totals data
-  """
-
-  ret = {
-    'expand_count': 0,
-    'expand_min': 0,
-    'block_count': START_SECTOR * config['metadata']['block_size']
-  }
-
-  # Total up the size of all non-expanding partitions to get the minimum
-  # required disk size.
-  for partition in partitions:
-    if 'features' in partition and 'expand' in partition['features']:
-      ret['expand_count'] += 1
-      ret['expand_min'] += partition['blocks']
-    else:
-      ret['block_count'] += partition['blocks']
-
-  # At present, only one expanding partition is permitted.
-  # Whilst it'd be possible to have two, we don't need this yet
-  # and it complicates things, so it's been left out for now.
-  if ret['expand_count'] > 1:
-    raise InvalidLayout('1 expand partition allowed, %d requested'
-                        % ret['expand_count'])
-
-  ret['min_disk_size'] = ret['block_count'] + ret['expand_min']
-
-  return ret
 
 
 def GetPartitionTable(options, config, image_type):
@@ -271,44 +236,28 @@ def WriteLayoutFunction(options, sfile, func_name, image_type, config):
   """
 
   partitions = GetPartitionTable(options, config, image_type)
-  partition_totals = GetTableTotals(config, partitions)
+  disk_block_count = START_SECTOR * config['metadata']['block_size']
+
+  for partition in partitions:
+    disk_block_count += partition['blocks']
 
   sfile.write('%s() {\ncreate_image $1 %d %s\n' % (
-      func_name, partition_totals['min_disk_size'],
+      func_name, disk_block_count,
       config['metadata']['block_size']))
 
   sfile.write('CURR=%d\n' % START_SECTOR)
   sfile.write('$GPT create $1\n')
 
-  # Pass 1: Set up the expanding partition size.
-  for partition in partitions:
-    partition['var'] = partition['blocks']
-
-    if partition['type'] != 'blank':
-      if partition['num'] == 1:
-        if 'features' in partition and 'expand' in partition['features']:
-          sfile.write('if [ -b $1 ]; then\n')
-          sfile.write('STATEFUL_SIZE=$(( $(numsectors $1) - %d))\n' %
-            partition_totals['block_count'])
-          sfile.write('else\n')
-          sfile.write('STATEFUL_SIZE=%s\n' % partition['blocks'])
-          sfile.write('fi\n')
-          partition['var'] = '$STATEFUL_SIZE'
-
-  sfile.write('STATEFUL_SIZE=$((STATEFUL_SIZE-(STATEFUL_SIZE %% %d)))\n' %
-    config['metadata']['fs_block_size'])
-
-  # Pass 2: Write out all the cgpt add commands.
   for partition in partitions:
     if partition['type'] != 'blank':
       sfile.write('$GPT add -i %d -b $CURR -s %s -t %s -l %s -u %s $1 && ' % (
-          partition['num'], str(partition['var']), partition['type'],
+          partition['num'], str(partition['blocks']), partition['type'],
           partition['label'], partition['uuid']))
     if partition['type'] == 'efi':
       sfile.write('$GPT boot -p -b $2 -i %d $1\n' % partition['num'])
 
     # Increment the CURR counter ready for the next partition.
-    sfile.write('CURR=$(( $CURR + %s ))\n' % partition['var'])
+    sfile.write('CURR=$(( $CURR + %s ))\n' % partition['blocks'])
 
   sfile.write('$GPT show $1\n')
   sfile.write('}\n')
