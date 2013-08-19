@@ -21,10 +21,14 @@ USAGE="Usage: $0 -a ami-id
 This script must be run from an ec2 host with the ec2 tools installed.
 "
 
-while getopts "a:K:C:hv" OPTION
+AMI=
+VER=
+
+while getopts "a:V:K:C:hv" OPTION
 do
     case $OPTION in
         a) AMI="$OPTARG";;
+        V) VER="$OPTARG";;
         K) export EC2_PRIVATE_KEY="$OPTARG";;
         C) export EC2_CERT="$OPTARG";;
         h) echo "$USAGE"; exit;;
@@ -38,17 +42,25 @@ if [[ $(id -u) -eq 0 ]]; then
     exit 1
 fi
 
-if [ -z "$AMI" ]; then
-    echo "AMI required" >&2
+if [[ -z "$AMI" && -n "$VER" ]]; then
+    AMI=$(ec2-describe-images -F name="CoreOS-$VER" | grep -m1 ^IMAGE \
+        | cut -f2) || true # Don't die silently, error messages are good
+    if [[ -z "$AMI" ]]; then
+        echo "$0: Cannot find an AMI for CoreOS $VER" >&2
+        exit 1
+    fi
+elif [[ -n "$AMI" ]]; then
+    # check to make sure this is a valid image
+    if ! ec2-describe-images -F image-id="$AMI" | grep -q "$AMI"; then
+        echo "$0: Unknown image: $AMI" >&2
+        exit 1
+    fi
+else
+    echo "$0: AMI id or version required (-a or -V options)" >&2
     echo "$USAGE" >&2
     exit 1
 fi
 
-# check to make sure this is a valid image
-if ! ec2-describe-images -F image-id="$AMI" | grep -q "$AMI"; then
-    echo "Unknown image: $AMI" >&2
-    exit 1
-fi
 
 echo -n "Creating keys and security group... "
 key_name="autotest-`date +%s`"
