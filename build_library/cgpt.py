@@ -3,10 +3,10 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import copy
 import json
 import os
 import re
+import subprocess
 import sys
 import uuid
 from optparse import OptionParser
@@ -93,41 +93,6 @@ def LoadPartitionConfig(filename):
   return config
 
 
-def GetTableTotals(config, partitions):
-  """Calculates total sizes/counts for a partition table.
-
-  Args:
-    config: Partition configuration file object
-    partitions: List of partitions to process
-  Returns:
-    Dict containing totals data
-  """
-
-  ret = {
-    'expand_count': 0,
-    'expand_min': 0,
-    'block_count': START_SECTOR * config['metadata']['block_size']
-  }
-
-  # Total up the size of all non-expanding partitions to get the minimum
-  # required disk size.
-  for partition in partitions:
-    if 'features' in partition and 'expand' in partition['features']:
-      ret['expand_count'] += 1
-      ret['expand_min'] += partition['blocks']
-    else:
-      ret['block_count'] += partition['blocks']
-
-  # At present, only one expanding partition is permitted.
-  # Whilst it'd be possible to have two, we don't need this yet
-  # and it complicates things, so it's been left out for now.
-  if ret['expand_count'] > 1:
-    raise InvalidLayout('1 expand partition allowed, %d requested'
-                        % ret['expand_count'])
-
-  ret['min_disk_size'] = ret['block_count'] + ret['expand_min']
-
-  return ret
 
 
 def GetPartitionTable(options, config, image_type):
@@ -241,77 +206,72 @@ def GetPartitionTableFromConfig(options, layout_filename, image_type):
 
   return partitions
 
-def GetScriptShell():
-  """Loads and returns the skeleton script for our output script.
 
-  Returns:
-    A string containg the skeleton script
-  """
-
-  script_shell_path = os.path.join(os.path.dirname(__file__), 'cgpt_shell.sh')
-  with open(script_shell_path, 'r') as f:
-    script_shell = ''.join(f.readlines())
-
-  # Before we return, insert the path to this tool so somebody reading the
-  # script later can tell where it was generated.
-  script_shell = script_shell.replace('@SCRIPT_GENERATOR@', script_shell_path)
-
-  return script_shell
-
-
-def WriteLayoutFunction(options, sfile, func_name, image_type, config):
-  """Writes a shell script function to write out a given partition table.
+def WritePartitionTable(options, image_type, layout_filename, disk_filename):
+  """Writes the given partition table to a disk image or device.
 
   Args:
     options: Flags passed to the script
-    sfile: File handle we're writing to
-    func_name: Function name to write out for specified layout
     image_type: Type of image eg base/test/dev/factory_install
-    config: Partition configuration file object
+    layout_filename: Path to partition configuration file
+    disk_filename: Path to disk image or device file
   """
 
+  def Cgpt(*args):
+    subprocess.check_call(['cgpt'] + [str(a) for a in args])
+
+  config = LoadPartitionConfig(layout_filename)
   partitions = GetPartitionTable(options, config, image_type)
-  partition_totals = GetTableTotals(config, partitions)
+  disk_block_count = START_SECTOR * config['metadata']['block_size']
 
-  sfile.write('%s() {\ncreate_image $1 %d %s\n' % (
-      func_name, partition_totals['min_disk_size'],
-      config['metadata']['block_size']))
-
-  sfile.write('CURR=%d\n' % START_SECTOR)
-  sfile.write('$GPT create $1\n')
-
-  # Pass 1: Set up the expanding partition size.
   for partition in partitions:
-    partition['var'] = partition['blocks']
+    disk_block_count += partition['blocks']
 
-    if partition['type'] != 'blank':
-      if partition['num'] == 1:
-        if 'features' in partition and 'expand' in partition['features']:
-          sfile.write('if [ -b $1 ]; then\n')
-          sfile.write('STATEFUL_SIZE=$(( $(numsectors $1) - %d))\n' %
-            partition_totals['block_count'])
-          sfile.write('else\n')
-          sfile.write('STATEFUL_SIZE=%s\n' % partition['blocks'])
-          sfile.write('fi\n')
-          partition['var'] = '$STATEFUL_SIZE'
+  sector = START_SECTOR
+  Cgpt('create', '-c', '-s', disk_block_count, disk_filename)
 
-  sfile.write('STATEFUL_SIZE=$((STATEFUL_SIZE-(STATEFUL_SIZE %% %d)))\n' %
-    config['metadata']['fs_block_size'])
-
-  # Pass 2: Write out all the cgpt add commands.
   for partition in partitions:
     if partition['type'] != 'blank':
-      sfile.write('$GPT add -i %d -b $CURR -s %s -t %s -l %s -u %s $1 && ' % (
-          partition['num'], str(partition['var']), partition['type'],
-          partition['label'], partition['uuid']))
+      Cgpt('add', '-i', partition['num'],
+                  '-b', sector,
+                  '-s', partition['blocks'],
+                  '-t', partition['type'],
+                  '-l', partition['label'],
+                  '-u', partition['uuid'],
+                  disk_filename)
+
+    sector += partition['blocks']
+
+  Cgpt('show', disk_filename)
+
+
+def WriteMbrBoot(options, image_type, layout_filename,
+                 disk_filename, mbr_filename):
+  """Writes the protective MBR with the given boot code.
+
+  The EFI System Partition will be marked as the 'boot' partition.
+
+  Args:
+    options: Flags passed to the script
+    image_type: Type of image eg base/test/dev/factory_install
+    layout_filename: Path to partition configuration file
+    disk_filename: Path to disk image or device file
+    mbr_filename: Path to boot code, usually gptmbr.bin from syslinux.
+  """
+
+  config = LoadPartitionConfig(layout_filename)
+  partitions = GetPartitionTable(options, config, image_type)
+
+  esp_number = None
+  for partition in partitions:
     if partition['type'] == 'efi':
-      sfile.write('$GPT boot -p -b $2 -i %d $1\n' % partition['num'])
+      esp_number = partition['num']
+      break
+  if esp_number is None:
+    raise InvalidLayout('Table does not include an EFI partition.')
 
-    # Increment the CURR counter ready for the next partition.
-    sfile.write('CURR=$(( $CURR + %s ))\n' % partition['var'])
-
-  sfile.write('$GPT show $1\n')
-  sfile.write('}\n')
+  subprocess.check_call(['cgpt', 'boot', '-p', '-b', mbr_filename,
+      '-i', str(partition['num']), disk_filename])
 
 
 def GetPartitionByNumber(partitions, num):
@@ -348,26 +308,6 @@ def GetPartitionByLabel(partitions, label):
       return partition
 
   raise PartitionNotFound('Partition not found')
-
-
-def WritePartitionScript(options, image_type, layout_filename, sfilename):
-  """Writes a shell script with functions for the base and requested layouts.
-
-  Args:
-    options: Flags passed to the script
-    image_type: Type of image eg base/test/dev/factory_install
-    layout_filename: Path to partition configuration file
-    sfilename: Filename to write the finished script to
-  """
-
-  config = LoadPartitionConfig(layout_filename)
-
-  with open(sfilename, 'w') as f:
-    script_shell = GetScriptShell()
-    f.write(script_shell)
-
-    WriteLayoutFunction(options, f, 'write_base_table', 'base', config)
-    WriteLayoutFunction(options, f, 'write_partition_table', image_type, config)
 
 
 def GetBlockSize(options, layout_filename):
@@ -549,9 +489,14 @@ def DoParseOnly(options, image_type, layout_filename):
 
 def main(argv):
   action_map = {
-    'write': {
-      'usage': ['<image_type>', '<partition_config_file>', '<script_file>'],
-      'func': WritePartitionScript,
+    'write_gpt': {
+      'usage': ['<image_type>', '<partition_config_file>', '<disk_image>'],
+      'func': WritePartitionTable,
+    },
+    'write_mbr': {
+      'usage': ['<image_type>', '<partition_config_file>', '<disk_image>',
+                '<mbr_boot_code>'],
+      'func': WriteMbrBoot,
     },
     'readblocksize': {
       'usage': ['<partition_config_file>'],

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 '''Scan an existing directory tree and record installed directories.
 
-During build a number of directories under /var are created in the stateful
+During build a number of directories under /var are created in the state
 partition. We want to make sure that those are always there so create a record
 of them using systemd's tempfiles config format so they are recreated during
 boot if they go missing for any reason.
@@ -19,6 +19,8 @@ def main():
     parser = optparse.OptionParser(description=__doc__)
     parser.add_option('--root', help='Remove root prefix from output')
     parser.add_option('--output', help='Write output to the given file')
+    parser.add_option('--ignore', action='append', default=[],
+                      help='Ignore one or more paths (use multiple times)')
     opts, args = parser.parse_args()
 
     if opts.root:
@@ -55,6 +57,9 @@ def main():
             assert len(stripped) > 1
         else:
             stripped = path
+
+        if stripped in opts.ignore:
+          continue
 
         info = os.stat(path)
         assert stat.S_ISDIR(info.st_mode)
