@@ -209,9 +209,10 @@ create_base_image() {
   emerge_to_image --root="${root_fs_dir}" ${BASE_PACKAGE}
 
   # Record directories installed to the stateful partition.
+  # Ignore /var/tmp, systemd covers this entry.
   sudo "${SCRIPTS_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
       --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image.conf" \
-      "${root_fs_dir}/var"
+      --ignore=/var/tmp "${root_fs_dir}/var"
 
   # Set /etc/lsb-release on the image.
   "${BUILD_LIBRARY_DIR}/set_lsb_release" \
