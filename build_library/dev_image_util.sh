@@ -17,7 +17,7 @@ install_dev_packages() {
   trap "unmount_image ; delete_prompt" EXIT
 
   mount_image "${BUILD_DIR}/${image_name}" "${root_fs_dir}" \
-    "${stateful_fs_dir}" "${esp_fs_dir}"
+    "${state_fs_dir}" "${esp_fs_dir}"
 
   # Determine the root dir for developer packages.
   local root_dev_dir="${root_fs_dir}/usr/local"
@@ -90,7 +90,7 @@ EOF
 
   # Zero all fs free space, not fatal since it won't work on linux < 3.2
   sudo fstrim "${root_fs_dir}" || true
-  sudo fstrim "${stateful_fs_dir}" || true
+  sudo fstrim "${state_fs_dir}" || true
 
   info "Developer image built and stored at ${image_name}"
 

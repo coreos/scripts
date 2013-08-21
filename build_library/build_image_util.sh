@@ -104,7 +104,6 @@ create_boot_desc() {
     enable_bootcache_flag=--enable_bootcache
   fi
 
-  [ -z "${FLAGS_verity_salt}" ] && FLAGS_verity_salt=$(make_salt)
   cat <<EOF > ${BUILD_DIR}/boot.desc
   --board=${BOARD}
   --image_type=${image_type}
@@ -112,8 +111,6 @@ create_boot_desc() {
   --keys_dir="${DEVKEYSDIR}"
   --boot_args="${FLAGS_boot_args}"
   --nocleanup_dirs
-  --verity_algorithm=sha1
-  --enable_serial="${FLAGS_enable_serial}"
   ${enable_rootfs_verification_flag}
   ${enable_bootcache_flag}
 EOF

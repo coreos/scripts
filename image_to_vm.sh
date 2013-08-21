@@ -68,7 +68,9 @@ if [ -z "${FLAGS_board}" ] ; then
   die_notrace "--board is required."
 fi
 
-BOARD="$FLAGS_board"
+# Loaded after flags are parsed because board_options depends on --board
+. "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
+
 
 IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
 # Default to the most recent image
