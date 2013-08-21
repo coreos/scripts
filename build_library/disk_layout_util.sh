@@ -3,7 +3,6 @@
 # found in the LICENSE file.
 
 CGPT_PY="${BUILD_LIBRARY_DIR}/cgpt.py"
-PARTITION_SCRIPT_PATH="usr/sbin/write_gpt.sh"
 
 cgpt_py() {
   if [[ -n "${FLAGS_adjust_part-}" ]]; then
@@ -20,7 +19,6 @@ cgpt_py() {
 
 get_disk_layout_path() {
   DISK_LAYOUT_PATH="${BUILD_LIBRARY_DIR}/legacy_disk_layout.json"
-  local partition_script_path=$(tempfile)
   for overlay in $(cros_list_overlays --board "$BOARD"); do
     local disk_layout="${overlay}/scripts/disk_layout.json"
     if [[ -e ${disk_layout} ]]; then
@@ -29,23 +27,9 @@ get_disk_layout_path() {
   done
 }
 
-write_partition_script() {
+write_partition_table() {
   local image_type=$1
-  local partition_script_path=$2
-  get_disk_layout_path
-
-  local temp_script_file=$(mktemp)
-
-  sudo mkdir -p "$(dirname "${partition_script_path}")"
-
-  cgpt_py write "${image_type}" "${DISK_LAYOUT_PATH}" \
-          "${temp_script_file}"
-  sudo mv "${temp_script_file}" "${partition_script_path}"
-}
-
-run_partition_script() {
-  local outdev=$1
-  local root_fs_img=$2
+  local outdev=$2
 
   local pmbr_img
   case ${ARCH} in
@@ -61,13 +45,10 @@ run_partition_script() {
     ;;
   esac
 
-  if is_mounted "${root_fs_dir}"; then
-    safe_umount "${root_fs_dir}"
-  fi
-  sudo mount -o loop "${root_fs_img}" "${root_fs_dir}"
-  . "${root_fs_dir}/${PARTITION_SCRIPT_PATH}"
-  write_partition_table "${outdev}" "${pmbr_img}"
-  safe_umount "${root_fs_dir}"
+  get_disk_layout_path
+  cgpt_py write_gpt "${image_type}" "${DISK_LAYOUT_PATH}" "${outdev}"
+  cgpt_py write_mbr \
+      "${image_type}" "${DISK_LAYOUT_PATH}" "${outdev}" "${pmbr_img}"
 }
 
 get_fs_block_size() {
@@ -204,7 +185,7 @@ build_gpt() {
   local oem_img="$5"
 
   get_disk_layout_type
-  run_partition_script "${outdev}" "${rootfs_img}"
+  write_partition_table "${DISK_LAYOUT_TYPE}" "${outdev}"
 
   local sudo=
   if [ ! -w "$outdev" ] ; then

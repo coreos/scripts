@@ -180,14 +180,8 @@ unpack_source_disk() {
         cp --sparse=always "${alternate_state_image}" "${TEMP_STATE}"
     fi
 
-    TEMP_PMBR="${VM_TMP_DIR}"/pmbr
-    dd if="${VM_SRC_IMG}" of="${TEMP_PMBR}" bs=512 count=1
-
     info "Initializing new partition table..."
-    TEMP_PARTITION_SCRIPT="${VM_TMP_DIR}/partition_script.sh"
-    write_partition_script "${disk_layout}" "${TEMP_PARTITION_SCRIPT}"
-    . "${TEMP_PARTITION_SCRIPT}"
-    write_partition_table "${VM_TMP_IMG}" "${TEMP_PMBR}"
+    write_partition_table "${disk_layout}" "${VM_TMP_IMG}"
 }
 
 resize_state_partition() {

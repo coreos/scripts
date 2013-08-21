@@ -227,12 +227,6 @@ create_base_image() {
   # cros_make_image_bootable.
   create_boot_desc "${image_type}"
 
-  # Write out the GPT creation script.
-  # This MUST be done before writing bootloader templates else we'll break
-  # the hash on the root FS.
-  write_partition_script "${image_type}" \
-    "${root_fs_dir}/${PARTITION_SCRIPT_PATH}"
-
   # Populates the root filesystem with legacy bootloader templates
   # appropriate for the platform.  The autoupdater and installer will
   # use those templates to update the legacy boot partition (12/ESP)
