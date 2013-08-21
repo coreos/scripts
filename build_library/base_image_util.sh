@@ -210,7 +210,7 @@ create_base_image() {
 
   # Record directories installed to the stateful partition.
   # Ignore /var/tmp, systemd covers this entry.
-  sudo "${SCRIPTS_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
+  sudo "${BUILD_LIBRARY_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
       --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image.conf" \
       --ignore=/var/tmp "${root_fs_dir}/var"
 
