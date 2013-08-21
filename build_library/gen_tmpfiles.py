@@ -1,7 +1,7 @@
 #!/usr/bin/python
 '''Scan an existing directory tree and record installed directories.
 
-During build a number of directories under /var are created in the stateful
+During build a number of directories under /var are created in the state
 partition. We want to make sure that those are always there so create a record
 of them using systemd's tempfiles config format so they are recreated during
 boot if they go missing for any reason.

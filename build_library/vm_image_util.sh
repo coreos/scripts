@@ -191,10 +191,10 @@ resize_state_partition() {
     local original_size=$(stat -c%s "${TEMP_STATE}")
 
     if [[ "${original_size}" -gt "${size_in_bytes}" ]]; then
-        die "Cannot resize stateful image to smaller than original."
+        die "Cannot resize state image to smaller than original."
     fi
 
-    info "Resizing stateful partition to ${size_in_mb}MB"
+    info "Resizing state partition to ${size_in_mb}MB"
     /sbin/e2fsck -pf "${TEMP_STATE}"
     /sbin/resize2fs "${TEMP_STATE}" "${size_in_sectors}s"
 }

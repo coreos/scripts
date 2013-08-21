@@ -4,7 +4,7 @@
 
 . "${SRC_ROOT}/platform/dev/toolchain_utils.sh" || exit 1
 
-# Overlays are parts of the disk that live on the stateful partition
+# Overlays are parts of the disk that live on the state partition
 ROOT_OVERLAYS=(var opt srv home usr/local)
 
 cleanup_mounts() {
@@ -28,7 +28,7 @@ cleanup_mounts() {
 
   echo "Cleaning up mounts"
   safe_umount_tree "${root_fs_dir}"
-  safe_umount_tree "${stateful_fs_dir}"
+  safe_umount_tree "${state_fs_dir}"
   safe_umount_tree "${esp_fs_dir}"
   safe_umount_tree "${oem_fs_dir}"
 
@@ -52,7 +52,7 @@ create_base_image() {
   info "Using image type ${image_type}"
 
   root_fs_dir="${BUILD_DIR}/rootfs"
-  stateful_fs_dir="${BUILD_DIR}/stateful"
+  state_fs_dir="${BUILD_DIR}/state"
   esp_fs_dir="${BUILD_DIR}/esp"
   oem_fs_dir="${BUILD_DIR}/oem"
 
@@ -64,11 +64,11 @@ create_base_image() {
   local root_fs_img="${BUILD_DIR}/rootfs.image"
   local root_fs_bytes=$(get_filesystem_size ${image_type} ${root_fs_num})
 
-  local stateful_fs_label="STATE"
-  local stateful_fs_num=$(get_num ${image_type} ${stateful_fs_label})
-  local stateful_fs_img="${BUILD_DIR}/stateful.image"
-  local stateful_fs_bytes=$(get_filesystem_size ${image_type} ${stateful_fs_num})
-  local stateful_fs_uuid=$(uuidgen)
+  local state_fs_label="STATE"
+  local state_fs_num=$(get_num ${image_type} ${state_fs_label})
+  local state_fs_img="${BUILD_DIR}/state.image"
+  local state_fs_bytes=$(get_filesystem_size ${image_type} ${state_fs_num})
+  local state_fs_uuid=$(uuidgen)
 
   local esp_fs_label="EFI-SYSTEM"
   local esp_fs_num=$(get_num ${image_type} ${esp_fs_label})
@@ -102,14 +102,14 @@ create_base_image() {
 
   df -h "${root_fs_dir}"
 
-  # Build stateful FS disk image.
-  info "Building ${stateful_fs_img}"
-  truncate --size="${stateful_fs_bytes}" "${stateful_fs_img}"
-  /sbin/mkfs.ext4 -F -q "${stateful_fs_img}"
-  /sbin/tune2fs -L "${stateful_fs_label}" -U "${stateful_fs_uuid}" \
-               -c 0 -i 0 "${stateful_fs_img}"
-  mkdir -p "${stateful_fs_dir}"
-  sudo mount -o loop "${stateful_fs_img}" "${stateful_fs_dir}"
+  # Build state FS disk image.
+  info "Building ${state_fs_img}"
+  truncate --size="${state_fs_bytes}" "${state_fs_img}"
+  /sbin/mkfs.ext4 -F -q "${state_fs_img}"
+  /sbin/tune2fs -L "${state_fs_label}" -U "${state_fs_uuid}" \
+               -c 0 -i 0 "${state_fs_img}"
+  mkdir -p "${state_fs_dir}"
+  sudo mount -o loop "${state_fs_img}" "${state_fs_dir}"
 
   # Build ESP disk image.
   info "Building ${esp_fs_img}"
@@ -125,28 +125,28 @@ create_base_image() {
   mkdir -p "${oem_fs_dir}"
   sudo mount -o loop "${oem_fs_img}" "${oem_fs_dir}"
 
-  # Prepare stateful partition with some pre-created directories.
+  # Prepare state partition with some pre-created directories.
   for i in ${ROOT_OVERLAYS}; do
-    sudo mkdir -p "${stateful_fs_dir}/overlays/$i"
+    sudo mkdir -p "${state_fs_dir}/overlays/$i"
     sudo mkdir -p "${root_fs_dir}/$i"
-    sudo mount --bind "${stateful_fs_dir}/overlays/$i" "${root_fs_dir}/$i"
+    sudo mount --bind "${state_fs_dir}/overlays/$i" "${root_fs_dir}/$i"
   done
 
-  sudo mkdir -p "${stateful_fs_dir}/overlays/usr/local"
+  sudo mkdir -p "${state_fs_dir}/overlays/usr/local"
 
   # Create symlinks so that /usr/local/usr based directories are symlinked to
   # /usr/local/ directories e.g. /usr/local/usr/bin -> /usr/local/bin, etc.
-  setup_symlinks_on_root "${stateful_fs_dir}/overlays/usr/local" \
-    "${stateful_fs_dir}/overlays/var" \
-    "${stateful_fs_dir}"
+  setup_symlinks_on_root "${state_fs_dir}/overlays/usr/local" \
+    "${state_fs_dir}/overlays/var" \
+    "${state_fs_dir}"
 
   # Perform binding rather than symlinking because directories must exist
   # on rootfs so that we can bind at run-time since rootfs is read-only.
-  info "Binding directories from stateful partition onto the rootfs"
+  info "Binding directories from state partition onto the rootfs"
 
   # Setup the dev image for developer tools
   sudo mkdir -p "${root_fs_dir}/usr/local"
-  sudo mount --bind "${stateful_fs_dir}/overlays/usr/local" "${root_fs_dir}/usr/local"
+  sudo mount --bind "${state_fs_dir}/overlays/usr/local" "${root_fs_dir}/usr/local"
 
   # TODO(bp): remove these temporary fixes for /mnt/stateful_partition going moving
   sudo mkdir -p "${root_fs_dir}/mnt/stateful_partition/"
@@ -208,7 +208,7 @@ create_base_image() {
   # trim the image size as much as possible.
   emerge_to_image --root="${root_fs_dir}" ${BASE_PACKAGE}
 
-  # Record directories installed to the stateful partition.
+  # Record directories installed to the state partition.
   # Ignore /var/tmp, systemd covers this entry.
   sudo "${BUILD_LIBRARY_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
       --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image.conf" \
@@ -259,24 +259,24 @@ create_base_image() {
   # Clean up symlinks so they work on a running target rooted at "/".
   # Here development packages are rooted at /usr/local.  However, do not
   # create /usr/local or /var on host (already exist on target).
-  setup_symlinks_on_root "/usr/local" "/var" "${stateful_fs_dir}"
+  setup_symlinks_on_root "/usr/local" "/var" "${state_fs_dir}"
 
   # Zero all fs free space to make it more compressible so auto-update
   # payloads become smaller, not fatal since it won't work on linux < 3.2
   sudo fstrim "${root_fs_dir}" || true
-  sudo fstrim "${stateful_fs_dir}" || true
+  sudo fstrim "${state_fs_dir}" || true
 
   cleanup_mounts
 
   # Create the GPT-formatted image.
   build_gpt "${BUILD_DIR}/${image_name}" \
           "${root_fs_img}" \
-          "${stateful_fs_img}" \
+          "${state_fs_img}" \
           "${esp_fs_img}" \
           "${oem_fs_img}"
 
   # Clean up temporary files.
-  rm -f "${root_fs_img}" "${stateful_fs_img}" "${esp_fs_img}" "{oem_fs_img}"
+  rm -f "${root_fs_img}" "${state_fs_img}" "${esp_fs_img}" "{oem_fs_img}"
 
   # Emit helpful scripts for testers, etc.
   emit_gpt_scripts "${BUILD_DIR}/${image_name}" "${BUILD_DIR}"
