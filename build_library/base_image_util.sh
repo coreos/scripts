@@ -32,6 +32,11 @@ cleanup_mounts() {
   safe_umount_tree "${esp_fs_dir}"
   safe_umount_tree "${oem_fs_dir}"
 
+  if [[ -n "${loop_dev}" ]]; then
+    sudo losetup -d "${loop_dev}"
+    loop_dev=
+  fi
+
    # Turn die on error back on.
   set -e
 }
@@ -59,36 +64,33 @@ create_base_image() {
   trap "cleanup_mounts && delete_prompt" EXIT
   cleanup_mounts &> /dev/null
 
-  local root_fs_label="ROOT-A"
-  local root_fs_num=$(get_num ${image_type} ${root_fs_label})
-  local root_fs_img="${BUILD_DIR}/rootfs.image"
-  local root_fs_bytes=$(get_filesystem_size ${image_type} ${root_fs_num})
-
-  local state_fs_label="STATE"
-  local state_fs_num=$(get_num ${image_type} ${state_fs_label})
-  local state_fs_img="${BUILD_DIR}/state.image"
-  local state_fs_bytes=$(get_filesystem_size ${image_type} ${state_fs_num})
-  local state_fs_uuid=$(uuidgen)
-
-  local esp_fs_label="EFI-SYSTEM"
-  local esp_fs_num=$(get_num ${image_type} ${esp_fs_label})
-  local esp_fs_img="${BUILD_DIR}/esp.image"
-  local esp_fs_bytes=$(get_filesystem_size ${image_type} ${esp_fs_num})
-
-  local oem_fs_label="OEM"
-  local oem_fs_num=$(get_num ${image_type} ${oem_fs_label})
-  local oem_fs_img="${BUILD_DIR}/oem.image"
-  local oem_fs_bytes=$(get_filesystem_size ${image_type} ${oem_fs_num})
-  local oem_fs_uuid=$(uuidgen)
+  write_partition_table "${image_type}" "${BUILD_DIR}/${image_name}"
+  loop_dev=$(sudo losetup -P -f --show "${BUILD_DIR}/${image_name}")
 
   local fs_block_size=$(get_fs_block_size)
 
+  local root_fs_label="ROOT-A"
+  local root_fs_num=$(get_num ${image_type} ${root_fs_label})
+  local root_fs_dev="${loop_dev}p${root_fs_num}"
+  local root_fs_bytes=$(get_filesystem_size ${image_type} ${root_fs_num})
+  local root_fs_blocks=$((root_fs_bytes / fs_block_size))
+
+  local state_fs_label="STATE"
+  local state_fs_num=$(get_num ${image_type} ${state_fs_label})
+  local state_fs_dev="${loop_dev}p${state_fs_num}"
+
+  local esp_fs_label="EFI-SYSTEM"
+  local esp_fs_num=$(get_num ${image_type} ${esp_fs_label})
+  local esp_fs_dev="${loop_dev}p${esp_fs_num}"
+
+  local oem_fs_label="OEM"
+  local oem_fs_num=$(get_num ${image_type} ${oem_fs_label})
+  local oem_fs_dev="${loop_dev}p${oem_fs_num}"
+
   # Build root FS image.
-  info "Building ${root_fs_img}"
-  truncate --size="${root_fs_bytes}" "${root_fs_img}"
-  /sbin/mkfs.ext2 -F -q -b ${fs_block_size} "${root_fs_img}" \
-    "$((root_fs_bytes / fs_block_size))"
-  /sbin/tune2fs -L "${root_fs_label}" \
+  info "Building ROOT filesystem"
+  sudo mkfs.ext2 -F -q -b ${fs_block_size} "${root_fs_dev}" "${root_fs_blocks}"
+  sudo tune2fs -L "${root_fs_label}" \
                -U clear \
                -T 20091119110000 \
                -c 0 \
@@ -96,34 +98,33 @@ create_base_image() {
                -m 0 \
                -r 0 \
                -e remount-ro \
-                "${root_fs_img}"
+                "${root_fs_dev}"
   mkdir -p "${root_fs_dir}"
-  sudo mount -o loop "${root_fs_img}" "${root_fs_dir}"
-
-  df -h "${root_fs_dir}"
+  sudo mount "${root_fs_dev}" "${root_fs_dir}"
 
   # Build state FS disk image.
-  info "Building ${state_fs_img}"
-  truncate --size="${state_fs_bytes}" "${state_fs_img}"
-  /sbin/mkfs.ext4 -F -q "${state_fs_img}"
-  /sbin/tune2fs -L "${state_fs_label}" -U "${state_fs_uuid}" \
-               -c 0 -i 0 "${state_fs_img}"
+  info "Building STATE filesystem"
+  sudo mkfs.ext4 -F -q "${state_fs_dev}"
+  sudo tune2fs -L "${state_fs_label}" \
+               -c 0 \
+               -i 0 \
+               "${state_fs_dev}"
   mkdir -p "${state_fs_dir}"
-  sudo mount -o loop "${state_fs_img}" "${state_fs_dir}"
+  sudo mount "${state_fs_dev}" "${state_fs_dir}"
 
   # Build ESP disk image.
-  info "Building ${esp_fs_img}"
-  truncate --size="${esp_fs_bytes}" "${esp_fs_img}"
-  /usr/sbin/mkfs.vfat "${esp_fs_img}"
+  info "Building ESP filesystem"
+  sudo mkfs.vfat "${esp_fs_dev}"
 
   # Build OEM FS disk image.
-  info "Building ${oem_fs_img}"
-  truncate --size="${oem_fs_bytes}" "${oem_fs_img}"
-  /sbin/mkfs.ext4 -F -q "${oem_fs_img}"
-  /sbin/tune2fs -L "${oem_fs_label}" -U "${oem_fs_uuid}" \
-               -c 0 -i 0 "${oem_fs_img}"
+  info "Building OEM filesystem"
+  sudo mkfs.ext4 -F -q "${oem_fs_dev}"
+  sudo tune2fs -L "${oem_fs_label}" \
+               -c 0 \
+               -i 0 \
+               "${oem_fs_dev}"
   mkdir -p "${oem_fs_dir}"
-  sudo mount -o loop "${oem_fs_img}" "${oem_fs_dir}"
+  sudo mount "${oem_fs_dev}" "${oem_fs_dir}"
 
   # Prepare state partition with some pre-created directories.
   for i in ${ROOT_OVERLAYS}; do
@@ -267,16 +268,6 @@ create_base_image() {
   sudo fstrim "${state_fs_dir}" || true
 
   cleanup_mounts
-
-  # Create the GPT-formatted image.
-  build_gpt "${BUILD_DIR}/${image_name}" \
-          "${root_fs_img}" \
-          "${state_fs_img}" \
-          "${esp_fs_img}" \
-          "${oem_fs_img}"
-
-  # Clean up temporary files.
-  rm -f "${root_fs_img}" "${state_fs_img}" "${esp_fs_img}" "{oem_fs_img}"
 
   # Emit helpful scripts for testers, etc.
   emit_gpt_scripts "${BUILD_DIR}/${image_name}" "${BUILD_DIR}"
