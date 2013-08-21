@@ -112,9 +112,6 @@ check_valid_layout() {
 
 get_disk_layout_type() {
   DISK_LAYOUT_TYPE="base"
-  if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-    DISK_LAYOUT_TYPE="factory_install"
-  fi
 }
 
 emit_gpt_scripts() {
