@@ -7,6 +7,7 @@
 
 VALID_IMG_TYPES=(
     ami
+    pxe
     openstack
     qemu
     rackspace
@@ -87,6 +88,12 @@ IMG_ami_OEM_PACKAGE=oem-ami
 IMG_openstack_DISK_FORMAT=qcow2
 IMG_openstack_OEM_PACKAGE=oem-ami
 
+## pxe, which is an cpio image
+IMG_pxe_DISK_FORMAT=cpio
+IMG_pxe_PARTITIONED_IMG=0
+IMG_pxe_CONF_FORMAT=pxe
+IMG_pxe_OEM_PACKAGE=oem-pxe
+
 ## rackspace
 # TODO: package doesn't exist yet
 #IMG_rackspace_OEM_PACKAGE=oem-rackspace
@@ -147,6 +154,7 @@ _disk_ext() {
     case ${disk_format} in
         raw) echo bin;;
         qcow2) echo img;;
+        cpio) echo cpio.gz;;
         *) echo "${disk_format}";;
     esac
 }
@@ -213,16 +221,27 @@ install_oem_package() {
         return 0
     fi
 
-    info "Installing ${oem_pkg} to OEM partition"
     mkdir -p "${oem_mnt}"
+
+    # Install directly to root if this is not a partitioned image
+    if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 0 ]]; then
+      emerge_oem_package "${oem_mnt}/usr/share/oem"
+      return 0
+    fi
+
     sudo mount -o loop "${TEMP_OEM}" "${oem_mnt}"
-
-    # TODO(polvi): figure out how to keep portage from putting these
-    # portage files on disk, we don't need or want them.
-    emerge-${BOARD} --root="${oem_mnt}" --root-deps=rdeps "${oem_pkg}"
-
+    emerge_oem_package ${oem_mnt}
     sudo umount "${oem_mnt}"
     rm -rf "${oem_mnt}"
+}
+
+emerge_oem_package() {
+    local oem_pkg=$(_get_vm_opt OEM_PACKAGE)
+
+    info "Installing ${oem_pkg} to OEM partition"
+    # TODO(polvi): figure out how to keep portage from putting these
+    # portage files on disk, we don't need or want them.
+    emerge-${BOARD} --root="$1" --root-deps=rdeps "${oem_pkg}"
 }
 
 # Write the vm disk image to the target directory in the proper format
@@ -278,6 +297,64 @@ _write_vmdk_disk() {
     qemu-img convert -f raw "$1" -O vmdk "$2"
 }
 
+# the cpio is a little complicated because everything gets put into one
+# ramfs. So, it does a lot more work at the write disk step. 
+_write_cpio_disk() {
+
+    if [ -f "$2" ]; then
+      rm $2
+    fi
+
+    local cpio=${VM_TMP_DIR}/root.cpio
+    _write_base_cpio_disk $1 ${cpio} $2
+    _write_overlay_cpio_disk $1 ${cpio}
+
+    # Copy the oem partition in
+    local oem_mnt="${VM_TMP_DIR}/oem"
+    _write_dir_to_cpio ${oem_mnt} ${cpio}
+    sudo rm -R "${VM_TMP_DIR}/oem"
+
+    gzip < ${cpio} > $2
+}
+
+_write_dir_to_cpio() {
+    pushd "$1" >/dev/null
+
+    append_flag=""
+    if [ -f "$2" ]; then
+      append_flag="-A"
+    fi
+    sudo find ./ | sudo cpio -o ${append_flag} -H newc -O "$2"
+    popd >/dev/null
+}
+
+_write_base_cpio_disk() {
+    local root_mnt="${VM_TMP_DIR}/rootfs"
+    local kernel_name=$(basename $3 .cpio.gz).vmlinuz
+    local kernel_dir=$(dirname $3)
+
+    mkdir -p "${root_mnt}"
+
+    # Roll the rootfs into the CPIO
+    sudo mount -o loop "${TEMP_ROOTFS}" "${root_mnt}"
+    _write_dir_to_cpio "${root_mnt}" "$2"
+    cp "${root_mnt}"/boot/vmlinuz ${kernel_dir}/${kernel_name}
+    sudo umount "${root_mnt}"
+    rm -rf "${root_mnt}"
+}
+
+_write_overlay_cpio_disk() {
+    local root_overlay="${VM_TMP_DIR}/rootoverlay"
+    mkdir -p "${root_overlay}"
+
+    # HACK(philips): keep dracut from initing our system by sylinking here.
+    ln -s sbin/init ${root_overlay}/init
+
+    _write_dir_to_cpio "${root_overlay}" "$2"
+
+    sudo rm -rf "${root_overlay}"
+}
+
 # If a config format is defined write it!
 write_vm_conf() {
     local conf_format=$(_get_vm_opt CONF_FORMAT)
@@ -315,6 +392,18 @@ See the qemu man page for more details on the monitor console.
 
 SSH into that host with:
   ssh 127.0.0.1 -p 2222
+EOF
+
+    VM_GENERATED_FILES+=( "${script}" "${VM_README}" )
+}
+
+_write_pxe_conf() {
+    cat >"${VM_README}" <<EOF
+If you have qemu installed (or in the SDK), you can start the image with:
+  cd path/to/image
+
+  qemu-kvm -kernel coreos_developer_pxe_image.vmlinuz -initrd coreos_developer_pxe_image.cpio.gz -append 'diskless sshkey="PUT AN SSH KEY HERE"'
+
 EOF
 
     VM_GENERATED_FILES+=( "${script}" "${VM_README}" )
