@@ -36,6 +36,9 @@ VM_GENERATED_FILES=()
 # If set to 1 use a hybrid GPT/MBR format instead of plain GPT
 IMG_DEFAULT_HYBRID_MBR=0
 
+# If set to 0 then a partition skeleton won't be laid out on VM_TMP_IMG
+IMG_DEFAULT_PARTITIONED_IMG=1
+
 # If set install the given package name to the OEM partition
 IMG_DEFAULT_OEM_PACKAGE=
 
@@ -180,8 +183,10 @@ unpack_source_disk() {
         cp --sparse=always "${alternate_state_image}" "${TEMP_STATE}"
     fi
 
-    info "Initializing new partition table..."
-    write_partition_table "${disk_layout}" "${VM_TMP_IMG}"
+    if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
+      info "Initializing new partition table..."
+      write_partition_table "${disk_layout}" "${VM_TMP_IMG}"
+    fi
 }
 
 resize_state_partition() {
@@ -222,15 +227,17 @@ install_oem_package() {
 
 # Write the vm disk image to the target directory in the proper format
 write_vm_disk() {
-    info "Writing partitions to new disk image"
-    dd if="${TEMP_ROOTFS}" of="${VM_TMP_IMG}" conv=notrunc,sparse \
-        bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_ROOTFS_A})
-    dd if="${TEMP_STATE}"  of="${VM_TMP_IMG}" conv=notrunc,sparse \
-        bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_STATEFUL})
-    dd if="${TEMP_ESP}"    of="${VM_TMP_IMG}" conv=notrunc,sparse \
-        bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_ESP})
-    dd if="${TEMP_OEM}"    of="${VM_TMP_IMG}" conv=notrunc,sparse \
-        bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_OEM})
+    if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
+      info "Writing partitions to new disk image"
+      dd if="${TEMP_ROOTFS}" of="${VM_TMP_IMG}" conv=notrunc,sparse \
+          bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_ROOTFS_A})
+      dd if="${TEMP_STATE}"  of="${VM_TMP_IMG}" conv=notrunc,sparse \
+          bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_STATEFUL})
+      dd if="${TEMP_ESP}"    of="${VM_TMP_IMG}" conv=notrunc,sparse \
+          bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_ESP})
+      dd if="${TEMP_OEM}"    of="${VM_TMP_IMG}" conv=notrunc,sparse \
+          bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_OEM})
+    fi
 
     if [[ $(_get_vm_opt HYBRID_MBR) -eq 1 ]]; then
         info "Creating hybrid MBR"
