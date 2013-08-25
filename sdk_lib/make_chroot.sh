@@ -139,14 +139,6 @@ delete_existing() {
 }
 
 init_users () {
-   info "Set timezone..."
-   # date +%Z has trouble with daylight time, so use host's info.
-   rm -f "${FLAGS_chroot}/etc/localtime"
-   if [ -f /etc/localtime ] ; then
-     cp /etc/localtime "${FLAGS_chroot}/etc"
-   else
-     ln -sf /usr/share/zoneinfo/PST8PDT "${FLAGS_chroot}/etc/localtime"
-   fi
    info "Adding user/group..."
    # Add ourselves as a user inside the chroot.
    bare_chroot groupadd -g 5000 eng
@@ -201,6 +193,14 @@ EOF
    find "${FLAGS_chroot}/etc/"sudoers* -type f -exec chmod 0440 {} +
    # Fix bad group for some.
    chown -R root:root "${FLAGS_chroot}/etc/"sudoers*
+
+   info "Setting timezone..."
+   rm -f "${FLAGS_chroot}/etc/localtime"
+   if [ -f /etc/localtime ] ; then
+     cp /etc/localtime "${FLAGS_chroot}/etc"
+   else
+     ln -sf /usr/share/zoneinfo/UTC "${FLAGS_chroot}/etc/localtime"
+   fi
 
    info "Setting up hosts/resolv..."
    # Copy config from outside chroot into chroot.
