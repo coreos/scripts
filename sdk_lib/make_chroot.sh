@@ -71,10 +71,7 @@ switch_to_strict_mode
 
 . "${SCRIPT_ROOT}"/sdk_lib/make_conf_util.sh
 
-FULLNAME="ChromeOS Developer"
-DEFGROUPS="eng,adm,cdrom,floppy,audio,video,portage"
-PASSWORD=chronos
-CRYPTED_PASSWD=$(perl -e 'print crypt($ARGV[0], "foo")', $PASSWORD)
+DEFGROUPS="adm,cdrom,floppy,audio,video,portage"
 
 USEPKG=""
 if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
@@ -139,27 +136,35 @@ delete_existing() {
 }
 
 init_users () {
-   info "Set timezone..."
-   # date +%Z has trouble with daylight time, so use host's info.
-   rm -f "${FLAGS_chroot}/etc/localtime"
-   if [ -f /etc/localtime ] ; then
-     cp /etc/localtime "${FLAGS_chroot}/etc"
-   else
-     ln -sf /usr/share/zoneinfo/PST8PDT "${FLAGS_chroot}/etc/localtime"
-   fi
-   info "Adding user/group..."
-   # Add ourselves as a user inside the chroot.
-   bare_chroot groupadd -g 5000 eng
-   # We need the UID to match the host user's. This can conflict with
-   # a particular chroot UID. At the same time, the added user has to
-   # be a primary user for the given UID for sudo to work, which is
-   # determined by the order in /etc/passwd. Let's put ourselves on top
-   # of the file.
-   bare_chroot useradd -o -G ${DEFGROUPS} -g eng -u ${SUDO_UID} -s \
-     /bin/bash -m -c "${FULLNAME}" -p ${CRYPTED_PASSWD} ${SUDO_USER}
-   # Because passwd generally isn't sorted and the entry ended up at the
-   # bottom, it is safe to just take it and move it to top instead.
-   sed -e '1{h;d};$!{H;d};$G' -i "${FLAGS_chroot}/etc/passwd"
+  if grep -q "^${SUDO_USER}:[^:]*:${SUDO_UID}:${SUDO_GID}:" \
+      "${FLAGS_chroot}/etc/passwd"; then
+    info "Updating ${SUDO_USER} (already exists in chroot)..."
+    bare_chroot usermod -a -G "${DEFGROUPS}" \
+        -s /bin/bash -m -d "/home/${SUDO_USER}" "${SUDO_USER}"
+  elif grep -q "^${SUDO_USER}:" "${FLAGS_chroot}/etc/passwd"; then
+    die "User ${SUDO_USER} exists in chroot with different UID/GID"
+  else
+    info "Adding user ${SUDO_USER}..."
+    local full_name group_name
+    full_name=$(getent passwd "${SUDO_USER}" | cut -d: -f5)
+    [[ -n "${full_name}" ]] || die "Looking up user $SUDO_USER failed."
+    group_name=$(getent group "${SUDO_GID}" | cut -d: -f1)
+    [[ -n "${group_name}" ]] || die "Looking up gid $SUDO_GID failed."
+
+    # We need the UID to match the host user's. This can conflict with
+    # a particular chroot UID. At the same time, the added user has to
+    # be a primary user for the given UID for sudo to work, which is
+    # determined by the order in /etc/passwd. Let's put ourselves on top
+    # of the file.
+    bare_chroot groupadd -o -g "${SUDO_GID}" "${group_name}"
+    bare_chroot useradd -o \
+        -G "${DEFGROUPS}" -g "${SUDO_GID}" -u "${SUDO_UID}" \
+        -s /bin/bash -m -c "${full_name}" "${SUDO_USER}"
+    # Because passwd generally isn't sorted and the entry ended up at the
+    # bottom, it is safe to just take it and move it to top instead.
+    sed -e '1{h;d};$!{H;d};$G' -i "${FLAGS_chroot}/etc/group"
+    sed -e '1{h;d};$!{H;d};$G' -i "${FLAGS_chroot}/etc/passwd"
+  fi
 }
 
 init_setup () {
@@ -201,6 +206,14 @@ EOF
    find "${FLAGS_chroot}/etc/"sudoers* -type f -exec chmod 0440 {} +
    # Fix bad group for some.
    chown -R root:root "${FLAGS_chroot}/etc/"sudoers*
+
+   info "Setting timezone..."
+   rm -f "${FLAGS_chroot}/etc/localtime"
+   if [ -f /etc/localtime ] ; then
+     cp /etc/localtime "${FLAGS_chroot}/etc"
+   else
+     ln -sf /usr/share/zoneinfo/UTC "${FLAGS_chroot}/etc/localtime"
+   fi
 
    info "Setting up hosts/resolv..."
    # Copy config from outside chroot into chroot.
