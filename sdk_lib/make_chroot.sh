@@ -147,7 +147,6 @@ init_users () {
     info "Adding user ${SUDO_USER}..."
     local full_name group_name
     full_name=$(getent passwd "${SUDO_USER}" | cut -d: -f5)
-    [[ -n "${full_name}" ]] || die "Looking up user $SUDO_USER failed."
     group_name=$(getent group "${SUDO_GID}" | cut -d: -f1)
     [[ -n "${group_name}" ]] || die "Looking up gid $SUDO_GID failed."
 
