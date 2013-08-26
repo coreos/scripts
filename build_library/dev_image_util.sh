@@ -41,9 +41,6 @@ install_dev_packages() {
 
   sudo mkdir -p ${root_fs_dir}/etc/make.profile
 
-  # Re-run ldconfig to fix /etc/ldconfig.so.cache.
-  sudo /sbin/ldconfig -r "${root_fs_dir}"
-
   # Mark the image as a developer image (input to chromeos_startup).
   # TODO(arkaitzr): Remove this file when applications no longer rely on it
   # (crosbug.com/16648). The preferred way of determining developer mode status
@@ -87,6 +84,16 @@ exec file.bin -m /usr/local/share/misc/magic.mgc "\$@"
 EOF
     sudo chmod a+rx "${path}"
   fi
+
+  # If git is installed in the state partition it needs some help
+  if [[ -x "${root_fs_dir}/usr/local/bin/git" ]]; then
+    sudo_clobber "${root_fs_dir}/etc/env.d/99git" <<EOF
+GIT_EXEC_PATH=/usr/local/libexec/git-core
+EOF
+  fi
+
+  # Re-run env-update/ldconfig to fix profile and ldconfig.so.cache.
+  sudo ROOT="${root_fs_dir}" env-update
 
   # Zero all fs free space, not fatal since it won't work on linux < 3.2
   sudo fstrim "${root_fs_dir}" || true
