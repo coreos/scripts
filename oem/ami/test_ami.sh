@@ -125,32 +125,31 @@ echo "OK"
 
 AUTOTEST_DIR=$(mktemp -d)
 trap 'cd /; rm -rf "${AUTOTEST_DIR}"' EXIT
-cd "${AUTOTEST_DIR}"
+pushd "${AUTOTEST_DIR}"
 
 wget https://github.com/autotest/autotest/archive/0.15.1.tar.gz
 tar -xzf 0.15.1.tar.gz
 git clone git://github.com/coreos/coreos-autotest.git
-
 cp -r ./coreos-autotest/client/* ./autotest-0.15.1/client/tests
 
 cp ~/.ssh/config ~/.ssh/config.back
-
 for host in ${ips[@]}; do
-echo <<EOF >> ~/.ssh/config
+cat >> ~/.ssh/config <<EOF
 Host $host
 User core
 IdentityFile $key_file
 EOF
 done
 
-sed -i 's_/usr/local/autotest,/home/autotest_/tmp/autotest_' /tmp/autotest-0.15.1/global_config.ini
+pushd autotest-0.15.1
+sed -i 's_/usr/local/autotest,/home/autotest_/tmp/autotest_' global_config.ini
 
-cd ./autotest-0.15.1
-
-for file in find -wholename "./client/tests/coreos_*/control"
+for file in `find -wholename "./client/tests/coreos_*/control"`
 do
 	./server/autotest-remote -m ${ips} -c ${file} --install-in-tmpdir --ssh-user core
 done
+popd
+popd
 
 echo -n "Cleaning up environment... "
 cp ~/.ssh/config.back ~/.ssh/config
