@@ -47,7 +47,7 @@ catalyst_stage4() {
 cat <<EOF
 target: stage4
 pkgcache_path: $BINPKGS
-stage4/packages: dev-python/setuptools dev-vcs/git app-arch/pbzip2 net-misc/curl app-admin/sudo app-shells/bash-completion sys-devel/crossdev coreos-base/hard-host-depends
+stage4/packages: coreos-devel/sdk-depends
 stage4/fsscript: ${SCRIPT_ROOT}/lib/catalyst_sdk_stage4.sh
 stage4/root_overlay: ${TEMPDIR}/stage4_overlay
 EOF

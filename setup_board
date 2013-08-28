@@ -342,7 +342,7 @@ if ${HOST_BOARD}; then
   if [[ $FLAGS_fast -eq $FLAGS_TRUE ]]; then
     EMERGE_CMD="${GCLIENT_ROOT}/chromite/bin/parallel_emerge"
   fi
-  PACKAGES="system hard-host-depends world"
+  PACKAGES="system coreos-devel/sdk-depends world"
 
   # First, rebuild all packages from scratch. This is needed to make sure
   # we rebuild all chroot packages.
