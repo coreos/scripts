@@ -7,6 +7,7 @@
 
 VALID_IMG_TYPES=(
     ami
+    pxe
     openstack
     qemu
     rackspace
@@ -36,6 +37,9 @@ VM_GENERATED_FILES=()
 ## DEFAULT
 # If set to 1 use a hybrid GPT/MBR format instead of plain GPT
 IMG_DEFAULT_HYBRID_MBR=0
+
+# If set to 0 then a partition skeleton won't be laid out on VM_TMP_IMG
+IMG_DEFAULT_PARTITIONED_IMG=1
 
 # If set install the given package name to the OEM partition
 IMG_DEFAULT_OEM_PACKAGE=
@@ -89,6 +93,12 @@ IMG_ami_OEM_PACKAGE=oem-ami
 ## openstack, supports ec2's metadata format so use oem-ami
 IMG_openstack_DISK_FORMAT=qcow2
 IMG_openstack_OEM_PACKAGE=oem-ami
+
+## pxe, which is an cpio image
+IMG_pxe_DISK_FORMAT=cpio
+IMG_pxe_PARTITIONED_IMG=0
+IMG_pxe_CONF_FORMAT=pxe
+IMG_pxe_OEM_PACKAGE=oem-pxe
 
 ## rackspace
 # TODO: package doesn't exist yet
@@ -144,12 +154,26 @@ _src_to_dst_name() {
     echo "${1%_image.bin}_${VM_IMG_TYPE}${suffix}"
 }
 
+# Generate a destination name based on file extension
+_dst_name() {
+    local src_name=$(basename "$VM_SRC_IMG")
+    local suffix="$1"
+    echo "${src_name%_image.bin}_${VM_IMG_TYPE}${suffix}"
+}
+
+# Return the destination directory
+_dst_dir() {
+    echo $(dirname "$VM_DST_IMG")
+}
+
+
 # Get the proper disk format extension.
 _disk_ext() {
     local disk_format=$(_get_vm_opt DISK_FORMAT)
     case ${disk_format} in
         raw) echo bin;;
         qcow2) echo img;;
+        cpio) echo cpio.gz;;
         *) echo "${disk_format}";;
     esac
 }
@@ -186,8 +210,10 @@ unpack_source_disk() {
         cp --sparse=always "${alternate_state_image}" "${TEMP_STATE}"
     fi
 
-    info "Initializing new partition table..."
-    write_partition_table "${disk_layout}" "${VM_TMP_IMG}"
+    if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
+      info "Initializing new partition table..."
+      write_partition_table "${disk_layout}" "${VM_TMP_IMG}"
+    fi
 }
 
 resize_state_partition() {
@@ -214,29 +240,42 @@ install_oem_package() {
         return 0
     fi
 
-    info "Installing ${oem_pkg} to OEM partition"
     mkdir -p "${oem_mnt}"
+
+    # Install directly to root if this is not a partitioned image
+    if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 0 ]]; then
+      emerge_oem_package "${oem_mnt}/usr/share/oem"
+      return 0
+    fi
+
     sudo mount -o loop "${TEMP_OEM}" "${oem_mnt}"
-
-    # TODO(polvi): figure out how to keep portage from putting these
-    # portage files on disk, we don't need or want them.
-    emerge-${BOARD} --root="${oem_mnt}" --root-deps=rdeps "${oem_pkg}"
-
+    emerge_oem_package ${oem_mnt}
     sudo umount "${oem_mnt}"
     rm -rf "${oem_mnt}"
 }
 
+emerge_oem_package() {
+    local oem_pkg=$(_get_vm_opt OEM_PACKAGE)
+
+    info "Installing ${oem_pkg} to OEM partition"
+    # TODO(polvi): figure out how to keep portage from putting these
+    # portage files on disk, we don't need or want them.
+    emerge-${BOARD} --root="$1" --root-deps=rdeps "${oem_pkg}"
+}
+
 # Write the vm disk image to the target directory in the proper format
 write_vm_disk() {
-    info "Writing partitions to new disk image"
-    dd if="${TEMP_ROOTFS}" of="${VM_TMP_IMG}" conv=notrunc,sparse \
-        bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_ROOTFS_A})
-    dd if="${TEMP_STATE}"  of="${VM_TMP_IMG}" conv=notrunc,sparse \
-        bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_STATEFUL})
-    dd if="${TEMP_ESP}"    of="${VM_TMP_IMG}" conv=notrunc,sparse \
-        bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_ESP})
-    dd if="${TEMP_OEM}"    of="${VM_TMP_IMG}" conv=notrunc,sparse \
-        bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_OEM})
+    if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
+      info "Writing partitions to new disk image"
+      dd if="${TEMP_ROOTFS}" of="${VM_TMP_IMG}" conv=notrunc,sparse \
+          bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_ROOTFS_A})
+      dd if="${TEMP_STATE}"  of="${VM_TMP_IMG}" conv=notrunc,sparse \
+          bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_STATEFUL})
+      dd if="${TEMP_ESP}"    of="${VM_TMP_IMG}" conv=notrunc,sparse \
+          bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_ESP})
+      dd if="${TEMP_OEM}"    of="${VM_TMP_IMG}" conv=notrunc,sparse \
+          bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_OEM})
+    fi
 
     if [[ $(_get_vm_opt HYBRID_MBR) -eq 1 ]]; then
         info "Creating hybrid MBR"
@@ -275,6 +314,64 @@ _write_qcow2_disk() {
 
 _write_vmdk_disk() {
     qemu-img convert -f raw "$1" -O vmdk "$2"
+}
+
+# the cpio is a little complicated because everything gets put into one
+# ramfs. So, it does a lot more work at the write disk step. 
+_write_cpio_disk() {
+
+    if [ -f "$2" ]; then
+      rm $2
+    fi
+
+    local cpio=${VM_TMP_DIR}/root.cpio
+    _write_base_cpio_disk $1 ${cpio} $2
+    _write_overlay_cpio_disk $1 ${cpio}
+
+    # Copy the oem partition in
+    local oem_mnt="${VM_TMP_DIR}/oem"
+    _write_dir_to_cpio ${oem_mnt} ${cpio}
+    sudo rm -R "${VM_TMP_DIR}/oem"
+
+    gzip < ${cpio} > $2
+}
+
+_write_dir_to_cpio() {
+    pushd "$1" >/dev/null
+
+    append_flag=""
+    if [ -f "$2" ]; then
+      append_flag="-A"
+    fi
+    sudo find ./ | sudo cpio -o ${append_flag} -H newc -O "$2"
+    popd >/dev/null
+}
+
+_write_base_cpio_disk() {
+    local root_mnt="${VM_TMP_DIR}/rootfs"
+    local dst_dir=$(_dst_dir)
+    local vmlinuz_name="$(_dst_name ".vmlinuz")"
+
+    mkdir -p "${root_mnt}"
+
+    # Roll the rootfs into the CPIO
+    sudo mount -o loop "${TEMP_ROOTFS}" "${root_mnt}"
+    _write_dir_to_cpio "${root_mnt}" "$2"
+    cp "${root_mnt}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
+    sudo umount "${root_mnt}"
+    rm -rf "${root_mnt}"
+}
+
+_write_overlay_cpio_disk() {
+    local root_overlay="${VM_TMP_DIR}/rootoverlay"
+    mkdir -p "${root_overlay}"
+
+    # HACK(philips): keep dracut from initing our system by sylinking here.
+    ln -s sbin/init ${root_overlay}/init
+
+    _write_dir_to_cpio "${root_overlay}" "$2"
+
+    sudo rm -rf "${root_overlay}"
 }
 
 # If a config format is defined write it!
@@ -317,6 +414,22 @@ SSH into that host with:
 EOF
 
     VM_GENERATED_FILES+=( "${script}" "${VM_README}" )
+}
+
+_write_pxe_conf() {
+    local dst_name=$(basename "$VM_DST_IMG")
+    local dst_dir=$(_dst_dir)
+    local vmlinuz_name="$(_dst_name ".vmlinuz")"
+
+    cat >"${VM_README}" <<EOF
+If you have qemu installed (or in the SDK), you can start the image with:
+  cd path/to/image
+
+  qemu-kvm -kernel ${vmlinuz_name} -initrd ${dst_name} -append 'diskless sshkey="PUT AN SSH KEY HERE"'
+
+EOF
+
+    VM_GENERATED_FILES+=( "${vmlinuz_name}" "${VM_README}" )
 }
 
 # Generate the vmware config file
