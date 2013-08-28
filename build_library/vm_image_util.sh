@@ -148,6 +148,19 @@ _src_to_dst_name() {
     echo "${1%_image.bin}_${VM_IMG_TYPE}${suffix}"
 }
 
+# Generate a destination name based on file extension
+_dst_name() {
+    local src_name=$(basename "$VM_SRC_IMG")
+    local suffix="$1"
+    echo "${src_name%_image.bin}_${VM_IMG_TYPE}${suffix}"
+}
+
+# Return the destination directory
+_dst_dir() {
+    echo $(dirname "$VM_DST_IMG")
+}
+
+
 # Get the proper disk format extension.
 _disk_ext() {
     local disk_format=$(_get_vm_opt DISK_FORMAT)
@@ -330,15 +343,15 @@ _write_dir_to_cpio() {
 
 _write_base_cpio_disk() {
     local root_mnt="${VM_TMP_DIR}/rootfs"
-    local kernel_name=$(basename $3 .cpio.gz).vmlinuz
-    local kernel_dir=$(dirname $3)
+    local dst_dir=$(_dst_dir)
+    local vmlinuz_name="$(_dst_name ".vmlinuz")"
 
     mkdir -p "${root_mnt}"
 
     # Roll the rootfs into the CPIO
     sudo mount -o loop "${TEMP_ROOTFS}" "${root_mnt}"
     _write_dir_to_cpio "${root_mnt}" "$2"
-    cp "${root_mnt}"/boot/vmlinuz ${kernel_dir}/${kernel_name}
+    cp "${root_mnt}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
     sudo umount "${root_mnt}"
     rm -rf "${root_mnt}"
 }
@@ -398,15 +411,19 @@ EOF
 }
 
 _write_pxe_conf() {
+    local dst_name=$(basename "$VM_DST_IMG")
+    local dst_dir=$(_dst_dir)
+    local vmlinuz_name="$(_dst_name ".vmlinuz")"
+
     cat >"${VM_README}" <<EOF
 If you have qemu installed (or in the SDK), you can start the image with:
   cd path/to/image
 
-  qemu-kvm -kernel coreos_developer_pxe_image.vmlinuz -initrd coreos_developer_pxe_image.cpio.gz -append 'diskless sshkey="PUT AN SSH KEY HERE"'
+  qemu-kvm -kernel ${vmlinuz_name} -initrd ${dst_name} -append 'diskless sshkey="PUT AN SSH KEY HERE"'
 
 EOF
 
-    VM_GENERATED_FILES+=( "${script}" "${VM_README}" )
+    VM_GENERATED_FILES+=( "${vmlinuz_name}" "${VM_README}" )
 }
 
 # Generate the vmware config file
