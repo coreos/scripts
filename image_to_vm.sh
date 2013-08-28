@@ -60,6 +60,8 @@ eval set -- "${FLAGS_ARGV}"
 # Die on any errors.
 switch_to_strict_mode
 
+check_gsutil_opts
+
 if ! set_vm_type "${FLAGS_format}"; then
     die_notrace "Invalid format: ${FLAGS_format}"
 fi
