@@ -44,6 +44,9 @@ IMG_DEFAULT_OEM_PACKAGE=
 # May be raw, qcow2 (qemu), or vmdk (vmware, virtualbox)
 IMG_DEFAULT_DISK_FORMAT=raw
 
+# Name of the partition layout from legacy_disk_layout.json
+IMG_DEFAULT_DISK_LAYOUT=base
+
 # Name of the target config format, default is no config
 IMG_DEFAULT_CONF_FORMAT=
 
@@ -52,6 +55,7 @@ IMG_DEFAULT_MEM=1024
 
 ## qemu
 IMG_qemu_DISK_FORMAT=qcow2
+IMG_qemu_DISK_LAYOUT=vm
 IMG_qemu_CONF_FORMAT=qemu
 
 ## xen
@@ -61,24 +65,29 @@ IMG_xen_CONF_FORMAT=xl
 
 ## virtualbox
 IMG_virtualbox_DISK_FORMAT=vmdk
+IMG_virtualbox_DISK_LAYOUT=vm
 IMG_virtualbox_CONF_FORMAT=ovf
 
 ## vagrant
 IMG_vagrant_DISK_FORMAT=vmdk
+IMG_vagrant_DISK_LAYOUT=vm
 IMG_vagrant_CONF_FORMAT=vagrant
 IMG_vagrant_OEM_PACKAGE=oem-vagrant
 
 ## vagrant_vmware
 IMG_vagrant_vmware_fusion_DISK_FORMAT=vmdk
+IMG_vagrant_vmware_fusion_DISK_LAYOUT=vm
 IMG_vagrant_vmware_fusion_CONF_FORMAT=vagrant_vmware_fusion
 IMG_vagrant_vmware_fusion_OEM_PACKAGE=oem-vagrant
 
 ## vmware
 IMG_vmware_DISK_FORMAT=vmdk
+IMG_vmware_DISK_LAYOUT=vm
 IMG_vmware_CONF_FORMAT=vmx
 
 ## vmware_insecure
 IMG_vmware_insecure_DISK_FORMAT=vmdk
+IMG_vmware_insecure_DISK_LAYOUT=vm
 IMG_vmware_insecure_CONF_FORMAT=vmware_zip
 IMG_vmware_insecure_OEM_PACKAGE=oem-vagrant
 
@@ -88,6 +97,7 @@ IMG_ami_OEM_PACKAGE=oem-ami
 
 ## openstack, supports ec2's metadata format so use oem-ami
 IMG_openstack_DISK_FORMAT=qcow2
+IMG_openstack_DISK_LAYOUT=vm
 IMG_openstack_OEM_PACKAGE=oem-ami
 
 ## rackspace
@@ -158,7 +168,7 @@ _disk_ext() {
 # alternate filesystem image for the state partition instead of the one
 # from VM_SRC_IMG. Start new image using the given disk layout.
 unpack_source_disk() {
-    local disk_layout="$1"
+    local disk_layout="${1:-$(_get_vm_opt DISK_LAYOUT)}"
     local alternate_state_image="$2"
 
     if [[ -n "${alternate_state_image}" && ! -f "${alternate_state_image}" ]]
@@ -191,7 +201,8 @@ unpack_source_disk() {
 }
 
 resize_state_partition() {
-    local size_in_bytes="$1"
+    local disk_layout="${1:-$(_get_vm_opt DISK_LAYOUT)}"
+    local size_in_bytes=$(get_filesystem_size "${disk_layout}" ${NUM_STATEFUL})
     local size_in_sectors=$(( size_in_bytes / 512 ))
     local size_in_mb=$(( size_in_bytes / 1024 / 1024 ))
     local original_size=$(stat -c%s "${TEMP_STATE}")

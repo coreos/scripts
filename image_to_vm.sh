@@ -37,7 +37,7 @@ DEFINE_string format "qemu" \
   "Output format, one of: ${VALID_IMG_TYPES[*]}"
 DEFINE_string from "" \
   "Directory containing rootfs.image and mbr.image"
-DEFINE_string disk_layout "vm" \
+DEFINE_string disk_layout "" \
   "The disk layout type to use for this image."
 DEFINE_integer mem "${DEFAULT_MEM}" \
   "Memory size for the vm config in MBs."
@@ -111,9 +111,8 @@ trap vm_cleanup EXIT
 
 # Unpack image, using alternate state image if defined
 # Resize to use all available space in new disk layout
-STATEFUL_SIZE=$(get_filesystem_size "${FLAGS_disk_layout}" ${NUM_STATEFUL})
 unpack_source_disk "${FLAGS_disk_layout}" "${FLAGS_state_image}"
-resize_state_partition "${STATEFUL_SIZE}"
+resize_state_partition "${FLAGS_disk_layout}"
 
 # Optionally install any OEM packages
 install_oem_package
