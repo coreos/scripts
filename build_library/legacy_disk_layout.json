@@ -73,6 +73,14 @@
         "type":"data",
         "blocks":"6291456"
       }
+    ],
+    "vagrant": [
+      {
+        "num": 9,
+        "label":"STATE",
+        "type":"data",
+        "blocks":"33587200"
+      }
     ]
   }
 }

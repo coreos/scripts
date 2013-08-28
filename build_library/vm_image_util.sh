@@ -70,13 +70,13 @@ IMG_virtualbox_CONF_FORMAT=ovf
 
 ## vagrant
 IMG_vagrant_DISK_FORMAT=vmdk
-IMG_vagrant_DISK_LAYOUT=vm
+IMG_vagrant_DISK_LAYOUT=vagrant
 IMG_vagrant_CONF_FORMAT=vagrant
 IMG_vagrant_OEM_PACKAGE=oem-vagrant
 
 ## vagrant_vmware
 IMG_vagrant_vmware_fusion_DISK_FORMAT=vmdk
-IMG_vagrant_vmware_fusion_DISK_LAYOUT=vm
+IMG_vagrant_vmware_fusion_DISK_LAYOUT=vagrant
 IMG_vagrant_vmware_fusion_CONF_FORMAT=vagrant_vmware_fusion
 IMG_vagrant_vmware_fusion_OEM_PACKAGE=oem-vagrant
 
