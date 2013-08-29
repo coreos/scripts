@@ -105,7 +105,7 @@ if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   EMERGE_FLAGS+=" --jobs=${FLAGS_jobs}"
 fi
 
-# Perform an update of hard-host-depends and world in the chroot.
+# Perform an update of coreos-devel/sdk-depends and world in the chroot.
 EMERGE_CMD="emerge"
 CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
 if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
@@ -137,7 +137,7 @@ done
 # Second pass, update everything else.
 EMERGE_FLAGS+=" --deep"
 sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
-    coreos-base/hard-host-depends world
+    coreos-devel/sdk-depends world
 
 # Automatically discard all CONFIG_PROTECT'ed files. Those that are
 # protected should not be overwritten until the variable is changed.
