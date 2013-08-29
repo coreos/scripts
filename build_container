@@ -1,0 +1,45 @@
+#!/bin/bash
+#
+# Copyright (c) 2013 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+TYPE="coreos-buildbot"
+ARCH=$(portageq envvar ARCH)
+DEFAULT_SEED="builds/coreos-sdk/stage4-${ARCH}-latest.tar.bz2"
+DEFAULT_PROFILE="coreos:default/linux/${ARCH}/10.0"
+FORCE_STAGES="stage4"
+
+. "${SCRIPT_ROOT}/lib/catalyst.sh" || exit 1
+
+# include upload options
+. "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
+
+## Define the stage4 config template
+catalyst_stage4() {
+cat <<EOF
+target: stage4
+pkgcache_path: $BINPKGS
+stage4/packages: coreos-devel/buildhost-depends
+stage4/fsscript: ${SCRIPT_ROOT}/lib/catalyst_buildbot_stage4.sh
+EOF
+catalyst_stage_default
+}
+
+catalyst_init "$@"
+check_gsutil_opts
+
+if [[ "$STAGES" =~ stage4 ]]; then
+    info "Setting release to ${COREOS_VERSION_STRING}"
+    rm -rf "${TEMPDIR}/stage4_overlay"
+    mkdir -p "${TEMPDIR}/stage4_overlay"
+    "${BUILD_LIBRARY_DIR}/set_lsb_release" \
+        --root "${TEMPDIR}/stage4_overlay" \
+        --production_track sdk --board "${ARCH}-host"
+fi
+
+catalyst_build
+command_completed
