@@ -114,6 +114,11 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
   sudo cp -f "${FLAGS_vmlinuz}" "${ESP_FS_DIR}"/syslinux/vmlinuz.A
   sudo cp -f "${FLAGS_vmlinuz}" "${ESP_FS_DIR}"/syslinux/vmlinuz.B
 
+  # create the EFI directory tree as a fall-back for UEFI builds and put a copy
+  # of the kernel in there.
+  sudo mkdir -p "${ESP_FS_DIR}"/EFI/boot
+  sudo cp -f "${FLAGS_vmlinuz}" "${ESP_FS_DIR}"/EFI/boot/bootx64.efi
+
   # Extract kernel flags
   kernel_cfg="cros_debug"
   old_root="%U+1"
