@@ -12,12 +12,14 @@
 set -e -o pipefail
 
 USAGE="Usage: $0 -a ami-id
-    -a ami-id   ID of the AMI to be tests (required)
+    -a ami-id   ID of the AMI to be tests
+    -V VERSION  Find AMI by CoreOS version.
     -K KEY      Path to Amazon API private key.
     -C CERT     Path to Amazon API key certificate.
     -h          this ;-)
     -v          Verbose, see all the things!
 
+The AMI to test must be specified by -a or -V.
 This script must be run from an ec2 host with the ec2 tools installed.
 "
 
