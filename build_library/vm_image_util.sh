@@ -68,29 +68,29 @@ IMG_xen_HYBRID_MBR=1
 IMG_xen_CONF_FORMAT=xl
 
 ## virtualbox
-IMG_virtualbox_DISK_FORMAT=vmdk
+IMG_virtualbox_DISK_FORMAT=vmdk_ide
 IMG_virtualbox_DISK_LAYOUT=vm
 IMG_virtualbox_CONF_FORMAT=ovf
 
 ## vagrant
-IMG_vagrant_DISK_FORMAT=vmdk
+IMG_vagrant_DISK_FORMAT=vmdk_ide
 IMG_vagrant_DISK_LAYOUT=vagrant
 IMG_vagrant_CONF_FORMAT=vagrant
 IMG_vagrant_OEM_PACKAGE=oem-vagrant
 
 ## vagrant_vmware
-IMG_vagrant_vmware_fusion_DISK_FORMAT=vmdk
+IMG_vagrant_vmware_fusion_DISK_FORMAT=vmdk_scsi
 IMG_vagrant_vmware_fusion_DISK_LAYOUT=vagrant
 IMG_vagrant_vmware_fusion_CONF_FORMAT=vagrant_vmware_fusion
 IMG_vagrant_vmware_fusion_OEM_PACKAGE=oem-vagrant
 
 ## vmware
-IMG_vmware_DISK_FORMAT=vmdk
+IMG_vmware_DISK_FORMAT=vmdk_scsi
 IMG_vmware_DISK_LAYOUT=vm
 IMG_vmware_CONF_FORMAT=vmx
 
 ## vmware_insecure
-IMG_vmware_insecure_DISK_FORMAT=vmdk
+IMG_vmware_insecure_DISK_FORMAT=vmdk_scsi
 IMG_vmware_insecure_DISK_LAYOUT=vm
 IMG_vmware_insecure_CONF_FORMAT=vmware_zip
 IMG_vmware_insecure_OEM_PACKAGE=oem-vagrant
@@ -184,6 +184,8 @@ _disk_ext() {
         raw) echo bin;;
         qcow2) echo img;;
         cpio) echo cpio.gz;;
+        vmdk_ide) echo vmdk;;
+        vmdk_scsi) echo vmdk;;
         *) echo "${disk_format}";;
     esac
 }
@@ -323,8 +325,12 @@ _write_qcow2_disk() {
     qemu-img convert -f raw "$1" -O qcow2 "$2"
 }
 
-_write_vmdk_disk() {
-    qemu-img convert -f raw "$1" -O vmdk "$2"
+_write_vmdk_ide_disk() {
+    qemu-img convert -f raw "$1" -O vmdk -o adapter_type=ide "$2"
+}
+
+_write_vmdk_scsi_disk() {
+    qemu-img convert -f raw "$1" -O vmdk -o adapter_type=lsilogic "$2"
 }
 
 # the cpio is a little complicated because everything gets put into one
@@ -456,16 +462,24 @@ _write_vmx_conf() {
 .encoding = "UTF-8"
 config.version = "8"
 virtualHW.version = "4"
-memsize = "${vm_mem}"
-ide0:0.present = "TRUE"
-ide0:0.fileName = "${dst_name}"
-ethernet0.present = "TRUE"
-usb.present = "TRUE"
-sound.present = "FALSE"
+cleanShutdown = "TRUE"
 displayName = "${VM_NAME}"
-guestOS = "otherlinux"
 ethernet0.addressType = "generated"
+ethernet0.present = "TRUE"
 floppy0.present = "FALSE"
+guestOS = "other26xlinux-64"
+memsize = "${vm_mem}"
+powerType.powerOff = "soft"
+powerType.powerOn = "hard"
+powerType.reset = "hard"
+powerType.suspend = "hard"
+scsi0.present = "TRUE"
+scsi0.virtualDev = "lsilogic"
+scsi0:0.fileName = "${dst_name}"
+scsi0:0.present = "TRUE"
+sound.present = "FALSE"
+usb.generic.autoconnect = "FALSE"
+usb.present = "TRUE"
 EOF
     VM_GENERATED_FILES+=( "${vmx_path}" )
 }
