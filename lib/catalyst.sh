@@ -10,8 +10,14 @@
 : ${TYPE:="coreos-sdk"}
 : ${ARCH:=$(portageq envvar ARCH)}
 : ${DEFAULT_CATALYST_ROOT:="${DEFAULT_BUILD_ROOT}/catalyst"}
-: ${DEFAULT_SEED:="${DEFAULT_CATALYST_ROOT}/builds/${TYPE}/stage4-${ARCH}-latest.tar.bz2"}
+: ${DEFAULT_SEED:="builds/${TYPE}/stage4-${ARCH}-latest.tar.bz2"}
 : ${DEFAULT_PROFILE:="coreos:default/linux/${ARCH}/10.0"}
+# Set to something like "stage4" to restrict what to build
+# FORCE_STAGES=
+
+if [[ "${DEFAULT_SEED}" != /* ]]; then
+    DEFAULT_SEED="${DEFAULT_CATALYST_ROOT}/${DEFAULT_SEED}"
+fi
 
 # Values set in catalyst_init, don't use till after calling it
 CATALYST_ROOT=
@@ -136,7 +142,9 @@ catalyst_init() {
     switch_to_strict_mode
     eval set -- "${FLAGS_ARGV}"
 
-    if [[ $# -eq 0 ]]; then
+    if [[ -n "${FORCE_STAGES}" ]]; then
+        STAGES="${FORCE_STAGES}"
+    elif [[ $# -eq 0 ]]; then
         STAGES="stage1 stage2 stage3 stage4"
     else
         for stage in "$@"; do
