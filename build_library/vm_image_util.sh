@@ -372,7 +372,7 @@ _write_base_cpio_disk() {
     mkdir -p "${root_mnt}"
 
     # Roll the rootfs into the CPIO
-    sudo mount -o loop "${TEMP_ROOTFS}" "${root_mnt}"
+    sudo mount -o loop,ro "${TEMP_ROOTFS}" "${root_mnt}"
     _write_dir_to_cpio "${root_mnt}" "$2"
     cp "${root_mnt}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
     sudo umount "${root_mnt}"
@@ -698,7 +698,7 @@ EOF
 
 vm_cleanup() {
     info "Cleaning up temporary files"
-    rm -rf "${VM_TMP_DIR}"
+    sudo rm -rf "${VM_TMP_DIR}"
 }
 
 print_readme() {
