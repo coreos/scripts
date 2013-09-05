@@ -446,7 +446,7 @@ If you have qemu installed (or in the SDK), you can start the image with:
 
 EOF
 
-    VM_GENERATED_FILES+=( "${vmlinuz_name}" "${VM_README}" )
+    VM_GENERATED_FILES+=( "${dst_dir}/${vmlinuz_name}" "${VM_README}" )
 }
 
 # Generate the vmware config file
