@@ -698,7 +698,7 @@ EOF
 
 vm_cleanup() {
     info "Cleaning up temporary files"
-    rm -rf "${VM_TMP_DIR}"
+    sudo rm -rf "${VM_TMP_DIR}"
 }
 
 print_readme() {
