@@ -150,12 +150,20 @@ init_users () {
     group_name=$(getent group "${SUDO_GID}" | cut -d: -f1)
     [[ -n "${group_name}" ]] || die "Looking up gid $SUDO_GID failed."
 
+    if grep -q "^${group_name}:[^:]*:${SUDO_GID}:" "${FLAGS_chroot}/etc/group"
+    then
+      true # group/gid exists, don't need to add it
+    elif grep -q "^${group_name}:" "${FLAGS_chroot}/etc/group"; then
+      die "Group ${group_name} exists in chroot with different GID"
+    else
+      bare_chroot groupadd -o -g "${SUDO_GID}" "${group_name}"
+    fi
+
     # We need the UID to match the host user's. This can conflict with
     # a particular chroot UID. At the same time, the added user has to
     # be a primary user for the given UID for sudo to work, which is
     # determined by the order in /etc/passwd. Let's put ourselves on top
     # of the file.
-    bare_chroot groupadd -o -g "${SUDO_GID}" "${group_name}"
     bare_chroot useradd -o \
         -G "${DEFGROUPS}" -g "${SUDO_GID}" -u "${SUDO_UID}" \
         -s /bin/bash -m -c "${full_name}" "${SUDO_USER}"
