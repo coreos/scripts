@@ -378,6 +378,18 @@ setup_env() {
       setup_mount "${DEPOT_TOOLS}" --bind "${DEPOT_TOOLS_DIR}"
     fi
 
+    # Mount GnuPG's data directory for signing uploads
+    if [[ -d "$SUDO_HOME/.gnupg" ]]; then
+      debug "Mounting GnuPG"
+      setup_mount "${SUDO_HOME}/.gnupg" "--bind" "/home/${SUDO_USER}/.gnupg"
+
+      # bind mount the gpg agent dir if available
+      GPG_AGENT_DIR="${GPG_AGENT_INFO%/*}"
+      if [[ -d "$GPG_AGENT_DIR" ]]; then
+        setup_mount "$GPG_AGENT_DIR" "--bind" "$GPG_AGENT_DIR"
+      fi
+    fi
+
     # Mount additional directories as specified in .local_mounts file.
     local local_mounts="${FLAGS_trunk}/src/scripts/.local_mounts"
     if [[ -f ${local_mounts} ]]; then
