@@ -19,6 +19,8 @@ DEFINE_boolean upload ${UPLOAD_DEFAULT} \
   "Upload all packages/images via gsutil."
 DEFINE_string upload_path "" \
   "Upload files to an alternative location. Must be a full gs:// URL."
+DEFINE_string sign_digests "" \
+  "Sign image DIGESTS files with the given GPG key."
 
 check_gsutil_opts() {
     [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]] || return 0
@@ -127,6 +129,14 @@ upload_image() {
     # produces for the SDK tarballs and up upload it too.
     make_digests "${uploads[@]}"
     uploads+=( "${uploads[0]}.DIGESTS" )
+
+    # Create signature as ...DIGESTS.asc as Gentoo does.
+    if [[ -n "${FLAGS_sign_digests}" ]]; then
+      rm -f "${uploads[0]}.DIGESTS.asc"
+      gpg --batch --local-user "${FLAGS_sign_digests}" \
+          --clearsign "${uploads[0]}.DIGESTS" || die "gpg failed"
+      uploads+=( "${uploads[0]}.DIGESTS.asc" )
+    fi
 
     local log_msg="${1##*/}"
     local def_upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
