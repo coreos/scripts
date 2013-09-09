@@ -336,21 +336,20 @@ _write_vmdk_scsi_disk() {
 # the cpio is a little complicated because everything gets put into one
 # ramfs. So, it does a lot more work at the write disk step. 
 _write_cpio_disk() {
+    local cpio_target="${VM_TMP_DIR}/rootcpio"
 
     if [ -f "$2" ]; then
       rm $2
     fi
 
+    # Create the cpio with squashfs embedded
+    _write_squashfs_root ${cpio_target}
+
+    # Create the cpio and gzip it
     local cpio=${VM_TMP_DIR}/root.cpio
-    _write_base_cpio_disk $1 ${cpio} $2
-    _write_overlay_cpio_disk $1 ${cpio}
-
-    # Copy the oem partition in
-    local oem_mnt="${VM_TMP_DIR}/oem"
-    _write_dir_to_cpio ${oem_mnt} ${cpio}
-    sudo rm -R "${VM_TMP_DIR}/oem"
-
+    _write_dir_to_cpio "${cpio_target}" "${cpio}"
     gzip < ${cpio} > $2
+    rm -rf "${cpio_target}"
 }
 
 _write_dir_to_cpio() {
@@ -364,31 +363,33 @@ _write_dir_to_cpio() {
     popd >/dev/null
 }
 
-_write_base_cpio_disk() {
+_write_squashfs_root() {
+    local cpio_target="$1"
     local root_mnt="${VM_TMP_DIR}/rootfs"
+    local root_build="${VM_TMP_DIR}/rootbuild"
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
 
     mkdir -p "${root_mnt}"
+    mkdir -p "${root_build}"
+    mkdir -p "${cpio_target}"
 
-    # Roll the rootfs into the CPIO
+    # Roll the rootfs into the build dir
     sudo mount -o loop,ro "${TEMP_ROOTFS}" "${root_mnt}"
-    _write_dir_to_cpio "${root_mnt}" "$2"
+    sudo cp -Ra "${root_mnt}"/. "${root_build}"
     cp "${root_mnt}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
     sudo umount "${root_mnt}"
-    rm -rf "${root_mnt}"
-}
 
-_write_overlay_cpio_disk() {
-    local root_overlay="${VM_TMP_DIR}/rootoverlay"
-    mkdir -p "${root_overlay}"
+    # Roll the OEM into the build dir
+    local oem_mnt="${VM_TMP_DIR}/oem"
+    sudo cp -Ra "${oem_mnt}" "${root_build}"
+    sudo rm -R "${VM_TMP_DIR}/oem"
 
-    # HACK(philips): keep dracut from initing our system by sylinking here.
-    ln -s sbin/init ${root_overlay}/init
+    # Build the squashfs
+    sudo mksquashfs "${root_build}" "${cpio_target}"/newroot.squashfs
+    ls -la ${cpio_target}
 
-    _write_dir_to_cpio "${root_overlay}" "$2"
-
-    sudo rm -rf "${root_overlay}"
+    sudo rm -rf "${root_mnt}" "${root_build}"
 }
 
 # If a config format is defined write it!
