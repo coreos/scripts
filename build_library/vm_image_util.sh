@@ -366,30 +366,27 @@ _write_dir_to_cpio() {
 _write_squashfs_root() {
     local cpio_target="$1"
     local root_mnt="${VM_TMP_DIR}/rootfs"
-    local root_build="${VM_TMP_DIR}/rootbuild"
+    local oem_mnt="${VM_TMP_DIR}/oem"
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
 
     mkdir -p "${root_mnt}"
-    mkdir -p "${root_build}"
     mkdir -p "${cpio_target}"
 
     # Roll the rootfs into the build dir
     sudo mount -o loop,ro "${TEMP_ROOTFS}" "${root_mnt}"
-    sudo cp -Ra "${root_mnt}"/. "${root_build}"
-    cp "${root_mnt}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
-    sudo umount "${root_mnt}"
 
     # Roll the OEM into the build dir
-    local oem_mnt="${VM_TMP_DIR}/oem"
-    sudo cp -Ra "${oem_mnt}" "${root_build}"
-    sudo rm -R "${VM_TMP_DIR}/oem"
-
+    sudo mount --bind "${oem_mnt}"/usr/share/oem "${root_mnt}"/usr/share/oem
     # Build the squashfs
-    sudo mksquashfs "${root_build}" "${cpio_target}"/newroot.squashfs
-    ls -la ${cpio_target}
+    sudo mksquashfs "${root_mnt}" "${cpio_target}"/newroot.squashfs
 
-    sudo rm -rf "${root_mnt}" "${root_build}"
+    cp "${root_mnt}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
+
+    sudo umount "${root_mnt}"/usr/share/oem
+    sudo umount "${root_mnt}"
+
+    sudo rm -rf "${root_mnt}"
 }
 
 # If a config format is defined write it!
