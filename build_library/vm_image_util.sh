@@ -257,7 +257,7 @@ install_oem_package() {
 
     # Install directly to root if this is not a partitioned image
     if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 0 ]]; then
-      emerge_oem_package "${oem_mnt}/usr/share/oem"
+      emerge_oem_package "${oem_mnt}"
       return 0
     fi
 
@@ -377,7 +377,7 @@ _write_squashfs_root() {
     sudo mount -o loop,ro "${TEMP_ROOTFS}" "${root_mnt}"
 
     # Roll the OEM into the build dir
-    sudo mount --bind "${oem_mnt}"/usr/share/oem "${root_mnt}"/usr/share/oem
+    sudo mount --bind "${oem_mnt}" "${root_mnt}"/usr/share/oem
     # Build the squashfs
     sudo mksquashfs "${root_mnt}" "${cpio_target}"/newroot.squashfs
 
