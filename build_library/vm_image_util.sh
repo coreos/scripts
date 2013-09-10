@@ -257,7 +257,7 @@ install_oem_package() {
 
     # Install directly to root if this is not a partitioned image
     if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 0 ]]; then
-      emerge_oem_package "${oem_mnt}/usr/share/oem"
+      emerge_oem_package "${oem_mnt}"
       return 0
     fi
 
@@ -336,21 +336,20 @@ _write_vmdk_scsi_disk() {
 # the cpio is a little complicated because everything gets put into one
 # ramfs. So, it does a lot more work at the write disk step. 
 _write_cpio_disk() {
+    local cpio_target="${VM_TMP_DIR}/rootcpio"
 
     if [ -f "$2" ]; then
       rm $2
     fi
 
+    # Create the cpio with squashfs embedded
+    _write_squashfs_root ${cpio_target}
+
+    # Create the cpio and gzip it
     local cpio=${VM_TMP_DIR}/root.cpio
-    _write_base_cpio_disk $1 ${cpio} $2
-    _write_overlay_cpio_disk $1 ${cpio}
-
-    # Copy the oem partition in
-    local oem_mnt="${VM_TMP_DIR}/oem"
-    _write_dir_to_cpio ${oem_mnt} ${cpio}
-    sudo rm -R "${VM_TMP_DIR}/oem"
-
+    _write_dir_to_cpio "${cpio_target}" "${cpio}"
     gzip < ${cpio} > $2
+    rm -rf "${cpio_target}"
 }
 
 _write_dir_to_cpio() {
@@ -364,31 +363,30 @@ _write_dir_to_cpio() {
     popd >/dev/null
 }
 
-_write_base_cpio_disk() {
+_write_squashfs_root() {
+    local cpio_target="$1"
     local root_mnt="${VM_TMP_DIR}/rootfs"
+    local oem_mnt="${VM_TMP_DIR}/oem"
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
 
     mkdir -p "${root_mnt}"
+    mkdir -p "${cpio_target}"
 
-    # Roll the rootfs into the CPIO
+    # Roll the rootfs into the build dir
     sudo mount -o loop,ro "${TEMP_ROOTFS}" "${root_mnt}"
-    _write_dir_to_cpio "${root_mnt}" "$2"
+
+    # Roll the OEM into the build dir
+    sudo mount --bind "${oem_mnt}" "${root_mnt}"/usr/share/oem
+    # Build the squashfs
+    sudo mksquashfs "${root_mnt}" "${cpio_target}"/newroot.squashfs
+
     cp "${root_mnt}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
+
+    sudo umount "${root_mnt}"/usr/share/oem
     sudo umount "${root_mnt}"
-    rm -rf "${root_mnt}"
-}
 
-_write_overlay_cpio_disk() {
-    local root_overlay="${VM_TMP_DIR}/rootoverlay"
-    mkdir -p "${root_overlay}"
-
-    # HACK(philips): keep dracut from initing our system by sylinking here.
-    ln -s sbin/init ${root_overlay}/init
-
-    _write_dir_to_cpio "${root_overlay}" "$2"
-
-    sudo rm -rf "${root_overlay}"
+    sudo rm -rf "${root_mnt}"
 }
 
 # If a config format is defined write it!
