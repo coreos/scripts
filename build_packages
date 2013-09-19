@@ -63,8 +63,6 @@ DEFINE_boolean withdev "${FLAGS_TRUE}" \
   "Build useful developer friendly utilities."
 DEFINE_boolean withdebug "${FLAGS_TRUE}" \
   "Build debug versions of Chromium-OS-specific packages."
-DEFINE_boolean withfactory "${FLAGS_TRUE}" \
-  "Build factory installer."
 DEFINE_boolean withtest "${FLAGS_TRUE}" \
   "Build packages required for testing."
 
@@ -182,20 +180,6 @@ if [[ $# -eq 0 ]]; then
   if [[ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]]; then
     PACKAGES+=( coreos-base/coreos-dev )
   fi
-# TODO(ifup): re-enable this stuff for testing
-#  if [[ "${FLAGS_withfactory}" -eq "${FLAGS_TRUE}" ]]; then
-#    PACKAGES+=( coreos-base/chromeos-installshim )
-#    PACKAGES+=( coreos-base/coreos-installshim )
-#    PACKAGES+=( coreos-base/coreos-factory )
-#    PACKAGES+=( coreos-base/factorytest-init )
-#    PACKAGES+=( coreos-base/coreos-hwid )
-#  fi
-#  if [[ "${FLAGS_withtest}" -eq "${FLAGS_TRUE}" ]]; then
-#    PACKAGES+=( coreos-base/coreos-test )
-#  fi
-#  if [[ "${FLAGS_withautotest}" -eq "${FLAGS_TRUE}" ]]; then
-#    PACKAGES+=( coreos-base/autotest-all )
-#  fi
 fi
 
 # Verify that all packages can be emerged from scratch, without any

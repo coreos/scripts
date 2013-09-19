@@ -1,1 +1,0 @@
-../platform/factory/setup/make_factory_package.sh

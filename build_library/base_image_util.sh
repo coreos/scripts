@@ -195,12 +195,6 @@ create_base_image() {
     copy_gcc_libs "${root_fs_dir}" $atom
   done
 
-  if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-    # Install our custom factory install kernel with the appropriate use flags
-    # to the image.
-    emerge_custom_kernel "${root_fs_dir}"
-  fi
-
   # We "emerge --root=${root_fs_dir} --root-deps=rdeps --usepkgonly" all of the
   # runtime packages for chrome os. This builds up a chrome os image from
   # binary packages with runtime dependencies only.  We use INSTALL_MASK to
@@ -221,16 +215,12 @@ create_base_image() {
   # Create the boot.desc file which stores the build-time configuration
   # information needed for making the image bootable after creation with
   # cros_make_image_bootable.
-  create_boot_desc "${image_type}"
+  create_boot_desc
 
   # Populates the root filesystem with legacy bootloader templates
   # appropriate for the platform.  The autoupdater and installer will
   # use those templates to update the legacy boot partition (12/ESP)
   # on update.
-  # (This script does not populate vmlinuz.A and .B needed by syslinux.)
-  # Factory install shims may be booted from USB by legacy EFI BIOS, which does
-  # not support verified boot yet (see create_legacy_bootloader_templates.sh)
-  # so rootfs verification is disabled if we are building with --factory_install
   local enable_rootfs_verification=
   if [[ ${rootfs_verification_enabled} -eq ${FLAGS_TRUE} ]]; then
     enable_rootfs_verification="--enable_rootfs_verification"
@@ -242,12 +232,9 @@ create_base_image() {
     --boot_args="${FLAGS_boot_args}" \
       ${enable_rootfs_verification}
 
-  # Don't test the factory install shim
-  if ! should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-    if [[ ${skip_test_image_content} -ne 1 ]]; then
-      # Check that the image has been correctly created.
-      test_image_content "$root_fs_dir"
-    fi
+  if [[ ${skip_test_image_content} -ne 1 ]]; then
+    # Check that the image has been correctly created.
+    test_image_content "$root_fs_dir"
   fi
 
   # Clean up symlinks so they work on a running target rooted at "/".
@@ -275,14 +262,6 @@ create_base_image() {
   # Emit helpful scripts for testers, etc.
   emit_gpt_scripts "${BUILD_DIR}/${image_name}" "${BUILD_DIR}"
 
-  USE_DEV_KEYS=
-  if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-    USE_DEV_KEYS="--use_dev_keys"
-  fi
-
-  if [[ ${skip_kernelblock_install} -ne 1 ]]; then
-    # Place flags before positional args.
-    ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
-      ${image_name} ${USE_DEV_KEYS} --adjust_part="${FLAGS_adjust_part}"
-  fi
+  ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
+    ${image_name} --adjust_part="${FLAGS_adjust_part}"
 }

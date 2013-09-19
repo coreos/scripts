@@ -104,10 +104,8 @@ EOF
   cleanup_mounts
   trap - EXIT
 
-  if [[ ${skip_kernelblock_install} -ne 1 ]]; then
-    if should_build_image ${image_name}; then
-      ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
-        ${image_name} --force_developer_mode
-    fi
+  if should_build_image ${image_name}; then
+    ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
+      ${image_name} --force_developer_mode
   fi
 }
