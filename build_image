@@ -19,8 +19,6 @@ DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
 DEFINE_string boot_args "" \
   "Additional boot arguments to pass to the commandline"
-DEFINE_boolean enable_bootcache ${FLAGS_FALSE} \
-  "Default all bootloaders to NOT use boot cache."
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
@@ -66,18 +64,6 @@ DEFINE_string version "" \
 
 # Parse command line.
 FLAGS "$@" || exit 1
-
-# See if we want to default the bootcache flag before we clobber
-# the user's command line.  We want to default to false if the
-# user explicitly disabled rootfs verification otherwise they
-# have to manually specify both.
-FLAGS_bootcache_use_board_default=${FLAGS_enable_rootfs_verification}
-case " $* " in
-  *" --enable_bootcache "*|\
-  *" --noenable_bootcache "*)
-    FLAGS_bootcache_use_board_default=${FLAGS_FALSE}
-    ;;
-esac
 
 eval set -- "${FLAGS_ARGV}"
 
@@ -145,8 +131,7 @@ fi
 mkdir -p "${BUILD_DIR}"
 
 # Create the base image.
-create_base_image ${PRISTINE_IMAGE_NAME} ${FLAGS_enable_rootfs_verification} \
-  ${FLAGS_enable_bootcache}
+create_base_image ${PRISTINE_IMAGE_NAME} ${FLAGS_enable_rootfs_verification}
 if should_build_image ${PRISTINE_IMAGE_NAME}; then
   upload_image "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
 fi

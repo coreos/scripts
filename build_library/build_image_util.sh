@@ -99,10 +99,6 @@ create_boot_desc() {
   if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
     enable_rootfs_verification_flag="--enable_rootfs_verification"
   fi
-  local enable_bootcache_flag=""
-  if [[ ${FLAGS_enable_bootcache} -eq ${FLAGS_TRUE} ]]; then
-    enable_bootcache_flag=--enable_bootcache
-  fi
 
   cat <<EOF > ${BUILD_DIR}/boot.desc
   --board=${BOARD}
@@ -112,7 +108,6 @@ create_boot_desc() {
   --boot_args="${FLAGS_boot_args}"
   --nocleanup_dirs
   ${enable_rootfs_verification_flag}
-  ${enable_bootcache_flag}
 EOF
 }
 
