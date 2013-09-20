@@ -39,7 +39,6 @@ cleanup_mounts() {
 create_base_image() {
   local image_name=$1
   local rootfs_verification_enabled=$2
-  local bootcache_enabled=$3
   local image_type="base"
 
   if [[ "${FLAGS_disk_layout}" != "default" ]]; then
@@ -126,27 +125,12 @@ create_base_image() {
   sudo mount -o loop "${oem_fs_img}" "${oem_fs_dir}"
 
   # Prepare state partition with some pre-created directories.
-  for i in ${ROOT_OVERLAYS}; do
+  info "Binding directories from state partition onto the rootfs"
+  for i in "${ROOT_OVERLAYS[@]}"; do
     sudo mkdir -p "${state_fs_dir}/overlays/$i"
     sudo mkdir -p "${root_fs_dir}/$i"
     sudo mount --bind "${state_fs_dir}/overlays/$i" "${root_fs_dir}/$i"
   done
-
-  sudo mkdir -p "${state_fs_dir}/overlays/usr/local"
-
-  # Create symlinks so that /usr/local/usr based directories are symlinked to
-  # /usr/local/ directories e.g. /usr/local/usr/bin -> /usr/local/bin, etc.
-  setup_symlinks_on_root "${state_fs_dir}/overlays/usr/local" \
-    "${state_fs_dir}/overlays/var" \
-    "${state_fs_dir}"
-
-  # Perform binding rather than symlinking because directories must exist
-  # on rootfs so that we can bind at run-time since rootfs is read-only.
-  info "Binding directories from state partition onto the rootfs"
-
-  # Setup the dev image for developer tools
-  sudo mkdir -p "${root_fs_dir}/usr/local"
-  sudo mount --bind "${state_fs_dir}/overlays/usr/local" "${root_fs_dir}/usr/local"
 
   # TODO(bp): remove these temporary fixes for /mnt/stateful_partition going moving
   sudo mkdir -p "${root_fs_dir}/mnt/stateful_partition/"
@@ -154,8 +138,6 @@ create_base_image() {
   sudo ln -s /media/state/overlays/home "${root_fs_dir}/mnt/stateful_partition/home"
   sudo ln -s /media/state/overlays/var "${root_fs_dir}/mnt/stateful_partition/var_overlay"
   sudo ln -s /media/state/etc "${root_fs_dir}/mnt/stateful_partition/etc"
-
-  sudo mkdir -p "${root_fs_dir}/dev"
 
   info "Binding directories from OEM partition onto the rootfs"
   sudo mkdir -p "${root_fs_dir}/usr/share/oem"
@@ -186,8 +168,10 @@ create_base_image() {
     '*.[ao]'
     # Empty lib dirs, replaced by symlinks
     'lib'
+    # Locales and info pages
+    usr/share/{i18n,info,locale}
   )
-  pbzip2 -dc --ignore-trailing-garbage=1 "${LIBC_PATH}" | \
+  lbzip2 -dc "${LIBC_PATH}" | \
     sudo tar xpf - -C "${root_fs_dir}" ./usr/${CHOST} \
       --strip-components=3 "${libc_excludes[@]/#/--exclude=}"
 
@@ -195,12 +179,6 @@ create_base_image() {
   for atom in $(portageq match / cross-$board_ctarget/gcc); do
     copy_gcc_libs "${root_fs_dir}" $atom
   done
-
-  if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-    # Install our custom factory install kernel with the appropriate use flags
-    # to the image.
-    emerge_custom_kernel "${root_fs_dir}"
-  fi
 
   # We "emerge --root=${root_fs_dir} --root-deps=rdeps --usepkgonly" all of the
   # runtime packages for chrome os. This builds up a chrome os image from
@@ -222,44 +200,27 @@ create_base_image() {
   # Create the boot.desc file which stores the build-time configuration
   # information needed for making the image bootable after creation with
   # cros_make_image_bootable.
-  create_boot_desc "${image_type}"
+  create_boot_desc
 
   # Populates the root filesystem with legacy bootloader templates
   # appropriate for the platform.  The autoupdater and installer will
   # use those templates to update the legacy boot partition (12/ESP)
   # on update.
-  # (This script does not populate vmlinuz.A and .B needed by syslinux.)
-  # Factory install shims may be booted from USB by legacy EFI BIOS, which does
-  # not support verified boot yet (see create_legacy_bootloader_templates.sh)
-  # so rootfs verification is disabled if we are building with --factory_install
   local enable_rootfs_verification=
   if [[ ${rootfs_verification_enabled} -eq ${FLAGS_TRUE} ]]; then
     enable_rootfs_verification="--enable_rootfs_verification"
-  fi
-  local enable_bootcache=
-  if [[ ${bootcache_enabled} -eq ${FLAGS_TRUE} ]]; then
-    enable_bootcache="--enable_bootcache"
   fi
 
   ${BUILD_LIBRARY_DIR}/create_legacy_bootloader_templates.sh \
     --arch=${ARCH} \
     --to="${root_fs_dir}"/boot \
     --boot_args="${FLAGS_boot_args}" \
-      ${enable_rootfs_verification} \
-      ${enable_bootcache}
+      ${enable_rootfs_verification}
 
-  # Don't test the factory install shim
-  if ! should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-    if [[ ${skip_test_image_content} -ne 1 ]]; then
-      # Check that the image has been correctly created.
-      test_image_content "$root_fs_dir"
-    fi
+  if [[ ${skip_test_image_content} -ne 1 ]]; then
+    # Check that the image has been correctly created.
+    test_image_content "$root_fs_dir"
   fi
-
-  # Clean up symlinks so they work on a running target rooted at "/".
-  # Here development packages are rooted at /usr/local.  However, do not
-  # create /usr/local or /var on host (already exist on target).
-  setup_symlinks_on_root "/usr/local" "/var" "${state_fs_dir}"
 
   # Zero all fs free space to make it more compressible so auto-update
   # payloads become smaller, not fatal since it won't work on linux < 3.2
@@ -281,14 +242,6 @@ create_base_image() {
   # Emit helpful scripts for testers, etc.
   emit_gpt_scripts "${BUILD_DIR}/${image_name}" "${BUILD_DIR}"
 
-  USE_DEV_KEYS=
-  if should_build_image ${CHROMEOS_FACTORY_INSTALL_SHIM_NAME}; then
-    USE_DEV_KEYS="--use_dev_keys"
-  fi
-
-  if [[ ${skip_kernelblock_install} -ne 1 ]]; then
-    # Place flags before positional args.
-    ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
-      ${image_name} ${USE_DEV_KEYS} --adjust_part="${FLAGS_adjust_part}"
-  fi
+  ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
+    ${image_name} --adjust_part="${FLAGS_adjust_part}"
 }

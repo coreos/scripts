@@ -19,16 +19,12 @@ DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
 DEFINE_string boot_args "" \
   "Additional boot arguments to pass to the commandline"
-DEFINE_boolean enable_bootcache ${FLAGS_FALSE} \
-  "Default all bootloaders to NOT use boot cache."
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
 DEFINE_string disk_layout "default" \
   "The disk layout type to use for this image."
-DEFINE_boolean standard_backdoor ${FLAGS_TRUE} \
-  "Install standard backdoor credentials for testing"
 
 # include upload options
 . "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
@@ -40,12 +36,10 @@ different forms.  This scripts can be used to build the following:
 base - Pristine CoreOS image for generating update payloads or a dev/prod image.
 prod - Production image for CoreOS. This image is for booting.
 dev - Developer image. Like base but with additional developer packages.
-test - Like dev, but with additional test specific packages and can be easily
-  used for automated testing using scripts like run_remote_tests, etc.
 
 Examples:
 
-build_image --board=<board> dev test - builds developer and test images.
+build_image --board=<board> dev prod - builds developer and production images.
 ...
 "
 show_help_if_requested "$@"
@@ -67,18 +61,6 @@ DEFINE_string version "" \
 # Parse command line.
 FLAGS "$@" || exit 1
 
-# See if we want to default the bootcache flag before we clobber
-# the user's command line.  We want to default to false if the
-# user explicitly disabled rootfs verification otherwise they
-# have to manually specify both.
-FLAGS_bootcache_use_board_default=${FLAGS_enable_rootfs_verification}
-case " $* " in
-  *" --enable_bootcache "*|\
-  *" --noenable_bootcache "*)
-    FLAGS_bootcache_use_board_default=${FLAGS_FALSE}
-    ;;
-esac
-
 eval set -- "${FLAGS_ARGV}"
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
@@ -95,7 +77,6 @@ check_gsutil_opts
 . "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/base_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/dev_image_util.sh" || exit 1
-. "${BUILD_LIBRARY_DIR}/test_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
 
 parse_build_image_args
@@ -145,8 +126,7 @@ fi
 mkdir -p "${BUILD_DIR}"
 
 # Create the base image.
-create_base_image ${PRISTINE_IMAGE_NAME} ${FLAGS_enable_rootfs_verification} \
-  ${FLAGS_enable_bootcache}
+create_base_image ${PRISTINE_IMAGE_NAME} ${FLAGS_enable_rootfs_verification}
 if should_build_image ${PRISTINE_IMAGE_NAME}; then
   upload_image "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
 fi
@@ -157,8 +137,7 @@ if type board_setup &>/dev/null; then
 fi
 
 # Create a developer image if an image that is based on it is requested.
-if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME} \
-    ${CHROMEOS_TEST_IMAGE_NAME}; then
+if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME}; then
   if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
     cp "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}" \
         "${BUILD_DIR}/${CHROMEOS_DEVELOPER_IMAGE_NAME}"
@@ -183,13 +162,6 @@ fi
 
 if ! should_build_image ${PRISTINE_IMAGE_NAME}; then
   rm -f "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
-fi
-
-# From a developer image create a test|factory_test image.
-if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
-  copy_image  ${CHROMEOS_DEVELOPER_IMAGE_NAME} ${CHROMEOS_TEST_IMAGE_NAME}
-  mod_image_for_test  ${CHROMEOS_TEST_IMAGE_NAME}
-  upload_image "${BUILD_DIR}/${CHROMEOS_TEST_IMAGE_NAME}"
 fi
 
 # Generating AU generator zip file to run outside chroot
@@ -236,10 +208,6 @@ fi
 if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME}; then
   echo "Developer image created as ${CHROMEOS_DEVELOPER_IMAGE_NAME}"
   print_image_to_vm
-fi
-if should_build_image ${CHROMEOS_TEST_IMAGE_NAME}; then
-  echo "Test image created as ${CHROMEOS_TEST_IMAGE_NAME}"
-  print_image_to_vm "test"
 fi
 
 command_completed
