@@ -169,7 +169,7 @@ create_base_image() {
     # Empty lib dirs, replaced by symlinks
     'lib'
   )
-  pbzip2 -dc --ignore-trailing-garbage=1 "${LIBC_PATH}" | \
+  lbzip2 -dc "${LIBC_PATH}" | \
     sudo tar xpf - -C "${root_fs_dir}" ./usr/${CHOST} \
       --strip-components=3 "${libc_excludes[@]/#/--exclude=}"
 

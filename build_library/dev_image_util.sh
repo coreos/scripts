@@ -25,7 +25,7 @@ install_dev_packages() {
   # Copy over the libc debug info so that gdb
   # works with threads and also for a better debugging experience.
   sudo mkdir -p "${root_fs_dir}/usr/lib/debug"
-  pbzip2 -dc --ignore-trailing-garbage=1 "${LIBC_PATH}" | \
+  lbzip2 -dc "${LIBC_PATH}" | \
     sudo tar xpf - -C "${root_fs_dir}/usr/lib/debug" \
       ./usr/lib/debug/usr/${CHOST} --strip-components=6
 
