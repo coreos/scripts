@@ -700,69 +700,6 @@ get_git_id() {
   git var GIT_COMMITTER_IDENT | sed -e 's/^.*<\(\S\+\)>.*$/\1/'
 }
 
-# Fixes symlinks that are incorrectly prefixed with the build root $1
-# rather than the real running root '/'.
-# TODO(sosa) - Merge setup - cleanup below with this method.
-fix_broken_symlinks() {
-  local build_root=$1
-  local symlinks=$(find "${build_root}/usr/local" -lname "${build_root}/*")
-  local symlink
-  for symlink in ${symlinks}; do
-    echo "Fixing ${symlink}"
-    local target=$(ls -l "${symlink}" | cut -f 2 -d '>')
-    # Trim spaces from target (bashism).
-    target=${target/ /}
-    # Make new target (removes rootfs prefix).
-    new_target=$(echo ${target} | sed "s#${build_root}##")
-
-    echo "Fixing symlink ${symlink}"
-    sudo unlink "${symlink}"
-    sudo ln -sf "${new_target}" "${symlink}"
-  done
-}
-
-# Sets up symlinks for the developer root. It is necessary to symlink
-# usr and local since the developer root is mounted at /usr/local and
-# applications expect to be installed under /usr/local/bin, etc.
-# This avoids packages installing into /usr/local/usr/local/bin.
-# $1 specifies the symlink target for the developer root.
-# $2 specifies the symlink target for the var directory.
-# $3 specifies the location of the stateful partition.
-setup_symlinks_on_root() {
-  # Give args better names.
-  local dev_image_target=$1
-  local var_target=$2
-  local dev_image_root="$3/overlays/usr/local"
-
-  # If our var target is actually the standard var, we are cleaning up the
-  # symlinks (could also check for /usr/local for the dev_image_target).
-  if [[ ${var_target} == "/var" ]]; then
-    echo "Cleaning up /usr/local symlinks for ${dev_image_root}"
-  else
-    echo "Setting up symlinks for /usr/local for ${dev_image_root}"
-  fi
-
-  # Set up symlinks that should point to ${dev_image_target}.
-  local path
-  for path in usr local; do
-    if [[ -h ${dev_image_root}/${path} ]]; then
-      sudo unlink "${dev_image_root}/${path}"
-    elif [[ -e ${dev_image_root}/${path} ]]; then
-      die "${dev_image_root}/${path} should be a symlink if exists"
-    fi
-    sudo ln -s "${dev_image_target}" "${dev_image_root}/${path}"
-  done
-
-  # Setup var symlink.
-  if [[ -h ${dev_image_root}/var ]]; then
-    sudo unlink "${dev_image_root}/var"
-  elif [[ -e ${dev_image_root}/var ]]; then
-    die "${dev_image_root}/var should be a symlink if it exists"
-  fi
-
-  sudo ln -s "${var_target}" "${dev_image_root}/var"
-}
-
 # These two helpers clobber the ro compat value in our root filesystem.
 #
 # When the system is built with --enable_rootfs_verification, bit-precise

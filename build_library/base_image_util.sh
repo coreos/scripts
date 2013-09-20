@@ -125,27 +125,12 @@ create_base_image() {
   sudo mount -o loop "${oem_fs_img}" "${oem_fs_dir}"
 
   # Prepare state partition with some pre-created directories.
-  for i in ${ROOT_OVERLAYS}; do
+  info "Binding directories from state partition onto the rootfs"
+  for i in "${ROOT_OVERLAYS[@]}"; do
     sudo mkdir -p "${state_fs_dir}/overlays/$i"
     sudo mkdir -p "${root_fs_dir}/$i"
     sudo mount --bind "${state_fs_dir}/overlays/$i" "${root_fs_dir}/$i"
   done
-
-  sudo mkdir -p "${state_fs_dir}/overlays/usr/local"
-
-  # Create symlinks so that /usr/local/usr based directories are symlinked to
-  # /usr/local/ directories e.g. /usr/local/usr/bin -> /usr/local/bin, etc.
-  setup_symlinks_on_root "${state_fs_dir}/overlays/usr/local" \
-    "${state_fs_dir}/overlays/var" \
-    "${state_fs_dir}"
-
-  # Perform binding rather than symlinking because directories must exist
-  # on rootfs so that we can bind at run-time since rootfs is read-only.
-  info "Binding directories from state partition onto the rootfs"
-
-  # Setup the dev image for developer tools
-  sudo mkdir -p "${root_fs_dir}/usr/local"
-  sudo mount --bind "${state_fs_dir}/overlays/usr/local" "${root_fs_dir}/usr/local"
 
   # TODO(bp): remove these temporary fixes for /mnt/stateful_partition going moving
   sudo mkdir -p "${root_fs_dir}/mnt/stateful_partition/"
@@ -153,8 +138,6 @@ create_base_image() {
   sudo ln -s /media/state/overlays/home "${root_fs_dir}/mnt/stateful_partition/home"
   sudo ln -s /media/state/overlays/var "${root_fs_dir}/mnt/stateful_partition/var_overlay"
   sudo ln -s /media/state/etc "${root_fs_dir}/mnt/stateful_partition/etc"
-
-  sudo mkdir -p "${root_fs_dir}/dev"
 
   info "Binding directories from OEM partition onto the rootfs"
   sudo mkdir -p "${root_fs_dir}/usr/share/oem"
@@ -236,11 +219,6 @@ create_base_image() {
     # Check that the image has been correctly created.
     test_image_content "$root_fs_dir"
   fi
-
-  # Clean up symlinks so they work on a running target rooted at "/".
-  # Here development packages are rooted at /usr/local.  However, do not
-  # create /usr/local or /var on host (already exist on target).
-  setup_symlinks_on_root "/usr/local" "/var" "${state_fs_dir}"
 
   # Zero all fs free space to make it more compressible so auto-update
   # payloads become smaller, not fatal since it won't work on linux < 3.2
