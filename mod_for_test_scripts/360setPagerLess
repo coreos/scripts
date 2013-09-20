@@ -1,8 +1,0 @@
-# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
-#
-# The PAGER variable defaults to /usr/bin/less but it will get installed
-# to /usr/local/bin/less on a test image, so fix the default
-
-sed -i 's:/usr/bin/less:/usr/local/bin/less:g' ${ROOT_FS_DIR}/etc/profile

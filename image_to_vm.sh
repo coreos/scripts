@@ -32,7 +32,6 @@ DEFINE_string board "${DEFAULT_BOARD}" \
 
 # We default to TRUE so the buildbot gets its image. Note this is different
 # behavior from image_to_usb.sh
-DEFINE_boolean force_copy ${FLAGS_FALSE} "Always rebuild test image"
 DEFINE_string format "qemu" \
   "Output format, one of: ${VALID_IMG_TYPES[*]}"
 DEFINE_string from "" \
@@ -43,10 +42,8 @@ DEFINE_integer mem "${DEFAULT_MEM}" \
   "Memory size for the vm config in MBs."
 DEFINE_string state_image "" \
   "Stateful partition image (defaults to creating new statful partition)"
-DEFINE_boolean test_image "${FLAGS_FALSE}" \
-  "Copies normal image to ${CHROMEOS_TEST_IMAGE_NAME}, modifies it for test."
 DEFINE_boolean prod_image "${FLAGS_FALSE}" \
-  "Copies normal image to ${COREOS_OFFICIAL_IMAGE_NAME}, modifies it for test."
+  "Use the production image instead of the default developer image."
 DEFINE_string to "" \
   "Destination folder for VM output file(s)"
 
@@ -98,8 +95,6 @@ fi
 
 if [ ${FLAGS_prod_image} -eq ${FLAGS_TRUE} ]; then
   set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${COREOS_PRODUCTION_IMAGE_NAME}"
-elif [ ${FLAGS_test_image} -eq ${FLAGS_TRUE} ]; then
-  set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${CHROMEOS_TEST_IMAGE_NAME}"
 else
   # Use the standard image
   set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${CHROMEOS_IMAGE_NAME}"

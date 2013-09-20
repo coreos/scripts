@@ -75,8 +75,6 @@ DEFINE_string adjust_part "" \
   "Adjustments to apply to the partition table"
 DEFINE_string board "${DEFAULT_BOARD}" \
   "Board we're building for."
-DEFINE_string image_type "base" \
-  "Type of image we're building for (base/factory_install)."
 DEFINE_string output_dir "/tmp" \
   "Directory to place output in."
 DEFINE_string image "coreos_base.img" \
@@ -89,12 +87,8 @@ DEFINE_boolean cleanup_dirs ${FLAGS_TRUE} \
 DEFINE_string boot_args "noinitrd" \
   "Additional boot arguments to pass to the commandline"
 
-# TODO(taysom): when we turn on boot cache, both verification and
-# bootcache should have their default be FLAGS_TRUE.
 DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
   "Default all bootloaders to NOT use kernel-based root fs integrity checking."
-DEFINE_boolean enable_bootcache ${FLAGS_FALSE} \
-  "Default all bootloaders to NOT use bootcache."
 
 DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
   "Directory containing the signing keys."
@@ -163,10 +157,6 @@ make_image_bootable() {
   local enable_rootfs_verification_flag=--noenable_rootfs_verification
   if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
     enable_rootfs_verification_flag=--enable_rootfs_verification
-  fi
-  local enable_bootcache_flag=--noenable_bootcache
-  if [[ ${FLAGS_enable_bootcache} -eq ${FLAGS_TRUE} ]]; then
-    enable_bootcache_flag=--enable_bootcache
   fi
 
   trap "mount_gpt_cleanup" EXIT

@@ -45,9 +45,6 @@ get_images_to_build() {
       \'dev\' )
         IMAGES_TO_BUILD="${IMAGES_TO_BUILD} ${CHROMEOS_DEVELOPER_IMAGE_NAME}"
         ;;
-      \'test\' )
-        IMAGES_TO_BUILD="${IMAGES_TO_BUILD} ${CHROMEOS_TEST_IMAGE_NAME}"
-        ;;
       * )
         die "${image_to_build} is not an image specification."
         ;;
@@ -93,26 +90,18 @@ make_salt() {
 }
 
 create_boot_desc() {
-  local image_type=$1
-
   local enable_rootfs_verification_flag=""
   if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
     enable_rootfs_verification_flag="--enable_rootfs_verification"
   fi
-  local enable_bootcache_flag=""
-  if [[ ${FLAGS_enable_bootcache} -eq ${FLAGS_TRUE} ]]; then
-    enable_bootcache_flag=--enable_bootcache
-  fi
 
   cat <<EOF > ${BUILD_DIR}/boot.desc
   --board=${BOARD}
-  --image_type=${image_type}
   --arch="${ARCH}"
   --keys_dir="${DEVKEYSDIR}"
   --boot_args="${FLAGS_boot_args}"
   --nocleanup_dirs
   ${enable_rootfs_verification_flag}
-  ${enable_bootcache_flag}
 EOF
 }
 
