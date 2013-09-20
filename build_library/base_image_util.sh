@@ -168,6 +168,8 @@ create_base_image() {
     '*.[ao]'
     # Empty lib dirs, replaced by symlinks
     'lib'
+    # Locales and info pages
+    usr/share/{i18n,info,locale}
   )
   lbzip2 -dc "${LIBC_PATH}" | \
     sudo tar xpf - -C "${root_fs_dir}" ./usr/${CHOST} \
