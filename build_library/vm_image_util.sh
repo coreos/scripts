@@ -440,7 +440,7 @@ _write_pxe_conf() {
 If you have qemu installed (or in the SDK), you can start the image with:
   cd path/to/image
 
-  qemu-kvm -kernel ${vmlinuz_name} -initrd ${dst_name} -append 'diskless sshkey="PUT AN SSH KEY HERE"'
+  qemu-kvm -m 1024 -kernel ${vmlinuz_name} -initrd ${dst_name} -append 'state=tmpfs: root=squashfs: sshkey="PUT AN SSH KEY HERE"'
 
 EOF
 
