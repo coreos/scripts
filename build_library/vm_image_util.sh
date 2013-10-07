@@ -17,6 +17,7 @@ VALID_IMG_TYPES=(
     vmware
     vmware_insecure
     xen
+    gce
 )
 
 # Set at runtime to one of the above types
@@ -109,6 +110,9 @@ IMG_pxe_DISK_FORMAT=cpio
 IMG_pxe_PARTITIONED_IMG=0
 IMG_pxe_CONF_FORMAT=pxe
 IMG_pxe_OEM_PACKAGE=oem-pxe
+
+## gce, image tarball
+IMG_gce_CONF_FORMAT=gce
 
 ## rackspace
 # TODO: package doesn't exist yet
@@ -693,6 +697,16 @@ EOF
 
     # Replace list, not append, since we packaged up the disk image.
     VM_GENERATED_FILES=( "${box}" "${VM_README}" )
+}
+
+_write_gce_conf() {
+    local src_name=$(basename "$VM_SRC_IMG")
+    local dst_dir=$(dirname "$VM_DST_IMG")
+    local tar_path="${dst_dir}/$(_src_to_dst_name "${src_name}" ".tar.gz")"
+
+    mv "${VM_DST_IMG}" "${VM_TMP_DIR}/disk.raw"
+    tar -czf "${tar_path}" -C "${VM_TMP_DIR}" "disk.raw"
+    VM_GENERATED_FILES=( "${tar_path}" )
 }
 
 vm_cleanup() {
