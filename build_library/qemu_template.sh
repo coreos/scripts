@@ -25,16 +25,21 @@ Any arguments after -a and -p will be passed through to qemu, -- may be
 used as an explicit separator. See the qemu(1) man page for more details.
 "
 
+script_args=1
 while getopts ":a:p:vh" OPTION
 do
     case $OPTION in
-        a) SSH_KEYS="$OPTARG"; shift 2 ;;
-        p) SSH_PORT="$OPTARG"; shift 2 ;;
-        v) set -x; shift ;;
+        a) SSH_KEYS="$OPTARG" ;;
+        p) SSH_PORT="$OPTARG" ;;
+        v) set -x ;;
         h) echo "$USAGE"; exit ;;
         ?) break ;;
     esac
+    script_args=$OPTIND
 done
+
+shift $((script_args - 1))
+[ "$1" == "--" ] && shift
 
 
 METADATA=$(mktemp -t -d coreos-meta-data.XXXXXXXXXX)
