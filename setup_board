@@ -202,13 +202,8 @@ ARCH=$(get_board_arch "${BOARD}") || exit 1
 
 case "$BOARD" in
   *-host)
-    if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
-      die_notrace "host boards only support --nousepkg"
-    fi
-    HOST_BOARD=true
+    die_notrace "host boards not supported by setup_board"
     ;;
-  *)
-    HOST_BOARD=false
 esac
 # Locations we will need
 BOARD_ROOT="/build/${BOARD_VARIANT}"
@@ -253,36 +248,24 @@ fi
 
 cmds=(
   "mkdir -p '${BOARD_ROOT}' '${BOARD_ETC}' '${BOARD_PROFILE}' /usr/local/bin"
+  "mkdir -p '${BOARD_ETC}/portage/hooks'"
 )
 
 # Setup the make.confs. We use the following:
 #    make.conf             <- Overall target make.conf [arm, x86, etc. version]
 #    make.conf.board_setup <- Declares CHOST, ROOT, etc.
 #    make.conf.common      <- Common settings across all targets
-#    make.conf.board       <- Optional board-supplied make.conf
-if ${HOST_BOARD}; then
-  cmds+=(
-    "ln -sf '${CHROMIUMOS_CONFIG}/make.conf.${BOARD}' \
-      '${BOARD_ETC}/make.conf'"
-    "cp -f '/etc/portage/make.conf.host_setup' '${BOARD_ETC}/'"
-
-    # Setting up symlinks for bootstrapping multilib.
-    # See http://crosbug.com/14498
-    "mkdir -p '${BOARD_ROOT}'{/usr,}/lib64"
-    "ln -sfT lib64 '${BOARD_ROOT}/lib'"
-    "ln -sfT lib64 '${BOARD_ROOT}/usr/lib'"
-
-    # Copying some files for bootstrapping empty chroot.
-    # See http://crosbug.com/14499
-    "mkdir -p '${BOARD_ETC}'/{init.d,xml}"
-    "cp /etc/xml/catalog '${BOARD_ETC}'/xml/"
-    "cp /etc/init.d/functions.sh '${BOARD_ETC}'/init.d/"
-  )
-fi
 cmds+=(
+  "ln -sf '${CHROMIUMOS_CONFIG}/make.conf.${ARCH}-target' \
+    '${BOARD_ETC}/make.conf'"
   "ln -sf '${CHROMIUMOS_CONFIG}/make.conf.common-target' \
     '${BOARD_ETC}/make.conf.common'"
+  "touch /etc/portage/make.conf.user"
+  "ln -sf /etc/portage/make.conf.user '${BOARD_ROOT}/etc/make.conf.user'"
 )
+for d in "${SCRIPTS_DIR}"/hooks/*; do
+  cmds+=( "ln -sfT '${d}' '${BOARD_ROOT}/etc/portage/hooks/${d##*/}'" )
+done
 sudo_multi "${cmds[@]}"
 
 SAVED_VERSION=
@@ -307,21 +290,6 @@ ${SAVED_VERSION}
 ${ACCEPT_LICENSE}
 EOF
 
-if ! ${HOST_BOARD}; then
-  sudo ln -sf "${CHROMIUMOS_CONFIG}/make.conf.${ARCH}-target" \
-    "${BOARD_ETC}/make.conf"
-fi
-# Setup make.globals and the profile.
-cmds=(
-  "touch /etc/portage/make.conf.user"
-  "ln -sf /etc/portage/make.conf.user '${BOARD_ROOT}/etc/make.conf.user'"
-  "mkdir -p '${BOARD_ROOT}/etc/portage/hooks'"
-)
-for d in "${SCRIPTS_DIR}"/hooks/*; do
-  cmds+=( "ln -sfT '${d}' '${BOARD_ROOT}/etc/portage/hooks/${d##*/}'" )
-done
-sudo_multi "${cmds[@]}"
-
 # Select the profile to build based on the board and profile passed to
 # setup_board.  The developer can later change profiles by running
 # cros_choose_profile manually.
@@ -337,85 +305,29 @@ fi
 
 generate_all_wrappers
 
-if ${HOST_BOARD}; then
-  EMERGE_CMD="emerge"
-  if [[ $FLAGS_fast -eq $FLAGS_TRUE ]]; then
-    EMERGE_CMD="${GCLIENT_ROOT}/chromite/bin/parallel_emerge"
-  fi
-  PACKAGES="system coreos-devel/sdk-depends world"
+if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
+  # First thing first, install baselayout with USE=build to create a
+  # working directory tree. Don't use binpkgs due to the use flag change.
+  sudo -E USE=build "${EMERGE_WRAPPER}" --usepkg=n --buildpkg=n \
+      --oneshot --quiet --nodeps sys-apps/baselayout
 
-  # First, rebuild all packages from scratch. This is needed to make sure
-  # we rebuild all chroot packages.
-  sudo -E $EMERGE_CMD --emptytree --with-bdeps=y $PACKAGES
-  sudo eclean -d packages
+  # Now time for tool chain happy fun time
+  install_toolchain
 
-  # Next, install our rebuilt packages into our separate root.
-  HOST_FLAGS="--root=$BOARD_ROOT --update --verbose --deep --root-deps"
-  HOST_FLAGS+=" --with-bdeps=y --newuse --jobs=$NUM_JOBS --usepkgonly"
-  sudo -E $EMERGE_CMD $HOST_FLAGS --select=y $PACKAGES
-  sudo cp -a "${PKGDIR}" $BOARD_ROOT/packages
-
-  # Install cross-compilers.
-  COMPILERS=$(equery l cross-*/* --format='=$cpv')
-  sudo -E $EMERGE_CMD $HOST_FLAGS --select=n $COMPILERS
-
-  # Setup needed symlinks for cross-compilers.
-  sudo mkdir -p $BOARD_ROOT/usr/local/portage
-  sudo cp -a ${CROSSDEV_OVERLAY} $BOARD_ROOT/usr/local/portage
-
-  # Setup crossdev configuration for categories.
-  sudo cp -a /etc/portage/* $BOARD_ROOT/etc/portage
-
-  # The new chroot should have gcc for each target. Make sure that
-  # the latest one is correctly selected. Ignore cat errors as not
-  # all overlays will have a toolchain.conf.
-  ALL_TARGETS=$(cros_setup_toolchains --show-board-cfg=sdk)
-  for target in ${ALL_TARGETS//,/ }; do
-    libc=$(eval $(crossdev --show-target-cfg "${target}"); echo ${libc_pn})
-    if [[ ${libc} == "glibc" ]] ; then
-      # Install needed glibc tarball.
-      cross_target_path=/var/lib/portage/pkgs/cross-${target}
-      if [[ -e "$cross_target_path" ]] ; then
-          sudo mkdir -p ${BOARD_ROOT}${cross_target_path}
-          sudo cp -a ${cross_target_path}/glibc-* \
-            ${BOARD_ROOT}${cross_target_path}
-      fi
+  # Emerge the kernel headers into the board build root.  Use rdeps to
+  # avoid pulling any spurious DEPEND things in that we don't care about.
+  KERNEL_EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
+  if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
+    KERNEL_EMERGE_FLAGS+=" --usepkg"
+    if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
+      KERNEL_EMERGE_FLAGS+=" --getbinpkg "
     fi
-
-    CURRENT_GCC="$(gcc-config -c ${target})"
-    sudo ROOT=${BOARD_ROOT} gcc-config ${CURRENT_GCC}
-    CURRENT_BINUTILS="$(binutils-config -c ${target})"
-    sudo ROOT=${BOARD_ROOT} binutils-config ${CURRENT_BINUTILS}
-  done
-
-  # Now cleanup paths referencing the ROOT from the *.la files.
-  sudo find $BOARD_ROOT -type f -name '*.la' | xargs sudo \
-      sed -i -e "s|$BOARD_ROOT/|/|g"
-else
-  if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
-    # First thing first, install baselayout with USE=build to create a
-    # working directory tree. Don't use binpkgs due to the use flag change.
-    sudo -E USE=build "${EMERGE_WRAPPER}" --usepkg=n --buildpkg=n \
-        --oneshot --quiet --nodeps sys-apps/baselayout
-
-    # Now time for tool chain happy fun time
-    install_toolchain
-
-    # Emerge the kernel headers into the board build root.  Use rdeps to
-    # avoid pulling any spurious DEPEND things in that we don't care about.
-    KERNEL_EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
-    if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
-      KERNEL_EMERGE_FLAGS+=" --usepkg"
-      if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
-        KERNEL_EMERGE_FLAGS+=" --getbinpkg "
-      fi
-    fi
-
-    sudo -E "${EMERGE_WRAPPER}" ${KERNEL_EMERGE_FLAGS} \
-      sys-kernel/linux-headers
-
-    unset KERNEL_EMERGE_FLAGS
   fi
+
+  sudo -E "${EMERGE_WRAPPER}" ${KERNEL_EMERGE_FLAGS} \
+    sys-kernel/linux-headers
+
+  unset KERNEL_EMERGE_FLAGS
 fi
 
 if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then
