@@ -112,7 +112,7 @@ IMG_pxe_OEM_PACKAGE=oem-pxe
 
 ## rackspace
 # TODO: package doesn't exist yet
-#IMG_rackspace_OEM_PACKAGE=oem-rackspace
+IMG_rackspace_OEM_PACKAGE=oem-rackspace
 
 ###########################################################
 
