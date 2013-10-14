@@ -60,7 +60,7 @@ for r in "${!AKI[@]}"; do
         | cut -f2) || true # Don't die silently, error messages are good
     if [[ -z "$AMI" ]]; then
         echo "$0: Cannot find ${r} AMI for CoreOS $VER" >&2
-	continue
+        continue
     fi
     AMIS[${r}]=$AMI
 done
