@@ -158,6 +158,9 @@ snapshotid=$(ec2-create-snapshot --description "$name" "$volumeid" | cut -f2)
 while ec2-describe-snapshots "$snapshotid" | grep -q pending
   do sleep 30; done
 
+echo "Sharing snapshot with Amazon"
+ec2-modify-snapshot-attribute "$snapshotid" -c --add 679593333241
+
 echo "Created snapshot $snapshotid, registering as a new AMI"
 amiid=$(ec2-register                                  \
   --name "$name"                                      \
@@ -167,6 +170,9 @@ amiid=$(ec2-register                                  \
   --block-device-mapping /dev/sda=$snapshotid::true   \
   --block-device-mapping $ephemeraldev=ephemeral0     |
   cut -f2)
+
+echo "Making $amiid public"
+ec2-modify-image-attribute "$amiid" --launch-permission -a all
 
 ec2-delete-volume "$volumeid"
 
@@ -182,6 +188,7 @@ do
         --name "$description"                \
         --region "$r"                        |
         cut -f2)
+    ec2-modify-image-attribute --region "$r" "$amiid" --launch-permission -a all
     echo "$r $r_amiid"
 done
 
