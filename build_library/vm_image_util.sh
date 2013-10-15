@@ -478,6 +478,7 @@ scsi0:0.present = "TRUE"
 sound.present = "FALSE"
 usb.generic.autoconnect = "FALSE"
 usb.present = "TRUE"
+rtc.diffFromUTC = 0
 EOF
     VM_GENERATED_FILES+=( "${vmx_path}" )
 }
