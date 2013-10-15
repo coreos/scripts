@@ -16,7 +16,7 @@ AKI["ap-northeast-1"]=aki-40992841
 AKI["sa-east-1"]=aki-c88f51d5
 # AKI["gov-west-1"]=aki-75a4c056
 
-USAGE="Usage: $0 -a ami-id
+USAGE="Usage: $0 -V 100.0.0
     -V VERSION  Find AMI by CoreOS version. (required)
     -K KEY      Path to Amazon API private key.
     -C CERT     Path to Amazon API key certificate.
