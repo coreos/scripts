@@ -176,23 +176,6 @@ ec2-modify-image-attribute "$amiid" --launch-permission -a all
 
 ec2-delete-volume "$volumeid"
 
-# hack job to copy AMIs
-export EC2_HOME=/home/ubuntu/ec2/ec2-api-tools-1.6.10.0
-export JAVA_HOME=/usr
-for r in "${!AKI[@]}"
-do
-    [ "${r}" == "${region}" ] && continue
-    r_amiid=$($EC2_HOME/bin/ec2-copy-image \
-        --source-region "$region"            \
-        --source-ami-id "$amiid"             \
-        --name "$description"                \
-        --region "$r"                        |
-        cut -f2)
-    ec2-modify-image-attribute --region "$r" "$amiid" --launch-permission -a all
-    echo "$r $r_amiid"
-done
-
-
 cat <<EOF
 AMI: $amiid $region $arch2
 
