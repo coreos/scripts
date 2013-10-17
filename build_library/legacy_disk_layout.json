@@ -39,8 +39,8 @@
         "num": 5,
         "label":"ROOT-C",
         "uuid":"d82521b4-07ac-4f1c-8840-ddefedc332f3",
-        "type":"coreos-rootfs",
-        "blocks":"1"
+        "type":"blank",
+        "blocks":"0"
       },
       {
         "num": 6,
@@ -50,15 +50,15 @@
       },
       {
         "num": 7,
-        "type":"coreos-reserved",
+        "type":"blank",
         "label":"coreos-reserved",
-        "blocks":"1"
+        "blocks":"0"
       },
       {
         "num": 8,
-        "type":"coreos-reserved",
+        "type":"blank",
         "label":"coreos-reserved",
-        "blocks":"1"
+        "blocks":"0"
       },
       {
         "num": 9,
