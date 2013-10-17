@@ -36,7 +36,7 @@ def LoadPartitionConfig(filename):
   valid_keys = set(('_comment', 'metadata', 'layouts'))
   valid_layout_keys = set((
       '_comment', 'type', 'num', 'label', 'blocks', 'block_size', 'fs_blocks',
-      'fs_block_size', 'features', 'uuid'))
+      'fs_block_size', 'features', 'uuid', 'alignment'))
 
   if not os.path.exists(filename):
     raise ConfigNotFound('Partition config %s was not found!' % filename)
@@ -45,8 +45,13 @@ def LoadPartitionConfig(filename):
 
   try:
     metadata = config['metadata']
-    for key in ('block_size', 'fs_block_size'):
+    for key in ('alignment', 'block_size', 'fs_block_size'):
       metadata[key] = int(metadata[key])
+
+    # Sometimes qemu-img expects disks sizes aligned to 64k
+    align_bytes = metadata['alignment'] * metadata['block_size']
+    if align_bytes < 65536 or align_bytes % 65536 != 0:
+      raise InvalidLayout('Invalid alignment, 64KB or better required')
 
     unknown_keys = set(config.keys()) - valid_keys
     if unknown_keys:
@@ -67,6 +72,7 @@ def LoadPartitionConfig(filename):
             if not s in part:
               raise InvalidLayout('Layout "%s" missing "%s"' % (layout_name, s))
 
+        part['alignment'] = int(part.get('alignment', metadata['alignment']))
         part['blocks'] = int(part['blocks'])
         part['bytes'] = part['blocks'] * metadata['block_size']
 
@@ -220,19 +226,30 @@ def WritePartitionTable(options, image_type, layout_filename, disk_filename):
   def Cgpt(*args):
     subprocess.check_call(['cgpt'] + [str(a) for a in args])
 
+  def Align(count, alignment):
+    offset = count % alignment
+    if offset:
+      count += alignment - offset
+    return count
+
   config = LoadPartitionConfig(layout_filename)
+  metadata = config['metadata']
   partitions = GetPartitionTable(options, config, image_type)
   disk_block_count = GPT_RESERVED_SECTORS
 
   for partition in partitions:
+    disk_block_count = Align(disk_block_count, partition['alignment'])
     disk_block_count += partition['blocks']
 
   disk_block_count += GPT_RESERVED_SECTORS
+  # Sometimes qemu-img expects disks sizes aligned to 64k
+  disk_block_count = Align(disk_block_count, config['metadata']['alignment'])
 
   Cgpt('create', '-c', '-s', disk_block_count, disk_filename)
 
   sector = GPT_RESERVED_SECTORS
   for partition in partitions:
+    sector = Align(sector, partition['alignment'])
     if partition['type'] != 'blank':
       Cgpt('add', '-i', partition['num'],
                   '-b', sector,

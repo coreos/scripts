@@ -1,6 +1,7 @@
 {
   "_comment": "See http://www.chromium.org/chromium-os/building-chromium-os/disk-layout-format",
   "metadata":{
+    "alignment": 2048,
     "block_size": 512,
     "fs_block_size": 4096
   },
