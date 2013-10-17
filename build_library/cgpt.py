@@ -12,7 +12,7 @@ import uuid
 from optparse import OptionParser
 
 # First sector we can use.
-START_SECTOR = 64
+GPT_RESERVED_SECTORS = 34
 
 class ConfigNotFound(Exception):
   pass
@@ -222,14 +222,16 @@ def WritePartitionTable(options, image_type, layout_filename, disk_filename):
 
   config = LoadPartitionConfig(layout_filename)
   partitions = GetPartitionTable(options, config, image_type)
-  disk_block_count = START_SECTOR * config['metadata']['block_size']
+  disk_block_count = GPT_RESERVED_SECTORS
 
   for partition in partitions:
     disk_block_count += partition['blocks']
 
-  sector = START_SECTOR
+  disk_block_count += GPT_RESERVED_SECTORS
+
   Cgpt('create', '-c', '-s', disk_block_count, disk_filename)
 
+  sector = GPT_RESERVED_SECTORS
   for partition in partitions:
     if partition['type'] != 'blank':
       Cgpt('add', '-i', partition['num'],
