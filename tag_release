@@ -12,7 +12,7 @@ DEFINE_integer build "${TODAYS_VERSION}" \
 DEFINE_integer branch 0 "Branch revision, should be 0"
 DEFINE_string patch 0 "Branch patch id, should be 0"
 DEFINE_string track "dev-channel" "Set the given track to this new branch"
-DEFINE_string sdk_version "${COREOS_SDK_VERSION}" "Set the SDK build to use"
+DEFINE_string sdk_version "${COREOS_VERSION_STRING}" "Set the SDK build to use"
 DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
 DEFINE_string remote "origin" "Remote name or URL to push to."
 
