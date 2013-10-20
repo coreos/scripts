@@ -89,7 +89,7 @@ export JAVA_HOME=/usr
 
 do_copy() {
     local r="$1"
-    r_amiid=$($EC2_HOME/bin/ec2-copy-image \
+    local r_amiid=$($EC2_HOME/bin/ec2-copy-image \
         --source-region "$region"            \
         --source-ami-id "$AMI"               \
         --name "$name"                       \
@@ -98,17 +98,21 @@ do_copy() {
         cut -f2)
     echo "AMI copy to $r as $r_amiid in progress"
 
-    while ec2-describe-images "$r_amiid" --region="$r" | grep -q pending; do
+    local r_amidesc=$(ec2-describe-images "$r_amiid" --region="$r")
+    while grep -q pending <<<"$r_amidesc"; do
         sleep 30
+        r_amidesc=$(ec2-describe-images "$r_amiid" --region="$r")
     done
     echo "AMI copy to $r as $r_amiid in complete"
 
-    # Not sure if this is needed, permissions seem to be copied
+    local r_snapshotid=$(echo "$r_amidesc" | \
+        grep '^BLOCKDEVICEMAPPING./dev/sda' | cut -f4)
+    echo "Sharing snapshot $r_snapshotid in $r with Amazon"
+    ec2-modify-snapshot-attribute "$r_snapshotid" \
+        -c --add 679593333241 --region "$r"
+
     echo "Making $r_amiid in $r public"
     ec2-modify-image-attribute --region "$r" "$r_amiid" --launch-permission -a all
-
-    # TODO: Add the awsmarket permissions to the snapshot backing the AMI which
-    # certainly isn't copied. Need to parse ec2-describe-images or something.
 }
 
 for r in "${!AKI[@]}"
