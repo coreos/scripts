@@ -9,7 +9,7 @@ source /tmp/toolchain_util.sh
 # To make sure things are uploaded to the correct places we split things up:
 # crossdev build packages use ${PKGDIR}/crossdev (uploaded to SDK location)
 # build deps in crossdev's sysroot use ${PKGDIR}/cross/${CHOST} (no upload)
-# native toolchains use ${PKGDIR}/native/${BOARD} (uploaded to board location)
+# native toolchains use ${PKGDIR}/target/${BOARD} (uploaded to board location)
 
 get_dependency_list() {
     local ROOT="$1"
