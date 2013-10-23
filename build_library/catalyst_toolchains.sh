@@ -47,7 +47,7 @@ EOF
 
 build_cross_toolchain() {
     local cross_chost="$1"
-    local cross_pkgs=( "${TOOLCHAIN_PKGS[@]/*\//cross-${cross_chost}/}" )
+    local cross_pkgs=( $(get_cross_pkgs $cross_chost) )
     local PORTDIR="$(portageq envvar PORTDIR)"
     local PKGDIR="${PORTDIR}/packages/crossdev"
 

@@ -62,3 +62,12 @@ get_board_profile() {
         fi
     done
 }
+
+get_cross_pkgs() {
+    local cross_chost native_pkg
+    for cross_chost in "$@"; do
+        for native_pkg in "${TOOLCHAIN_PKGS[@]}"; do
+            echo "${native_pkg/*\//cross-${cross_chost}/}"
+        done
+    done
+}
