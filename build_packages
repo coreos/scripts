@@ -230,6 +230,5 @@ rm "${tmpfile}"
 trap - EXIT
 
 echo "Builds complete"
-EXTRA_COMMAND_STATS[package_count]=${package_count}
 command_completed
 echo "Done"
