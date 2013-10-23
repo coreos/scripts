@@ -25,10 +25,12 @@ get_dependency_list() {
 
 configure_portage() {
     local pkg_path="$1"
+    local profile="$2"
+
     mkdir -p "${ROOT}/etc/portage"
-    rm -f "${ROOT}/etc/make.profile" "${ROOT}/etc/portage/make.profile"
-    # eselect will report "!!! Warning: Strange path." but that's OK
-    eselect profile set --force coreos:coreos/amd64/generic 
+    echo "eselect will report '!!! Warning: Strange path.' but that's OK"
+    eselect profile set --force "$profile"
+
     cat >"${ROOT}/etc/portage/make.conf" <<EOF
 CHOST=${CHOST}
 CBUILD=$(portageq envvar CBUILD)
@@ -79,7 +81,8 @@ configure_cross_root() {
     local ROOT="/usr/${cross_chost}"
 
     CHOST="${cross_chost}" ROOT="$ROOT" SYSROOT="$ROOT" \
-        configure_portage "cross/${cross_chost}"
+        configure_portage "cross/${cross_chost}" \
+        "${CROSS_PROFILE[${cross_chost}]}"
 
     # In order to get a dependency list we must calculate it before
     # updating package.provided. Otherwise portage will no-op.
@@ -110,7 +113,8 @@ configure_target_root() {
     local cross_chost=$(get_board_chost "$1")
 
     CHOST="${cross_chost}" ROOT="/build/${board}" \
-        SYSROOT="/usr/${cross_chost}" configure_portage "target/${board}"
+        SYSROOT="/usr/${cross_chost}" configure_portage \
+        "target/${board}" "$(get_board_profile "${board}")"
 }
 
 build_target_toolchain() {

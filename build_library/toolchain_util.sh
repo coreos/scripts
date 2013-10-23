@@ -10,6 +10,14 @@ TOOLCHAIN_PKGS=(
     sys-libs/glibc
 )
 
+# Portage arguments to enforce the toolchain to only use binpkgs.
+TOOLCHAIN_BINONLY=( "${TOOLCHAIN_PKGS[@]/#/--useoldpkg-atoms=}" )
+
+# Portage profile to use for building out the cross compiler's SYSROOT.
+# This is only used as an intermediate step to be able to use the cross
+# compiler to build a full native toolchain. Packages are not uploaded.
+CROSS_PROFILE["x86_64-cros-linux-gnu"]="coreos:coreos/amd64/generic"
+
 # Map board names to CHOSTs and portage profiles. This is the
 # definitive list, there is assorted code new and old that either
 # guesses or hard-code these. All that should migrate to this list.
