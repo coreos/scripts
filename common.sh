@@ -769,10 +769,6 @@ print_time_elapsed() {
   fi
 }
 
-# Associative array for filling in extra command-specific stats before
-# calling command_completed.
-declare -A EXTRA_COMMAND_STATS
-
 # Save original command line.
 command_line_arr=( "$0" "$@" )
 
@@ -781,42 +777,6 @@ command_completed() {
   local run_time=$(get_elapsed_seconds)
   local cmd_base=$(basename "${command_line_arr[0]}")
   print_time_elapsed ${run_time} ${cmd_base}
-
-  # Prepare command stats in an associative array.  Additonal command-specific
-  # stats can be added through EXTRA_COMMAND_STATS associative array.
-  declare -A stats
-  stats=(
-    [cmd_line]=${command_line_arr[*]}
-    [cmd_base]=${cmd_base}
-    [cmd_args]=${command_line_arr[*]:1}
-    [run_time]=${run_time}
-    [username]=$(get_git_id)
-    [board]=${FLAGS_board}
-    [host]=$(hostname -f)
-    [cpu_count]=$(grep -c processor /proc/cpuinfo)
-    [cpu_type]=$(uname -p)
-  )
-
-  local attr
-  for attr in "${!EXTRA_COMMAND_STATS[@]}"; do
-    stats[${attr}]=${EXTRA_COMMAND_STATS[${attr}]}
-  done
-
-  # Prepare temporary file for stats.
-  local tmpfile=$(mktemp -t tmp.stats.XXXXXX)
-  trap "rm -f '${tmpfile}'" EXIT
-
-  # Write stats out to temporary file.
-  echo "Chromium OS Build Command Stats - Version 1" > "${tmpfile}"
-  for attr in "${!stats[@]}"; do
-    echo "${attr} ${stats[${attr}]}"
-  done >> "${tmpfile}"
-
-  # Call upload_command_stats on the stats file.  If it fails do not stop.
-  "${GCLIENT_ROOT}"/chromite/bin/upload_command_stats "${tmpfile}" || true
-
-  rm "${tmpfile}"
-  trap - EXIT
 }
 
 # The board and variant command line options can be used in a number of ways

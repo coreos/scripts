@@ -1,0 +1,54 @@
+#!/bin/bash
+#
+# Copyright (c) 2013 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+TYPE="coreos-toolchains"
+ARCH=$(portageq envvar ARCH)
+DEFAULT_SEED="builds/coreos-sdk/stage4-${ARCH}-latest.tar.bz2"
+DEFAULT_PROFILE="coreos:default/linux/${ARCH}/10.0"
+FORCE_STAGES="stage4"
+
+. "${BUILD_LIBRARY_DIR}/catalyst.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
+
+# include upload options
+. "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
+
+ROOT_OVERLAY="${TEMPDIR}/stage4-${ARCH}-$FLAGS_version-overlay"
+
+## Define the stage4 config template
+catalyst_stage4() {
+cat <<EOF
+target: stage4
+pkgcache_path: $BINPKGS
+stage4/packages: @system
+stage4/fsscript: ${BUILD_LIBRARY_DIR}/catalyst_toolchains.sh
+stage4/root_overlay: ${ROOT_OVERLAY}
+EOF
+catalyst_stage_default
+}
+
+catalyst_init "$@"
+check_gsutil_opts
+
+# toolchain_util.sh is required by catalyst_toolchains.sh
+mkdir -p "${ROOT_OVERLAY}/tmp"
+cp "${BUILD_LIBRARY_DIR}/toolchain_util.sh" "${ROOT_OVERLAY}/tmp"
+
+catalyst_build
+
+def_upload_path="${UPLOAD_ROOT}/sdk/${ARCH}/${FLAGS_version}"
+upload_files "packages" "${def_upload_path}" "pkgs/" "${BINPKGS}/crossdev"/*
+
+for board in $(get_board_list); do
+    board_packages="${BINPKGS}/target/${board}"
+    def_upload_path="${UPLOAD_ROOT}/${board}/${FLAGS_version}"
+    upload_files packages "${def_upload_path}" "pkgs/" "${board_packages}"/*
+done
+
+command_completed
