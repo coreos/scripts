@@ -134,7 +134,7 @@ for cross_chost in $(get_chost_list); do
 done
 
 for board in $(get_board_list); do
-    echo "Building native toolchain for ${bard}"
+    echo "Building native toolchain for ${board}"
     configure_target_root "${board}"
     build_target_toolchain "${board}"
 done
