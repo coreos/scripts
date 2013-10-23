@@ -42,17 +42,23 @@ get_profile_list() {
 }
 
 get_board_chost() {
-    if [[ ${#BOARD_CHOST["$1"]} -ne 0 ]]; then
-        echo "${BOARD_CHOST["$1"]}"
-    else
-        die "Unknown board '$1'"
-    fi
+    local board
+    for board in "$@"; do
+        if [[ ${#BOARD_CHOST["$board"]} -ne 0 ]]; then
+            echo "${BOARD_CHOST["$board"]}"
+        else
+            die "Unknown board '$board'"
+        fi
+    done
 }
 
 get_board_profile() {
-    if [[ ${#BOARD_PROFILE["$1"]} -ne 0 ]]; then
-        echo "${BOARD_PROFILE["$1"]}"
-    else
-        die "Unknown board '$1'"
-    fi
+    local board
+    for board in "$@"; do
+        if [[ ${#BOARD_PROFILE["$board"]} -ne 0 ]]; then
+            echo "${BOARD_PROFILE["$board"]}"
+        else
+            die "Unknown board '$board'"
+        fi
+    done
 }
