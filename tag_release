@@ -26,14 +26,12 @@ TAG_NAME="v${FLAGS_build}.${FLAGS_branch}.${FLAGS_patch}"
 
 cd "${GCLIENT_ROOT}/.repo/manifests"
 
-# Clean up existing branch manifest(s)
-if [[ $(ls branch-*.xml 2>/dev/null) ]]; then
-    for old_branch in branch-*.xml; do
-        if [[ "${old_branch}" != "${BRANCH_NAME}.xml" ]]; then
-            git rm -f "${old_branch}"
-        fi
-    done
-fi
+# Clean up existing branch manifest(s) excluding:
+# - the current branch if the file already exists.
+# - one previous branch, useful for comparing releases.
+OLD_BRANCHES=$(find -maxdepth 1 -name 'build-*.xml' \
+    -not -name "${BRANCH_NAME}.xml" | sort -rn | tail -n -1)
+git rm -f ${OLD_BRANCHES}
 
 repo manifest -o "${BRANCH_NAME}.xml" -r
 tee version.txt <<EOF
