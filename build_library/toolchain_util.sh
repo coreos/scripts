@@ -71,3 +71,87 @@ get_cross_pkgs() {
         done
     done
 }
+
+### Toolchain building utilities ###
+
+# Ugly hack to get a dependency list of a set of packages.
+# This is required to figure out what to install in the crossdev sysroot.
+# Usage: ROOT=/foo/bar _get_dependency_list pkgs... [--portage-opts...]
+_get_dependency_list() {
+    local pkgs=( ${*/#-*/} )
+    local IFS=$'| \t\n'
+
+    PORTAGE_CONFIGROOT="$ROOT" emerge "$@" --pretend \
+        --emptytree --root-deps=rdeps --onlydeps --quiet | \
+        sed -e 's/.*\] \([^ :]*\).*/=\1/' |
+        egrep -v "(=$(echo "${pkgs[*]}")-[0-9])"
+}
+
+# Configure a new ROOT
+# Values are copied from the environment or the current host configuration.
+# Usage: ROOT=/foo/bar SYSROOT=/foo/bar configure_portage coreos:some/profile
+_configure_sysroot() {
+    local profile="$1"
+
+    mkdir -p "${ROOT}/etc/portage"
+    echo "eselect will report '!!! Warning: Strange path.' but that's OK"
+    eselect profile set --force "$profile"
+
+    cat >"${ROOT}/etc/portage/make.conf" <<EOF
+$(portageq envvar -v CHOST CBUILD ROOT SYSROOT \
+    PORTDIR PORTDIR_OVERLAY DISTDIR PKGDIR)
+HOSTCC=\${CBUILD}-gcc
+PKG_CONFIG_PATH="\${SYSROOT}/usr/lib/pkgconfig/"
+EOF
+}
+
+# Dump crossdev information to determine if configs must be reganerated
+_crossdev_info() {
+    local cross_chost="$1"; shift
+    echo -n "# "; crossdev --version
+    echo "# $@"
+    crossdev --show-target-cfg "${cross_chost}"
+}
+
+# Build/install a toolchain w/ crossdev.
+# Usage: build_cross_toolchain chost [--portage-opts....]
+install_cross_toolchain() {
+    local cross_chost="$1"; shift
+    local cross_pkgs=( $(get_cross_pkgs $cross_chost) )
+    local cross_cfg="/usr/${cross_chost}/etc/portage/${cross_chost}-crossdev"
+    local cross_cfg_data=$(_crossdev_info "${cross_chost}" stable)
+
+    # may be called from either catalyst (root) or upgrade_chroot (user)
+    local sudo=
+    if [[ $(id -u) -ne 0 ]]; then
+        sudo="sudo -E"
+    fi
+
+    # Only call crossdev to regenerate configs if something has changed
+    if ! cmp --quiet - "${cross_cfg}" <<<"${cross_cfg_data}"
+    then
+        $sudo crossdev --stable --portage "$*" \
+            --init-target --target "${cross_chost}"
+        sudo_clobber "${cross_cfg}" <<<"${cross_cfg_data}"
+    fi
+
+    # If binary packages are enabled try to just emerge them instead of
+    # doing a full bootstrap which speeds things up greatly. :)
+    if [[ "$*" == *--usepkg* ]] && \
+        emerge "$@" --usepkgonly --binpkg-respect-use=y \
+            --pretend "${cross_pkgs[@]}" &>/dev/null
+    then
+        $sudo emerge "$@" --binpkg-respect-use=y -u "${cross_pkgs[@]}"
+    else
+        $sudo crossdev --stable --portage "$*" \
+            --stage4 --target "${cross_chost}"
+    fi
+
+    # Setup wrappers for our shiny new toolchain
+    if [[ ! -e "/usr/lib/ccache/bin/${cross_chost}-gcc" ]]; then
+        $sudo ccache-config --install-links "${cross_chost}"
+    fi
+    if [[ ! -e "/usr/lib/sysroot-wrappers/bin/${cross_chost}-gcc" ]]; then
+        $sudo sysroot-config --install-links "${cross_chost}"
+    fi
+}
