@@ -7,12 +7,15 @@
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
+# Default to the current release for the new SDK version (minus dev build id)
+DEFAULT_SDK="${COREOS_VERSION_STRING%+*}"
+
 DEFINE_integer build "${TODAYS_VERSION}" \
     "Branch name (aka 'build'), should be days since 2013-7-1"
 DEFINE_integer branch 0 "Branch revision, should be 0"
 DEFINE_string patch 0 "Branch patch id, should be 0"
 DEFINE_string track "dev-channel" "Set the given track to this new branch"
-DEFINE_string sdk_version "${COREOS_VERSION_STRING}" "Set the SDK build to use"
+DEFINE_string sdk_version "${DEFAULT_SDK}" "Set the SDK build to use"
 DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
 DEFINE_string remote "origin" "Remote name or URL to push to."
 
