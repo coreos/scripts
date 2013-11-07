@@ -199,11 +199,6 @@ if [ "${FLAGS_noworkon}" -eq "${FLAGS_FALSE}" ]; then
   CROS_WORKON_PKGS+=( $("${LIST_MODIFIED_PACKAGES}" --board=${FLAGS_board}) )
 fi
 
-# TODO(anush): Make chrome a fake cros-workon package.
-if [[ -n "${CHROME_ORIGIN}" ]]; then
-  CROS_WORKON_PKGS+=( chromeos-base/chromeos-chrome )
-fi
-
 if [[ ${#CROS_WORKON_PKGS[@]} -gt 0 ]]; then
   EMERGE_FLAGS+=(
     --reinstall-atoms="${CROS_WORKON_PKGS[*]}"
@@ -211,24 +206,11 @@ if [[ ${#CROS_WORKON_PKGS[@]} -gt 0 ]]; then
   )
 fi
 
-# Prepare tmp file to capture emerge output from tee.
-tmpfile=$(mktemp -t tmp.build_packages-emerge.XXXXXX)
-trap "rm -f '${tmpfile}'" EXIT
-
 info "Merging board packages now"
-(
-  set -o pipefail
-  sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" "${PACKAGES[@]}" | \
-    tee "${tmpfile}"
-)
+sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" "${PACKAGES[@]}"
 
 # upload packages if enabled
 upload_packages
-
-# Extract total package count from emerge output.
-package_count=$(awk '$0 ~ /^Total: [0-9]+ packages/ { print $2 }' "${tmpfile}")
-rm "${tmpfile}"
-trap - EXIT
 
 echo "Builds complete"
 command_completed
