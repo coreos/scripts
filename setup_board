@@ -5,7 +5,7 @@
 # found in the LICENSE file.
 
 . "$(dirname "$0")/common.sh" || exit 1
-. "${SRC_ROOT}/platform/dev/toolchain_utils.sh"
+. "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
 
 # Script must run inside the chroot
 restart_in_chroot_if_needed "$@"
@@ -47,16 +47,12 @@ DEFINE_boolean latest_toolchain $FLAGS_FALSE \
 kernel). This overrides the other toolchain version options."
 DEFINE_string libc_version "[stable]" \
   "Version of libc to use."
-DEFINE_string profile "" \
-  "The portage configuration profile to use. Profile must be located in overlay-board/profiles"
 DEFINE_boolean quiet $FLAGS_FALSE \
   "Don't print warnings when board already exists."
 DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
   "Don't update toolchain automatically."
 DEFINE_boolean skip_chroot_upgrade $FLAGS_FALSE \
   "Don't run the chroot upgrade automatically; use with care."
-DEFINE_string toolchain "" \
-  "Toolchain.  For example: i686-pc-linux-gnu, armv7a-softfloat-linux-gnueabi"
 DEFINE_string variant "" \
   "Board variant."
 DEFINE_boolean regen_configs ${FLAGS_FALSE} \
@@ -77,10 +73,8 @@ _generate_wrapper() {
   sudo_clobber "${target}" <<EOF
 #!/bin/bash
 
-export CHROMEOS_ROOT="$GCLIENT_ROOT"
-export CHOST="$FLAGS_toolchain"
 export PORTAGE_CONFIGROOT="$BOARD_ROOT"
-export SYSROOT="$BOARD_ROOT"
+export SYSROOT="\${SYSROOT:-$BOARD_ROOT}"
 if [ -z "\$PORTAGE_USERNAME" ]; then
   export PORTAGE_USERNAME=\$(basename \$HOME)
 fi
@@ -115,16 +109,6 @@ EOF
                  qcheck qfile qlist; do
     _generate_wrapper ${wrapper}
   done
-
-  if [ "${CHOST}" != "$FLAGS_toolchain" ] ; then
-    # TODO(cmasone): Do this more cleanly, if we figure out what "cleanly"
-    # means.  Set up wrapper for pkg-config.  Point a board-specific wrapper
-    # at the generic wrapper script created by crossdev-wrapper.
-    cmds+=(
-      "ln -sf '/usr/bin/cross-pkg-config' \
-        '/usr/bin/${FLAGS_toolchain}-pkg-config'"
-    )
-  fi
 
   wrapper="/usr/local/bin/cros_workon-${BOARD_VARIANT}"
   sudo_clobber "${wrapper}" <<EOF
@@ -187,46 +171,23 @@ if [ "${FLAGS_skip_chroot_upgrade}" -eq "${FLAGS_FALSE}" ] ; then
   "${SRC_ROOT}/scripts"/update_chroot ${UPDATE_ARGS}
 fi
 
-#
-# Fetch the toolchain from the board overlay.
-#
-all_toolchains=( $(get_all_board_toolchains "${BOARD}") )
-: ${FLAGS_toolchain:=${all_toolchains[0]}}
-
-if [ -z "${FLAGS_toolchain}" ]; then
-  error "No toolchain specified in board overlay or on command line."
-  exit 1
-fi
-
-ARCH=$(get_board_arch "${BOARD}") || exit 1
-
 case "$BOARD" in
   *-host)
     die_notrace "host boards not supported by setup_board"
     ;;
 esac
 # Locations we will need
+COREOS_CONFIG="/usr/local/portage/coreos/coreos/config"
 BOARD_ROOT="/build/${BOARD_VARIANT}"
-CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
-CHROMIUMOS_OVERLAY="/usr/local/portage/coreos"
-CHROMIUMOS_CONFIG="${CHROMIUMOS_OVERLAY}/coreos/config"
-CHROMIUMOS_PROFILES="${CHROMIUMOS_OVERLAY}/profiles"
 BOARD_ETC="${BOARD_ROOT}/etc"
 BOARD_SETUP="${BOARD_ETC}/make.conf.board_setup"
 BOARD_PROFILE="${BOARD_ETC}/portage/profile"
-
-#
-# Construct board overlay list.
-#
-BOARD_OVERLAY_LIST=$(cros_list_overlays \
-  --board "$BOARD_VARIANT" \
-  --board_overlay "$FLAGS_board_overlay")
-
-eval $(portageq envvar -v CHOST PKGDIR)
+BOARD_ARCH=$(get_board_arch "$BOARD")
+PORTAGE_PROFILE=$(get_board_profile "$BOARD")
 
 if [ -d "${BOARD_ROOT}" ]; then
   if [[ ${FLAGS_force} -eq ${FLAGS_TRUE} ]]; then
-    echo "--force set.  Re-creating ${BOARD_ROOT}..."
+    info "--force set.  Re-creating ${BOARD_ROOT}..."
     # Removal takes long. Make it asynchronous.
     TEMP_DIR=`mktemp -d`
     sudo mv "${BOARD_ROOT}" "${TEMP_DIR}"
@@ -246,9 +207,11 @@ else
   FLAGS_regen_configs=${FLAGS_FALSE}
 fi
 
+info "Configuring portage in ${BOARD_ROOT}"
+echo "eselect will report '!!! Warning: Strange path.' but that's OK"
 cmds=(
-  "mkdir -p '${BOARD_ROOT}' '${BOARD_ETC}' '${BOARD_PROFILE}' /usr/local/bin"
-  "mkdir -p '${BOARD_ETC}/portage/hooks'"
+  "mkdir -p '${BOARD_ROOT}' '${BOARD_PROFILE}' '${BOARD_ETC}/portage/hooks'"
+  "ROOT='${BOARD_ROOT}' eselect profile set --force '${PORTAGE_PROFILE}'"
 )
 
 # Setup the make.confs. We use the following:
@@ -256,9 +219,9 @@ cmds=(
 #    make.conf.board_setup <- Declares CHOST, ROOT, etc.
 #    make.conf.common      <- Common settings across all targets
 cmds+=(
-  "ln -sf '${CHROMIUMOS_CONFIG}/make.conf.${ARCH}-target' \
+  "ln -sf '${COREOS_CONFIG}/make.conf.${BOARD_ARCH}-target' \
     '${BOARD_ETC}/make.conf'"
-  "ln -sf '${CHROMIUMOS_CONFIG}/make.conf.common-target' \
+  "ln -sf '${COREOS_CONFIG}/make.conf.common-target' \
     '${BOARD_ETC}/make.conf.common'"
   "touch /etc/portage/make.conf.user"
   "ln -sf /etc/portage/make.conf.user '${BOARD_ROOT}/etc/make.conf.user'"
@@ -280,9 +243,8 @@ fi
 
 sudo_clobber "${BOARD_SETUP}" <<EOF
 # Created by setup_board
-CHOST="${FLAGS_toolchain}"
+CHOST="$(get_board_chost ${BOARD})"
 ROOT="${BOARD_ROOT}/"
-BOARD_OVERLAY="${BOARD_OVERLAY_LIST}"
 MAKEOPTS="--jobs=${NUM_JOBS} --load-average=${NUM_JOBS}"
 PKG_CONFIG="pkg-config-${BOARD_VARIANT}"
 BOARD_USE="${BOARD_VARIANT}"
@@ -290,22 +252,11 @@ ${SAVED_VERSION}
 ${ACCEPT_LICENSE}
 EOF
 
-# Select the profile to build based on the board and profile passed to
-# setup_board.  The developer can later change profiles by running
-# cros_choose_profile manually.
-if ! cros_choose_profile \
-       --board "${FLAGS_board}" \
-       --board_overlay "${FLAGS_board_overlay}" \
-       --variant "${FLAGS_variant}" \
-       --profile "${FLAGS_profile}"; then
-  error "Selecting profile failed, removing incomplete board directory!"
-  sudo rm -rf "${BOARD_ROOT}"
-  exit 1
-fi
-
 generate_all_wrappers
 
 if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
+  info "Installing baselayout"
+
   # First thing first, install baselayout with USE=build to create a
   # working directory tree. Don't use binpkgs due to the use flag change.
   sudo -E USE=build "${EMERGE_WRAPPER}" --usepkg=n --buildpkg=n \
@@ -335,15 +286,14 @@ if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then
 fi
 
 command_completed
-echo "Done!"
-echo "The SYSROOT is: ${BOARD_ROOT}"
+info "The SYSROOT is: ${BOARD_ROOT}"
 
 # NOTE: Printing the working-on ebuilds does not only serve the informative
 # purpose. It also causes the ${BOARD_ROOT}/etc/portage/package.* files to be
 # regenerated.
 WORKING_ON=$(cros_workon --board=${FLAGS_board} list)
 if [ -n "${WORKING_ON}" ]; then
-  echo
-  echo "Currently working on the following ebuilds for this board:"
-  echo "${WORKING_ON}"
+  info
+  info "Currently working on the following ebuilds for this board:"
+  info "${WORKING_ON}"
 fi
