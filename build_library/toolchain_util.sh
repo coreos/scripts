@@ -11,7 +11,8 @@ TOOLCHAIN_PKGS=(
 )
 
 # Portage arguments to enforce the toolchain to only use binpkgs.
-TOOLCHAIN_BINONLY=( "${TOOLCHAIN_PKGS[@]/#/--useoldpkg-atoms=}" )
+TOOLCHAIN_BINONLY=( "${TOOLCHAIN_PKGS[@]/#/--useoldpkg-atoms=}"
+                    "${TOOLCHAIN_PKGS[@]/#/--rebuild-exclude=}" )
 
 # Portage profile to use for building out the cross compiler's SYSROOT.
 # This is only used as an intermediate step to be able to use the cross
@@ -25,6 +26,30 @@ declare -A BOARD_CHOST BOARD_PROFILE
 BOARD_CHOST["amd64-generic"]="x86_64-cros-linux-gnu"
 BOARD_PROFILE["amd64-generic"]="coreos:coreos/amd64/generic"
 BOARD_NAMES=( "${!BOARD_CHOST[@]}" )
+
+### Generic metadata fetching functions ###
+
+# map CHOST to portage ARCH, list came from crossdev
+# Usage: get_portage_arch chost
+get_portage_arch() {
+    case "$1" in
+        aarch64*)   echo arm;;
+        alpha*)     echo alpha;;
+        arm*)       echo arm;;
+        hppa*)      echo hppa;;
+        ia64*)      echo ia64;;
+        i?86*)      echo x86;;
+        m68*)       echo m68k;;
+        mips*)      echo mips;;
+        powerpc64*) echo ppc64;;
+        powerpc*)   echo ppc;;
+        sparc*)     echo sparc;;
+        s390*)      echo s390;;
+        sh*)        echo sh;;
+        x86_64*)    echo amd64;;
+        *)          die "Unknown CHOST '$1'";;
+    esac
+}
 
 get_board_list() {
     local IFS=$'\n\t '
@@ -41,6 +66,15 @@ get_profile_list() {
     sort -u <<<"${BOARD_PROFILE[*]}"
 }
 
+# Usage: get_board_arch board [board...]
+get_board_arch() {
+    local board
+    for board in "$@"; do
+        get_portage_arch $(get_board_chost "${board}")
+    done
+}
+
+# Usage: get_board_chost board [board...]
 get_board_chost() {
     local board
     for board in "$@"; do
@@ -52,6 +86,7 @@ get_board_chost() {
     done
 }
 
+# Usage: get_board_profile board [board...]
 get_board_profile() {
     local board
     for board in "$@"; do
@@ -63,6 +98,7 @@ get_board_profile() {
     done
 }
 
+# Usage: get_cross_pkgs chost [chost2...]
 get_cross_pkgs() {
     local cross_chost native_pkg
     for cross_chost in "$@"; do

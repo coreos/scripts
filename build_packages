@@ -126,6 +126,7 @@ fi
 "${SCRIPTS_DIR}"/setup_board --quiet --board=${FLAGS_board} "${UPDATE_ARGS[@]}"
 
 # set BOARD and BOARD_ROOT
+. "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 
 # Setup all the emerge command/flags.
