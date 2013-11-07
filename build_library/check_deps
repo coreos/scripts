@@ -47,7 +47,8 @@ class CheckDependencies(object):
           # Includes are absolute or relative to the file itself.
           line = os.path.join(os.path.dirname(path), line[8:])
           for p in glob.glob(self._root + line):
-            libdirs.extend(self._ReadLdSoConf(os.path.relpath(p, self._root)))
+            rel_p = "/%s" % os.path.relpath(p, self._root)
+            libdirs.extend(self._ReadLdSoConf(rel_p))
 
       f.close()
 
