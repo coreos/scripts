@@ -168,7 +168,7 @@ install_cross_toolchain() {
     then
         $sudo crossdev --stable --portage "$*" \
             --init-target --target "${cross_chost}"
-        sudo_clobber "${cross_cfg}" <<<"${cross_cfg_data}"
+        $sudo tee "${cross_cfg}" <<<"${cross_cfg_data}" >/dev/null
     fi
 
     # If binary packages are enabled try to just emerge them instead of
