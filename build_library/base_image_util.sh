@@ -39,11 +39,9 @@ cleanup_mounts() {
 create_base_image() {
   local image_name=$1
   local rootfs_verification_enabled=$2
-  local image_type="base"
 
-  if [[ "${FLAGS_disk_layout}" != "default" ]]; then
-      image_type="${FLAGS_disk_layout}"
-  fi
+  get_disk_layout_type
+  local image_type="${DISK_LAYOUT_TYPE}"
 
   check_valid_layout "base"
   check_valid_layout ${image_type}

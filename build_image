@@ -71,6 +71,7 @@ check_gsutil_opts
 
 # N.B.  Ordering matters for some of the libraries below, because
 # some of the files contain initialization used by later files.
+. "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/disk_layout_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/mount_gpt_util.sh" || exit 1

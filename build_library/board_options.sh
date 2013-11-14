@@ -9,24 +9,7 @@ fi
 
 BOARD="${FLAGS_board}"
 BOARD_ROOT="/build/${BOARD}"
+ARCH=$(get_board_arch ${BOARD})
 
 # What cross-build are we targeting?
 . "${BOARD_ROOT}/etc/make.conf.board_setup"
-
-# Figure out ARCH from the given toolchain.
-# TODO(jrbarnette): There's a copy of this code in setup_board;
-# it should be shared.
-case "$(echo "${CHOST}" | awk -F'-' '{ print $1 }')" in
-  arm*)
-    ARCH="arm"
-    ;;
-  *86)
-    ARCH="x86"
-    ;;
-  *x86_64)
-    ARCH="amd64"
-    ;;
-  *)
-    error "Unable to determine ARCH from toolchain: ${CHOST}"
-    exit 1
-esac

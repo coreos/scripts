@@ -76,10 +76,10 @@ _dump_trace() {
 
 # Declare these asap so that code below can safely assume they exist.
 _message() {
-  local prefix=$1
+  local prefix="$1${CROS_LOG_PREFIX:-${SCRIPT_NAME}}"
   shift
   if [[ $# -eq 0 ]]; then
-    echo -e "${prefix}${CROS_LOG_PREFIX:-""}:${V_VIDOFF}" >&2
+    echo -e "${prefix}:${V_VIDOFF}" >&2
     return
   fi
   (
@@ -95,7 +95,7 @@ _message() {
       set -- ''
     fi
     for line in "$@"; do
-      echo -e "${prefix}${CROS_LOG_PREFIX:-}: ${line}${V_VIDOFF}" >&2
+      echo -e "${prefix}: ${line}${V_VIDOFF}" >&2
     done
   )
 }

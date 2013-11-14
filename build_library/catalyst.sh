@@ -77,9 +77,14 @@ EOF
 }
 
 catalystrc() {
-echo "export MAKEOPTS='--jobs=${NUM_JOBS} --load-average=${NUM_JOBS}'"
-echo "export EMERGE_DEFAULT_OPTS=--jobs=${NUM_JOBS}"
-echo "export FEATURES='parallel-install -ebuild-locks'"
+local load=$((NUM_JOBS * 2))
+cat <<EOF
+export TERM='${TERM}'
+export MAKEOPTS='--jobs=${NUM_JOBS} --load-average=${load}'
+export EMERGE_DEFAULT_OPTS="\$MAKEOPTS"
+# Catalyst overrides FEATURES so set it's own variable instead.
+export clst_myfeatures='-ebuild-locks'
+EOF
 }
 
 # Common values for all stage spec files

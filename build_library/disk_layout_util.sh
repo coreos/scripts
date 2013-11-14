@@ -112,6 +112,10 @@ check_valid_layout() {
 
 get_disk_layout_type() {
   DISK_LAYOUT_TYPE="base"
+  if [[ -n "${FLAGS_disk_layout}" && \
+      "${FLAGS_disk_layout}" != "default" ]]; then
+    DISK_LAYOUT_TYPE="${FLAGS_disk_layout}"
+  fi
 }
 
 emit_gpt_scripts() {

@@ -24,7 +24,7 @@ cat <<EOF
 target: stage4
 pkgcache_path: $BINPKGS
 stage4/packages: coreos-devel/buildhost-depends
-stage4/fsscript: ${BUILD_LIBRARY_DIR}/catalyst_buildbot_stage4.sh
+stage4/fsscript: ${BUILD_LIBRARY_DIR}/catalyst_default_stage4.sh
 EOF
 catalyst_stage_default
 }
