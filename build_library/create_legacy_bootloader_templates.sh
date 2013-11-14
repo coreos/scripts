@@ -52,39 +52,26 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
   # Add hvc0 for hypervisors
   grub_args="${common_args} console=hvc0"
 
-  cat <<EOF | sudo dd of="${GRUB_DIR}/menu.lst.A" 2>/dev/null
+  sudo_clobber "${GRUB_DIR}/menu.lst.A" <<EOF
 timeout         0
 
-title           CoreOS A Kernel
-root            (hd0,0)
-kernel          /syslinux/vmlinuz.A ${grub_args} root=gptprio:
-
-title           CoreOS B Kernel
-root            (hd0,0)
-kernel          /syslinux/vmlinuz.B ${grub_args} root=gptprio:
-
-title           CoreOS bootengine
-root            (hd0,0)
-kernel          /syslinux/vmlinuz-boot_kernel ${grub_args} root=gptprio:
-
-title           CoreOS A Root Rescue
+title           CoreOS A Root
 root            (hd0,0)
 kernel          /syslinux/vmlinuz.A ${grub_args} root=${ROOTA}
 
-title           CoreOS B Root Rescue
+title           CoreOS B Root
 root            (hd0,0)
 kernel          /syslinux/vmlinuz.B ${grub_args} root=${ROOTB}
 EOF
   info "Emitted ${GRUB_DIR}/menu.lst.A"
 
-  cat <<EOF | sudo dd of="${GRUB_DIR}/menu.lst.B" 2>/dev/null
+  sudo_clobber "${GRUB_DIR}/menu.lst.B" <<EOF
 default         1
 EOF
-  sudo sh -c "cat ${GRUB_DIR}/menu.lst.A >> ${GRUB_DIR}/menu.lst.B"
+  sudo_append "${GRUB_DIR}/menu.lst.B" <"${GRUB_DIR}/menu.lst.A"
   info "Emitted ${GRUB_DIR}/menu.lst.B"
   sudo cp ${GRUB_DIR}/menu.lst.A ${GRUB_DIR}/menu.lst
 
-  # /boot/syslinux must be installed in partition 12 as /syslinux/.
   SYSLINUX_DIR="${FLAGS_to}/syslinux"
   sudo mkdir -p "${SYSLINUX_DIR}"
 
