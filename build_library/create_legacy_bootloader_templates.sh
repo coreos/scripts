@@ -79,7 +79,7 @@ EOF
   # This leaves /dev/console mapped to tty0 (vga) which is reasonable default.
   syslinux_args="console=ttyS0,115200n8 ${common_args}"
 
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/syslinux.cfg" 2>/dev/null
+  sudo_clobber "${SYSLINUX_DIR}/syslinux.cfg" <<EOF
 SERIAL 0 115200
 PROMPT 0
 TIMEOUT 0
@@ -98,14 +98,15 @@ EOF
   # Different files are used so that the updater can only touch the file it
   # needs to for a given change.  This will minimize any potential accidental
   # updates issues, hopefully.
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/boot_kernel.cfg" 2>/dev/null
+  sudo_clobber "${SYSLINUX_DIR}/boot_kernel.cfg" <<EOF
 label boot_kernel
   menu label boot_kernel
   kernel vmlinuz-boot_kernel
   append ${syslinux_args} root=gptprio:
 EOF
   info "Emitted ${SYSLINUX_DIR}/boot_kernel.cfg"
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/root.A.cfg" 2>/dev/null
+
+  sudo_clobber "${SYSLINUX_DIR}/root.A.cfg" <<EOF
 label coreos.A
   menu label coreos.A
   kernel vmlinuz.A
@@ -113,7 +114,7 @@ label coreos.A
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.A.cfg"
 
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/root.B.cfg" 2>/dev/null
+  sudo_clobber "${SYSLINUX_DIR}/root.B.cfg" <<EOF
 label coreos.B
   menu label coreos.B
   kernel vmlinuz.B
