@@ -101,8 +101,8 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
   # Copy over the grub configurations for cloud machines and the
   # kernel into both the A and B slot
   sudo mkdir -p "${ESP_FS_DIR}"/boot/grub
-  sudo cp -r "${FLAGS_from}"/boot/grub/. "${ESP_FS_DIR}"/boot/grub
-  sudo cp -r "${FLAGS_from}"/boot/grub/menu.lst.A "${ESP_FS_DIR}"/boot/grub/menu.lst
+  sudo cp -r "${FLAGS_from}"/grub/. "${ESP_FS_DIR}"/boot/grub
+  sudo cp -r "${FLAGS_from}"/grub/menu.lst.A "${ESP_FS_DIR}"/boot/grub/menu.lst
 
   # Prepopulate the syslinux directories too and update for verified boot values
   # after the rootfs work is done.

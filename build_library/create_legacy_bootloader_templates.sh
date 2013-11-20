@@ -46,7 +46,7 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
   ROOTB="PARTUUID=$(get_uuid base ROOT-B)"
 
   # Build configuration files for pygrub/pvgrub
-  GRUB_DIR="${FLAGS_to}/boot/grub"
+  GRUB_DIR="${FLAGS_to}/grub"
   sudo mkdir -p "${GRUB_DIR}"
 
   # Add hvc0 for hypervisors
