@@ -46,45 +46,32 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
   ROOTB="PARTUUID=$(get_uuid base ROOT-B)"
 
   # Build configuration files for pygrub/pvgrub
-  GRUB_DIR="${FLAGS_to}/boot/grub"
+  GRUB_DIR="${FLAGS_to}/grub"
   sudo mkdir -p "${GRUB_DIR}"
 
   # Add hvc0 for hypervisors
   grub_args="${common_args} console=hvc0"
 
-  cat <<EOF | sudo dd of="${GRUB_DIR}/menu.lst.A" 2>/dev/null
+  sudo_clobber "${GRUB_DIR}/menu.lst.A" <<EOF
 timeout         0
 
-title           CoreOS A Kernel
-root            (hd0,0)
-kernel          /syslinux/vmlinuz.A ${grub_args} root=gptprio:
-
-title           CoreOS B Kernel
-root            (hd0,0)
-kernel          /syslinux/vmlinuz.B ${grub_args} root=gptprio:
-
-title           CoreOS bootengine
-root            (hd0,0)
-kernel          /syslinux/vmlinuz-boot_kernel ${grub_args} root=gptprio:
-
-title           CoreOS A Root Rescue
+title           CoreOS A Root
 root            (hd0,0)
 kernel          /syslinux/vmlinuz.A ${grub_args} root=${ROOTA}
 
-title           CoreOS B Root Rescue
+title           CoreOS B Root
 root            (hd0,0)
 kernel          /syslinux/vmlinuz.B ${grub_args} root=${ROOTB}
 EOF
   info "Emitted ${GRUB_DIR}/menu.lst.A"
 
-  cat <<EOF | sudo dd of="${GRUB_DIR}/menu.lst.B" 2>/dev/null
+  sudo_clobber "${GRUB_DIR}/menu.lst.B" <<EOF
 default         1
 EOF
-  sudo sh -c "cat ${GRUB_DIR}/menu.lst.A >> ${GRUB_DIR}/menu.lst.B"
+  sudo_append "${GRUB_DIR}/menu.lst.B" <"${GRUB_DIR}/menu.lst.A"
   info "Emitted ${GRUB_DIR}/menu.lst.B"
   sudo cp ${GRUB_DIR}/menu.lst.A ${GRUB_DIR}/menu.lst
 
-  # /boot/syslinux must be installed in partition 12 as /syslinux/.
   SYSLINUX_DIR="${FLAGS_to}/syslinux"
   sudo mkdir -p "${SYSLINUX_DIR}"
 
@@ -92,7 +79,7 @@ EOF
   # This leaves /dev/console mapped to tty0 (vga) which is reasonable default.
   syslinux_args="console=ttyS0,115200n8 ${common_args}"
 
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/syslinux.cfg" 2>/dev/null
+  sudo_clobber "${SYSLINUX_DIR}/syslinux.cfg" <<EOF
 SERIAL 0 115200
 PROMPT 0
 TIMEOUT 0
@@ -111,14 +98,15 @@ EOF
   # Different files are used so that the updater can only touch the file it
   # needs to for a given change.  This will minimize any potential accidental
   # updates issues, hopefully.
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/boot_kernel.cfg" 2>/dev/null
+  sudo_clobber "${SYSLINUX_DIR}/boot_kernel.cfg" <<EOF
 label boot_kernel
   menu label boot_kernel
   kernel vmlinuz-boot_kernel
   append ${syslinux_args} root=gptprio:
 EOF
   info "Emitted ${SYSLINUX_DIR}/boot_kernel.cfg"
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/root.A.cfg" 2>/dev/null
+
+  sudo_clobber "${SYSLINUX_DIR}/root.A.cfg" <<EOF
 label coreos.A
   menu label coreos.A
   kernel vmlinuz.A
@@ -126,7 +114,7 @@ label coreos.A
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.A.cfg"
 
-  cat <<EOF | sudo dd of="${SYSLINUX_DIR}/root.B.cfg" 2>/dev/null
+  sudo_clobber "${SYSLINUX_DIR}/root.B.cfg" <<EOF
 label coreos.B
   menu label coreos.B
   kernel vmlinuz.B

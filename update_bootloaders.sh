@@ -19,9 +19,6 @@ assert_inside_chroot
 # Flags.
 DEFINE_string arch "x86" \
   "The boot architecture: arm or x86. (Default: x86)"
-# TODO(wad) once extlinux is dead, we can remove this.
-DEFINE_boolean install_syslinux ${FLAGS_TRUE} \
-  "Controls whether syslinux is run on 'to'. (Default: true)"
 DEFINE_string from "/tmp/boot" \
   "Path the legacy bootloader templates are copied from. (Default /tmp/boot)"
 DEFINE_string to "/tmp/esp.img" \
@@ -101,8 +98,8 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
   # Copy over the grub configurations for cloud machines and the
   # kernel into both the A and B slot
   sudo mkdir -p "${ESP_FS_DIR}"/boot/grub
-  sudo cp -r "${FLAGS_from}"/boot/grub/. "${ESP_FS_DIR}"/boot/grub
-  sudo cp -r "${FLAGS_from}"/boot/grub/menu.lst.A "${ESP_FS_DIR}"/boot/grub/menu.lst
+  sudo cp -r "${FLAGS_from}"/grub/. "${ESP_FS_DIR}"/boot/grub
+  sudo cp -r "${FLAGS_from}"/grub/menu.lst.A "${ESP_FS_DIR}"/boot/grub/menu.lst
 
   # Prepopulate the syslinux directories too and update for verified boot values
   # after the rootfs work is done.
@@ -119,27 +116,12 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64" ]]; then
   sudo mkdir -p "${ESP_FS_DIR}"/EFI/boot
   sudo cp -f "${FLAGS_vmlinuz}" "${ESP_FS_DIR}"/EFI/boot/bootx64.efi
 
-  # Extract kernel flags
-  kernel_cfg="cros_debug"
-  old_root="%U+1"
-
-  # Install the syslinux loader on the ESP image (part 12) so it is ready when
-  # we cut over from rootfs booting (extlinux).
-  if [[ ${FLAGS_install_syslinux} -eq ${FLAGS_TRUE} ]]; then
-    safe_umount "${ESP_FS_DIR}"
-    sudo syslinux -d /syslinux "${ESP_DEV}"
-    # mount again for cleanup to free resource gracefully
-    sudo mount -o ro "${ESP_DEV}" "${ESP_FS_DIR}"
-  fi
-elif [[ "${FLAGS_arch}" = "arm" ]]; then
-  # Copy u-boot script to ESP partition
-  if [ -r "${FLAGS_from}/boot-A.scr.uimg" ]; then
-    sudo mkdir -p "${ESP_FS_DIR}/u-boot"
-    sudo cp "${FLAGS_from}/boot-A.scr.uimg" \
-      "${ESP_FS_DIR}/u-boot/boot.scr.uimg"
-    sudo cp -f "${FLAGS_from}"/vmlinuz "${ESP_FS_DIR}"/vmlinuz.uimg.A
-    sudo cp -f "${FLAGS_from}"/zImage "${ESP_FS_DIR}"/vmlinuz.A
-  fi
+  safe_umount "${ESP_FS_DIR}"
+  sudo syslinux -d /syslinux "${ESP_DEV}"
+  # mount again for cleanup to free resource gracefully
+  sudo mount -o ro "${ESP_DEV}" "${ESP_FS_DIR}"
+else
+  die "Unknown arch ${FLAGS_arch}"
 fi
 
 set +e
