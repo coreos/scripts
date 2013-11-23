@@ -169,9 +169,18 @@ create_base_image() {
     # Locales and info pages
     usr/share/{i18n,info,locale}
   )
+
+  mkdir -p "${root_fs_dir}"/sbin "${root_fs_dir}"/lib64
   lbzip2 -dc "${LIBC_PATH}" | \
     sudo tar xpf - -C "${root_fs_dir}" ./usr/${CHOST} \
-      --strip-components=3 "${libc_excludes[@]/#/--exclude=}"
+      --strip-components=3 "${libc_excludes[@]/#/--exclude=}" \
+      --exclude=${CHOST}/sbin --exclude=${CHOST}/lib64
+  lbzip2 -dc "${LIBC_PATH}" | \
+    sudo tar xpf - -C "${root_fs_dir}"/lib64 ./usr/${CHOST}/lib64 \
+      --strip-components=4 "${libc_excludes[@]/#/--exclude=}"
+  lbzip2 -dc "${LIBC_PATH}" | \
+    sudo tar xpf - -C "${root_fs_dir}"/sbin ./usr/${CHOST}/sbin \
+      --strip-components=4 "${libc_excludes[@]/#/--exclude=}"
 
   board_ctarget=$(get_ctarget_from_board "${BOARD}")
   for atom in $(portageq match / cross-$board_ctarget/gcc); do

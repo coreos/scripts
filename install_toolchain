@@ -117,8 +117,14 @@ install_toolchain_in_board() {
   if [ "${CHOST}" != "$FLAGS_toolchain" ] ; then
     local libc_path="${PKGDIR}/cross-${FLAGS_toolchain}/${libc_tar}"
     cmds=(
+      "mkdir -p '${BOARD_ROOT}/lib64' '${BOARD_ROOT}/sbin'"
       "tar jxpf '${libc_path}' -C '${BOARD_ROOT}' --exclude=lib \
+          --exclude=${FLAGS_toolchain}/lib64 --exclude=${FLAGS_toolchain}/sbin \
           './usr/${FLAGS_toolchain}' --strip-components=3"
+      "tar jxpf '${libc_path}' -C '${BOARD_ROOT}/lib64' --exclude=lib \
+          './usr/${FLAGS_toolchain}/lib64' --strip-components=4"
+      "tar jxpf '${libc_path}' -C '${BOARD_ROOT}/sbin' --exclude=lib \
+          './usr/${FLAGS_toolchain}/sbin' --strip-components=4"
       "mkdir -p '${BOARD_ROOT}/usr/lib/debug'"
       "tar jxpf '${libc_path}' -C '${BOARD_ROOT}/usr/lib/debug' \
           './usr/lib/debug/usr/${FLAGS_toolchain}' --strip-components=6 \
