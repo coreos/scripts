@@ -27,7 +27,7 @@ switch_to_strict_mode
 BRANCH_NAME="build-${FLAGS_build}"
 TAG_NAME="v${FLAGS_build}.${FLAGS_branch}.${FLAGS_patch}"
 
-cd "${GCLIENT_ROOT}/.repo/manifests"
+cd "${REPO_MANIFESTS_DIR}"
 
 # Clean up existing branch manifest(s) excluding:
 # - the current branch if the file already exists.

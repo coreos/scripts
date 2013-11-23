@@ -226,8 +226,7 @@ search_for_sdk_seed() {
     for check_path in \
         "${CATALYST_ROOT}/builds/coreos-sdk/${SDK_TARBALL}" \
         "${CATALYST_ROOT}/builds/seeds/${SDK_TARBALL}" \
-        "/var/cache/chromeos-cache/sdks/${SDK_TARBALL}" \
-        "/mnt/host/source/.cache/sdks/${SDK_TARBALL}"
+        "${REPO_CACHE_DIR}/sdks/${SDK_TARBALL}" \
     do
         if [[ -f "${check_path}" ]]; then
             info "Using SDK for seed: ${check_path}"

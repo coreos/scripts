@@ -16,13 +16,16 @@ import subprocess
 import sys
 import tempfile
 
+REPO_MANIFESTS_DIR = os.environ['REPO_MANIFESTS_DIR']
+SCRIPTS_DIR = os.environ['SCRIPTS_DIR']
+
 # GLOBALS
 STATIC_FILES = ['/usr/bin/old_bins/cgpt',
                 '/usr/bin/cros_generate_update_payload',
-                '~/trunk/.repo/manifests/version.txt',
-                '~/trunk/src/scripts/chromeos-common.sh',
-                '~/trunk/src/scripts/common.sh',
-                '~/trunk/src/scripts/core_upload_update',
+                '%s/version.txt' % REPO_MANIFESTS_DIR,
+                '%s/chromeos-common.sh' % SCRIPTS_DIR,
+                '%s/common.sh' % SCRIPTS_DIR,
+                '%s/core_upload_update' % SCRIPTS_DIR,
                 ]
 
 DYNAMIC_EXECUTABLES = ['/usr/bin/delta_generator',

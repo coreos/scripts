@@ -292,15 +292,20 @@ get_gclient_root
 # Note that 'realpath' is equivalent to 'readlink -f'.
 SCRIPT_LOCATION=$(readlink -f "${SCRIPT_LOCATION}")
 GCLIENT_ROOT=$(readlink -f "${GCLIENT_ROOT}")
+# TODO(marineam): I'm tempted to deprecate GCLIENT_ROOT, this isn't Google
+# and even if it was the source is managed by 'repo', not 'gclient'
+REPO_ROOT="${GCLIENT_ROOT}"
 
 # Other directories should always be pathed down from GCLIENT_ROOT.
 SRC_ROOT="${GCLIENT_ROOT}/src"
 SRC_INTERNAL="${GCLIENT_ROOT}/src-internal"
 SCRIPTS_DIR="${SRC_ROOT}/scripts"
 BUILD_LIBRARY_DIR="${SCRIPTS_DIR}/build_library"
+REPO_CACHE_DIR="${REPO_ROOT}/.cache"
+REPO_MANIFESTS_DIR="${REPO_ROOT}/.repo/manifests"
 
 # Source COREOS_* from manifest for version information.
-COREOS_VERSION_FILE="${GCLIENT_ROOT}/.repo/manifests/version.txt"
+COREOS_VERSION_FILE="${REPO_MANIFESTS_DIR}/version.txt"
 if [[ ! -f "${COREOS_VERSION_FILE}" ]]; then
     COREOS_VERSION_FILE="${SCRIPT_LOCATION}/version.txt"
 fi
