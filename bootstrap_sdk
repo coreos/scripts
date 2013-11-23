@@ -78,17 +78,7 @@ if [[ "$STAGES" =~ stage4 ]]; then
         "$BUILDS/${build_name}.DIGESTS" > "$BUILDS/${release_name}.DIGESTS"
 
     # Validate we didn't break the DIGESTS with sed
-    for hash_type in md5 sha1 sha512; do
-        info "Validating ${hash_type} DIGESTS"
-        # shash is what's used to generate these multi-hash digests but it
-        # doesn't exit with non-zero on failure. I mean seriously...
-        #shash -c "$BUILDS/${release_name}.DIGESTS" -a "${hash_type}"
-        # So we do it the hard way...
-        grep -qi "^# ${hash_type} HASH$" "$BUILDS/${release_name}.DIGESTS"
-        (cd "$BUILDS" && grep -A1 -i "^# ${hash_type} HASH$" \
-            "${release_name}.DIGESTS" | grep -v '^--$' | \
-            ${hash_type}sum -c - --strict)
-    done
+    verify_digests "$BUILDS/${release_name}" "$BUILDS/${release_name}.CONTENTS"
 
     info "SDK ready: $BUILDS/${release_name}"
 

@@ -746,6 +746,50 @@ enable_rw_mount() {
             conv=notrunc count=1 bs=1
 }
 
+# Generate a DIGESTS file, as normally used by Gentoo.
+# This is an alternative to shash which doesn't know how to report errors.
+# Usage: make_digests file1 [file2...]
+# Output: file1.DIGESTS
+# Any extra files be hashed and listed in file1.DIGESTS
+_digest_types="md5 sha1 sha512"
+make_digests() {
+    local dirname=$(dirname "$1")
+    local basename=$(basename "$1")
+
+    pushd "${dirname}" >/dev/null
+    echo -n > "${basename}.DIGESTS"
+    for filename in "$@"; do
+        filename=$(basename "$filename")
+        info "Computing DIGESTS for ${filename}"
+        for hash_type in $_digest_types; do
+            echo "# $hash_type HASH" | tr "a-z" "A-Z" >> "${basename}.DIGESTS"
+            ${hash_type}sum "${filename}" >> "${basename}.DIGESTS"
+        done
+    done
+    popd >/dev/null
+}
+
+# Validate a DIGESTS file. Essentially the inverse of make_digests.
+# Usage: verify_digests file1 [file2...]
+# Checks the hash of all given files using file1.DIGESTS
+verify_digests() {
+    local dirname=$(dirname "$1")
+    local basename=$(basename "$1")
+
+    pushd "${dirname}" >/dev/null
+    for filename in "$@"; do
+        filename=$(basename "$filename")
+        info "Validating DIGESTS for ${filename}"
+        for hash_type in $_digest_types; do
+            grep -A1 -i "^# ${hash_type} HASH$" "${basename}.DIGESTS" | \
+                grep "$filename$" | ${hash_type}sum -c - --strict || return 1
+            # Also check that none of the greps failed in the above pipeline
+            [[ -z ${PIPESTATUS[*]#0} ]] || return 1
+        done
+    done
+    popd >/dev/null
+}
+
 # Get current timestamp. Assumes common.sh runs at startup.
 start_time=$(date +%s)
 
