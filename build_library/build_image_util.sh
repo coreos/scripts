@@ -131,6 +131,8 @@ generate_au_zip () {
   local largs="-o ${BUILD_DIR}"
   test ! -d "${BUILD_DIR}" && mkdir -p "${BUILD_DIR}"
   info "Running ${lgenerateauzip} ${largs} for generating AU updater zip file"
+  # Make sure some vars this script needs are exported
+  export REPO_MANIFESTS_DIR SCRIPTS_DIR
   $lgenerateauzip $largs
 }
 
