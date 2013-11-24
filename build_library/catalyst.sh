@@ -5,19 +5,16 @@
 
 # common.sh should be sourced first
 [[ -n "${DEFAULT_BUILD_ROOT}" ]] || exit 1
+. "${SCRIPTS_DIR}/sdk_lib/sdk_util.sh"
 
 # Default option values, may be provided before including this file
 : ${TYPE:="coreos-sdk"}
 : ${ARCH:=$(portageq envvar ARCH)}
 : ${DEFAULT_CATALYST_ROOT:="${DEFAULT_BUILD_ROOT}/catalyst"}
-: ${DEFAULT_SEED:="builds/${TYPE}/stage4-${ARCH}-latest.tar.bz2"}
+: ${DEFAULT_SEED:=${COREOS_SDK_TARBALL_PATH}}
 : ${DEFAULT_PROFILE:="coreos:default/linux/${ARCH}/10.0"}
 # Set to something like "stage4" to restrict what to build
 # FORCE_STAGES=
-
-if [[ "${DEFAULT_SEED}" != /* ]]; then
-    DEFAULT_SEED="${DEFAULT_CATALYST_ROOT}/${DEFAULT_SEED}"
-fi
 
 # Values set in catalyst_init, don't use till after calling it
 CATALYST_ROOT=
@@ -27,11 +24,6 @@ BINPKGS=
 DISTDIR=
 TEMPDIR=
 STAGES=
-
-# For searching for alternatives when DEFAULT_SEED doesn't exist
-# unset SDK_SEARCH=1 to disable this fallback
-SDK_TARBALL="coreos-sdk-${ARCH}-${COREOS_SDK_VERSION}.tar.bz2"
-SDK_SEARCH=1
 
 DEFINE_string catalyst_root "${DEFAULT_CATALYST_ROOT}" \
     "Path to directory for all catalyst images and other files."
@@ -182,8 +174,10 @@ catalyst_init() {
     TEMPDIR="$CATALYST_ROOT/tmp/$TYPE"
     DISTDIR="$CATALYST_ROOT/distfiles"
 
-    # possibly search for existing seeds
-    search_for_sdk_seed
+    # automatically download the current SDK if it is the seed tarball.
+    if [[ "$FLAGS_seed_tarball" == "${COREOS_SDK_TARBALL_PATH}" ]]; then
+        sdk_download_tarball
+    fi
 
     # confirm seed exists
     if [[ ! -f "$FLAGS_seed_tarball" ]]; then
@@ -209,32 +203,6 @@ catalyst_init() {
         SEED="seed/${FLAGS_seed_tarball##*/}"
         SEED="${SEED%.tar.bz2}"
     fi
-}
-
-# search_for_sdk_seed
-# As a fallback search around for an existing SDK tarball we
-# can use as a seed when the default doesn't exist.
-search_for_sdk_seed() {
-    # Search disabled
-    [[ "${SDK_SEARCH}" != 1 ]] && return
-    # Seed already exists
-    [[ -f "${FLAGS_seed_tarball}" ]] && return
-    # User set the option so we shouldn't change it
-    [[ "${FLAGS_seed_tarball}" != "${DEFAULT_SEED}" ]] && return
-
-    local check_path
-    for check_path in \
-        "${CATALYST_ROOT}/builds/coreos-sdk/${SDK_TARBALL}" \
-        "${CATALYST_ROOT}/builds/seeds/${SDK_TARBALL}" \
-        "/var/cache/chromeos-cache/sdks/${SDK_TARBALL}" \
-        "/mnt/host/source/.cache/sdks/${SDK_TARBALL}"
-    do
-        if [[ -f "${check_path}" ]]; then
-            info "Using SDK for seed: ${check_path}"
-            FLAGS_seed_tarball="${check_path}"
-            return
-        fi
-    done
 }
 
 write_configs() {

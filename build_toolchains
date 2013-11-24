@@ -8,9 +8,6 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
 TYPE="coreos-toolchains"
-ARCH=$(portageq envvar ARCH)
-DEFAULT_SEED="builds/coreos-sdk/stage4-${ARCH}-latest.tar.bz2"
-DEFAULT_PROFILE="coreos:default/linux/${ARCH}/10.0"
 FORCE_STAGES="stage4"
 
 . "${BUILD_LIBRARY_DIR}/catalyst.sh" || exit 1

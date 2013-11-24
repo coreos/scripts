@@ -85,23 +85,6 @@ upload_packages() {
     upload_files packages ${def_upload_path} "pkgs/" "${board_packages}"/*
 }
 
-make_digests() {
-    local dirname=$(dirname "$1")
-    local basename=$(basename "$1")
-
-    cd "${dirname}"
-    echo -n > "${basename}.DIGESTS"
-    for filename in "$@"; do
-        filename=$(basename "$filename")
-        info "Computing DIGESTS for ${filename}"
-        for hash in md5 sha1 sha512; do
-            echo "# $hash HASH" | tr "a-z" "A-Z" >> "${basename}.DIGESTS"
-            ${hash}sum "${filename}" >> "${basename}.DIGESTS"
-        done
-    done
-    cd -
-}
-
 # Upload a image along with optional supporting files
 # The image file must be the first argument
 upload_image() {
