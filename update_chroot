@@ -44,7 +44,8 @@ eval set -- "${FLAGS_ARGV}"
 # so will die prematurely if 'switch_to_strict_mode' is specified before now.
 switch_to_strict_mode
 
-. ${SCRIPTS_DIR}/sdk_lib/make_conf_util.sh
+. "${BUILD_LIBRARY_DIR}/toolchain_util.sh"
+. "${SCRIPTS_DIR}/sdk_lib/make_conf_util.sh"
 
 # Create /etc/make.conf.host_setup.  The file content is regenerated
 # from scratch every update.  There are various reasons to do this:
@@ -93,12 +94,8 @@ if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
     EMERGE_FLAGS="${EMERGE_FLAGS} --getbinpkg"
   fi
 
-  # Only update toolchain when binpkgs are available. Toolchain rollout
-  # process only takes place when the coreos sdk builder finishes
-  # a successful build.
-  EMERGE_FLAGS+=" --useoldpkg-atoms=sys-devel/binutils"
-  EMERGE_FLAGS+=" --useoldpkg-atoms=sys-devel/gcc"
-  EMERGE_FLAGS+=" --useoldpkg-atoms=sys-libs/glibc"
+  # Only update toolchain when binpkgs are available.
+  EMERGE_FLAGS+=" ${TOOLCHAIN_BINONLY[*]}"
 fi
 
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
@@ -114,19 +111,22 @@ fi
 
 # In first pass, update portage and toolchains. Lagged updates of both
 # can cause serious issues later.
-if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" ]; then
-  # First update crossdev.
-  sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} crossdev sysroot-wrappers
+info "Updating basic system packages"
+sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
+    dev-util/ccache \
+    sys-apps/portage \
+    sys-devel/crossdev \
+    sys-devel/sysroot-wrappers \
+    "${TOOLCHAIN_PKGS[@]}"
 
-  TOOLCHAIN_FLAGS=( "--include-boards=${FLAGS_toolchain_boards}" )
-  # This should really only be skipped while bootstrapping.
-  if [ "${FLAGS_usepkg}" -eq "${FLAGS_FALSE}" ]; then
-    TOOLCHAIN_FLAGS+=( --nousepkg )
-  elif [ "${FLAGS_getbinpkg}" -eq "${FLAGS_FALSE}" ]; then
-    TOOLCHAIN_FLAGS+=( --nogetbinpkg )
-  fi
-  # Expand the path before sudo, as root doesn't have the same path magic.
-  sudo -E $(type -p cros_setup_toolchains) "${TOOLCHAIN_FLAGS[@]}"
+if [[ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" && \
+      -n "${FLAGS_toolchain_boards}" ]]; then
+  CROSS_CHOSTS=( $(get_board_chost ${FLAGS_toolchain_boards} | sort -u) )
+
+  for cross_chost in "${CROSS_CHOSTS[@]}"; do
+    info "Updating cross ${cross_chost} toolchain"
+    install_cross_toolchain "${cross_chost}" --quiet ${EMERGE_FLAGS}
+  done
 fi
 
 # Build cros_workon packages when they are changed.
@@ -136,6 +136,7 @@ done
 
 # Second pass, update everything else.
 EMERGE_FLAGS+=" --deep"
+info "Updating all SDK packages"
 sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
     coreos-devel/sdk-depends world
 
