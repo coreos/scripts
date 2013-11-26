@@ -449,28 +449,8 @@ fi
 # Add version of $STAGE3 for update checks.
 echo STAGE3=$STAGE3 > $CHROOT_STATE
 
-info "Updating portage"
-early_enter_chroot emerge -uNv --quiet portage
-
-# Enable git terminal prompt
-early_enter_chroot eselect bashcomp enable --global git-prompt
-
-info "Updating host toolchain"
-early_enter_chroot $EMERGE_CMD -uNv crossdev
-TOOLCHAIN_ARGS=( --deleteold )
-if [[ ${FLAGS_usepkg} -eq ${FLAGS_FALSE} ]]; then
-  TOOLCHAIN_ARGS+=( --nousepkg )
-elif [[ ${FLAGS_getbinpkg} -eq ${FLAGS_FALSE} ]]; then
-  TOOLCHAIN_ARGS+=( --nogetbinpkg )
-fi
-# Note: early_enter_chroot executes as root.
-early_enter_chroot "${CHROOT_TRUNK_DIR}/chromite/bin/cros_setup_toolchains" \
-    --hostonly "${TOOLCHAIN_ARGS[@]}"
-
 # Update chroot.
-# Skip toolchain update because it already happened above, and the chroot is
-# not ready to emerge all cross toolchains.
-UPDATE_ARGS=( --skip_toolchain_update )
+UPDATE_ARGS=()
 if [[ ${FLAGS_usepkg} -eq ${FLAGS_TRUE} ]]; then
   UPDATE_ARGS+=( --usepkg )
   if [[ ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
@@ -491,16 +471,13 @@ if [[ "${FLAGS_jobs}" -ne -1 ]]; then
 fi
 enter_chroot "${CHROOT_TRUNK_DIR}/src/scripts/update_chroot" "${UPDATE_ARGS[@]}"
 
+# Enable git terminal prompt
+early_enter_chroot eselect bashcomp enable --global git-prompt
+
 CHROOT_EXAMPLE_OPT=""
 if [[ "$FLAGS_chroot" != "$DEFAULT_CHROOT_DIR" ]]; then
   CHROOT_EXAMPLE_OPT="--chroot=$FLAGS_chroot"
 fi
-
-# As a final pass, build all desired cross-toolchains.
-info "Updating toolchains"
-
-enter_chroot sudo -E "${CHROOT_TRUNK_DIR}/chromite/bin/cros_setup_toolchains" \
-    "${TOOLCHAIN_ARGS[@]}"
 
 command_completed
 
