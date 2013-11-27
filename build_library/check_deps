@@ -29,7 +29,7 @@ class CheckDependencies(object):
       A list of valid libdirs.
     """
 
-    libdirs = []
+    libdirs = set()
 
     ld_so_conf = self._root + path
     if os.path.exists(ld_so_conf):
@@ -41,14 +41,14 @@ class CheckDependencies(object):
         if line.startswith("/"):
           libpath = self._root + line
           if os.path.exists(libpath):
-            libdirs.append(libpath)
+            libdirs.add(libpath)
 
         elif line.startswith("include "):
           # Includes are absolute or relative to the file itself.
           line = os.path.join(os.path.dirname(path), line[8:])
           for p in glob.glob(self._root + line):
             rel_p = "/%s" % os.path.relpath(p, self._root)
-            libdirs.extend(self._ReadLdSoConf(rel_p))
+            libdirs.update(self._ReadLdSoConf(rel_p))
 
       f.close()
 
@@ -66,36 +66,9 @@ class CheckDependencies(object):
     self._libcache = set()
     self._verbose = verbose
 
-    libdirs = []
-
-    # Add the native paths. Get the ELF interpreter from a known file
-    # and assume that the path it is in is our native libdir. So here
-    # we would get something like "/lib64/ld-linux-x86-64.so.2".
-    elf = "/bin/sh"
-    f = os.popen("scanelf -qF'%%i#p' %s/%s" % (root, elf))
-    native_libdir = os.path.dirname(f.readline().rstrip())
-    f.close()
-    if len(native_libdir) == 0:
-      print >>sys.stderr, "Problem with %s: can't find ELF interp" % elf
-      sys.exit(1)
-    elif native_libdir != "/lib":
-      libdirs.extend([
-        "%s/%s" % (root, native_libdir),
-        "%s/usr%s" % (root, native_libdir)
-      ])
-
-    # Insert some default directories into our library cache.
-    libdirs.extend([
-      "%s/lib" % root,
-      "%s/usr/lib" % root,
-      "%s/opt/google/o3d/lib" % root,
-      "%s/usr/lib/opengl/xorg-x11/lib" % root,
-      "%s/usr/local/lib/icedtea6/jre/lib/i386/client" % root,
-      "%s/usr/local/lib/icedtea6/jre/lib/i386/headless" % root
-    ])
-
-    # Read more directories from ld.so.conf.
-    libdirs.extend(self._ReadLdSoConf("/etc/ld.so.conf"))
+    libdirs = self._ReadLdSoConf("/etc/ld.so.conf")
+    if self._verbose:
+        print "Library search path: %s" % " ".join(sorted(libdirs))
 
     self._ReadLibs(libdirs, self._libcache)
 

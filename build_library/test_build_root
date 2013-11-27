@@ -6,12 +6,13 @@
 
 SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 . "${SCRIPT_ROOT}/common.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
 
 # We're invoked only by build_image, which runs in the chroot
 assert_inside_chroot
 
 # Flags
-DEFINE_string root ""      \
+DEFINE_string root "${DEFAULT_BOARD+/build/${DEFAULT_BOARD}}" \
   "The root file system to check."
 
 # Parse command line
@@ -21,26 +22,8 @@ eval set -- "${FLAGS_ARGV}"
 # Die on any errors
 switch_to_strict_mode
 
-# Check all parts of a pipe
-set -o pipefail
-
-ROOT="$FLAGS_root"
-if [[ ! -d "$ROOT" ]]; then
-  die_notrace "Root FS does not exist ($ROOT)"
+if [[ ! -d "$FLAGS_root" ]]; then
+  die_notrace "Root FS does not exist ($FLAGS_root)"
 fi
 
-ROOT_BINARIES=(
-  /boot/vmlinuz
-  /bin/sed
-)
-
-EXITCODE=0
-for i in "${BINARIES[@]}"; do
-  i="${ROOT}${i}"
-  if ! [[ -f $i ]]; then
-    error "cannot find $i"
-    EXITCODE=1
-  fi
-done
-
-exit $EXITCODE
+test_image_content "$FLAGS_root"

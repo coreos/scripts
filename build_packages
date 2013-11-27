@@ -128,6 +128,7 @@ fi
 # set BOARD and BOARD_ROOT
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
 
 # Setup all the emerge command/flags.
 EMERGE_FLAGS=( -uDNv --backtrack=30 --select )
@@ -209,9 +210,11 @@ fi
 info "Merging board packages now"
 sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" "${PACKAGES[@]}"
 
+info "Checking build root"
+test_image_content "${BOARD_ROOT}"
+
 # upload packages if enabled
 upload_packages
 
-echo "Builds complete"
+info "Builds complete"
 command_completed
-echo "Done"

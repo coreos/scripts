@@ -2,6 +2,37 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+# Files that are known to conflict with /usr but are OK because they
+# are already fixed by toggling the symlink-usr USE flag.
+USR_CONFLICT_WHITELIST=(
+    /bin/awk
+    /bin/basename
+    /bin/chroot
+    /bin/cut
+    /bin/dir
+    /bin/dirname
+    /bin/du
+    /bin/env
+    /bin/expr
+    /bin/gawk
+    /bin/head
+    /bin/mkfifo
+    /bin/mktemp
+    /bin/passwd
+    /bin/readlink
+    /bin/seq
+    /bin/sleep
+    /bin/sort
+    /bin/tail
+    /bin/touch
+    /bin/tr
+    /bin/tty
+    /bin/uname
+    /bin/vdir
+    /bin/wc
+    /bin/yes
+)
+
 test_image_content() {
   local root="$1"
   local returncode=0
@@ -54,6 +85,30 @@ test_image_content() {
       returncode=1
     fi
   fi
+
+  # Check that there are no conflicts between /* and /usr/*
+  # TODO(marineam): Before symlinking to /usr this test will need to be
+  # rewritten to query the package database instead of the filesystem.
+  local check_dir
+  for check_dir in "${root}"/usr/*; do
+    if [[ ! -d "${check_dir}" || -h "${check_dir}" ]]; then
+      continue
+    fi
+    for check_file in "${check_dir}"/*; do
+      root_file="${root}${check_file##*/usr}"
+      trimmed_path="${root_file#${root}}"
+      local whitelist
+      for whitelist in "${USR_CONFLICT_WHITELIST[@]}"; do
+        if [[ "${trimmed_path}" == "${whitelist}" ]]; then
+          continue 2
+        fi
+      done
+      if [[ -e "${root_file}" || -h "${root_file}" ]]; then
+        # TODO(marineam): make fatal before switching to symlinks
+        warn "test_image_content: ${root_file#${root}} conflicts with /usr"
+      fi
+    done
+  done
 
   return $returncode
 }

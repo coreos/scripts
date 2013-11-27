@@ -103,7 +103,8 @@ fi
 
 # Check that the build root is sane.
 if [[ ${skip_test_build_root} -ne 1 ]]; then
-  "${BUILD_LIBRARY_DIR}/test_build_root" --root="${BOARD_ROOT}"
+  info "Checking build root"
+  test_image_content "${BOARD_ROOT}"
 fi
 
 # Hack to fix bug where x86_64 CHOST line gets incorrectly added.

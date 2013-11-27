@@ -116,17 +116,27 @@ install_toolchain_in_board() {
   # Install libc libraries.
   if [ "${CHOST}" != "$FLAGS_toolchain" ] ; then
     local libc_path="${PKGDIR}/cross-${FLAGS_toolchain}/${libc_tar}"
+    local libc_excludes=(
+      # Empty lib dirs, replaced by symlinks
+      'lib'
+      # Locales and info pages
+      usr/share/{i18n,info,locale}
+    )
     cmds=(
       "mkdir -p '${BOARD_ROOT}/lib64' '${BOARD_ROOT}/sbin'"
-      "tar jxpf '${libc_path}' -C '${BOARD_ROOT}' --exclude=lib \
+      "tar jxpf '${libc_path}' -C '${BOARD_ROOT}' \
           --exclude=${FLAGS_toolchain}/lib64 --exclude=${FLAGS_toolchain}/sbin \
+          ${libc_excludes[@]/#/--exclude=} \
           './usr/${FLAGS_toolchain}' --strip-components=3"
-      "tar jxpf '${libc_path}' -C '${BOARD_ROOT}/lib64' --exclude=lib \
+      "tar jxpf '${libc_path}' -C '${BOARD_ROOT}/lib64' \
+          ${libc_excludes[@]/#/--exclude=} \
           './usr/${FLAGS_toolchain}/lib64' --strip-components=4"
-      "tar jxpf '${libc_path}' -C '${BOARD_ROOT}/sbin' --exclude=lib \
+      "tar jxpf '${libc_path}' -C '${BOARD_ROOT}/sbin' \
+          ${libc_excludes[@]/#/--exclude=} \
           './usr/${FLAGS_toolchain}/sbin' --strip-components=4"
       "mkdir -p '${BOARD_ROOT}/usr/lib/debug'"
       "tar jxpf '${libc_path}' -C '${BOARD_ROOT}/usr/lib/debug' \
+          ${libc_excludes[@]/#/--exclude=} \
           './usr/lib/debug/usr/${FLAGS_toolchain}' --strip-components=6 \
           || warn 'libc debug info not copied.'"
     )
