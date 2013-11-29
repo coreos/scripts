@@ -177,16 +177,16 @@ install_cross_toolchain() {
         $sudo tee "${cross_cfg}" <<<"${cross_cfg_data}" >/dev/null
     fi
 
-    # If binary packages are enabled try to just emerge them instead of
-    # doing a full bootstrap which speeds things up greatly. :)
-    if [[ "$*" == *--usepkg* ]] && \
-        emerge "$@" --usepkgonly --binpkg-respect-use=y \
-            --pretend "${cross_pkgs[@]}" &>/dev/null
+    # Check if any packages need to be built from source. If so do a full
+    # bootstrap via crossdev, otherwise just install the binaries (if enabled).
+    if emerge "$@" --binpkg-respect-use=y --update --newuse \
+        --pretend "${cross_pkgs[@]}" | grep -q '^\[ebuild'
     then
-        $sudo emerge "$@" --binpkg-respect-use=y -u "${cross_pkgs[@]}"
-    else
         $sudo crossdev --stable --portage "$*" \
             --stage4 --target "${cross_chost}"
+    else
+        $sudo emerge "$@" --binpkg-respect-use=y --update --newuse \
+            "${cross_pkgs[@]}"
     fi
 
     # Setup wrappers for our shiny new toolchain
