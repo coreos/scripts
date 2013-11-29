@@ -129,11 +129,17 @@ _get_dependency_list() {
 _configure_sysroot() {
     local profile="$1"
 
-    mkdir -p "${ROOT}/etc/portage"
-    echo "eselect will report '!!! Warning: Strange path.' but that's OK"
-    eselect profile set --force "$profile"
+    # may be called from either catalyst (root) or setup_board (user)
+    local sudo=
+    if [[ $(id -u) -ne 0 ]]; then
+        sudo="sudo -E"
+    fi
 
-    cat >"${ROOT}/etc/portage/make.conf" <<EOF
+    $sudo mkdir -p "${ROOT}/etc/portage"
+    echo "eselect will report '!!! Warning: Strange path.' but that's OK"
+    $sudo eselect profile set --force "$profile"
+
+    $sudo tee "${ROOT}/etc/portage/make.conf" >/dev/null <<EOF
 $(portageq envvar -v CHOST CBUILD ROOT SYSROOT \
     PORTDIR PORTDIR_OVERLAY DISTDIR PKGDIR)
 HOSTCC=\${CBUILD}-gcc
@@ -190,4 +196,42 @@ install_cross_toolchain() {
     if [[ ! -e "/usr/lib/sysroot-wrappers/bin/${cross_chost}-gcc" ]]; then
         $sudo sysroot-config --install-links "${cross_chost}"
     fi
+}
+
+# Build/install toolchain dependencies into the cross sysroot for a
+# given CHOST. This is required to build target board toolchains since
+# the target sysroot under /build/$BOARD is incomplete at this stage.
+# Usage: build_cross_toolchain chost [--portage-opts....]
+install_cross_libs() {
+    local cross_chost="$1"; shift
+    local ROOT="/usr/${cross_chost}"
+    local package_provided="$ROOT/etc/portage/profile/package.provided"
+
+    # may be called from either catalyst (root) or setup_board (user)
+    local sudo=
+    if [[ $(id -u) -ne 0 ]]; then
+        sudo="sudo -E"
+    fi
+
+    CHOST="${cross_chost}" ROOT="$ROOT" SYSROOT="$ROOT" \
+        _configure_sysroot "${CROSS_PROFILE[${cross_chost}]}"
+
+    # In order to get a dependency list we must calculate it before
+    # updating package.provided. Otherwise portage will no-op.
+    $sudo rm -f "${package_provided}/cross-${cross_chost}"
+    local cross_deps=$(ROOT="$ROOT" _get_dependency_list \
+        "$@" "${TOOLCHAIN_PKGS[@]}" | $sudo tee \
+        "$ROOT/etc/portage/cross-${cross_chost}-depends")
+
+    # Add toolchain to packages.provided since they are on the host system
+    $sudo mkdir -p "${package_provided}"
+    local native_pkg cross_pkg cross_pkg_version
+    for native_pkg in "${TOOLCHAIN_PKGS[@]}"; do
+        cross_pkg="${native_pkg/*\//cross-${cross_chost}/}"
+        cross_pkg_version=$(portageq match / "${cross_pkg}")
+        echo "${native_pkg%/*}/${cross_pkg_version#*/}"
+    done | $sudo tee "${package_provided}/cross-${cross_chost}" >/dev/null
+
+    # OK, clear as mud? Install those dependencies now!
+    PORTAGE_CONFIGROOT="$ROOT" ROOT="$ROOT" $sudo emerge "$@" -u $cross_deps
 }
