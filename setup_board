@@ -21,8 +21,6 @@ DEFINE_boolean force $FLAGS_FALSE \
   "Force re-creating board root."
 DEFINE_boolean usepkg $FLAGS_TRUE \
   "Use binary packages to bootstrap."
-DEFINE_boolean getbinpkg $FLAGS_TRUE \
-  "Download binary packages from remote repository."
 
 FLAGS_HELP="usage: $(basename $0) [flags]
 
@@ -57,6 +55,8 @@ DEFINE_string variant "" \
   "Board variant."
 DEFINE_boolean regen_configs ${FLAGS_FALSE} \
   "Regenerate all config files (useful for modifying profiles w/out rebuild)."
+DEFINE_boolean getbinpkg $FLAGS_TRUE \
+  "Passed to update_chroot, ignored by setup_board itself."
 
 
 # builds wrappers like equery-arm-generic.
@@ -269,10 +269,7 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
   # avoid pulling any spurious DEPEND things in that we don't care about.
   KERNEL_EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
   if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
-    KERNEL_EMERGE_FLAGS+=" --usepkg"
-    if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
-      KERNEL_EMERGE_FLAGS+=" --getbinpkg "
-    fi
+    KERNEL_EMERGE_FLAGS+=" --usepkg --getbinpkg"
   fi
 
   sudo -E "${EMERGE_WRAPPER}" ${KERNEL_EMERGE_FLAGS} \
