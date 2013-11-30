@@ -884,44 +884,6 @@ relpath() {
   python2 -c "${py}" "${1}" "${2:-.}"
 }
 
-emerge_custom_kernel() {
-  local install_root=$1
-  local root=/build/${FLAGS_board}
-  local tmp_pkgdir=${root}/custom-packages
-
-  # Clean up any leftover state in custom directories.
-  sudo rm -rf "${tmp_pkgdir}"
-
-  # Update chromeos-initramfs to contain the latest binaries from the build
-  # tree. This is basically just packaging up already-built binaries from
-  # ${root}. We are careful not to muck with the existing prebuilts so that
-  # prebuilts can be uploaded in parallel.
-  # TODO(davidjames): Implement ABI deps so that chromeos-initramfs will be
-  # rebuilt automatically when its dependencies change.
-  sudo -E PKGDIR="${tmp_pkgdir}" ${EMERGE_BOARD_CMD} -1 \
-    chromeos-base/chromeos-initramfs || die "Cannot emerge chromeos-initramfs"
-
-  # Verify all dependencies of the kernel are installed. This should be a
-  # no-op, but it's good to check in case a developer didn't run
-  # build_packages.  We need the expand_virtual call to workaround a bug
-  # in portage where it only installs the virtual pkg.
-  local kernel=$(portageq-${FLAGS_board} expand_virtual ${root} \
-                 virtual/linux-sources)
-  sudo -E PKGDIR="${tmp_pkgdir}" ${EMERGE_BOARD_CMD} --onlydeps \
-    ${kernel} || die "Cannot emerge kernel dependencies"
-
-  # Build the kernel. This uses the standard root so that we can pick up the
-  # initramfs from there. But we don't actually install the kernel to the
-  # standard root, because that'll muck up the kernel debug symbols there,
-  # which we want to upload in parallel.
-  sudo -E PKGDIR="${tmp_pkgdir}" ${EMERGE_BOARD_CMD} --buildpkgonly \
-    ${kernel} || die "Cannot emerge kernel"
-
-  # Install the custom kernel to the provided install root.
-  sudo -E PKGDIR="${tmp_pkgdir}" ${EMERGE_BOARD_CMD} --usepkgonly \
-    --root=${install_root} ${kernel} || die "Cannot emerge kernel to root"
-}
-
 enable_strict_sudo() {
   if [[ -z ${CROS_SUDO_KEEP_ALIVE} ]]; then
     echo "$0 was somehow invoked in a way that the sudo keep alive could"
