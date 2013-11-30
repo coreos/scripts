@@ -95,7 +95,7 @@ if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   fi
 
   # Only update toolchain when binpkgs are available.
-  EMERGE_FLAGS+=" ${TOOLCHAIN_BINONLY[*]}"
+  EMERGE_FLAGS+=" $(get_binonly_args $(get_chost_list))"
 fi
 
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then

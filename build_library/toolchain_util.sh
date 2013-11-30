@@ -10,10 +10,6 @@ TOOLCHAIN_PKGS=(
     sys-libs/glibc
 )
 
-# Portage arguments to enforce the toolchain to only use binpkgs.
-TOOLCHAIN_BINONLY=( "${TOOLCHAIN_PKGS[@]/#/--useoldpkg-atoms=}"
-                    "${TOOLCHAIN_PKGS[@]/#/--rebuild-exclude=}" )
-
 # Portage profile to use for building out the cross compiler's SYSROOT.
 # This is only used as an intermediate step to be able to use the cross
 # compiler to build a full native toolchain. Packages are not uploaded.
@@ -31,7 +27,6 @@ BOARD_NAMES=( "${!BOARD_CHOST[@]}" )
 # Declare the above globals as read-only to avoid accidental conflicts.
 declare -r \
     TOOLCHAIN_PKGS \
-    TOOLCHAIN_BINONLY \
     CROSS_PROFILES \
     BOARD_CHOSTS \
     BOARD_NAMES \
@@ -116,6 +111,12 @@ get_cross_pkgs() {
             echo "${native_pkg/*\//cross-${cross_chost}/}"
         done
     done
+}
+
+# Get portage arguments restricting toolchains to binary packages only.
+get_binonly_args() {
+    local pkgs=( "${TOOLCHAIN_PKGS[@]}" $(get_cross_pkgs "$@") )
+    echo "${pkgs[@]/#/--useoldpkg-atoms=}" "${pkgs[@]/#/--rebuild-exclude=}"
 }
 
 ### Toolchain building utilities ###
