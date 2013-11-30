@@ -17,15 +17,25 @@ TOOLCHAIN_BINONLY=( "${TOOLCHAIN_PKGS[@]/#/--useoldpkg-atoms=}"
 # Portage profile to use for building out the cross compiler's SYSROOT.
 # This is only used as an intermediate step to be able to use the cross
 # compiler to build a full native toolchain. Packages are not uploaded.
-CROSS_PROFILE["x86_64-cros-linux-gnu"]="coreos:coreos/amd64/generic"
+declare -A CROSS_PROFILES
+CROSS_PROFILES["x86_64-cros-linux-gnu"]="coreos:coreos/amd64/generic"
 
 # Map board names to CHOSTs and portage profiles. This is the
 # definitive list, there is assorted code new and old that either
 # guesses or hard-code these. All that should migrate to this list.
-declare -A BOARD_CHOST BOARD_PROFILE
-BOARD_CHOST["amd64-generic"]="x86_64-cros-linux-gnu"
-BOARD_PROFILE["amd64-generic"]="coreos:coreos/amd64/generic"
+declare -A BOARD_CHOSTS BOARD_PROFILES
+BOARD_CHOSTS["amd64-generic"]="x86_64-cros-linux-gnu"
+BOARD_PROFILES["amd64-generic"]="coreos:coreos/amd64/generic"
 BOARD_NAMES=( "${!BOARD_CHOST[@]}" )
+
+# Declare the above globals as read-only to avoid accidental conflicts.
+declare -r \
+    TOOLCHAIN_PKGS \
+    TOOLCHAIN_BINONLY \
+    CROSS_PROFILES \
+    BOARD_CHOSTS \
+    BOARD_NAMES \
+    BOARD_PROFILES
 
 ### Generic metadata fetching functions ###
 
@@ -58,12 +68,12 @@ get_board_list() {
 
 get_chost_list() {
     local IFS=$'\n\t '
-    sort -u <<<"${BOARD_CHOST[*]}"
+    sort -u <<<"${BOARD_CHOSTS[*]}"
 }
 
 get_profile_list() {
     local IFS=$'\n\t '
-    sort -u <<<"${BOARD_PROFILE[*]}"
+    sort -u <<<"${BOARD_PROFILES[*]}"
 }
 
 # Usage: get_board_arch board [board...]
@@ -78,8 +88,8 @@ get_board_arch() {
 get_board_chost() {
     local board
     for board in "$@"; do
-        if [[ ${#BOARD_CHOST["$board"]} -ne 0 ]]; then
-            echo "${BOARD_CHOST["$board"]}"
+        if [[ ${#BOARD_CHOSTS["$board"]} -ne 0 ]]; then
+            echo "${BOARD_CHOSTS["$board"]}"
         else
             die "Unknown board '$board'"
         fi
@@ -90,8 +100,8 @@ get_board_chost() {
 get_board_profile() {
     local board
     for board in "$@"; do
-        if [[ ${#BOARD_PROFILE["$board"]} -ne 0 ]]; then
-            echo "${BOARD_PROFILE["$board"]}"
+        if [[ ${#BOARD_PROFILES["$board"]} -ne 0 ]]; then
+            echo "${BOARD_PROFILES["$board"]}"
         else
             die "Unknown board '$board'"
         fi
@@ -214,7 +224,7 @@ install_cross_libs() {
     fi
 
     CHOST="${cross_chost}" ROOT="$ROOT" SYSROOT="$ROOT" \
-        _configure_sysroot "${CROSS_PROFILE[${cross_chost}]}"
+        _configure_sysroot "${CROSS_PROFILES[${cross_chost}]}"
 
     # In order to get a dependency list we must calculate it before
     # updating package.provided. Otherwise portage will no-op.
