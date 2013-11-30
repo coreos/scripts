@@ -156,6 +156,9 @@ if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
   if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
       EMERGE_FLAGS+=( --getbinpkg )
   fi
+
+  # Only update toolchain when binpkgs are available.
+  EMERGE_FLAGS+=( $(get_binonly_args) )
 fi
 
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
