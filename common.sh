@@ -413,49 +413,6 @@ COREOS_DEVELOPER_IMAGE_NAME=${CHROMEOS_DEVELOPER_IMAGE_NAME}
 COREOS_PRODUCTION_IMAGE_NAME="coreos_production_image.bin"
 COREOS_RECOVERY_IMAGE_NAME=${CHROMEOS_RECOVERY_IMAGE_NAME}
 
-# Install make for portage ebuilds.  Used by build_image and gmergefs.
-# TODO: Is /usr/local/autotest-chrome still used by anyone?
-COMMON_INSTALL_MASK="
-  *.a
-  *.la
-  *.h
-  *.hpp
-  /etc/init.d
-  /etc/runlevels
-  /firmware
-  /lib/rc
-  /usr/bin/Xnest
-  /usr/bin/Xvfb
-  /usr/lib/debug
-  /usr/lib/gcc
-  /usr/lib*/pkgconfig
-  /usr/lib/systemd/system/local-fs.target.wants
-  /usr/local/autotest-chrome
-  /usr/man
-  /usr/share/aclocal
-  /usr/share/doc
-  /usr/share/gettext
-  /usr/share/gtk-2.0
-  /usr/share/gtk-doc
-  /usr/share/info
-  /usr/share/man
-  /usr/share/openrc
-  /usr/share/pkgconfig
-  /usr/share/profiling
-  /usr/share/readline
-  /usr/src
-  "
-
-# Mask for base, dev, and test images (build_image, build_image --test)
-DEFAULT_INSTALL_MASK="
-  ${COMMON_INSTALL_MASK}
-  /usr/local/autotest
-  /lib/modules/*/kernel/drivers/input/misc/uinput.ko
-  /lib/modules/*/build
-  /lib/modules/*/source
-  test_*.ko
-  "
-
 # -----------------------------------------------------------------------------
 # Functions
 

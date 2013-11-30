@@ -143,7 +143,7 @@ create_base_image() {
 
   # First thing first, install baselayout with USE=build to create a
   # working directory tree. Don't use binpkgs due to the use flag change.
-  sudo -E USE=build ${EMERGE_BOARD_CMD} --root="${root_fs_dir}" \
+  sudo -E USE=build "emerge-${BOARD}" --root="${root_fs_dir}" \
       --usepkg=n --buildpkg=n --oneshot --quiet --nodeps sys-apps/baselayout
 
   # We need to install libc manually from the cross toolchain.
