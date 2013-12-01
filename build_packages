@@ -51,7 +51,7 @@ DEFINE_string accept_licenses "" \
   "Licenses to append to the accept list."
 DEFINE_boolean fast "${DEFAULT_FAST}" \
   "Use the parallel_emerge wrapper script."
-DEFINE_integer jobs -1 \
+DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean norebuild "${FLAGS_FALSE}" \
   "Don't automatically rebuild dependencies."
