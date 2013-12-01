@@ -113,6 +113,7 @@ IMG_pxe_OEM_PACKAGE=oem-pxe
 
 ## gce, image tarball
 IMG_gce_CONF_FORMAT=gce
+IMG_gce_OEM_PACKAGE=oem-gce
 
 ## rackspace
 # TODO: package doesn't exist yet
