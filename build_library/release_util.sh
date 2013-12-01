@@ -3,7 +3,7 @@
 # found in the LICENSE file.
 
 GSUTIL_OPTS=
-UPLOAD_ROOT="gs://storage.core-os.net/coreos"
+UPLOAD_ROOT="${COREOS_UPLOAD_ROOT:-gs://storage.core-os.net/coreos}"
 UPLOAD_PATH=
 UPLOAD_DEFAULT=${FLAGS_FALSE}
 if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
