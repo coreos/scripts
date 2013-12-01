@@ -50,7 +50,7 @@ show_help_if_requested "$@"
 DEFINE_string accept_licenses "" \
   "Licenses to append to the accept list."
 DEFINE_boolean fast "${DEFAULT_FAST}" \
-  "Call many emerges in parallel."
+  "Use the parallel_emerge wrapper script."
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean norebuild "${FLAGS_FALSE}" \

@@ -28,7 +28,8 @@ show_help_if_requested "$@"
 # The following options are advanced options, only available to those willing
 # to read the source code. They are not shown in help output, since they are
 # not needed for the typical developer workflow.
-DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
+DEFINE_boolean fast ${DEFAULT_FAST} \
+  "Use the parallel_emerge wrapper script."
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \

@@ -41,7 +41,8 @@ DEFINE_boolean getbinpkg $FLAGS_TRUE \
 DEFINE_boolean delete $FLAGS_FALSE "Delete an existing chroot."
 DEFINE_boolean replace $FLAGS_FALSE "Overwrite existing chroot, if any."
 DEFINE_integer jobs -1 "How many packages to build in parallel at maximum."
-DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
+DEFINE_boolean fast "${DEFAULT_FAST}" \
+  "Use the parallel_emerge wrapper script."
 DEFINE_string stage3_date "20130130" \
   "Use the stage3 with the given date."
 DEFINE_string stage3_path "" \

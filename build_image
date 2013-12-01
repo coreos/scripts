@@ -49,6 +49,8 @@ show_help_if_requested "$@"
 # not needed for the typical developer workflow.
 DEFINE_integer build_attempt 1 \
   "The build attempt for this image build."
+DEFINE_boolean fast "${DEFAULT_FAST}" \
+  "Use the parallel_emerge wrapper script."
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean replace ${FLAGS_FALSE} \

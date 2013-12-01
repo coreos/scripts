@@ -37,7 +37,8 @@ DEFINE_string accept_licenses "" \
   "Licenses to append to the accept list."
 DEFINE_string board_overlay "" \
   "Location of the board overlay."
-DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
+DEFINE_boolean fast "${DEFAULT_FAST}" \
+  "Use the parallel_emerge wrapper script."
 DEFINE_integer jobs -1 \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean latest_toolchain $FLAGS_FALSE \
