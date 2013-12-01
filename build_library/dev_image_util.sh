@@ -22,12 +22,8 @@ install_dev_packages() {
   # Install developer packages described in coreos-dev.
   emerge_to_image --root="${root_fs_dir}" coreos-base/coreos-dev
 
-  # Copy over the libc debug info so that gdb
-  # works with threads and also for a better debugging experience.
-  sudo mkdir -p "${root_fs_dir}/usr/lib/debug"
-  lbzip2 -dc "${LIBC_PATH}" | \
-    sudo tar xpf - -C "${root_fs_dir}/usr/lib/debug" \
-      ./usr/lib/debug/usr/${CHOST} --strip-components=6
+  # Make sure profile.env and ld.so.cache has been generated
+  sudo ROOT="${root_fs_dir}" env-update
 
   # Install the bare necessary files so that the "emerge" command works
   sudo mkdir -p ${root_fs_dir}/etc/make.profile
