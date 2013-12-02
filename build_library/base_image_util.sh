@@ -143,55 +143,22 @@ create_base_image() {
 
   # First thing first, install baselayout with USE=build to create a
   # working directory tree. Don't use binpkgs due to the use flag change.
-  sudo -E USE=build ${EMERGE_BOARD_CMD} --root="${root_fs_dir}" \
+  sudo -E USE=build "emerge-${BOARD}" --root="${root_fs_dir}" \
       --usepkg=n --buildpkg=n --oneshot --quiet --nodeps sys-apps/baselayout
 
-  # We need to install libc manually from the cross toolchain.
-  # TODO: Improve this? It would be ideal to use emerge to do this.
-  PKGDIR="/var/lib/portage/pkgs"
-  LIBC_TAR="glibc-${LIBC_VERSION}.tbz2"
-  LIBC_PATH="${PKGDIR}/cross-${CHOST}/${LIBC_TAR}"
-
-  if ! [[ -e ${LIBC_PATH} ]]; then
-  die_notrace \
-    "${LIBC_PATH} does not exist. Try running ./setup_board" \
-    "--board=${BOARD} to update the version of libc installed on that board."
-  fi
-
-  # Strip out files we don't need in the final image at runtime.
-  local libc_excludes=(
-    # Compile-time headers.
-    'usr/include' 'sys-include'
-    # Link-time objects.
-    '*.[ao]'
-    # Empty lib dirs, replaced by symlinks
-    'lib'
-    # Locales and info pages
-    usr/share/{i18n,info,locale}
-  )
-
-  mkdir -p "${root_fs_dir}"/sbin "${root_fs_dir}"/lib64
-  lbzip2 -dc "${LIBC_PATH}" | \
-    sudo tar xpf - -C "${root_fs_dir}" ./usr/${CHOST} \
-      --strip-components=3 "${libc_excludes[@]/#/--exclude=}" \
-      --exclude=${CHOST}/sbin --exclude=${CHOST}/lib64
-  lbzip2 -dc "${LIBC_PATH}" | \
-    sudo tar xpf - -C "${root_fs_dir}"/lib64 ./usr/${CHOST}/lib64 \
-      --strip-components=4 "${libc_excludes[@]/#/--exclude=}"
-  lbzip2 -dc "${LIBC_PATH}" | \
-    sudo tar xpf - -C "${root_fs_dir}"/sbin ./usr/${CHOST}/sbin \
-      --strip-components=4 "${libc_excludes[@]/#/--exclude=}"
-
-  board_ctarget=$(get_ctarget_from_board "${BOARD}")
-  for atom in $(portageq match / cross-$board_ctarget/gcc); do
-    copy_gcc_libs "${root_fs_dir}" $atom
-  done
+  # FIXME(marineam): Work around glibc setting EROOT=$ROOT
+  # https://bugs.gentoo.org/show_bug.cgi?id=473728#c12
+  sudo mkdir -p "${root_fs_dir}/etc/ld.so.conf.d"
 
   # We "emerge --root=${root_fs_dir} --root-deps=rdeps --usepkgonly" all of the
   # runtime packages for chrome os. This builds up a chrome os image from
   # binary packages with runtime dependencies only.  We use INSTALL_MASK to
   # trim the image size as much as possible.
+  emerge_prod_gcc --root="${root_fs_dir}"
   emerge_to_image --root="${root_fs_dir}" ${BASE_PACKAGE}
+
+  # Make sure profile.env and ld.so.cache has been generated
+  sudo ROOT="${root_fs_dir}" env-update
 
   # Record directories installed to the state partition.
   # Ignore /var/tmp, systemd covers this entry.

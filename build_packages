@@ -50,8 +50,8 @@ show_help_if_requested "$@"
 DEFINE_string accept_licenses "" \
   "Licenses to append to the accept list."
 DEFINE_boolean fast "${DEFAULT_FAST}" \
-  "Call many emerges in parallel."
-DEFINE_integer jobs -1 \
+  "Use the parallel_emerge wrapper script."
+DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean norebuild "${FLAGS_FALSE}" \
   "Don't automatically rebuild dependencies."
@@ -156,6 +156,9 @@ if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
   if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
       EMERGE_FLAGS+=( --getbinpkg )
   fi
+
+  # Only update toolchain when binpkgs are available.
+  EMERGE_FLAGS+=( $(get_binonly_args) )
 fi
 
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then

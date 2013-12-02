@@ -21,8 +21,6 @@ DEFINE_boolean force $FLAGS_FALSE \
   "Force re-creating board root."
 DEFINE_boolean usepkg $FLAGS_TRUE \
   "Use binary packages to bootstrap."
-DEFINE_boolean getbinpkg $FLAGS_TRUE \
-  "Download binary packages from remote repository."
 
 FLAGS_HELP="usage: $(basename $0) [flags]
 
@@ -39,8 +37,9 @@ DEFINE_string accept_licenses "" \
   "Licenses to append to the accept list."
 DEFINE_string board_overlay "" \
   "Location of the board overlay."
-DEFINE_boolean fast ${DEFAULT_FAST} "Call many emerges in parallel"
-DEFINE_integer jobs -1 \
+DEFINE_boolean fast "${DEFAULT_FAST}" \
+  "Use the parallel_emerge wrapper script."
+DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean latest_toolchain $FLAGS_FALSE \
   "Use the latest ebuild for all toolchain packages (gcc, binutils, libc, \
@@ -57,6 +56,8 @@ DEFINE_string variant "" \
   "Board variant."
 DEFINE_boolean regen_configs ${FLAGS_FALSE} \
   "Regenerate all config files (useful for modifying profiles w/out rebuild)."
+DEFINE_boolean getbinpkg $FLAGS_TRUE \
+  "Passed to update_chroot, ignored by setup_board itself."
 
 
 # builds wrappers like equery-arm-generic.
@@ -125,10 +126,6 @@ EOF
   sudo_multi "${cmds[@]}"
 }
 
-install_toolchain() {
-  "${GCLIENT_ROOT}/src/scripts/install_toolchain" --board="${BOARD_VARIANT}"
-}
-
 # Parse command line flags
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -183,6 +180,7 @@ BOARD_ETC="${BOARD_ROOT}/etc"
 BOARD_SETUP="${BOARD_ETC}/make.conf.board_setup"
 BOARD_PROFILE="${BOARD_ETC}/portage/profile"
 BOARD_ARCH=$(get_board_arch "$BOARD")
+BOARD_CHOST=$(get_board_chost ${BOARD})
 PORTAGE_PROFILE=$(get_board_profile "$BOARD")
 
 if [ -d "${BOARD_ROOT}" ]; then
@@ -198,8 +196,6 @@ if [ -d "${BOARD_ROOT}" ]; then
       warn "Not setting up board root. "
       warn "Use --force to clobber the board root and start again."
     fi
-    # Update the users libc in their board if needed.
-    install_toolchain
     exit 0
   fi
 else
@@ -231,11 +227,6 @@ for d in "${SCRIPTS_DIR}"/hooks/*; do
 done
 sudo_multi "${cmds[@]}"
 
-SAVED_VERSION=
-if [[ ${FLAGS_regen_configs} -eq ${FLAGS_TRUE} ]]; then
-  SAVED_VERSION=$(grep -s ^LIBC_VERSION= ${BOARD_SETUP} || true)
-fi
-
 ACCEPT_LICENSE=
 if [[ -n ${FLAGS_accept_licenses} ]]; then
   ACCEPT_LICENSE="ACCEPT_LICENSE='${FLAGS_accept_licenses}'"
@@ -243,12 +234,11 @@ fi
 
 sudo_clobber "${BOARD_SETUP}" <<EOF
 # Created by setup_board
-CHOST="$(get_board_chost ${BOARD})"
+CHOST="${BOARD_CHOST}"
 ROOT="${BOARD_ROOT}/"
 MAKEOPTS="--jobs=${NUM_JOBS} --load-average=${NUM_JOBS}"
 PKG_CONFIG="pkg-config-${BOARD_VARIANT}"
 BOARD_USE="${BOARD_VARIANT}"
-${SAVED_VERSION}
 ${ACCEPT_LICENSE}
 EOF
 
@@ -263,22 +253,23 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
       --oneshot --quiet --nodeps sys-apps/baselayout
 
   # Now time for tool chain happy fun time
-  install_toolchain
-
-  # Emerge the kernel headers into the board build root.  Use rdeps to
-  # avoid pulling any spurious DEPEND things in that we don't care about.
-  KERNEL_EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
-  if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
-    KERNEL_EMERGE_FLAGS+=" --usepkg"
-    if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
-      KERNEL_EMERGE_FLAGS+=" --getbinpkg "
-    fi
+  EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
+  if [[ "${FLAGS_jobs}" -ne -1 ]]; then
+    EMERGE_FLAGS+=" --jobs=${FLAGS_jobs}"
   fi
 
-  sudo -E "${EMERGE_WRAPPER}" ${KERNEL_EMERGE_FLAGS} \
-    sys-kernel/linux-headers
+  if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
+    EMERGE_FLAGS+=" --usepkgonly --getbinpkg"
+  else
+    # When binary packages are disabled we need to make sure the cross
+    # sysroot includes any build dependencies for the toolchain.
+    info "Installing toolchain build dependencies"
+    install_cross_libs "${BOARD_CHOST}" ${EMERGE_FLAGS} --buildpkg=n
+  fi
 
-  unset KERNEL_EMERGE_FLAGS
+  info "Installing toolchain"
+  SYSROOT="/usr/${BOARD_CHOST}" "${EMERGE_WRAPPER}" \
+      ${EMERGE_FLAGS} "${TOOLCHAIN_PKGS[@]}"
 fi
 
 if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then

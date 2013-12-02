@@ -20,15 +20,6 @@ BUILD_DIR="${FLAGS_output_root}/${BOARD}/${IMAGE_SUBDIR}"
 OUTSIDE_OUTPUT_DIR="../build/images/${BOARD}/${IMAGE_SUBDIR}"
 IMAGES_TO_BUILD=
 
-EMERGE_BOARD_CMD="$GCLIENT_ROOT/chromite/bin/parallel_emerge"
-EMERGE_BOARD_CMD="$EMERGE_BOARD_CMD --board=$BOARD"
-
-export INSTALL_MASK="${DEFAULT_INSTALL_MASK}"
-
-if [[ $FLAGS_jobs -ne -1 ]]; then
-  EMERGE_JOBS="--jobs=$FLAGS_jobs"
-fi
-
 # Populates list of IMAGES_TO_BUILD from args passed in.
 # Arguments should be the shortnames of images we want to build.
 get_images_to_build() {
@@ -140,6 +131,41 @@ generate_au_zip () {
 # Arguments to this command are passed as addition options/arguments
 # to the basic emerge command.
 emerge_to_image() {
-  sudo -E ${EMERGE_BOARD_CMD} --root-deps=rdeps --usepkgonly -v \
-    "$@" ${EMERGE_JOBS}
+  local mask="${INSTALL_MASK:-$(portageq-$BOARD envvar PROD_INSTALL_MASK)}"
+  test -n "$mask" || die "PROD_INSTALL_MASK not defined"
+
+  local emerge_cmd
+  if [[ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
+    emerge_cmd="$GCLIENT_ROOT/chromite/bin/parallel_emerge --board=$BOARD"
+  else
+    emerge_cmd="emerge-$BOARD"
+  fi
+  emerge_cmd+=" --root-deps=rdeps --usepkgonly -v"
+
+  if [[ $FLAGS_jobs -ne -1 ]]; then
+    emerge_cmd+=" --jobs=$FLAGS_jobs"
+  fi
+
+  sudo -E INSTALL_MASK="$mask" ${emerge_cmd} "$@"
+}
+
+# The GCC package includes both its libraries and the compiler.
+# In prod images we only need the shared libraries.
+emerge_prod_gcc() {
+    local mask="${INSTALL_MASK:-$(portageq-$BOARD envvar PROD_INSTALL_MASK)}"
+    test -n "$mask" || die "PROD_INSTALL_MASK not defined"
+
+    mask="${mask}
+        /usr/bin
+        /usr/*/gcc-bin
+        /usr/lib/gcc/*/*/*.o
+        /usr/lib/gcc/*/*/include
+        /usr/lib/gcc/*/*/include-fixed
+        /usr/lib/gcc/*/*/plugin
+        /usr/libexec
+        /usr/share/gcc-data/*/*/c89
+        /usr/share/gcc-data/*/*/c99
+        /usr/share/gcc-data/*/*/python"
+
+    INSTALL_MASK="${mask}" emerge_to_image --nodeps sys-devel/gcc "$@"
 }

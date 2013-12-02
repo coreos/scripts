@@ -413,49 +413,6 @@ COREOS_DEVELOPER_IMAGE_NAME=${CHROMEOS_DEVELOPER_IMAGE_NAME}
 COREOS_PRODUCTION_IMAGE_NAME="coreos_production_image.bin"
 COREOS_RECOVERY_IMAGE_NAME=${CHROMEOS_RECOVERY_IMAGE_NAME}
 
-# Install make for portage ebuilds.  Used by build_image and gmergefs.
-# TODO: Is /usr/local/autotest-chrome still used by anyone?
-COMMON_INSTALL_MASK="
-  *.a
-  *.la
-  *.h
-  *.hpp
-  /etc/init.d
-  /etc/runlevels
-  /firmware
-  /lib/rc
-  /usr/bin/Xnest
-  /usr/bin/Xvfb
-  /usr/lib/debug
-  /usr/lib/gcc
-  /usr/lib*/pkgconfig
-  /usr/lib/systemd/system/local-fs.target.wants
-  /usr/local/autotest-chrome
-  /usr/man
-  /usr/share/aclocal
-  /usr/share/doc
-  /usr/share/gettext
-  /usr/share/gtk-2.0
-  /usr/share/gtk-doc
-  /usr/share/info
-  /usr/share/man
-  /usr/share/openrc
-  /usr/share/pkgconfig
-  /usr/share/profiling
-  /usr/share/readline
-  /usr/src
-  "
-
-# Mask for base, dev, and test images (build_image, build_image --test)
-DEFAULT_INSTALL_MASK="
-  ${COMMON_INSTALL_MASK}
-  /usr/local/autotest
-  /lib/modules/*/kernel/drivers/input/misc/uinput.ko
-  /lib/modules/*/build
-  /lib/modules/*/source
-  test_*.ko
-  "
-
 # -----------------------------------------------------------------------------
 # Functions
 
@@ -925,44 +882,6 @@ reinterpret_path_for_chroot() {
 relpath() {
   local py='import sys, os; print os.path.relpath(sys.argv[1], sys.argv[2])'
   python2 -c "${py}" "${1}" "${2:-.}"
-}
-
-emerge_custom_kernel() {
-  local install_root=$1
-  local root=/build/${FLAGS_board}
-  local tmp_pkgdir=${root}/custom-packages
-
-  # Clean up any leftover state in custom directories.
-  sudo rm -rf "${tmp_pkgdir}"
-
-  # Update chromeos-initramfs to contain the latest binaries from the build
-  # tree. This is basically just packaging up already-built binaries from
-  # ${root}. We are careful not to muck with the existing prebuilts so that
-  # prebuilts can be uploaded in parallel.
-  # TODO(davidjames): Implement ABI deps so that chromeos-initramfs will be
-  # rebuilt automatically when its dependencies change.
-  sudo -E PKGDIR="${tmp_pkgdir}" ${EMERGE_BOARD_CMD} -1 \
-    chromeos-base/chromeos-initramfs || die "Cannot emerge chromeos-initramfs"
-
-  # Verify all dependencies of the kernel are installed. This should be a
-  # no-op, but it's good to check in case a developer didn't run
-  # build_packages.  We need the expand_virtual call to workaround a bug
-  # in portage where it only installs the virtual pkg.
-  local kernel=$(portageq-${FLAGS_board} expand_virtual ${root} \
-                 virtual/linux-sources)
-  sudo -E PKGDIR="${tmp_pkgdir}" ${EMERGE_BOARD_CMD} --onlydeps \
-    ${kernel} || die "Cannot emerge kernel dependencies"
-
-  # Build the kernel. This uses the standard root so that we can pick up the
-  # initramfs from there. But we don't actually install the kernel to the
-  # standard root, because that'll muck up the kernel debug symbols there,
-  # which we want to upload in parallel.
-  sudo -E PKGDIR="${tmp_pkgdir}" ${EMERGE_BOARD_CMD} --buildpkgonly \
-    ${kernel} || die "Cannot emerge kernel"
-
-  # Install the custom kernel to the provided install root.
-  sudo -E PKGDIR="${tmp_pkgdir}" ${EMERGE_BOARD_CMD} --usepkgonly \
-    --root=${install_root} ${kernel} || die "Cannot emerge kernel to root"
 }
 
 enable_strict_sudo() {
