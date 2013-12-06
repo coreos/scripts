@@ -174,6 +174,11 @@ install_cross_toolchain() {
     local cross_cfg="/usr/${cross_chost}/etc/portage/${cross_chost}-crossdev"
     local cross_cfg_data=$(_crossdev_info "${cross_chost}" stable)
 
+    # Forcing binary packages for toolchain packages breaks crossdev since it
+    # prevents it from rebuilding with different use flags during bootstrap.
+    local safe_flags=( "${@/#--useoldpkg-atoms=*/}" )
+    safe_flags=( "${safe_flags[@]/#--rebuild-exclude=*/}" )
+
     # may be called from either catalyst (root) or upgrade_chroot (user)
     local sudo=
     if [[ $(id -u) -ne 0 ]]; then
@@ -183,7 +188,7 @@ install_cross_toolchain() {
     # Only call crossdev to regenerate configs if something has changed
     if ! cmp --quiet - "${cross_cfg}" <<<"${cross_cfg_data}"
     then
-        $sudo crossdev --stable --portage "$*" \
+        $sudo crossdev --stable --portage "${safe_flags[*]}" \
             --init-target --target "${cross_chost}"
         $sudo tee "${cross_cfg}" <<<"${cross_cfg_data}" >/dev/null
     fi
@@ -193,7 +198,7 @@ install_cross_toolchain() {
     if emerge "$@" --binpkg-respect-use=y --update --newuse \
         --pretend "${cross_pkgs[@]}" | grep -q '^\[ebuild'
     then
-        $sudo crossdev --stable --portage "$*" \
+        $sudo crossdev --stable --portage "${safe_flags[*]}" \
             --stage4 --target "${cross_chost}"
     else
         $sudo emerge "$@" --binpkg-respect-use=y --update --newuse \
