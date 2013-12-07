@@ -258,7 +258,9 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
     EMERGE_FLAGS+=" --jobs=${FLAGS_jobs}"
   fi
 
-  if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
+  if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}"  && \
+        "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]
+  then
     EMERGE_FLAGS+=" --usepkgonly --getbinpkg"
   else
     # When binary packages are disabled we need to make sure the cross
