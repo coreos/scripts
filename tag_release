@@ -12,10 +12,11 @@ DEFAULT_SDK="${COREOS_VERSION_STRING%+*}"
 
 DEFINE_integer build "${TODAYS_VERSION}" \
     "Branch name (aka 'build'), should be days since 2013-7-1"
-DEFINE_integer branch 0 "Branch revision, should be 0"
-DEFINE_string patch 0 "Branch patch id, should be 0"
+DEFINE_integer branch 0 "Branch revision, normally 0"
+DEFINE_integer patch 0 "Branch patch id, normally 0"
 DEFINE_string track "dev-channel" "Set the given track to this new branch"
-DEFINE_string sdk_version "${DEFAULT_SDK}" "Set the SDK build to use"
+DEFINE_string sdk_version "${DEFAULT_SDK}" \
+    "Set the SDK version to use. (current: ${COREOS_SDK_VERSION})"
 DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
 DEFINE_string remote "origin" "Remote name or URL to push to."
 
@@ -25,7 +26,19 @@ eval set -- "${FLAGS_ARGV}"
 switch_to_strict_mode
 
 BRANCH_NAME="build-${FLAGS_build}"
-TAG_NAME="v${FLAGS_build}.${FLAGS_branch}.${FLAGS_patch}"
+BRANCH_VERSION="${FLAGS_build}.${FLAGS_branch}.${FLAGS_patch}"
+TAG_NAME="v${BRANCH_VERSION}"
+
+if [[ "${FLAGS_sdk_version}" == keep || "${FLAGS_sdk_version}" == current ]]
+then
+    FLAGS_sdk_version="${COREOS_SDK_VERSION}"
+fi
+
+if [[ "${FLAGS_sdk_version}" == "${BRANCH_VERSION}" ]]; then
+    die_notrace "SDK version must be different from the new tag's version!" \
+        " Conflicting version: ${BRANCH_VERSION}" \
+        "Try --sdk_version keep to use the existing SDK."
+fi
 
 cd "${REPO_MANIFESTS_DIR}"
 
@@ -34,7 +47,9 @@ cd "${REPO_MANIFESTS_DIR}"
 # - one previous branch, useful for comparing releases.
 OLD_BRANCHES=$(find -maxdepth 1 -name 'build-*.xml' \
     -not -name "${BRANCH_NAME}.xml" | sort -rn | tail -n -1)
-git rm -f ${OLD_BRANCHES}
+if [[ -n "${OLD_BRANCHES}" ]]; then
+    git rm -f ${OLD_BRANCHES}
+fi
 
 repo manifest -o "${BRANCH_NAME}.xml" -r
 tee version.txt <<EOF
