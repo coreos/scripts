@@ -218,4 +218,6 @@ create_base_image() {
 
   ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
     ${image_name} --adjust_part="${FLAGS_adjust_part}"
+
+  trap - EXIT
 }
