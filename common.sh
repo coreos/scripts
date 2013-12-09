@@ -373,14 +373,6 @@ DEFAULT_CHROOT_DIR=${CHROMEOS_CHROOT_DIR:-"${GCLIENT_ROOT}/chroot"}
 # they don't pollute the source directory.
 DEFAULT_BUILD_ROOT=${CHROMEOS_BUILD_ROOT:-"${SRC_ROOT}/build"}
 
-# Set up a global ALL_BOARDS value
-if [[ -d ${SRC_ROOT}/overlays ]]; then
-  ALL_BOARDS=$(cd "${SRC_ROOT}/overlays"; \
-    ls -1d overlay-* 2>&- | sed 's,overlay-,,g')
-fi
-# Normalize whitespace.
-ALL_BOARDS=$(echo ${ALL_BOARDS})
-
 # Sets the default board variable for calling script.
 if [[ -f ${GCLIENT_ROOT}/src/scripts/.default_board ]]; then
   DEFAULT_BOARD=$(<"${GCLIENT_ROOT}/src/scripts/.default_board")
@@ -390,10 +382,6 @@ if [[ -f ${GCLIENT_ROOT}/src/scripts/.default_board ]]; then
         "'${DEFAULT_BOARD}'"
   fi
 fi
-# Stub to get people to upgrade.
-get_default_board() {
-  warn "please upgrade your script, and make sure to run build_packages"
-}
 
 # Enable --fast by default.
 DEFAULT_FAST=${FLAGS_TRUE}

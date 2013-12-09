@@ -19,12 +19,6 @@ cgpt_py() {
 
 get_disk_layout_path() {
   DISK_LAYOUT_PATH="${BUILD_LIBRARY_DIR}/legacy_disk_layout.json"
-  for overlay in $(cros_list_overlays --board "$BOARD"); do
-    local disk_layout="${overlay}/scripts/disk_layout.json"
-    if [[ -e ${disk_layout} ]]; then
-      DISK_LAYOUT_PATH=${disk_layout}
-    fi
-  done
 }
 
 write_partition_table() {
