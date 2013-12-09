@@ -84,13 +84,6 @@ check_gsutil_opts
 
 parse_build_image_args
 
-for overlay in $(cros_list_overlays --board "$BOARD"); do
-  setup_sh="${overlay}/scripts/board_specific_setup.sh"
-  if [[ -e ${setup_sh} ]]; then
-    source "${setup_sh}"
-  fi
-done
-
 BASE_PACKAGE="coreos-base/coreos"
 
 PRISTINE_IMAGE_NAME=${CHROMEOS_BASE_IMAGE_NAME}

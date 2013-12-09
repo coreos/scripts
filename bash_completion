@@ -81,25 +81,6 @@ _board_sysroot() {
   _complete_board_sysroot_flag && return 0
 }
 
-# echo the existing target board overlays
-_board_overlays() {
-  local overlaydir=../overlays
-  if [ -d ${overlaydir} ]; then
-    echo $(command ls $overlaydir | grep overlay- | sed s,overlay-,,)
-  fi
-}
-
-# Completion for --board= argument for existing board overlays
-_board_overlay() {
-  _flag_complete && return 0
-
-  COMPREPLY=()
-  local arg=$(_argeq --board)
-  if [[ ${arg} == --board=* ]]; then
-    COMPREPLY=( $(compgen -W "$(_board_overlays)" -- ${arg#--board=}) )
-  fi
-}
-
 # Completion for -c and -s argument for autotest script
 _ls_autotest() {
   local autotest_dir=../third_party/autotest/files
@@ -252,7 +233,6 @@ complete -o bashdefault -o default -F _board_sysroot \
   build_packages \
   image_to_usb.sh \
   mod_image_for_test.sh
-complete -o bashdefault -o default -F _board_overlay setup_board
 complete -o bashdefault -o default -o nospace -F _autotest_complete autotest
 complete -F _cros_workon cros_workon
 complete -F _complete_repo repo
