@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-CGPT_PY="${BUILD_LIBRARY_DIR}/cgpt.py"
+CGPT_PY="${BUILD_LIBRARY_DIR}/disk_util"
 
 cgpt_py() {
   if [[ -n "${FLAGS_adjust_part-}" ]]; then
