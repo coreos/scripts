@@ -34,8 +34,7 @@ write_partition_table() {
     ;;
   esac
 
-  cgpt_py write_gpt "${outdev}"
-  cgpt_py write_mbr "${outdev}" "${pmbr_img}"
+  cgpt_py write_gpt --mbr_boot_code="${pmbr_img}" "${outdev}"
 }
 
 get_fs_block_size() {

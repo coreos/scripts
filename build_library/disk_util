@@ -243,6 +243,7 @@ def WritePartitionTable(options):
   Cgpt('create', '-c', '-s', disk_block_count, options.disk_image)
 
   sector = GPT_RESERVED_SECTORS
+  esp_number = None
   for partition in partitions:
     sector = Align(sector, partition['alignment'])
     if partition['type'] != 'blank':
@@ -254,33 +255,21 @@ def WritePartitionTable(options):
                   '-u', partition['uuid'],
                   options.disk_image)
 
-    sector += partition['blocks']
-
-  Cgpt('show', options.disk_image)
-
-
-def WriteMbrBoot(options):
-  """Writes the protective MBR with the given boot code.
-
-  The EFI System Partition will be marked as the 'boot' partition.
-
-  Args:
-    options: Flags passed to the script
-  """
-
-  config = LoadPartitionConfig(options)
-  partitions = GetPartitionTable(options, config)
-
-  esp_number = None
-  for partition in partitions:
     if partition['type'] == 'efi':
       esp_number = partition['num']
-      break
+
+    sector += partition['blocks']
+
   if esp_number is None:
     raise InvalidLayout('Table does not include an EFI partition.')
 
-  subprocess.check_call(['cgpt', 'boot', '-p', '-b', options.mbr_boot_code,
-      '-i', str(partition['num']), options.disk_image])
+  if options.mbr_boot_code:
+    Cgpt('boot', '-p',
+                 '-b', options.mbr_boot_code,
+                 '-i', esp_number,
+                 options.disk_image)
+
+  Cgpt('show', options.disk_image)
 
 
 def GetPartitionByNumber(partitions, num):
@@ -473,13 +462,10 @@ def main(argv):
   actions = parser.add_subparsers(title='actions')
 
   a = actions.add_parser('write_gpt', help='write gpt to new image')
+  a.add_argument('--mbr_boot_code',
+          help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
   a.set_defaults(func=WritePartitionTable)
-
-  a = actions.add_parser('write_mbr', help='write mbr to existing image')
-  a.add_argument('disk_image', help='path to disk image file')
-  a.add_argument('mbr_boot_code', help='path to mbr boot block')
-  a.set_defaults(func=WriteMbrBoot)
 
   a = actions.add_parser('readblocksize', help='get device block size')
   a.set_defaults(func=GetBlockSize)
