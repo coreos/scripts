@@ -6,82 +6,71 @@
     "fs_block_size": 4096
   },
   "layouts":{
-    "base":[
-      {
-        "num": 1,
+    "base":{
+      "1":{
         "label":"EFI-SYSTEM",
         "type":"efi",
         "blocks":"262144"
       },
-      {
-        "num": 2,
+      "2":{
         "label":"BOOT-B",
         "type":"coreos-reserved",
         "blocks":"131072"
       },
-      {
-        "num": 3,
+      "3":{
         "label":"ROOT-A",
         "uuid":"7130c94a-213a-4e5a-8e26-6cce9662f132",
         "type":"coreos-rootfs",
         "blocks":"2097152",
         "fs_blocks":"262144"
       },
-      {
-        "num": 4,
+      "4":{
         "label":"ROOT-B",
         "uuid":"e03dd35c-7c2d-4a47-b3fe-27f15780a57c",
         "type":"coreos-rootfs",
         "blocks":"2097152",
         "fs_blocks":"262144"
       },
-      {
-        "num": 5,
+      "5":{
         "label":"ROOT-C",
         "uuid":"d82521b4-07ac-4f1c-8840-ddefedc332f3",
         "type":"blank",
         "blocks":"0"
       },
-      {
-        "num": 6,
+      "6":{
         "label":"OEM",
         "type":"data",
         "blocks":"262144"
       },
-      {
-        "num": 7,
+      "7":{
         "type":"blank",
         "label":"coreos-reserved",
         "blocks":"0"
       },
-      {
-        "num": 8,
+      "8":{
         "type":"blank",
         "label":"coreos-reserved",
         "blocks":"0"
       },
-      {
-        "num": 9,
+      "9":{
         "label":"STATE",
         "type":"data",
         "blocks":"1048576"
       }
-    ],
-    "vm": [
-      {
-        "num": 9,
+    },
+    "vm":{
+      "9":{
         "label":"STATE",
         "type":"data",
         "blocks":"6291456"
       }
-    ],
-    "vagrant": [
-      {
-        "num": 9,
+    },
+    "vagrant":{
+      "9":{
         "label":"STATE",
         "type":"data",
         "blocks":"33587200"
       }
-    ]
+    }
   }
 }

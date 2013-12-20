@@ -60,17 +60,20 @@ def LoadPartitionConfig(options):
     if len(config['layouts']) <= 0:
       raise InvalidLayout('Missing "layouts" entries')
 
-    for layout_name, layout in config['layouts'].items():
-      for part in layout:
+    for layout_name, layout in config['layouts'].iteritems():
+      for part_num, part in layout.iteritems():
         unknown_keys = set(part.keys()) - valid_layout_keys
         if unknown_keys:
           raise InvalidLayout('Unknown items in layout %s: %r' %
                               (layout_name, unknown_keys))
 
-        if part['type'] != 'blank':
-          for s in ('num', 'label'):
-            if not s in part:
-              raise InvalidLayout('Layout "%s" missing "%s"' % (layout_name, s))
+        part['num'] = int(part_num)
+        if part['type'] == 'blank':
+          continue
+
+        if not part.get('label', None):
+          raise InvalidLayout('Layout "%s" missing "label" in partition %s' %
+                              (layout_name, part_num))
 
         part['alignment'] = int(part.get('alignment', metadata['alignment']))
         part['blocks'] = int(part['blocks'])
@@ -111,18 +114,9 @@ def GetPartitionTable(options, config):
     Object representing a selected partition table
   """
 
-  partitions = config['layouts']['base']
-  metadata = config['metadata']
-  image_type = options.disk_layout
-
-  if image_type != 'base':
-    for partition_t in config['layouts'][image_type]:
-      for partition in partitions:
-        if partition['type'] == 'blank' or partition_t['type'] == 'blank':
-          continue
-        if partition_t['num'] == partition['num']:
-          for k, v in partition_t.items():
-            partition[k] = v
+  partitions = config['layouts']['base'].copy()
+  for part_num, part in config['layouts'][options.disk_layout].iteritems():
+    partitions[part_num].update(part)
 
   return partitions
 
@@ -174,7 +168,7 @@ def WritePartitionTable(options):
 
   sector = GPT_RESERVED_SECTORS
   esp_number = None
-  for partition in partitions:
+  for partition in partitions.itervalues():
     sector = Align(sector, partition['alignment'])
     if partition['type'] != 'blank':
       Cgpt('add', '-i', partition['num'],
@@ -211,13 +205,12 @@ def GetPartitionByNumber(partitions, num):
   Returns:
     An object for the selected partition
   """
-  for partition in partitions:
-    if partition['type'] == 'blank':
-      continue
-    if partition['num'] == int(num):
-      return partition
 
-  raise PartitionNotFound('Partition not found')
+  partition = partitions.get(str(num), None)
+  if not partition or partition['type'] == 'blank':
+    raise PartitionNotFound('Partition not found')
+
+  return partition
 
 
 def GetPartitionByLabel(partitions, label):
@@ -229,10 +222,10 @@ def GetPartitionByLabel(partitions, label):
   Returns:
     An object for the selected partition
   """
-  for partition in partitions:
-    if 'label' not in partition:
+  for partition in partitions.itervalues():
+    if partition['type'] == 'blank':
       continue
-    if partition['label'] == label:
+    elif partition['label'] == label:
       return partition
 
   raise PartitionNotFound('Partition not found')
@@ -349,22 +342,22 @@ def DoDebugOutput(options):
   """
   partitions = GetPartitionTableFromConfig(options)
 
-  for partition in partitions:
-    if partition['bytes'] < 1024 * 1024:
-      size = '%d bytes' % partition['bytes']
-    else:
-      size = '%d MB' % (partition['bytes'] / 1024 / 1024)
-    if 'label' in partition:
+  for num, partition in sorted(partitions.iteritems()):
+    if partition['type'] != 'blank':
+      if partition['bytes'] < 1024 * 1024:
+        size = '%d bytes' % partition['bytes']
+      else:
+        size = '%d MB' % (partition['bytes'] / 1024 / 1024)
       if 'fs_bytes' in partition:
         if partition['fs_bytes'] < 1024 * 1024:
           fs_size = '%d bytes' % partition['fs_bytes']
         else:
           fs_size = '%d MB' % (partition['fs_bytes'] / 1024 / 1024)
-        print '%s - %s/%s' % (partition['label'], fs_size, size)
+        print '%s: %s - %s/%s' % (num, partition['label'], fs_size, size)
       else:
-        print '%s - %s' % (partition['label'], size)
+        print '%s: %s - %s' % (num, partition['label'], size)
     else:
-      print 'blank - %s' %  size
+      print '%s: blank' % num
 
 
 def DoParseOnly(options):
