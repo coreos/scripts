@@ -109,8 +109,8 @@ trap vm_cleanup EXIT
 
 # Unpack image, using alternate state image if defined
 # Resize to use all available space in new disk layout
-unpack_source_disk "${FLAGS_disk_layout}" "${FLAGS_state_image}"
-resize_state_partition "${FLAGS_disk_layout}"
+unpack_source_disk "${FLAGS_state_image}"
+resize_state_partition
 
 # Optionally install any OEM packages
 install_oem_package

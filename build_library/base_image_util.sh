@@ -41,12 +41,10 @@ create_base_image() {
   local rootfs_verification_enabled=$2
 
   get_disk_layout_type
-  local image_type="${DISK_LAYOUT_TYPE}"
-
   check_valid_layout "base"
-  check_valid_layout ${image_type}
+  check_valid_layout "${DISK_LAYOUT_TYPE}"
 
-  info "Using image type ${image_type}"
+  info "Using image type ${DISK_LAYOUT_TYPE}"
 
   root_fs_dir="${BUILD_DIR}/rootfs"
   state_fs_dir="${BUILD_DIR}/state"
@@ -57,25 +55,25 @@ create_base_image() {
   cleanup_mounts &> /dev/null
 
   local root_fs_label="ROOT-A"
-  local root_fs_num=$(get_num ${image_type} ${root_fs_label})
+  local root_fs_num=$(get_num ${root_fs_label})
   local root_fs_img="${BUILD_DIR}/rootfs.image"
-  local root_fs_bytes=$(get_filesystem_size ${image_type} ${root_fs_num})
+  local root_fs_bytes=$(get_filesystem_size ${root_fs_num})
 
   local state_fs_label="STATE"
-  local state_fs_num=$(get_num ${image_type} ${state_fs_label})
+  local state_fs_num=$(get_num ${state_fs_label})
   local state_fs_img="${BUILD_DIR}/state.image"
-  local state_fs_bytes=$(get_filesystem_size ${image_type} ${state_fs_num})
+  local state_fs_bytes=$(get_filesystem_size ${state_fs_num})
   local state_fs_uuid=$(uuidgen)
 
   local esp_fs_label="EFI-SYSTEM"
-  local esp_fs_num=$(get_num ${image_type} ${esp_fs_label})
+  local esp_fs_num=$(get_num ${esp_fs_label})
   local esp_fs_img="${BUILD_DIR}/esp.image"
-  local esp_fs_bytes=$(get_filesystem_size ${image_type} ${esp_fs_num})
+  local esp_fs_bytes=$(get_filesystem_size ${esp_fs_num})
 
   local oem_fs_label="OEM"
-  local oem_fs_num=$(get_num ${image_type} ${oem_fs_label})
+  local oem_fs_num=$(get_num ${oem_fs_label})
   local oem_fs_img="${BUILD_DIR}/oem.image"
-  local oem_fs_bytes=$(get_filesystem_size ${image_type} ${oem_fs_num})
+  local oem_fs_bytes=$(get_filesystem_size ${oem_fs_num})
   local oem_fs_uuid=$(uuidgen)
 
   local fs_block_size=$(get_fs_block_size)

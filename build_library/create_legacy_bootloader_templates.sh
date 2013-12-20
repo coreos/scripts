@@ -42,8 +42,8 @@ if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
   sudo mkdir -p ${FLAGS_to}
 
   # Get partition UUIDs from the json config
-  ROOTA="PARTUUID=$(get_uuid base ROOT-A)"
-  ROOTB="PARTUUID=$(get_uuid base ROOT-B)"
+  ROOTA="PARTUUID=$(get_uuid ROOT-A)"
+  ROOTB="PARTUUID=$(get_uuid ROOT-B)"
 
   # Build configuration files for pygrub/pvgrub
   GRUB_DIR="${FLAGS_to}/grub"

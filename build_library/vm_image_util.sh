@@ -199,8 +199,8 @@ _disk_ext() {
 # alternate filesystem image for the state partition instead of the one
 # from VM_SRC_IMG. Start new image using the given disk layout.
 unpack_source_disk() {
-    local disk_layout="${1:-$(_get_vm_opt DISK_LAYOUT)}"
-    local alternate_state_image="$2"
+    get_disk_layout_type $(_get_vm_opt DISK_LAYOUT)
+    local alternate_state_image="$1"
 
     if [[ -n "${alternate_state_image}" && ! -f "${alternate_state_image}" ]]
     then
@@ -229,13 +229,13 @@ unpack_source_disk() {
 
     if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
       info "Initializing new partition table..."
-      write_partition_table "${disk_layout}" "${VM_TMP_IMG}"
+      write_partition_table "${VM_TMP_IMG}"
     fi
 }
 
 resize_state_partition() {
-    local disk_layout="${1:-$(_get_vm_opt DISK_LAYOUT)}"
-    local size_in_bytes=$(get_filesystem_size "${disk_layout}" ${NUM_STATEFUL})
+    get_disk_layout_type $(_get_vm_opt DISK_LAYOUT)
+    local size_in_bytes=$(get_filesystem_size ${NUM_STATEFUL})
     local size_in_sectors=$(( size_in_bytes / 512 ))
     local size_in_mb=$(( size_in_bytes / 1024 / 1024 ))
     local original_size=$(stat -c%s "${TEMP_STATE}")

@@ -3,13 +3,13 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import argparse
 import json
 import os
 import re
 import subprocess
 import sys
 import uuid
-from optparse import OptionParser
 
 # First sector we can use.
 GPT_RESERVED_SECTORS = 34
@@ -24,11 +24,11 @@ class InvalidAdjustment(Exception):
   pass
 
 
-def LoadPartitionConfig(filename):
+def LoadPartitionConfig(options):
   """Loads a partition tables configuration file into a Python object.
 
   Args:
-    filename: Filename to load into object
+    options: Flags passed to the script
   Returns:
     Object containing disk layout configuration
   """
@@ -38,6 +38,7 @@ def LoadPartitionConfig(filename):
       '_comment', 'type', 'num', 'label', 'blocks', 'block_size', 'fs_blocks',
       'fs_block_size', 'features', 'uuid', 'alignment'))
 
+  filename = options.disk_layout_file
   if not os.path.exists(filename):
     raise ConfigNotFound('Partition config %s was not found!' % filename)
   with open(filename) as f:
@@ -99,9 +100,7 @@ def LoadPartitionConfig(filename):
   return config
 
 
-
-
-def GetPartitionTable(options, config, image_type):
+def GetPartitionTable(options, config):
   """Generates requested image_type layout from a layout configuration.
   This loads the base table and then overlays the requested layout over
   the base layout.
@@ -109,13 +108,13 @@ def GetPartitionTable(options, config, image_type):
   Args:
     options: Flags passed to the script
     config: Partition configuration file object
-    image_type: Type of image eg base/test/dev/factory_install
   Returns:
     Object representing a selected partition table
   """
 
   partitions = config['layouts']['base']
   metadata = config['metadata']
+  image_type = options.disk_layout
 
   if image_type != 'base':
     for partition_t in config['layouts'][image_type]:
@@ -198,29 +197,26 @@ def ApplyPartitionAdjustment(partitions, metadata, label, operator, operand):
     partition['bytes'] = partition['blocks'] * metadata['block_size']
 
 
-def GetPartitionTableFromConfig(options, layout_filename, image_type):
+def GetPartitionTableFromConfig(options):
   """Loads a partition table and returns a given partition table type
 
   Args:
     options: Flags passed to the script
-    layout_filename: The filename to load tables from
-    image_type: The type of partition table to return
+  Returns:
+    A list defining all known partitions.
   """
 
-  config = LoadPartitionConfig(layout_filename)
-  partitions = GetPartitionTable(options, config, image_type)
+  config = LoadPartitionConfig(options)
+  partitions = GetPartitionTable(options, config)
 
   return partitions
 
 
-def WritePartitionTable(options, image_type, layout_filename, disk_filename):
+def WritePartitionTable(options):
   """Writes the given partition table to a disk image or device.
 
   Args:
     options: Flags passed to the script
-    image_type: Type of image eg base/test/dev/factory_install
-    layout_filename: Path to partition configuration file
-    disk_filename: Path to disk image or device file
   """
 
   def Cgpt(*args):
@@ -232,9 +228,8 @@ def WritePartitionTable(options, image_type, layout_filename, disk_filename):
       count += alignment - offset
     return count
 
-  config = LoadPartitionConfig(layout_filename)
-  metadata = config['metadata']
-  partitions = GetPartitionTable(options, config, image_type)
+  config = LoadPartitionConfig(options)
+  partitions = GetPartitionTable(options, config)
   disk_block_count = GPT_RESERVED_SECTORS
 
   for partition in partitions:
@@ -245,7 +240,7 @@ def WritePartitionTable(options, image_type, layout_filename, disk_filename):
   # Sometimes qemu-img expects disks sizes aligned to 64k
   disk_block_count = Align(disk_block_count, config['metadata']['alignment'])
 
-  Cgpt('create', '-c', '-s', disk_block_count, disk_filename)
+  Cgpt('create', '-c', '-s', disk_block_count, options.disk_image)
 
   sector = GPT_RESERVED_SECTORS
   for partition in partitions:
@@ -257,29 +252,24 @@ def WritePartitionTable(options, image_type, layout_filename, disk_filename):
                   '-t', partition['type'],
                   '-l', partition['label'],
                   '-u', partition['uuid'],
-                  disk_filename)
+                  options.disk_image)
 
     sector += partition['blocks']
 
-  Cgpt('show', disk_filename)
+  Cgpt('show', options.disk_image)
 
 
-def WriteMbrBoot(options, image_type, layout_filename,
-                 disk_filename, mbr_filename):
+def WriteMbrBoot(options):
   """Writes the protective MBR with the given boot code.
 
   The EFI System Partition will be marked as the 'boot' partition.
 
   Args:
     options: Flags passed to the script
-    image_type: Type of image eg base/test/dev/factory_install
-    layout_filename: Path to partition configuration file
-    disk_filename: Path to disk image or device file
-    mbr_filename: Path to boot code, usually gptmbr.bin from syslinux.
   """
 
-  config = LoadPartitionConfig(layout_filename)
-  partitions = GetPartitionTable(options, config, image_type)
+  config = LoadPartitionConfig(options)
+  partitions = GetPartitionTable(options, config)
 
   esp_number = None
   for partition in partitions:
@@ -289,8 +279,8 @@ def WriteMbrBoot(options, image_type, layout_filename,
   if esp_number is None:
     raise InvalidLayout('Table does not include an EFI partition.')
 
-  subprocess.check_call(['cgpt', 'boot', '-p', '-b', mbr_filename,
-      '-i', str(partition['num']), disk_filename])
+  subprocess.check_call(['cgpt', 'boot', '-p', '-b', options.mbr_boot_code,
+      '-i', str(partition['num']), options.disk_image])
 
 
 def GetPartitionByNumber(partitions, num):
@@ -329,142 +319,107 @@ def GetPartitionByLabel(partitions, label):
   raise PartitionNotFound('Partition not found')
 
 
-def GetBlockSize(options, layout_filename):
+def GetBlockSize(options):
   """Returns the partition table block size.
 
   Args:
     options: Flags passed to the script
-    layout_filename: Path to partition configuration file
-  Returns:
+  Prints:
     Block size of all partitions in the layout
   """
 
-  config = LoadPartitionConfig(layout_filename)
-  return config['metadata']['block_size']
+  config = LoadPartitionConfig(options)
+  print config['metadata']['block_size']
 
 
-def GetFilesystemBlockSize(options, layout_filename):
+def GetFilesystemBlockSize(options):
   """Returns the filesystem block size.
-
-  Args:
-    options: Flags passed to the script
 
   This is used for all partitions in the table that have filesystems.
 
   Args:
-    layout_filename: Path to partition configuration file
-  Returns:
+    options: Flags passed to the script
+  Prints:
     Block size of all filesystems in the layout
   """
 
-  config = LoadPartitionConfig(layout_filename)
-  return config['metadata']['fs_block_size']
+  config = LoadPartitionConfig(options)
+  print config['metadata']['fs_block_size']
 
 
-def GetPartitionSize(options, image_type, layout_filename, num):
+def GetPartitionSize(options):
   """Returns the partition size of a given partition for a given layout type.
 
   Args:
     options: Flags passed to the script
-    image_type: Type of image eg base/test/dev/factory_install
-    layout_filename: Path to partition configuration file
-    num: Number of the partition you want to read from
-  Returns:
+  Prints:
     Size of selected partition in bytes
   """
 
-  partitions = GetPartitionTableFromConfig(options, layout_filename, image_type)
-  partition = GetPartitionByNumber(partitions, num)
+  partitions = GetPartitionTableFromConfig(options)
+  partition = GetPartitionByNumber(partitions, options.partition_num)
+  print partition['bytes']
 
-  return partition['bytes']
 
-
-def GetFilesystemSize(options, image_type, layout_filename, num):
+def GetFilesystemSize(options):
   """Returns the filesystem size of a given partition for a given layout type.
 
   If no filesystem size is specified, returns the partition size.
 
   Args:
     options: Flags passed to the script
-    image_type: Type of image eg base/test/dev/factory_install
-    layout_filename: Path to partition configuration file
-    num: Number of the partition you want to read from
-  Returns:
+  Prints:
     Size of selected partition filesystem in bytes
   """
 
-  partitions = GetPartitionTableFromConfig(options, layout_filename, image_type)
-  partition = GetPartitionByNumber(partitions, num)
-
-  if 'fs_bytes' in partition:
-    return partition['fs_bytes']
-  else:
-    return partition['bytes']
+  partitions = GetPartitionTableFromConfig(options)
+  partition = GetPartitionByNumber(partitions, options.partition_num)
+  print partition.get('fs_bytes', partition['bytes'])
 
 
-def GetLabel(options, image_type, layout_filename, num):
+def GetLabel(options):
   """Returns the label for a given partition.
 
   Args:
     options: Flags passed to the script
-    image_type: Type of image eg base/test/dev/factory_install
-    layout_filename: Path to partition configuration file
-    num: Number of the partition you want to read from
-  Returns:
+  Prints:
     Label of selected partition, or 'UNTITLED' if none specified
   """
 
-  partitions = GetPartitionTableFromConfig(options, layout_filename, image_type)
-  partition = GetPartitionByNumber(partitions, num)
-
-  if 'label' in partition:
-    return partition['label']
-  else:
-    return 'UNTITLED'
+  partitions = GetPartitionTableFromConfig(options)
+  partition = GetPartitionByNumber(partitions, options.partition_num)
+  print partition.get('label', 'UNTITLED')
 
 
-def GetNum(options, image_type, layout_filename, label):
+def GetNum(options):
   """Returns the number for a given label.
 
   Args:
     options: Flags passed to the script
-    image_type: Type of image eg base/test/dev/factory_install
-    layout_filename: Path to partition configuration file
-    label: Label of the partition you want to read from
-  Returns:
+  Prints:
     Number of selected partition, or '-1' if there is no number
   """
 
-  partitions = GetPartitionTableFromConfig(options, layout_filename, image_type)
-  partition = GetPartitionByLabel(partitions, label)
-
-  if 'num' in partition:
-    return partition['num']
-  else:
-    return '-1'
+  partitions = GetPartitionTableFromConfig(options)
+  partition = GetPartitionByLabel(partitions, options.label)
+  print partition.get('num', '-1')
 
 
-def GetUuid(options, image_type, layout_filename, label):
+def GetUuid(options):
   """Returns the unique partition UUID for a given label.
-
-  Note: Only useful if the UUID is specified in the config file, otherwise
-  the value returned unlikely to be what is actually used in the image.
 
   Args:
     options: Flags passed to the script
-    image_type: Type of image eg base/test/dev/prod
-    layout_filename: Path to partition configuration file
-    label: Label of the partition you want to read from
-  Returns:
+  Prints:
     String containing the requested UUID
   """
 
-  partitions = GetPartitionTableFromConfig(options, layout_filename, image_type)
-  partition = GetPartitionByLabel(partitions, label)
-  return partition['uuid']
+  partitions = GetPartitionTableFromConfig(options)
+  partition = GetPartitionByLabel(partitions, options.label)
+  print partition.get('uuid', '')
 
 
-def DoDebugOutput(options, image_type, layout_filename):
+def DoDebugOutput(options):
   """Prints out a human readable disk layout in on-disk order.
 
   This will round values larger than 1MB, it's exists to quickly
@@ -472,10 +427,8 @@ def DoDebugOutput(options, image_type, layout_filename):
 
   Args:
     options: Flags passed to the script
-    image_type: Type of image eg base/test/dev/factory_install
-    layout_filename: Path to partition configuration file
   """
-  partitions = GetPartitionTableFromConfig(options, layout_filename, image_type)
+  partitions = GetPartitionTableFromConfig(options)
 
   for partition in partitions:
     if partition['bytes'] < 1024 * 1024:
@@ -495,85 +448,73 @@ def DoDebugOutput(options, image_type, layout_filename):
       print 'blank - %s' %  size
 
 
-def DoParseOnly(options, image_type, layout_filename):
+def DoParseOnly(options):
   """Parses a layout file only, used before reading sizes to check for errors.
 
   Args:
     options: Flags passed to the script
-    image_type: Type of image eg base/test/dev/factory_install
-    layout_filename: Path to partition configuration file
   """
-  partitions = GetPartitionTableFromConfig(options, layout_filename, image_type)
+  GetPartitionTableFromConfig(options)
 
 
 def main(argv):
-  action_map = {
-    'write_gpt': {
-      'usage': ['<image_type>', '<partition_config_file>', '<disk_image>'],
-      'func': WritePartitionTable,
-    },
-    'write_mbr': {
-      'usage': ['<image_type>', '<partition_config_file>', '<disk_image>',
-                '<mbr_boot_code>'],
-      'func': WriteMbrBoot,
-    },
-    'readblocksize': {
-      'usage': ['<partition_config_file>'],
-      'func': GetBlockSize,
-    },
-    'readfsblocksize': {
-      'usage': ['<partition_config_file>'],
-      'func': GetFilesystemBlockSize,
-    },
-    'readpartsize': {
-      'usage': ['<image_type>', '<partition_config_file>', '<partition_num>'],
-      'func': GetPartitionSize,
-    },
-    'readfssize': {
-      'usage': ['<image_type>', '<partition_config_file>', '<partition_num>'],
-      'func': GetFilesystemSize,
-    },
-    'readlabel': {
-      'usage': ['<image_type>', '<partition_config_file>', '<partition_num>'],
-      'func': GetLabel,
-    },
-    'readnum': {
-      'usage': ['<image_type>', '<partition_config_file>', '<label>'],
-      'func': GetNum,
-    },
-    'readuuid': {
-      'usage': ['<image_type>', '<partition_config_file>', '<label>'],
-      'func': GetUuid,
-    },
-    'debug': {
-      'usage': ['<image_type>', '<partition_config_file>'],
-      'func': DoDebugOutput,
-    },
-    'parseonly': {
-      'usage': ['<image_type>', '<partition_config_file>'],
-      'func': DoParseOnly,
-    }
-  }
+  default_layout_file = os.environ.get('DISK_LAYOUT_FILE',
+          os.path.join(os.path.dirname(__file__), 'legacy_disk_layout.json'))
+  default_layout_type = os.environ.get('DISK_LAYOUT_TYPE', 'base')
 
-  parser = OptionParser()
-  parser.add_option("--adjust_part", dest="adjust_part",
-                    help="adjust partition sizes", default="")
-  (options, args) = parser.parse_args()
+  parser = argparse.ArgumentParser(
+          formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+  parser.add_argument('--adjust_part', default='',
+          help='adjust partition sizes')
+  parser.add_argument('--disk_layout_file', default=default_layout_file,
+          help='path to disk layout json file')
+  parser.add_argument('--disk_layout', default=default_layout_type,
+          help='disk layout type from the json file')
+  actions = parser.add_subparsers(title='actions')
 
-  if len(args) < 1 or args[0] not in action_map:
-    print 'Usage: %s <action>\n' % sys.argv[0]
-    print 'Valid actions are:'
-    for action in action_map:
-      print '  %s %s' % (action, ' '.join(action_map[action]['usage']))
-    sys.exit(1)
-  else:
-    action_name = args[0]
-    action = action_map[action_name]
-    if len(action['usage']) == len(args) - 1:
-      print action['func'](options, *args[1:])
-    else:
-      sys.exit('Usage: %s %s %s' % (sys.argv[0], args[0],
-               ' '.join(action['usage'])))
+  a = actions.add_parser('write_gpt', help='write gpt to new image')
+  a.add_argument('disk_image', help='path to disk image file')
+  a.set_defaults(func=WritePartitionTable)
+
+  a = actions.add_parser('write_mbr', help='write mbr to existing image')
+  a.add_argument('disk_image', help='path to disk image file')
+  a.add_argument('mbr_boot_code', help='path to mbr boot block')
+  a.set_defaults(func=WriteMbrBoot)
+
+  a = actions.add_parser('readblocksize', help='get device block size')
+  a.set_defaults(func=GetBlockSize)
+
+  a = actions.add_parser('readfsblocksize', help='get filesystem block size')
+  a.set_defaults(func=GetFilesystemBlockSize)
+
+  a = actions.add_parser('readpartsize', help='get partition size')
+  a.add_argument('partition_num', type=int, help='partition number')
+  a.set_defaults(func=GetPartitionSize)
+
+  a = actions.add_parser('readfssize', help='get filesystem size')
+  a.add_argument('partition_num', type=int, help='partition number')
+  a.set_defaults(func=GetFilesystemSize)
+
+  a = actions.add_parser('readlabel', help='get partition label')
+  a.add_argument('partition_num', type=int, help='partition number')
+  a.set_defaults(func=GetLabel)
+
+  a = actions.add_parser('readnum', help='get partition number')
+  a.add_argument('label', help='partition label')
+  a.set_defaults(func=GetNum)
+
+  a = actions.add_parser('readuuid', help='get partition uuid')
+  a.add_argument('label', help='partition label')
+  a.set_defaults(func=GetUuid)
+
+  a = actions.add_parser('debug', help='dump debug output')
+  a.set_defaults(func=DoDebugOutput)
+
+  a = actions.add_parser('parseonly', help='validate config')
+  a.set_defaults(func=DoParseOnly)
+
+  options = parser.parse_args(argv[1:])
+  options.func(options)
 
 
 if __name__ == '__main__':

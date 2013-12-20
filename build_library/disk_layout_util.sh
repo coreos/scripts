@@ -17,13 +17,8 @@ cgpt_py() {
   "${CGPT_PY}" "$@"
 }
 
-get_disk_layout_path() {
-  DISK_LAYOUT_PATH="${BUILD_LIBRARY_DIR}/legacy_disk_layout.json"
-}
-
 write_partition_table() {
-  local image_type=$1
-  local outdev=$2
+  local outdev=$1
 
   local pmbr_img
   case ${ARCH} in
@@ -39,77 +34,59 @@ write_partition_table() {
     ;;
   esac
 
-  get_disk_layout_path
-  cgpt_py write_gpt "${image_type}" "${DISK_LAYOUT_PATH}" "${outdev}"
-  cgpt_py write_mbr \
-      "${image_type}" "${DISK_LAYOUT_PATH}" "${outdev}" "${pmbr_img}"
+  cgpt_py write_gpt "${outdev}"
+  cgpt_py write_mbr "${outdev}" "${pmbr_img}"
 }
 
 get_fs_block_size() {
-  get_disk_layout_path
-
-  cgpt_py readfsblocksize "${DISK_LAYOUT_PATH}"
+  cgpt_py readfsblocksize
 }
 
 get_block_size() {
-  get_disk_layout_path
-
-  cgpt_py readblocksize "${DISK_LAYOUT_PATH}"
+  cgpt_py readblocksize
 }
 
 get_partition_size() {
-  local image_type=$1
-  local part_id=$2
-  get_disk_layout_path
+  local part_id=$1
 
-  cgpt_py readpartsize "${image_type}" "${DISK_LAYOUT_PATH}" ${part_id}
+  cgpt_py readpartsize ${part_id}
 }
 
 get_filesystem_size() {
-  local image_type=$1
-  local part_id=$2
-  get_disk_layout_path
+  local part_id=$1
 
-  cgpt_py readfssize "${image_type}" "${DISK_LAYOUT_PATH}" ${part_id}
+  cgpt_py readfssize ${part_id}
 }
 
 get_label() {
-  local image_type=$1
-  local part_id=$2
-  get_disk_layout_path
+  local part_id=$1
 
-  cgpt_py readlabel "${image_type}" "${DISK_LAYOUT_PATH}" ${part_id}
+  cgpt_py readlabel ${part_id}
 }
 
 get_num() {
-  local image_type=$1
-  local label=$2
-  get_disk_layout_path
+  local label=$1
 
-  cgpt_py readnum "${image_type}" "${DISK_LAYOUT_PATH}" ${label}
+  cgpt_py readnum ${label}
 }
 
 get_uuid() {
-  local image_type=$1
-  local label=$2
-  get_disk_layout_path
+  local label=$1
 
-  cgpt_py readuuid "${image_type}" "${DISK_LAYOUT_PATH}" ${label}
+  cgpt_py readuuid ${label}
 }
 
 check_valid_layout() {
-  local image_type=$1
-  get_disk_layout_path
-
-  cgpt_py parseonly "${image_type}" "${DISK_LAYOUT_PATH}" > /dev/null
+  cgpt_py parseonly > /dev/null
 }
 
 get_disk_layout_type() {
-  DISK_LAYOUT_TYPE="base"
+  DISK_LAYOUT_TYPE="${1:-base}"
   if [[ -n "${FLAGS_disk_layout}" && \
       "${FLAGS_disk_layout}" != "default" ]]; then
     DISK_LAYOUT_TYPE="${FLAGS_disk_layout}"
   fi
+  export DISK_LAYOUT_TYPE
 }
 
 emit_gpt_scripts() {
@@ -180,7 +157,7 @@ build_gpt() {
   local oem_img="$5"
 
   get_disk_layout_type
-  write_partition_table "${DISK_LAYOUT_TYPE}" "${outdev}"
+  write_partition_table "${outdev}"
 
   local sudo=
   if [ ! -w "$outdev" ] ; then
