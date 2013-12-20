@@ -36,6 +36,9 @@ def LoadPartitionConfig(options):
   valid_layout_keys = set((
       '_comment', 'type', 'num', 'label', 'blocks', 'block_size', 'fs_blocks',
       'fs_block_size', 'features', 'uuid', 'alignment'))
+  integer_layout_keys = set((
+      'blocks', 'block_size', 'fs_blocks', 'fs_block_size', 'alignment'))
+  required_layout_keys = set(('type', 'num', 'label', 'blocks'))
 
   filename = options.disk_layout_file
   if not os.path.exists(filename):
@@ -43,82 +46,116 @@ def LoadPartitionConfig(options):
   with open(filename) as f:
     config = json.load(f)
 
+  unknown_keys = set(config.keys()) - valid_keys
+  if unknown_keys:
+    raise InvalidLayout('Unknown items: %s' % ' '.join(unknown_keys))
+
   try:
     metadata = config['metadata']
+    base = config['layouts']['base']
     for key in ('alignment', 'block_size', 'fs_block_size'):
       metadata[key] = int(metadata[key])
-
-    # Sometimes qemu-img expects disks sizes aligned to 64k
-    align_bytes = metadata['alignment'] * metadata['block_size']
-    if align_bytes < 65536 or align_bytes % 65536 != 0:
-      raise InvalidLayout('Invalid alignment, 64KB or better required')
-
-    unknown_keys = set(config.keys()) - valid_keys
-    if unknown_keys:
-      raise InvalidLayout('Unknown items: %r' % unknown_keys)
-
-    if len(config['layouts']) <= 0:
-      raise InvalidLayout('Missing "layouts" entries')
-
-    for layout_name, layout in config['layouts'].iteritems():
-      for part_num, part in layout.iteritems():
-        unknown_keys = set(part.keys()) - valid_layout_keys
-        if unknown_keys:
-          raise InvalidLayout('Unknown items in layout %s: %r' %
-                              (layout_name, unknown_keys))
-
-        part['num'] = int(part_num)
-        if part['type'] == 'blank':
-          continue
-
-        if not part.get('label', None):
-          raise InvalidLayout('Layout "%s" missing "label" in partition %s' %
-                              (layout_name, part_num))
-
-        part['alignment'] = int(part.get('alignment', metadata['alignment']))
-        part['blocks'] = int(part['blocks'])
-        part['bytes'] = part['blocks'] * metadata['block_size']
-
-        if 'fs_blocks' in part:
-          part['fs_blocks'] = int(part['fs_blocks'])
-          part['fs_bytes'] = part['fs_blocks'] * metadata['fs_block_size']
-
-          if part['fs_bytes'] > part['bytes']:
-            raise InvalidLayout(
-                'Filesystem may not be larger than partition: %s %s: %d > %d' %
-                (layout_name, part['label'], part['fs_bytes'], part['bytes']))
-
-        if 'uuid' in part:
-          try:
-            # double check the string formatting
-            part['uuid'] = str(uuid.UUID(part['uuid']))
-          except ValueError as e:
-            raise InvalidLayout('Invalid uuid %r: %s' % (part['uuid'], e))
-        else:
-          part['uuid'] = str(uuid.uuid4())
   except KeyError as e:
-    raise InvalidLayout('Layout is missing required entries: %s' % e)
+    raise InvalidLayout('Metadata is missing required entries: %s' % e)
 
-  return config
+  # Sometimes qemu-img expects disks sizes aligned to 64k
+  align_bytes = metadata['alignment'] * metadata['block_size']
+  if align_bytes < 65536 or align_bytes % 65536 != 0:
+    raise InvalidLayout('Invalid alignment, 64KB or better required')
 
 
-def GetPartitionTable(options, config):
-  """Generates requested image_type layout from a layout configuration.
-  This loads the base table and then overlays the requested layout over
-  the base layout.
+  def VerifyLayout(layout_name, layout, base=None):
+    for part_num, part in layout.iteritems():
+      part['num'] = int(part_num)
+      part_keys = set(part.iterkeys())
+      unknown_keys = part_keys - valid_layout_keys
+      if unknown_keys:
+        raise InvalidLayout('Unknown items in partition %s %s: %r' %
+                            (layout_name, part_num, ' '.join(unknown_keys)))
 
-  Args:
-    options: Flags passed to the script
-    config: Partition configuration file object
-  Returns:
-    Object representing a selected partition table
-  """
+      for int_key in integer_layout_keys.intersection(part_keys):
+        part[int_key] = int(part[int_key])
 
-  partitions = config['layouts']['base'].copy()
-  for part_num, part in config['layouts'][options.disk_layout].iteritems():
-    partitions[part_num].update(part)
+      if part.get('type', None) == 'blank':
+        continue
 
-  return partitions
+      if base:
+        part_keys.update(base.iterkeys())
+
+      missing_keys = required_layout_keys - part_keys
+      if missing_keys:
+        raise InvalidLayout('Missing items in partition %s %s: %s' %
+                            (layout_name, part_num, ' '.join(missing_keys)))
+
+      if 'uuid' in part:
+        try:
+          # double check the string formatting
+          part['uuid'] = str(uuid.UUID(part['uuid']))
+        except ValueError as e:
+          raise InvalidLayout('Invalid uuid %r: %s' % (part['uuid'], e))
+
+
+  def Align(count, alignment):
+    offset = count % alignment
+    if offset:
+      count += alignment - offset
+    return count
+
+
+  def FillExtraValues(layout_name, layout, base=None):
+    # Reserved size for first GPT
+    disk_block_count = GPT_RESERVED_SECTORS
+
+    # Fill in default values from base,
+    # dict doesn't have a update()+setdefault() method so this looks tedious
+    if base:
+      for part_num, base_part in base.iteritems():
+        part = layout.setdefault(part_num, {})
+        for base_key, base_value in base_part.iteritems():
+          part.setdefault(base_key, base_value)
+
+    for part_num, part in layout.iteritems():
+      if part['type'] == 'blank':
+        continue
+
+      part.setdefault('alignment', metadata['alignment'])
+      part['bytes'] = part['blocks'] * metadata['block_size']
+      part.setdefault('fs_block_size', metadata['fs_block_size'])
+      part.setdefault('fs_blocks', part['bytes'] // part['fs_block_size'])
+      part['fs_bytes'] = part['fs_blocks'] * part['fs_block_size']
+
+      if part['fs_bytes'] > part['bytes']:
+        raise InvalidLayout(
+            'Filesystem may not be larger than partition: %s %s: %d > %d' %
+            (layout_name, part_num, part['fs_bytes'], part['bytes']))
+
+      disk_block_count = Align(disk_block_count, part['alignment'])
+      part['first_block'] = disk_block_count
+      disk_block_count += part['blocks']
+
+      part.setdefault('uuid', str(uuid.uuid4()))
+
+    # Reserved size for second GPT plus align disk image size
+    disk_block_count += GPT_RESERVED_SECTORS
+    disk_block_count = Align(disk_block_count, metadata['alignment'])
+
+    # If this is the requested layout stash the disk size into the global
+    # metadata. Kinda odd but the best place I've got with this data structure.
+    if layout_name == options.disk_layout:
+      metadata['blocks'] = disk_block_count
+
+
+  # Verify 'base' before other layouts because it is inherited by the others
+  # Fill in extra/default values in base last so they aren't inherited
+  VerifyLayout('base', base)
+  for layout_name, layout in config['layouts'].iteritems():
+    if layout_name == 'base':
+      continue
+    VerifyLayout(layout_name, layout, base)
+    FillExtraValues(layout_name, layout, base)
+  FillExtraValues('base', base)
+
+  return config, config['layouts'][options.disk_layout]
 
 
 def GetPartitionTableFromConfig(options):
@@ -130,9 +167,7 @@ def GetPartitionTableFromConfig(options):
     A list defining all known partitions.
   """
 
-  config = LoadPartitionConfig(options)
-  partitions = GetPartitionTable(options, config)
-
+  config, partitions = LoadPartitionConfig(options)
   return partitions
 
 
@@ -146,33 +181,15 @@ def WritePartitionTable(options):
   def Cgpt(*args):
     subprocess.check_call(['cgpt'] + [str(a) for a in args])
 
-  def Align(count, alignment):
-    offset = count % alignment
-    if offset:
-      count += alignment - offset
-    return count
+  config, partitions = LoadPartitionConfig(options)
 
-  config = LoadPartitionConfig(options)
-  partitions = GetPartitionTable(options, config)
-  disk_block_count = GPT_RESERVED_SECTORS
+  Cgpt('create', '-c', '-s', config['metadata']['blocks'], options.disk_image)
 
-  for partition in partitions:
-    disk_block_count = Align(disk_block_count, partition['alignment'])
-    disk_block_count += partition['blocks']
-
-  disk_block_count += GPT_RESERVED_SECTORS
-  # Sometimes qemu-img expects disks sizes aligned to 64k
-  disk_block_count = Align(disk_block_count, config['metadata']['alignment'])
-
-  Cgpt('create', '-c', '-s', disk_block_count, options.disk_image)
-
-  sector = GPT_RESERVED_SECTORS
   esp_number = None
   for partition in partitions.itervalues():
-    sector = Align(sector, partition['alignment'])
     if partition['type'] != 'blank':
       Cgpt('add', '-i', partition['num'],
-                  '-b', sector,
+                  '-b', partition['first_block'],
                   '-s', partition['blocks'],
                   '-t', partition['type'],
                   '-l', partition['label'],
@@ -181,8 +198,6 @@ def WritePartitionTable(options):
 
     if partition['type'] == 'efi':
       esp_number = partition['num']
-
-    sector += partition['blocks']
 
   if esp_number is None:
     raise InvalidLayout('Table does not include an EFI partition.')
@@ -240,7 +255,7 @@ def GetBlockSize(options):
     Block size of all partitions in the layout
   """
 
-  config = LoadPartitionConfig(options)
+  config, partitions = LoadPartitionConfig(options)
   print config['metadata']['block_size']
 
 
@@ -255,7 +270,7 @@ def GetFilesystemBlockSize(options):
     Block size of all filesystems in the layout
   """
 
-  config = LoadPartitionConfig(options)
+  config, partitions = LoadPartitionConfig(options)
   print config['metadata']['fs_block_size']
 
 
