@@ -5,15 +5,6 @@
 CGPT_PY="${BUILD_LIBRARY_DIR}/disk_util"
 
 cgpt_py() {
-  if [[ -n "${FLAGS_adjust_part-}" ]]; then
-    set -- --adjust_part "${FLAGS_adjust_part}" "$@"
-    if [[ ! -t 0 ]]; then
-      warn "The --adjust_part flag was passed." \
-           "This option must ONLY be used interactively. If" \
-           "you need to pass a size from another script, you're" \
-           "doing it wrong and should be using a disk layout type."
-    fi
-  fi
   "${CGPT_PY}" "$@"
 }
 

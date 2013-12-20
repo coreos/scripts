@@ -6,7 +6,6 @@
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 import uuid
@@ -125,76 +124,7 @@ def GetPartitionTable(options, config):
           for k, v in partition_t.items():
             partition[k] = v
 
-  for adjustment_str in options.adjust_part.split():
-    adjustment = adjustment_str.split(':')
-    if len(adjustment) < 2:
-      raise InvalidAdjustment('Adjustment specified was incomplete')
-
-    label = adjustment[0]
-    operator = adjustment[1][0]
-    operand = adjustment[1][1:]
-    ApplyPartitionAdjustment(partitions, metadata, label, operator, operand)
-
   return partitions
-
-
-def ApplyPartitionAdjustment(partitions, metadata, label, operator, operand):
-  """Applies an adjustment to a partition specified by label
-
-  Args:
-    partitions: Partition table to modify
-    metadata: Partition table metadata
-    label: The label of the partition to adjust
-    operator: Type of adjustment (+/-/=)
-    operand: How much to adjust by
-  """
-
-  partition = GetPartitionByLabel(partitions, label)
-
-  operand_digits = re.sub('\D', '', operand)
-  size_factor = block_factor = 1
-  suffix = operand[len(operand_digits):]
-  if suffix:
-    size_factors = { 'B': 0, 'K': 1, 'M': 2, 'G': 3, 'T': 4, }
-    try:
-      size_factor = size_factors[suffix[0].upper()]
-    except KeyError:
-      raise InvalidAdjustment('Unknown size type %s' % suffix)
-    if size_factor == 0 and len(suffix) > 1:
-      raise InvalidAdjustment('Unknown size type %s' % suffix)
-    block_factors = { '': 1024, 'B': 1000, 'IB': 1024, }
-    try:
-      block_factor = block_factors[suffix[1:].upper()]
-    except KeyError:
-      raise InvalidAdjustment('Unknown size type %s' % suffix)
-
-  operand_bytes = int(operand_digits) * pow(block_factor, size_factor)
-
-  if operand_bytes % metadata['block_size'] == 0:
-    operand_blocks = operand_bytes / metadata['block_size']
-  else:
-    raise InvalidAdjustment('Adjustment size not divisible by block size')
-
-  if operator == '+':
-    partition['blocks'] += operand_blocks
-    partition['bytes'] += operand_bytes
-  elif operator == '-':
-    partition['blocks'] -= operand_blocks
-    partition['bytes'] -= operand_bytes
-  elif operator == '=':
-    partition['blocks'] = operand_blocks
-    partition['bytes'] = operand_bytes
-  else:
-    raise ValueError('unknown operator %s' % operator)
-
-  if partition['type'] == 'rootfs':
-    # If we're adjusting a rootFS partition, we assume the full partition size
-    # specified is being used for the filesytem, minus the space reserved for
-    # the hashpad.
-    partition['fs_bytes'] = partition['bytes']
-    partition['fs_blocks'] = partition['fs_bytes'] / metadata['fs_block_size']
-    partition['blocks'] = int(partition['blocks'] * 1.15)
-    partition['bytes'] = partition['blocks'] * metadata['block_size']
 
 
 def GetPartitionTableFromConfig(options):
@@ -453,8 +383,6 @@ def main(argv):
 
   parser = argparse.ArgumentParser(
           formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-  parser.add_argument('--adjust_part', default='',
-          help='adjust partition sizes')
   parser.add_argument('--disk_layout_file', default=default_layout_file,
           help='path to disk layout json file')
   parser.add_argument('--disk_layout', default=default_layout_type,

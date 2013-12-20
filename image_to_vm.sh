@@ -26,8 +26,6 @@ assert_inside_chroot
 . "${SCRIPT_ROOT}/lib/cros_vm_constants.sh" || exit 1
 
 # Flags
-DEFINE_string adjust_part "" \
-  "Adjustments to apply to the partition table"
 DEFINE_string board "${DEFAULT_BOARD}" \
   "Board for which the image was built"
 

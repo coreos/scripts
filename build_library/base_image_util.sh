@@ -215,7 +215,7 @@ create_base_image() {
   emit_gpt_scripts "${BUILD_DIR}/${image_name}" "${BUILD_DIR}"
 
   ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
-    ${image_name} --adjust_part="${FLAGS_adjust_part}"
+    "${image_name}"
 
   trap - EXIT
 }
