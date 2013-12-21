@@ -35,7 +35,7 @@ def LoadPartitionConfig(options):
   valid_keys = set(('_comment', 'metadata', 'layouts'))
   valid_layout_keys = set((
       '_comment', 'type', 'num', 'label', 'blocks', 'block_size', 'fs_blocks',
-      'fs_block_size', 'features', 'uuid', 'alignment'))
+      'fs_block_size', 'fs_type', 'features', 'uuid', 'alignment'))
   integer_layout_keys = set((
       'blocks', 'block_size', 'fs_blocks', 'fs_block_size', 'alignment'))
   required_layout_keys = set(('type', 'num', 'label', 'blocks'))
@@ -94,6 +94,10 @@ def LoadPartitionConfig(options):
         except ValueError as e:
           raise InvalidLayout('Invalid uuid %r: %s' % (part['uuid'], e))
 
+      if 'fs_type' in part:
+        if part['fs_type'] not in ('ext2', 'ext4', 'vfat'):
+          raise InvalidLayout('Invalid fs_type: %r' % part['fs_type'])
+
 
   def Align(count, alignment):
     offset = count % alignment
@@ -131,6 +135,7 @@ def LoadPartitionConfig(options):
 
       disk_block_count = Align(disk_block_count, part['alignment'])
       part['first_block'] = disk_block_count
+      part['first_byte'] = disk_block_count * metadata['block_size']
       disk_block_count += part['blocks']
 
       part.setdefault('uuid', str(uuid.uuid4()))
@@ -171,17 +176,20 @@ def GetPartitionTableFromConfig(options):
   return partitions
 
 
-def WritePartitionTable(options):
+def WritePartitionTable(options, config=None, partitions=None):
   """Writes the given partition table to a disk image or device.
 
   Args:
     options: Flags passed to the script
+    config: Complete layout configuration file object
+    partitions: Selected layout configuration object
   """
 
   def Cgpt(*args):
     subprocess.check_call(['cgpt'] + [str(a) for a in args])
 
-  config, partitions = LoadPartitionConfig(options)
+  if not (config and partitions):
+    config, partitions = LoadPartitionConfig(options)
 
   Cgpt('create', '-c', '-s', config['metadata']['blocks'], options.disk_image)
 
@@ -209,6 +217,108 @@ def WritePartitionTable(options):
                  options.disk_image)
 
   Cgpt('show', options.disk_image)
+
+
+def Sudo(cmd, stdout_null=False):
+  """Little wrapper around sudo with support for redirecting to /dev/null
+
+  Some tools like tune2fs don't have a quiet mode which just adds
+  useless noise to our build output, drowning out what may be more
+  interesting news.
+
+  Args:
+    cmd: a command and arguments to run.
+    stdout_null: bool to enable redirecting stdout to /dev/null.
+  """
+
+  null = None
+  if stdout_null:
+    null = open('/dev/null', 'w')
+
+  try:
+    subprocess.check_call(['sudo'] + [str(c) for c in cmd], stdout=null)
+  finally:
+    if null:
+      null.close()
+
+
+def FormatExt(part, device):
+  """Format an ext2 or ext4 filesystem.
+
+  Args:
+    part: dict defining the partition
+    device: name of the block device to format
+  """
+  Sudo(['mke2fs', '-q',
+                  '-t', part['fs_type'],
+                  '-b', part['fs_block_size'],
+                  device,
+                  part['fs_blocks']])
+
+  # TODO(marineam): Make more of these fs options configurable.
+  Sudo(['tune2fs', '-L', part['label'],
+                   '-U', 'clear',
+                   '-T', '20091119110000',
+                   '-c', '0', '-i', '0', # Disable auto fsck
+                   '-m', '0', '-r', '0', # Disable reserve blocks
+                   '-e', 'remount-ro',
+                   device],
+                   stdout_null=True)
+
+
+def FormatFat(part, device):
+  """Format a FAT filesystem.
+
+  Args:
+    part: dict defining the partition
+    device: name of the block device to format
+  """
+  # The block-count argument to mkfs.vfat is in units of 1k
+  vfat_block_size = 1024
+  vfat_blocks = part['bytes'] // vfat_block_size
+
+  Sudo(['mkfs.vfat', '-n', part['label'],
+                     device,
+                     vfat_blocks],
+                     stdout_null=True)
+
+
+def Format(options):
+  """Writes the given partition table and initialize fresh filesystems.
+
+  Args:
+    options: Flags passed to the script
+  """
+
+  # Note on using sudo: We don't really need to do this stuff as root
+  # but mke2fs and friends doesn't have an option to make filesystems at
+  # arbitrary offsets but using loop devices makes that possible.
+
+  config, partitions = LoadPartitionConfig(options)
+  WritePartitionTable(options, config, partitions)
+
+  for part in partitions.itervalues():
+    if 'fs_type' not in part:
+      continue
+
+    print "Formatting partition %s (%s) as %s" % (
+            part['num'], part['label'], part['fs_type'])
+
+    loop_dev = subprocess.check_output(['sudo', 'losetup',
+        '--offset', str(part['first_byte']),
+        '--sizelimit', str(part['bytes']),
+        '--find', '--show', options.disk_image])
+    loop_dev = loop_dev.strip()
+
+    try:
+      if part['fs_type'] in ('ext2', 'ext4'):
+        FormatExt(part, loop_dev)
+      elif part['fs_type'] == 'vfat':
+        FormatFat(part, loop_dev)
+      else:
+        raise Exception("Unhandled fs type %s" % part['fs_type'])
+    finally:
+      Sudo(['losetup', '--detach', loop_dev])
 
 
 def GetPartitionByNumber(partitions, num):
@@ -402,6 +512,12 @@ def main(argv):
           help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
   a.set_defaults(func=WritePartitionTable)
+
+  a = actions.add_parser('format', help='write gpt and filesystems to image')
+  a.add_argument('--mbr_boot_code',
+          help='path to mbr boot block, such as syslinux/gptmbr.bin')
+  a.add_argument('disk_image', help='path to disk image file')
+  a.set_defaults(func=Format)
 
   a = actions.add_parser('readblocksize', help='get device block size')
   a.set_defaults(func=GetBlockSize)

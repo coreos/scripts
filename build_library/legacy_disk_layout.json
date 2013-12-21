@@ -10,7 +10,8 @@
       "1":{
         "label":"EFI-SYSTEM",
         "type":"efi",
-        "blocks":"262144"
+        "blocks":"262144",
+        "fs_type":"vfat"
       },
       "2":{
         "label":"BOOT-B",
@@ -22,7 +23,8 @@
         "uuid":"7130c94a-213a-4e5a-8e26-6cce9662f132",
         "type":"coreos-rootfs",
         "blocks":"2097152",
-        "fs_blocks":"262144"
+        "fs_blocks":"262144",
+        "fs_type":"ext2"
       },
       "4":{
         "label":"ROOT-B",
@@ -40,7 +42,8 @@
       "6":{
         "label":"OEM",
         "type":"data",
-        "blocks":"262144"
+        "blocks":"262144",
+        "fs_type":"ext4"
       },
       "7":{
         "type":"blank",
@@ -55,7 +58,8 @@
       "9":{
         "label":"STATE",
         "type":"data",
-        "blocks":"1048576"
+        "blocks":"1048576",
+        "fs_type":"ext4"
       }
     },
     "vm":{
