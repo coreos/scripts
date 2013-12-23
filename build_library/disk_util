@@ -35,7 +35,8 @@ def LoadPartitionConfig(options):
   valid_keys = set(('_comment', 'metadata', 'layouts'))
   valid_layout_keys = set((
       '_comment', 'type', 'num', 'label', 'blocks', 'block_size', 'fs_blocks',
-      'fs_block_size', 'fs_type', 'features', 'uuid', 'alignment'))
+      'fs_block_size', 'fs_type', 'features', 'uuid', 'alignment', 'mount',
+      'binds'))
   integer_layout_keys = set((
       'blocks', 'block_size', 'fs_blocks', 'fs_block_size', 'alignment'))
   required_layout_keys = set(('type', 'num', 'label', 'blocks'))
@@ -321,6 +322,81 @@ def Format(options):
       Sudo(['losetup', '--detach', loop_dev])
 
 
+def Mount(options):
+  """Mount the given disk image.
+
+  The existing partition table is used to determine what exists but the
+  disk layout config is used to look up mount points and binds.
+
+  Args:
+    options: Flags passed to the script
+  """
+
+  config, partitions = LoadPartitionConfig(options)
+  mounts = {}
+
+  cgpt_show = subprocess.check_output(
+          ['cgpt', 'show', '-q', options.disk_image])
+  for line in cgpt_show.split('\n'):
+    if not line.strip():
+      continue
+    fields = line.split(None, 3)
+    if len(fields) != 4 or not all(f.isdigit() for f in fields[:3]):
+      raise Exception('Invalid output from cgpt show -q: %r' % line)
+
+    first_block = int(fields[0])
+    blocks = int(fields[1])
+    part_num = fields[2]
+    part = partitions.get(part_num, {})
+    path = part.get('mount', None)
+    if not path or not path.startswith('/'):
+      continue
+
+    mounts[path] = {'path': path,
+                    'offset': first_block * config['metadata']['block_size'],
+                    'size': blocks * config['metadata']['block_size'],
+                    'type': part.get('fs_type', 'auto'),
+                    'binds': part.get('binds', {})}
+
+  rootfs = mounts.pop('/', None)
+  if not rootfs:
+    raise InvalidLayout('No partition defined to mount on /')
+
+  def DoMount(mount):
+    full_path = os.path.realpath(options.mount_dir + mount['path'])
+    mount_opts = ['loop',
+                  'offset=%d' % mount['offset'],
+                  'sizelimit=%d' % mount['size']]
+    if options.read_only:
+      mount_opts.append('ro')
+    else:
+      Sudo(['mkdir', '-p', full_path])
+
+    Sudo(['mount', '-t', mount['type'],
+                   '-o', ','.join(mount_opts),
+                   options.disk_image, full_path])
+
+    for src, dst in mount['binds'].iteritems():
+      # src may be relative or absolute, os.path.join handles this.
+      full_src =  os.path.realpath(
+              options.mount_dir + os.path.join(mount['path'], src))
+      full_dst = os.path.realpath(options.mount_dir + dst)
+      Sudo(['mkdir', '-p', full_src, full_dst])
+      Sudo(['mount', '--bind', full_src, full_dst])
+
+  DoMount(rootfs)
+  for mount in mounts.itervalues():
+    DoMount(mount)
+
+def Umount(options):
+  """Unmount the given path.
+
+  Args:
+    options: Flags passed to the script
+  """
+  Sudo(['umount', '--recursive', '--detach-loop', options.mount_dir])
+
+
 def GetPartitionByNumber(partitions, num):
   """Given a partition table and number returns the partition object.
 
@@ -518,6 +594,16 @@ def main(argv):
           help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
   a.set_defaults(func=Format)
+
+  a = actions.add_parser('mount', help='mount filesystems in image')
+  a.add_argument('--read_only', '-r', help='mount filesystems read-only')
+  a.add_argument('disk_image', help='path to disk image file')
+  a.add_argument('mount_dir', help='path to root filesystem mount point')
+  a.set_defaults(func=Mount)
+
+  a = actions.add_parser('umount', help='unmount a image mount point')
+  a.add_argument('mount_dir', help='path to root filesystem mount point')
+  a.set_defaults(func=Umount)
 
   a = actions.add_parser('readblocksize', help='get device block size')
   a.set_defaults(func=GetBlockSize)

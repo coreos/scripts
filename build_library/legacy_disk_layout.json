@@ -11,7 +11,8 @@
         "label":"EFI-SYSTEM",
         "type":"efi",
         "blocks":"262144",
-        "fs_type":"vfat"
+        "fs_type":"vfat",
+        "mount":"/boot/efi"
       },
       "2":{
         "label":"BOOT-B",
@@ -24,7 +25,8 @@
         "type":"coreos-rootfs",
         "blocks":"2097152",
         "fs_blocks":"262144",
-        "fs_type":"ext2"
+        "fs_type":"ext2",
+        "mount":"/"
       },
       "4":{
         "label":"ROOT-B",
@@ -43,7 +45,8 @@
         "label":"OEM",
         "type":"data",
         "blocks":"262144",
-        "fs_type":"ext4"
+        "fs_type":"ext4",
+        "mount":"/usr/share/oem"
       },
       "7":{
         "type":"blank",
@@ -59,7 +62,15 @@
         "label":"STATE",
         "type":"data",
         "blocks":"1048576",
-        "fs_type":"ext4"
+        "fs_type":"ext4",
+        "mount":"/media/state",
+        "binds":{
+          "overlays/home":"/home",
+          "overlays/opt":"/opt",
+          "overlays/srv":"/srv",
+          "overlays/usr/local":"/usr/local",
+          "overlays/var":"/var"
+        }
       }
     },
     "vm":{
