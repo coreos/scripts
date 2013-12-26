@@ -96,6 +96,11 @@ create_boot_desc() {
 EOF
 }
 
+cleanup_mounts() {
+  echo "Cleaning up mounts"
+  "${BUILD_LIBRARY_DIR}/disk_util" umount "$1" || true
+}
+
 delete_prompt() {
   echo "An error occurred in your build so your latest output directory" \
     "is invalid."
