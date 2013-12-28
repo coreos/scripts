@@ -174,25 +174,10 @@ create_base_image() {
   # cros_make_image_bootable.
   create_boot_desc
 
-  # Populates the root filesystem with legacy bootloader templates
-  # appropriate for the platform.  The autoupdater and installer will
-  # use those templates to update the legacy boot partition (12/ESP)
-  # on update.
-  local enable_rootfs_verification=
-  if [[ ${rootfs_verification_enabled} -eq ${FLAGS_TRUE} ]]; then
-    enable_rootfs_verification="--enable_rootfs_verification"
-  fi
-
   ${BUILD_LIBRARY_DIR}/create_legacy_bootloader_templates.sh \
     --arch=${ARCH} \
     --to="${root_fs_dir}"/boot \
-    --boot_args="${FLAGS_boot_args}" \
-      ${enable_rootfs_verification}
-
-  if [[ ${skip_test_image_content} -ne 1 ]]; then
-    # Check that the image has been correctly created.
-    test_image_content "$root_fs_dir"
-  fi
+    --boot_args="${FLAGS_boot_args}"
 
   # Zero all fs free space to make it more compressible so auto-update
   # payloads become smaller, not fatal since it won't work on linux < 3.2
@@ -215,7 +200,7 @@ create_base_image() {
   emit_gpt_scripts "${BUILD_DIR}/${image_name}" "${BUILD_DIR}"
 
   ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
-    "${image_name}"
+    "${image_name}" --noenable_rootfs_verification
 
   trap - EXIT
 }

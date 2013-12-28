@@ -121,7 +121,7 @@ fi
 mkdir -p "${BUILD_DIR}"
 
 # Create the base image.
-create_base_image ${PRISTINE_IMAGE_NAME} ${FLAGS_enable_rootfs_verification}
+create_base_image ${PRISTINE_IMAGE_NAME}
 if should_build_image ${PRISTINE_IMAGE_NAME}; then
   upload_image "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
 fi
