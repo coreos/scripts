@@ -73,57 +73,18 @@ set +e
 # Now parse the build settings from ${OUTPUT_DIR}/boot.desc
 DEFINE_string board "${DEFAULT_BOARD}" \
   "Board we're building for."
-DEFINE_string output_dir "/tmp" \
-  "Directory to place output in."
 DEFINE_string image "coreos_base.img" \
   "Full path to the coreos image to make bootable."
 DEFINE_string arch "x86" \
   "Architecture to make bootable for: arm, x86, or amd64"
-DEFINE_boolean cleanup_dirs ${FLAGS_TRUE} \
-  "Whether the mount dirs should be removed on completion."
-
-DEFINE_string boot_args "noinitrd" \
-  "Additional boot arguments to pass to the commandline"
-
 DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
   "Default all bootloaders to NOT use kernel-based root fs integrity checking."
-
-DEFINE_string keys_dir "/usr/share/vboot/devkeys" \
-  "Directory containing the signing keys."
-
 DEFINE_string au_key "" \
   "Filename of the au_key to install"
-
 DEFINE_string production_track "" \
     "Use production values and a given track for update service."
-
-DEFINE_string rootfs_mountpoint "/tmp/rootfs" \
-  "Path where the rootfs can be safely mounted"
-DEFINE_string statefulfs_mountpoint "/tmp/statefulfs" \
-  "Path where the statefulfs can be safely mounted"
-DEFINE_string espfs_mountpoint "/tmp/espfs" \
-  "Path where the espfs can be safely mounted"
-
-DEFINE_boolean use_dev_keys ${FLAGS_FALSE} \
-  "Use developer keys for signing. (Default: false)"
-
 DEFINE_boolean fsck_rootfs ${FLAGS_FALSE} \
   "Check integrity of the rootfs on the modified image."
-
-# TODO(pkumar): Remove once known that no images are using this flag
-DEFINE_boolean crosbug12352_arm_kernel_signing ${FLAGS_FALSE} \
-  "This flag is deprecated but the bots still need parse old images."
-
-# TODO(sosa):  Remove once known images no longer use this in their config.
-DEFINE_string arm_extra_bootargs "" "DEPRECATED FLAG.  Do not use."
-
-DEFINE_boolean force_developer_mode ${FLAGS_FALSE} \
-  "Add cros_debug to boot args."
-
-DEFINE_boolean enable_squashfs ${FLAGS_FALSE} \
-  "Make the rootfs of the image squashfs."
-DEFINE_string squash_sort_file "" \
-  "Specify the priority of files when squashing the rootfs."
 
 
 # Parse the boot.desc and any overrides
@@ -136,20 +97,14 @@ FLAGS "${@}" || exit 1
 # so will die prematurely if 'switch_to_strict_mode' is specified before now.
 switch_to_strict_mode -u
 
-# $1 - Directory where developer rootfs is mounted.
-# $2 - Directory where developer stateful_partition is mounted.
-# $3 - Directory where the ESP partition is mounted.
 mount_gpt_cleanup() {
-  local rootfs="${1-$FLAGS_rootfs_mountpoint}"
-  local statefs="${2-$FLAGS_statefulfs_mountpoint}"
-  local espfs="${3-$FLAGS_espfs_mountpoint}"
   "${SCRIPTS_DIR}/mount_gpt_image.sh" \
-    -u -r "${rootfs}" -s "${statefs}" -e "${espfs}"
+    -u -r "${rootfs_mountpoint}" \
+    -s "${statefs_mountpoint}" -e "${espfs_mountpoint}"
 }
 
 make_image_bootable() {
   local image="$1"
-  local use_dev_keys=
 
   # Default to non-verified
   local enable_rootfs_verification_flag=--noenable_rootfs_verification
@@ -159,8 +114,8 @@ make_image_bootable() {
 
   trap "mount_gpt_cleanup" EXIT
   "${SCRIPTS_DIR}/mount_gpt_image.sh" --from "$(dirname "${image}")" \
-    --image "$(basename ${image})" -r "${FLAGS_rootfs_mountpoint}" \
-    -s "${FLAGS_statefulfs_mountpoint}"
+    --image "$(basename ${image})" -r "${rootfs_mountpoint}" \
+    -s "${statefulfs_mountpoint}"
 
   legacy_offset_size_export ${image}
 
@@ -168,13 +123,13 @@ make_image_bootable() {
     # Replace /etc/lsb-release on the image.
     "${BUILD_LIBRARY_DIR}/set_lsb_release" \
       --production_track="${FLAGS_production_track}" \
-      --root="${FLAGS_rootfs_mountpoint}" \
+      --root="${rootfs_mountpoint}" \
       --board="${BOARD}"
   fi
 
   # Install an auto update key on the root before sealing it off
   if [ ! -z "${FLAGS_au_key}" ]; then
-    local key_location=${FLAGS_rootfs_mountpoint}"/usr/share/update_engine/"
+    local key_location=${rootfs_mountpoint}"/usr/share/update_engine/"
     sudo mkdir -p "${key_location}"
     sudo cp "${FLAGS_au_key}" "$key_location/update-payload-key.pub.pem"
     sudo chown root:root "$key_location/update-payload-key.pub.pem"
@@ -184,10 +139,10 @@ make_image_bootable() {
 
   # The rootfs should never be mounted rw again after this point without
   # re-calling make_image_bootable.
-  sudo mount -o remount,ro "${FLAGS_rootfs_mountpoint}"
+  sudo mount -o remount,ro "${rootfs_mountpoint}"
   # Newer `mount` will decode the filename backing the loop device,
   # so we need to dig deeper and find the answer ourselves.
-  root_dev=$(awk -v mnt="${FLAGS_rootfs_mountpoint}" \
+  root_dev=$(awk -v mnt="${rootfs_mountpoint}" \
              '$2 == mnt { print $1 }' /proc/mounts)
 
   # Make the filesystem un-mountable as read-write.
@@ -197,26 +152,6 @@ make_image_bootable() {
     # TODO(wad) this would be a good place to reset any other ext2 metadata.
     warn "Disabling r/w mount of the root filesystem"
     disable_rw_mount "$root_dev"
-  fi
-
-  if [ ${FLAGS_use_dev_keys} -eq ${FLAGS_TRUE} ]; then
-    use_dev_keys="--use_dev_keys"
-  fi
-
-  if [ ${FLAGS_force_developer_mode} -eq ${FLAGS_TRUE} ]; then
-    FLAGS_boot_args="${FLAGS_boot_args} cros_debug"
-  fi
-
-  local squash_sort_flag=
-  if [ -n "${FLAGS_squash_sort_file}" ]; then
-    squash_sort_flag="-sort ${FLAGS_squash_sort_file}"
-  fi
-
-  if [ $FLAGS_enable_squashfs -eq $FLAGS_TRUE ]; then
-    local squashfs_img="${FLAGS_output_dir}/squashfs.image"
-    sudo mksquashfs "${FLAGS_rootfs_mountpoint}" ${squashfs_img} -comp lzo \
-      -noI -noF -ef ${SCRIPTS_DIR}/exclude-list -wildcards ${squash_sort_flag}
-    root_dev=$squashfs_img
   fi
 
   # We should update the esp in place in the image.
@@ -232,24 +167,14 @@ make_image_bootable() {
   ${SCRIPTS_DIR}/update_bootloaders.sh \
     --arch=${FLAGS_arch} \
     --to="${bootloader_to}" \
-    --from="${FLAGS_rootfs_mountpoint}"/boot \
-    --vmlinuz_boot_kernel="${FLAGS_rootfs_mountpoint}"/boot/vmlinuz \
-    --vmlinuz="${FLAGS_rootfs_mountpoint}"/boot/vmlinuz \
+    --from="${rootfs_mountpoint}"/boot \
+    --vmlinuz_boot_kernel="${rootfs_mountpoint}"/boot/vmlinuz \
+    --vmlinuz="${rootfs_mountpoint}"/boot/vmlinuz \
     ${bootloader_to_flags}
 
   trap - EXIT
-  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${FLAGS_rootfs_mountpoint}" \
-    -s "${FLAGS_statefulfs_mountpoint}"
-
-  # I can only copy the squashfs image to the image only when it is umounted.
-  if [ $FLAGS_enable_squashfs -eq $FLAGS_TRUE ]; then
-    # copy the squashfs image to the partition
-    info "copy the squashfs to the partition"
-    local part_offset="$(partoffset ${image} ${NUM_ROOTFS_A})"
-    sudo dd bs=512 if="${squashfs_img}" of="${image}" \
-            seek=${part_offset} conv=notrunc status=none
-    sudo rm "${squashfs_img}"
-  fi
+  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${rootfs_mountpoint}" \
+    -s "${statefulfs_mountpoint}"
 }
 
 verify_image_rootfs() {
@@ -271,26 +196,20 @@ command line parameters are correct"
 }
 
 # Store output and temporary files next to image.
-FLAGS_output_dir="${IMAGE_DIR}"
-FLAGS_rootfs_mountpoint="${IMAGE_DIR}/rootfs_dir"
-FLAGS_statefulfs_mountpoint="${IMAGE_DIR}/stateful_dir"
-FLAGS_espfs_mountpoint="${IMAGE_DIR}/esp"
+rootfs_mountpoint="${IMAGE_DIR}/rootfs_dir"
+statefulfs_mountpoint="${IMAGE_DIR}/stateful_dir"
+espfs_mountpoint="${IMAGE_DIR}/esp"
 
 # Create the directories if they don't exist.
-mkdir -p ${FLAGS_rootfs_mountpoint}
-mkdir -p ${FLAGS_statefulfs_mountpoint}
-mkdir -p ${FLAGS_espfs_mountpoint}
+mkdir -p ${rootfs_mountpoint}
+mkdir -p ${statefulfs_mountpoint}
+mkdir -p ${espfs_mountpoint}
 
 make_image_bootable "${IMAGE}"
-# We can't verify the image if squashfs is enabled because the kernel
-# on the host does not support squashfs with LZO
-if [ ${FLAGS_fsck_rootfs} -eq ${FLAGS_TRUE} \
-    -a ${FLAGS_enable_squashfs} -eq ${FLAGS_FALSE} ]; then
+if [ ${FLAGS_fsck_rootfs} -eq ${FLAGS_TRUE} ]; then
   verify_image_rootfs "${IMAGE}"
 fi
 
-if [ ${FLAGS_cleanup_dirs} -eq ${FLAGS_TRUE} ]; then
-  rmdir ${FLAGS_rootfs_mountpoint}
-  rmdir ${FLAGS_statefulfs_mountpoint}
-  rmdir ${FLAGS_espfs_mountpoint}
-fi
+rmdir ${rootfs_mountpoint}
+rmdir ${statefulfs_mountpoint}
+rmdir ${espfs_mountpoint}

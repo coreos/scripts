@@ -89,9 +89,6 @@ create_boot_desc() {
   cat <<EOF > ${BUILD_DIR}/boot.desc
   --board=${BOARD}
   --arch="${ARCH}"
-  --keys_dir="${DEVKEYSDIR}"
-  --boot_args="${FLAGS_boot_args}"
-  --nocleanup_dirs
   ${enable_rootfs_verification_flag}
 EOF
 }

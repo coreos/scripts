@@ -49,7 +49,7 @@ install_dev_packages() {
 
   if should_build_image ${image_name}; then
     ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
-      ${image_name} --force_developer_mode --noenable_rootfs_verification
+      "${image_name}" --noenable_rootfs_verification
   fi
 
   trap - EXIT
