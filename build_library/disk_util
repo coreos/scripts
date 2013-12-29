@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import uuid
 
 # First sector we can use.
@@ -282,6 +283,19 @@ def FormatFat(part, device):
                      device,
                      vfat_blocks],
                      stdout_null=True)
+
+  if 'syslinux' in part.get('features', []):
+    # The syslinux directory must exist before installing ldlinux.sys to it.
+    vfat_mount = tempfile.mkdtemp()
+    Sudo(['mount', '-t', 'vfat', device, vfat_mount])
+    try:
+      Sudo(['mkdir', os.path.join(vfat_mount, 'syslinux')])
+    finally:
+      Sudo(['umount', vfat_mount])
+      os.rmdir(vfat_mount)
+
+    Sudo(['syslinux', '-d', '/syslinux', device])
+    print "Installed SYSLINUX to %s" % part['label']
 
 
 def Format(options):
