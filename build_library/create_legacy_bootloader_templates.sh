@@ -16,8 +16,10 @@ assert_inside_chroot
 # Flags.
 DEFINE_string arch "x86" \
   "The boot architecture: arm or x86. (Default: x86)"
-DEFINE_string to "/tmp/boot" \
-  "Path to populate with bootloader templates (Default: /tmp/boot)"
+DEFINE_string boot_dir "/tmp/boot" \
+  "Path to boot directory in root filesystem (Default: /tmp/boot)"
+DEFINE_string esp_dir "" \
+  "Path to ESP partition mount point (Default: none)"
 DEFINE_string boot_args "" \
   "Additional boot arguments to pass to the commandline (Default: '')"
 
@@ -33,18 +35,15 @@ switch_to_strict_mode
 common_args="console=tty0 ro noswap cros_legacy"
 common_args="${common_args} ${FLAGS_boot_args}"
 
-# Populate the x86 rootfs to support legacy and EFI bios config templates.
-# The templates are used by the installer to populate partition 12 with
-# the correct bootloader configuration.
-if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
-  sudo mkdir -p ${FLAGS_to}
+# Get partition UUIDs from the json config
+ROOTA="PARTUUID=$(get_uuid ROOT-A)"
+ROOTB="PARTUUID=$(get_uuid ROOT-B)"
 
-  # Get partition UUIDs from the json config
-  ROOTA="PARTUUID=$(get_uuid ROOT-A)"
-  ROOTB="PARTUUID=$(get_uuid ROOT-B)"
+GRUB_DIR="${FLAGS_boot_dir}/grub"
+SYSLINUX_DIR="${FLAGS_boot_dir}/syslinux"
 
-  # Build configuration files for pygrub/pvgrub
-  GRUB_DIR="${FLAGS_to}/grub"
+# Build configuration files for pygrub/pvgrub
+configure_grub() {
   sudo mkdir -p "${GRUB_DIR}"
 
   # Add hvc0 for hypervisors
@@ -69,8 +68,10 @@ EOF
   sudo_append "${GRUB_DIR}/menu.lst.B" <"${GRUB_DIR}/menu.lst.A"
   info "Emitted ${GRUB_DIR}/menu.lst.B"
   sudo cp ${GRUB_DIR}/menu.lst.A ${GRUB_DIR}/menu.lst
+}
 
-  SYSLINUX_DIR="${FLAGS_to}/syslinux"
+# Build configuration files for syslinux
+configure_syslinux() {
   sudo mkdir -p "${SYSLINUX_DIR}"
 
   # Add ttyS0 as a secondary console, useful for qemu -nographic
@@ -119,8 +120,32 @@ label coreos.B
   append ${syslinux_args} root=${ROOTB}
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.B.cfg"
+}
 
-  exit 0
+# Copy configurations to the ESP, this is what is actually used to boot
+copy_to_esp() {
+  if ! mountpoint -q "${FLAGS_esp_dir}"; then
+    die "${FLAGS_esp_dir} is not a mount point."
+  fi
+
+  sudo mkdir -p "${FLAGS_esp_dir}"/{syslinux,boot/grub,EFI/boot}
+  sudo cp -r "${GRUB_DIR}/." "${FLAGS_esp_dir}/boot/grub"
+  sudo cp -r "${SYSLINUX_DIR}/." "${FLAGS_esp_dir}/syslinux"
+
+  # Stage all kernels with the only one we built.
+  for kernel in syslinux/{vmlinuz-boot_kernel,vmlinuz.A,vmlinuz.B} \
+                EFI/boot/bootx64.efi
+  do
+    sudo cp "${FLAGS_boot_dir}/vmlinuz" "${FLAGS_esp_dir}/${kernel}"
+  done
+}
+
+if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
+  configure_grub
+  configure_syslinux
+  if [[ -n "${FLAGS_esp_dir}" ]]; then
+    copy_to_esp
+  fi
+else
+  error "No bootloader configuration for ${FLAGS_arch}"
 fi
-
-info "The target platform does not use bootloader templates."

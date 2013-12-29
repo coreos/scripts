@@ -58,7 +58,8 @@ create_base_image() {
 
   ${BUILD_LIBRARY_DIR}/create_legacy_bootloader_templates.sh \
     --arch=${ARCH} \
-    --to="${root_fs_dir}"/boot \
+    --boot_dir="${root_fs_dir}"/boot \
+    --esp_dir="${root_fs_dir}"/boot/efi \
     --boot_args="${FLAGS_boot_args}"
 
   # Zero all fs free space to make it more compressible so auto-update
