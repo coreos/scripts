@@ -45,13 +45,5 @@ install_dev_packages() {
   info "Developer image built and stored at ${image_name}"
 
   cleanup_mounts "${root_fs_dir}"
-  trap "delete_prompt" EXIT
-
-  if should_build_image ${image_name}; then
-    ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
-      "${image_name}" --disk_layout="${disk_layout}" \
-      --noenable_rootfs_verification
-  fi
-
   trap - EXIT
 }

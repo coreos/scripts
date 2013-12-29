@@ -51,11 +51,6 @@ create_base_image() {
   --root="${root_fs_dir}" \
   --board="${BOARD}"
 
-  # Create the boot.desc file which stores the build-time configuration
-  # information needed for making the image bootable after creation with
-  # cros_make_image_bootable.
-  create_boot_desc
-
   ${BUILD_LIBRARY_DIR}/create_legacy_bootloader_templates.sh \
     --arch=${ARCH} \
     --boot_dir="${root_fs_dir}"/boot \
@@ -74,10 +69,6 @@ create_base_image() {
 
   # Emit helpful scripts for testers, etc.
   emit_gpt_scripts "${BUILD_DIR}/${image_name}" "${BUILD_DIR}"
-
-  ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
-    "${image_name}" --disk_layout="${disk_layout}" \
-    --noenable_rootfs_verification
 
   trap - EXIT
 }

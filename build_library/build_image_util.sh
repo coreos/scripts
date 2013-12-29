@@ -80,19 +80,6 @@ make_salt() {
   xxd -l 32 -p -c 32 /dev/urandom
 }
 
-create_boot_desc() {
-  local enable_rootfs_verification_flag=""
-  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-    enable_rootfs_verification_flag="--enable_rootfs_verification"
-  fi
-
-  cat <<EOF > ${BUILD_DIR}/boot.desc
-  --board=${BOARD}
-  --arch="${ARCH}"
-  ${enable_rootfs_verification_flag}
-EOF
-}
-
 cleanup_mounts() {
   echo "Cleaning up mounts"
   "${BUILD_LIBRARY_DIR}/disk_util" umount "$1" || true
