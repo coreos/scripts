@@ -77,6 +77,8 @@ DEFINE_string image "coreos_base.img" \
   "Full path to the coreos image to make bootable."
 DEFINE_string arch "x86" \
   "Architecture to make bootable for: arm, x86, or amd64"
+DEFINE_string disk_layout "base" \
+  "The disk layout type to use for this image."
 DEFINE_boolean enable_rootfs_verification ${FLAGS_FALSE} \
   "Default all bootloaders to NOT use kernel-based root fs integrity checking."
 DEFINE_string au_key "" \
@@ -98,9 +100,7 @@ FLAGS "${@}" || exit 1
 switch_to_strict_mode -u
 
 mount_gpt_cleanup() {
-  "${SCRIPTS_DIR}/mount_gpt_image.sh" \
-    -u -r "${rootfs_mountpoint}" \
-    -s "${statefs_mountpoint}" -e "${espfs_mountpoint}"
+  "${BUILD_LIBRARY_DIR}/disk_util" umount "${rootfs_mountpoint}" || true
 }
 
 make_image_bootable() {
@@ -112,12 +112,9 @@ make_image_bootable() {
     enable_rootfs_verification_flag=--enable_rootfs_verification
   fi
 
+  "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${FLAGS_disk_layout}" \
+      mount "${image}" "${rootfs_mountpoint}"
   trap "mount_gpt_cleanup" EXIT
-  "${SCRIPTS_DIR}/mount_gpt_image.sh" --from "$(dirname "${image}")" \
-    --image "$(basename ${image})" -r "${rootfs_mountpoint}" \
-    -s "${statefulfs_mountpoint}"
-
-  legacy_offset_size_export ${image}
 
   if [ -n "${FLAGS_production_track}" ]; then
     # Replace /etc/lsb-release on the image.
@@ -146,7 +143,6 @@ make_image_bootable() {
              '$2 == mnt { print $1 }' /proc/mounts)
 
   # Make the filesystem un-mountable as read-write.
-  # mount_gpt_image.sh will undo this as needed.
   # TODO(wad) make sure there is parity in the signing scripts.
   if [ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]; then
     # TODO(wad) this would be a good place to reset any other ext2 metadata.
@@ -155,8 +151,7 @@ make_image_bootable() {
   fi
 
   trap - EXIT
-  ${SCRIPTS_DIR}/mount_gpt_image.sh -u -r "${rootfs_mountpoint}" \
-    -s "${statefulfs_mountpoint}"
+  "${BUILD_LIBRARY_DIR}/disk_util" umount "${rootfs_mountpoint}"
 }
 
 verify_image_rootfs() {
@@ -179,13 +174,9 @@ command line parameters are correct"
 
 # Store output and temporary files next to image.
 rootfs_mountpoint="${IMAGE_DIR}/rootfs_dir"
-statefulfs_mountpoint="${IMAGE_DIR}/stateful_dir"
-espfs_mountpoint="${IMAGE_DIR}/esp"
 
 # Create the directories if they don't exist.
 mkdir -p ${rootfs_mountpoint}
-mkdir -p ${statefulfs_mountpoint}
-mkdir -p ${espfs_mountpoint}
 
 make_image_bootable "${IMAGE}"
 if [ ${FLAGS_fsck_rootfs} -eq ${FLAGS_TRUE} ]; then
@@ -193,5 +184,3 @@ if [ ${FLAGS_fsck_rootfs} -eq ${FLAGS_TRUE} ]; then
 fi
 
 rmdir ${rootfs_mountpoint}
-rmdir ${statefulfs_mountpoint}
-rmdir ${espfs_mountpoint}

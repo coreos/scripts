@@ -76,7 +76,8 @@ create_base_image() {
   emit_gpt_scripts "${BUILD_DIR}/${image_name}" "${BUILD_DIR}"
 
   ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
-    "${image_name}" --noenable_rootfs_verification
+    "${image_name}" --disk_layout="${disk_layout}" \
+    --noenable_rootfs_verification
 
   trap - EXIT
 }
