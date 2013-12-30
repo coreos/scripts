@@ -12,6 +12,8 @@ SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 assert_inside_chroot
 
 # Flags
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "The board name."
 DEFINE_string root "${DEFAULT_BOARD+/build/${DEFAULT_BOARD}}" \
   "The root file system to check."
 
@@ -26,4 +28,5 @@ if [[ ! -d "$FLAGS_root" ]]; then
   die_notrace "Root FS does not exist ($FLAGS_root)"
 fi
 
-test_image_content "$FLAGS_root"
+BOARD="${FLAGS_board}"
+test_image_content "$FLAGS_root" || die_notrace "Errors found!"

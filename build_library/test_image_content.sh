@@ -37,6 +37,11 @@ test_image_content() {
   local root="$1"
   local returncode=0
 
+  if [[ -z "$BOARD" ]]; then
+    die '$BOARD is undefined!'
+  fi
+  local portageq="portageq-$BOARD"
+
   local binaries=(
     "$root/boot/vmlinuz"
     "$root/bin/sed"
@@ -86,28 +91,41 @@ test_image_content() {
     fi
   fi
 
-  # Check that there are no conflicts between /* and /usr/*
-  # TODO(marineam): Before symlinking to /usr this test will need to be
-  # rewritten to query the package database instead of the filesystem.
-  local check_dir
-  for check_dir in "${root}"/usr/*; do
-    if [[ ! -d "${check_dir}" || -h "${check_dir}" ]]; then
-      continue
-    fi
-    for check_file in "${check_dir}"/*; do
-      root_file="${root}${check_file##*/usr}"
-      trimmed_path="${root_file#${root}}"
-      local whitelist
-      for whitelist in "${USR_CONFLICT_WHITELIST[@]}"; do
-        if [[ "${trimmed_path}" == "${whitelist}" ]]; then
-          continue 2
+  # Check that the symlink-usr flag agrees with the filesystem state.
+  # Things are likely to break if they don't match.
+  if [[ $(ROOT="${root}" $portageq envvar USE) == *symlink-usr* ]]; then
+    local dir
+    for dir in bin sbin lib32 lib64; do
+      if [[ -d "${root}/usr/${dir}" ]]; then
+        if [[ ! -h "${root}/${dir}" || \
+          $(readlink "${root}/${dir}") != "usr/${dir}" ]]
+        then
+          error "test_image_content: /${dir} is not a symlink to /usr/${dir}"
+          returncode=1
         fi
-      done
-      if [[ -e "${root_file}" || -h "${root_file}" ]]; then
-        # TODO(marineam): make fatal before switching to symlinks
-        warn "test_image_content: ${root_file#${root}} conflicts with /usr"
       fi
     done
+
+    # The whitelist is only required if the use flag is unset
+    USR_CONFLICT_WHITELIST=()
+  fi
+
+  # Check that there are no conflicts between /* and /usr/*
+  local pkgdb=$(ROOT="${root}" $portageq vdb_path)
+  local files=$(awk '$2 ~ /^\/(bin|sbin|lib|lib32|lib64)\// {print $2}' \
+                "${pkgdb}"/*/*/CONTENTS)
+  local check_file
+  for check_file in $files; do
+    local whitelist
+    for whitelist in "${USR_CONFLICT_WHITELIST[@]}"; do
+      if [[ "${check_file}" == "${whitelist}" ]]; then
+        continue 2
+      fi
+    done
+    if grep -q "^... /usr$check_file " "${pkgdb}"/*/*/CONTENTS; then
+      error "test_image_content: $check_file conflicts with /usr$check_file"
+      returncode=1
+    fi
   done
 
   return $returncode
