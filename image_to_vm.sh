@@ -39,8 +39,6 @@ DEFINE_string disk_layout "" \
   "The disk layout type to use for this image."
 DEFINE_integer mem "${DEFAULT_MEM}" \
   "Memory size for the vm config in MBs."
-DEFINE_string state_image "" \
-  "Stateful partition image (defaults to creating new statful partition)"
 DEFINE_boolean prod_image "${FLAGS_FALSE}" \
   "Use the production image instead of the default developer image."
 DEFINE_string to "" \
@@ -105,9 +103,9 @@ legacy_offset_size_export ${VM_SRC_IMG}
 # Make sure things are cleaned up on failure
 trap vm_cleanup EXIT
 
-# Unpack image, using alternate state image if defined
+# Unpack image
 # Resize to use all available space in new disk layout
-unpack_source_disk "${FLAGS_state_image}"
+unpack_source_disk
 resize_state_partition
 
 # Optionally install any OEM packages

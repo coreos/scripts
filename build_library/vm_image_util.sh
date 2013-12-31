@@ -195,17 +195,10 @@ _disk_ext() {
     esac
 }
 
-# Unpack the source disk to individual partitions, optionally using an
-# alternate filesystem image for the state partition instead of the one
-# from VM_SRC_IMG. Start new image using the given disk layout.
+# Unpack the source disk to individual partitions.
+# Start new image using the given disk layout.
 unpack_source_disk() {
     get_disk_layout_type $(_get_vm_opt DISK_LAYOUT)
-    local alternate_state_image="$1"
-
-    if [[ -n "${alternate_state_image}" && ! -f "${alternate_state_image}" ]]
-    then
-        die "State image does not exist: $alternate_state_image"
-    fi
 
     info "Unpacking source image to $(relpath "${VM_TMP_DIR}")"
 
@@ -222,10 +215,6 @@ unpack_source_disk() {
     TEMP_OEM="${VM_TMP_DIR}"/part_${NUM_OEM}
     TEMP_ROOTFS="${VM_TMP_DIR}"/part_${NUM_ROOTFS_A}
     TEMP_STATE="${VM_TMP_DIR}"/part_${NUM_STATEFUL}
-    # Copy the replacement STATE image if it is set
-    if [[ -n "${alternate_state_image}" ]]; then
-        cp --sparse=always "${alternate_state_image}" "${TEMP_STATE}"
-    fi
 
     if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
       info "Initializing new partition table..."
