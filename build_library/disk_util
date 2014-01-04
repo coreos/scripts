@@ -222,6 +222,18 @@ def WritePartitionTable(options, config=None, partitions=None):
   if not (config and partitions):
     config, partitions = LoadPartitionConfig(options)
 
+  # If we are not creating a fresh image all existing partitions must:
+  # - be defined in the new layout
+  # - start at the same position
+  # - be the same size or larger in the new layout
+  if not options.create:
+    old_parts = GetPartitionTableFromImage(options)
+    for part_num, old_part in old_parts.iteritems():
+      part = partitions.get(part_num, {})
+      if (old_part['first_block'] != part.get('first_block', -1) or
+          old_part['blocks'] > part.get('blocks', -1)):
+        raise InvalidLayout("New disk layout is incompatible existing image")
+
   Cgpt('create', '-c', '-s', config['metadata']['blocks'], options.disk_image)
 
   esp_number = None
@@ -618,7 +630,11 @@ def main(argv):
           help='disk layout type from the json file')
   actions = parser.add_subparsers(title='actions')
 
-  a = actions.add_parser('write_gpt', help='write gpt to new image')
+  a = actions.add_parser('write_gpt', help='write/update partition table')
+  a.add_argument('--create', action='store_true', default=True,
+          help='initialize new partition table')
+  a.add_argument('--update', action='store_false', dest='create',
+          help='update existing partition table')
   a.add_argument('--mbr_boot_code',
           help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
@@ -628,7 +644,7 @@ def main(argv):
   a.add_argument('--mbr_boot_code',
           help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
-  a.set_defaults(func=Format)
+  a.set_defaults(func=Format, create=True)
 
   a = actions.add_parser('mount', help='mount filesystems in image')
   a.add_argument('--read_only', '-r', help='mount filesystems read-only')
