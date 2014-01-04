@@ -386,6 +386,29 @@ def Format(options):
         raise Exception("Unhandled fs type %s" % part['fs_type'])
 
 
+def Resize(options):
+  """Writes the given partition table and resize ext[234] filesystems.
+
+  Args:
+    options: Flags passed to the script
+  """
+
+  config, partitions = LoadPartitionConfig(options)
+  WritePartitionTable(options, config, partitions)
+
+  for part in partitions.itervalues():
+    if part.get('fs_type', None) not in ('ext2', 'ext4'):
+      continue
+
+    print "Resizing partition %s (%s) to %s bytes" % (
+            part['num'], part['label'], part['fs_bytes'])
+
+    with PartitionLoop(options, part) as loop_dev:
+      Sudo(['e2fsck', '-p', '-f', loop_dev], stdout_null=True)
+      Sudo(['resize2fs', loop_dev, str(part['fs_blocks'])])
+      Sudo(['tune2fs', '-U', 'clear', loop_dev], stdout_null=True)
+
+
 def Mount(options):
   """Mount the given disk image.
 
@@ -654,6 +677,12 @@ def main(argv):
           help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
   a.set_defaults(func=Format, create=True)
+
+  a = actions.add_parser('resize', help='write gpt and resize filesystems')
+  a.add_argument('--mbr_boot_code',
+          help='path to mbr boot block, such as syslinux/gptmbr.bin')
+  a.add_argument('disk_image', help='path to disk image file')
+  a.set_defaults(func=Resize, create=False)
 
   a = actions.add_parser('mount', help='mount filesystems in image')
   a.add_argument('--read_only', '-r', help='mount filesystems read-only')
