@@ -4,6 +4,7 @@
 # found in the LICENSE file.
 
 import argparse
+import contextlib
 import json
 import os
 import subprocess
@@ -339,6 +340,22 @@ def FormatFat(part, device):
     print "Installed SYSLINUX to %s" % part['label']
 
 
+@contextlib.contextmanager
+def PartitionLoop(options, partition):
+  """Allocate (and automatically free) loop devices for a partition."""
+
+  loop_dev = subprocess.check_output(['sudo', 'losetup',
+      '--offset', str(partition['first_byte']),
+      '--sizelimit', str(partition['bytes']),
+      '--find', '--show', options.disk_image])
+  loop_dev = loop_dev.strip()
+
+  try:
+    yield loop_dev
+  finally:
+    Sudo(['losetup', '--detach', loop_dev])
+
+
 def Format(options):
   """Writes the given partition table and initialize fresh filesystems.
 
@@ -360,21 +377,13 @@ def Format(options):
     print "Formatting partition %s (%s) as %s" % (
             part['num'], part['label'], part['fs_type'])
 
-    loop_dev = subprocess.check_output(['sudo', 'losetup',
-        '--offset', str(part['first_byte']),
-        '--sizelimit', str(part['bytes']),
-        '--find', '--show', options.disk_image])
-    loop_dev = loop_dev.strip()
-
-    try:
+    with PartitionLoop(options, part) as loop_dev:
       if part['fs_type'] in ('ext2', 'ext4'):
         FormatExt(part, loop_dev)
       elif part['fs_type'] == 'vfat':
         FormatFat(part, loop_dev)
       else:
         raise Exception("Unhandled fs type %s" % part['fs_type'])
-    finally:
-      Sudo(['losetup', '--detach', loop_dev])
 
 
 def Mount(options):
