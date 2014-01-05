@@ -685,7 +685,8 @@ def main(argv):
   a.set_defaults(func=Resize, create=False)
 
   a = actions.add_parser('mount', help='mount filesystems in image')
-  a.add_argument('--read_only', '-r', help='mount filesystems read-only')
+  a.add_argument('--read_only', '-r', action='store_true',
+          help='mount filesystems read-only')
   a.add_argument('disk_image', help='path to disk image file')
   a.add_argument('mount_dir', help='path to root filesystem mount point')
   a.set_defaults(func=Mount)
