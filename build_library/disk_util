@@ -79,11 +79,12 @@ def LoadPartitionConfig(options):
       for int_key in integer_layout_keys.intersection(part_keys):
         part[int_key] = int(part[int_key])
 
+      if base:
+        part_base = base.get(part_num, {})
+        part_keys.update(part_base.iterkeys())
+
       if part.get('type', None) == 'blank':
         continue
-
-      if base:
-        part_keys.update(base.iterkeys())
 
       missing_keys = required_layout_keys - part_keys
       if missing_keys:
