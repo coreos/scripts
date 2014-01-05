@@ -103,10 +103,8 @@ legacy_offset_size_export ${VM_SRC_IMG}
 # Make sure things are cleaned up on failure
 trap vm_cleanup EXIT
 
-# Unpack image
-# Resize to use all available space in new disk layout
-unpack_source_disk
-resize_state_partition
+# Setup new (raw) image, possibly resizing filesystems
+setup_disk_image "${FLAGS_disk_layout}"
 
 # Optionally install any OEM packages
 install_oem_package
