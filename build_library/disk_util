@@ -179,7 +179,7 @@ def GetPartitionTableFromConfig(options):
   return partitions
 
 
-def GetPartitionTableFromImage(options):
+def GetPartitionTableFromImage(options, config, partitions):
   """Loads very basic partition table info from an existing image.
 
   Currently only includes blocks and first_block values.
@@ -189,7 +189,7 @@ def GetPartitionTableFromImage(options):
   Returns:
     A list defining all existing partitions.
   """
-  partitions = {}
+  block_size = config['metadata']['block_size']
   cgpt_show = subprocess.check_output(
           ['cgpt', 'show', '-q', options.disk_image])
   for line in cgpt_show.split('\n'):
@@ -199,13 +199,32 @@ def GetPartitionTableFromImage(options):
     if len(fields) != 4 or not all(f.isdigit() for f in fields[:3]):
       raise Exception('Invalid output from cgpt show -q: %r' % line)
 
-    part_num = fields[2]
-    partitions[part_num] = {
-            'num': int(part_num),
-            'first_block': int(fields[0]),
-            'blocks': int(fields[1])}
+    part = partitions.setdefault(fields[2], {})
+    part['image_first_block'] = int(fields[0])
+    part['image_first_byte'] = int(fields[0]) * block_size
+    part['image_blocks'] = int(fields[1])
+    part['image_bytes'] = int(fields[1]) * block_size
 
-  return partitions
+    # Pre-compute whether the image and config are compatible.
+    # The image is compatible with the config if each partition:
+    # - starts at the same position
+    # - is the same size or larger in th layout config
+
+    part['image_exists'] = True
+    if part.get('type', 'blank') == 'blank':
+      part['image_compat'] = False
+    elif part['first_block'] == part['image_first_block']:
+      part['image_compat'] = part['blocks'] >= part['image_blocks']
+    else:
+      part['image_compat'] = False
+
+  # Set compat flags for any partition not in the image
+  for part in partitions.itervalues():
+    part.setdefault('image_exists', False)
+    if part.get('type', 'blank') == 'blank':
+      part.setdefault('image_compat', True)
+    else:
+      part.setdefault('image_compat', False)
 
 
 def WritePartitionTable(options, config=None, partitions=None):
@@ -223,17 +242,11 @@ def WritePartitionTable(options, config=None, partitions=None):
   if not (config and partitions):
     config, partitions = LoadPartitionConfig(options)
 
-  # If we are not creating a fresh image all existing partitions must:
-  # - be defined in the new layout
-  # - start at the same position
-  # - be the same size or larger in the new layout
+  # If we are not creating a fresh image all partitions must be compatible.
   if not options.create:
-    old_parts = GetPartitionTableFromImage(options)
-    for part_num, old_part in old_parts.iteritems():
-      part = partitions.get(part_num, {})
-      if (old_part['first_block'] != part.get('first_block', -1) or
-          old_part['blocks'] > part.get('blocks', -1)):
-        raise InvalidLayout("New disk layout is incompatible existing image")
+    GetPartitionTableFromImage(options, config, partitions)
+    if not all(p['image_compat'] for p in partitions.itervalues()):
+      raise InvalidLayout("New disk layout is incompatible existing image")
 
   Cgpt('create', '-c', '-s', config['metadata']['blocks'], options.disk_image)
 
@@ -399,6 +412,8 @@ def Resize(options):
   for part in partitions.itervalues():
     if part.get('fs_type', None) not in ('ext2', 'ext4'):
       continue
+    elif part['bytes'] == part['image_bytes']:
+      continue
 
     print "Resizing partition %s (%s) to %s bytes" % (
             part['num'], part['label'], part['fs_bytes'])
@@ -420,45 +435,39 @@ def Mount(options):
   """
 
   config, partitions = LoadPartitionConfig(options)
-  image_parts = GetPartitionTableFromImage(options)
+  GetPartitionTableFromImage(options, config, partitions)
   mounts = {}
 
-  for part_num, image_part in image_parts.iteritems():
-    first_block = image_part['first_block']
-    blocks = image_part['blocks']
-    part = partitions.get(part_num, {})
+  for part_num, part in partitions.iteritems():
     path = part.get('mount', None)
     if not path or not path.startswith('/'):
       continue
+    if not part.get('image_exists', False):
+      continue
 
-    mounts[path] = {'path': path,
-                    'offset': first_block * config['metadata']['block_size'],
-                    'size': blocks * config['metadata']['block_size'],
-                    'type': part.get('fs_type', 'auto'),
-                    'binds': part.get('binds', {})}
+    mounts[path] = part
 
   rootfs = mounts.pop('/', None)
   if not rootfs:
     raise InvalidLayout('No partition defined to mount on /')
 
   def DoMount(mount):
-    full_path = os.path.realpath(options.mount_dir + mount['path'])
+    full_path = os.path.realpath(options.mount_dir + mount['mount'])
     mount_opts = ['loop',
-                  'offset=%d' % mount['offset'],
-                  'sizelimit=%d' % mount['size']]
+                  'offset=%d' % mount['image_first_byte'],
+                  'sizelimit=%d' % mount['image_bytes']]
     if options.read_only:
       mount_opts.append('ro')
-    else:
-      Sudo(['mkdir', '-p', full_path])
 
-    Sudo(['mount', '-t', mount['type'],
+    Sudo(['mkdir', '-p', full_path])
+    Sudo(['mount', '-t', mount.get('fs_type', 'auto'),
                    '-o', ','.join(mount_opts),
                    options.disk_image, full_path])
 
-    for src, dst in mount['binds'].iteritems():
+    for src, dst in mount.get('binds', {}).iteritems():
       # src may be relative or absolute, os.path.join handles this.
       full_src =  os.path.realpath(
-              options.mount_dir + os.path.join(mount['path'], src))
+              options.mount_dir + os.path.join(mount['mount'], src))
       full_dst = os.path.realpath(options.mount_dir + dst)
       Sudo(['mkdir', '-p', full_src, full_dst])
       Sudo(['mount', '--bind', full_src, full_dst])
