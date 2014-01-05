@@ -289,6 +289,12 @@ _write_cpio_disk() {
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
 
+    # The STATE partition and all of its bind mounts shouldn't be
+    # packed into the squashfs image. Just ROOT and OEM.
+    if mountpoint -q "${VM_TMP_ROOT}/media/state"; then
+        sudo umount --all-targets "${VM_TMP_ROOT}/media/state"
+    fi
+
     # Build the squashfs, embed squashfs into a gzipped cpio
     mkdir -p "${cpio_target}"
     pushd "${cpio_target}" >/dev/null
