@@ -28,14 +28,14 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 switch_to_strict_mode
 
-# Useful for getting partition UUID values
-. "${BUILD_LIBRARY_DIR}/disk_layout_util.sh" || exit 1
-
 # Common kernel command-line args
 common_args="console=tty0 ro noswap cros_legacy"
 common_args="${common_args} ${FLAGS_boot_args}"
 
 # Get partition UUIDs from the json config
+get_uuid() {
+  "${BUILD_LIBRARY_DIR}/disk_util" readuuid "$1"
+}
 ROOTA="PARTUUID=$(get_uuid ROOT-A)"
 ROOTB="PARTUUID=$(get_uuid ROOT-B)"
 

@@ -65,10 +65,5 @@ create_base_image() {
   fi
 
   cleanup_mounts "${root_fs_dir}"
-  trap "delete_prompt" EXIT
-
-  # Emit helpful scripts for testers, etc.
-  emit_gpt_scripts "${BUILD_DIR}/${image_name}" "${BUILD_DIR}"
-
   trap - EXIT
 }
