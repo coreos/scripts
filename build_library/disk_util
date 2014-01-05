@@ -414,6 +414,8 @@ def Resize(options):
       continue
     elif part['bytes'] == part['image_bytes']:
       continue
+    elif not IsE2fsReadWrite(options, part):
+      continue
 
     print "Resizing partition %s (%s) to %s bytes" % (
             part['num'], part['label'], part['fs_bytes'])
@@ -458,6 +460,9 @@ def Mount(options):
                   'sizelimit=%d' % mount['image_bytes']]
     if options.read_only:
       mount_opts.append('ro')
+    elif (mount.get('fs_type', None) in ('ext2', 'ext4') and
+          not IsE2fsReadWrite(options, mount)):
+      mount_opts.append('ro')
 
     Sudo(['mkdir', '-p', full_path])
     Sudo(['mount', '-t', mount.get('fs_type', 'auto'),
@@ -483,6 +488,93 @@ def Umount(options):
     options: Flags passed to the script
   """
   Sudo(['umount', '--recursive', '--detach-loop', options.mount_dir])
+
+
+def Tune2fsReadWrite(options, partition):
+  """Enable/Disable read-only hack.
+
+  From common.sh:
+  This helper clobbers the ro compat value in our root filesystem.
+
+  When the system is built with --enable_rootfs_verification, bit-precise
+  integrity checking is performed.  That precision poses a usability issue on
+  systems that automount partitions with recognizable filesystems, such as
+  ext2/3/4.  When the filesystem is mounted 'rw', ext2 metadata will be
+  automatically updated even if no other writes are performed to the
+  filesystem.  In addition, ext2+ does not support a "read-only" flag for a
+  given filesystem.  That said, forward and backward compatibility of
+  filesystem features are supported by tracking if a new feature breaks r/w or
+  just write compatibility.  We abuse the read-only compatibility flag[1] in
+  the filesystem header by setting the high order byte (le) to FF.  This tells
+  the kernel that features R24-R31 are all enabled.  Since those features are
+  undefined on all ext-based filesystem, all standard kernels will refuse to
+  mount the filesystem as read-write -- only read-only[2].
+
+  [1] 32-bit flag we are modifying:
+   http://git.chromium.org/cgi-bin/gitweb.cgi?p=kernel.git;a=blob;f=include/linux/ext2_fs.h#l417
+  [2] Mount behavior is enforced here:
+   http://git.chromium.org/cgi-bin/gitweb.cgi?p=kernel.git;a=blob;f=fs/ext2/super.c#l857
+
+  N.B., if the high order feature bits are used in the future, we will need to
+        revisit this technique.
+
+  Args:
+    options: Flags passed to the script
+    partition: Config for partition to manipulate
+  """
+
+  if options.disable2fs_rw:
+    print "Disabling read-write mounting of partition %s (%s)" % (
+            partition['num'], partition['label'])
+  else:
+    print "Enabling read-write mounting of partition %s (%s)" % (
+            partition['num'], partition['label'])
+
+  # offset of ro_compat, highest order byte (le 32 bit field)
+  flag_offset = 0x464 + 3
+  flag_value = 0xff if options.disable2fs_rw else 0x00
+  with open(options.disk_image, 'r+') as image:
+    image.seek(partition['first_byte'] + flag_offset)
+    image.write(chr(flag_value))
+
+
+def IsE2fsReadWrite(options, partition):
+  """Returns True if FS is read-write, False if hack is active.
+
+  Args:
+    options: Flags passed to the script
+    partition: Config for partition to query
+  """
+
+  # offset of ro_compat, highest order byte (le 32 bit field)
+  flag_offset = 0x464 + 3
+  with open(options.disk_image, 'r') as image:
+    image.seek(partition['first_byte'] + flag_offset)
+    flag_value = image.read(1)
+
+  return ord(flag_value) == 0
+
+
+def Tune(options):
+  """Tweak some filesystem options.
+
+  Args:
+    options: Flags passed to the script
+  """
+
+  config, partitions = LoadPartitionConfig(options)
+  GetPartitionTableFromImage(options, config, partitions)
+  part = GetPartition(partitions, options.partition)
+
+  if not part['image_compat']:
+    raise InvalidLayout("Disk layout is incompatible existing image")
+
+  if options.disable2fs_rw is not None:
+    if part.get('fs_type', None) not in ('ext2', 'ext4'):
+      raise Exception("Partition %s is not a ext2 or ext4" % options.partition)
+    Tune2fsReadWrite(options, part)
+  else:
+    raise Exception("No options specified!")
 
 
 def GetPartitionByNumber(partitions, num):
@@ -518,6 +610,21 @@ def GetPartitionByLabel(partitions, label):
       return partition
 
   raise PartitionNotFound('Partition not found')
+
+
+def GetPartition(partitions, part_id):
+  """Given a partition table and label or num returns the partition object.
+
+  Args:
+    partitions: List of partitions to search in
+    part_id: Label or number of partition to find
+  Returns:
+    An object for the selected partition
+  """
+  if str(part_id).isdigit():
+    return GetPartitionByNumber(partitions, part_id)
+  else:
+    return GetPartitionByLabel(partitions, part_id)
 
 
 def GetBlockSize(options):
@@ -703,6 +810,15 @@ def main(argv):
   a = actions.add_parser('umount', help='unmount a image mount point')
   a.add_argument('mount_dir', help='path to root filesystem mount point')
   a.set_defaults(func=Umount)
+
+  a = actions.add_parser('tune', help='tweak filesystem options')
+  a.add_argument('--disable2fs_rw', action='store_true', default=None,
+          help='disable mounting ext2 filesystems read-write')
+  a.add_argument('--enable2fs_rw', action='store_false', dest='disable2fs_rw',
+          help='re-enable mounting ext2 filesystems read-write')
+  a.add_argument('disk_image', help='path to disk image file')
+  a.add_argument('partition', help='number or label of partition to edit')
+  a.set_defaults(func=Tune)
 
   a = actions.add_parser('readblocksize', help='get device block size')
   a.set_defaults(func=GetBlockSize)
