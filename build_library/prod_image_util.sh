@@ -5,11 +5,11 @@
 
 setup_prod_image() {
   local image_name="$1"
-  local update_track="$2"
-  local au_key="$3"
+  local disk_layout="$2"
+  local update_track="$3"
+  local au_key="$4"
 
   info "Configuring production image ${image_name}"
-  local disk_layout="${FLAGS_disk_layout:-base}"
   local root_fs_dir="${BUILD_DIR}/rootfs"
   local enable_rootfs_verification_flag=--noenable_rootfs_verification
   if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then

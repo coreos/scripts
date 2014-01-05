@@ -11,9 +11,9 @@
 # Takes as an arg the name of the image to be created.
 install_dev_packages() {
   local image_name=$1
+  local disk_layout=$2
 
   info "Adding developer packages to ${image_name}"
-  local disk_layout="${FLAGS_disk_layout:-base}"
   local root_fs_dir="${BUILD_DIR}/rootfs"
 
   "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
