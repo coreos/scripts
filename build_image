@@ -10,7 +10,7 @@
 # build the Chrome OS image using only pre-built binary packages.
 
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
-. "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
 # Developer-visible flags.
 DEFINE_string board "${DEFAULT_BOARD}" \

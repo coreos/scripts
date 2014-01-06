@@ -13,15 +13,8 @@
 SCRIPT_ROOT=$(dirname "$(readlink -f "$0")")
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
-. "${BUILD_LIBRARY_DIR}/build_common.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/vm_image_util.sh" || exit 1
-
-# Need to be inside the chroot to load chromeos-common.sh
-assert_inside_chroot
-
-# Load functions and constants for chromeos-install
-. /usr/lib/installer/chromeos-common.sh || exit 1
 . "${SCRIPT_ROOT}/lib/cros_vm_constants.sh" || exit 1
 
 # Flags
@@ -95,9 +88,6 @@ else
   # Use the standard image
   set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${CHROMEOS_IMAGE_NAME}"
 fi
-
-locate_gpt
-legacy_offset_size_export ${VM_SRC_IMG}
 
 # Make sure things are cleaned up on failure
 trap vm_cleanup EXIT
