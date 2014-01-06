@@ -55,6 +55,35 @@ parse_build_image_args() {
   get_images_to_build ${FLAGS_ARGV}
 }
 
+should_build_image() {
+  # Fast pass back if we should build all incremental images.
+  local image_name
+  local image_to_build
+
+  for image_name in "$@"; do
+    for image_to_build in ${IMAGES_TO_BUILD}; do
+      [ "${image_to_build}" = "${image_name}" ] && return 0
+    done
+  done
+
+  return 1
+}
+
+# Utility function for creating a copy of an image prior to
+# modification from the BUILD_DIR:
+#  $1: source filename
+#  $2: destination filename
+copy_image() {
+  local src="${BUILD_DIR}/$1"
+  local dst="${BUILD_DIR}/$2"
+  if should_build_image $1; then
+    echo "Creating $2 from $1..."
+    cp --sparse=always "${src}" "${dst}" || die "Cannot copy $1 to $2"
+  else
+    mv "${src}" "${dst}" || die "Cannot move $1 to $2"
+  fi
+}
+
 check_blacklist() {
   info "Verifying that the base image does not contain a blacklisted package."
   info "Generating list of packages for ${BASE_PACKAGE}."
@@ -80,20 +109,9 @@ make_salt() {
   xxd -l 32 -p -c 32 /dev/urandom
 }
 
-create_boot_desc() {
-  local enable_rootfs_verification_flag=""
-  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-    enable_rootfs_verification_flag="--enable_rootfs_verification"
-  fi
-
-  cat <<EOF > ${BUILD_DIR}/boot.desc
-  --board=${BOARD}
-  --arch="${ARCH}"
-  --keys_dir="${DEVKEYSDIR}"
-  --boot_args="${FLAGS_boot_args}"
-  --nocleanup_dirs
-  ${enable_rootfs_verification_flag}
-EOF
+cleanup_mounts() {
+  echo "Cleaning up mounts"
+  "${BUILD_LIBRARY_DIR}/disk_util" umount "$1" || true
 }
 
 delete_prompt() {

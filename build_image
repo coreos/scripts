@@ -10,11 +10,9 @@
 # build the Chrome OS image using only pre-built binary packages.
 
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
-. "${SCRIPT_ROOT}/build_library/build_common.sh" || exit 1
+. "${SCRIPT_ROOT}/common.sh" || exit 1
 
 # Developer-visible flags.
-DEFINE_string adjust_part "" \
-  "Adjustments to apply to the partition table"
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
 DEFINE_string boot_args "" \
@@ -23,7 +21,7 @@ DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
-DEFINE_string disk_layout "default" \
+DEFINE_string disk_layout "base" \
   "The disk layout type to use for this image."
 
 # include upload options
@@ -75,10 +73,9 @@ check_gsutil_opts
 # some of the files contain initialization used by later files.
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
-. "${BUILD_LIBRARY_DIR}/disk_layout_util.sh" || exit 1
-. "${BUILD_LIBRARY_DIR}/mount_gpt_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/base_image_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/prod_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/dev_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
 
@@ -123,7 +120,7 @@ fi
 mkdir -p "${BUILD_DIR}"
 
 # Create the base image.
-create_base_image ${PRISTINE_IMAGE_NAME} ${FLAGS_enable_rootfs_verification}
+create_base_image ${PRISTINE_IMAGE_NAME}
 if should_build_image ${PRISTINE_IMAGE_NAME}; then
   upload_image "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
 fi
@@ -148,11 +145,8 @@ fi
 if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
   copy_image ${CHROMEOS_BASE_IMAGE_NAME} ${COREOS_PRODUCTION_IMAGE_NAME}
 
-  ${SCRIPTS_DIR}/bin/cros_make_image_bootable \
-    "${BUILD_DIR}" \
-     ${COREOS_PRODUCTION_IMAGE_NAME} \
-    --production_track="dev-channel" \
-    --au_key=${SRC_ROOT}/third_party/coreos-overlay/coreos-base/coreos-au-key/files/update-payload-key.pub.pem
+  setup_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} "dev-channel" \
+    ${SRC_ROOT}/third_party/coreos-overlay/coreos-base/coreos-au-key/files/update-payload-key.pub.pem
 
   upload_image "${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"
 fi

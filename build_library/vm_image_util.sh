@@ -27,6 +27,7 @@ VM_IMG_TYPE=DEFAULT
 VM_SRC_IMG=
 VM_TMP_IMG=
 VM_TMP_DIR=
+VM_TMP_ROOT=
 VM_DST_IMG=
 VM_README=
 VM_NAME=
@@ -149,6 +150,7 @@ set_vm_paths() {
     VM_DST_IMG="${dst_dir}/${dst_name}"
     VM_TMP_DIR="${dst_dir}/${dst_name}.vmtmpdir"
     VM_TMP_IMG="${VM_TMP_DIR}/disk_image.bin"
+    VM_TMP_ROOT="${VM_TMP_DIR}/rootfs"
     VM_NAME="$(_src_to_dst_name "${src_name}" "")-${COREOS_VERSION_STRING}"
     VM_UUID=$(uuidgen)
     VM_README="${dst_dir}/$(_src_to_dst_name "${src_name}" ".README")"
@@ -195,104 +197,46 @@ _disk_ext() {
     esac
 }
 
-# Unpack the source disk to individual partitions, optionally using an
-# alternate filesystem image for the state partition instead of the one
-# from VM_SRC_IMG. Start new image using the given disk layout.
-unpack_source_disk() {
+setup_disk_image() {
     local disk_layout="${1:-$(_get_vm_opt DISK_LAYOUT)}"
-    local alternate_state_image="$2"
-
-    if [[ -n "${alternate_state_image}" && ! -f "${alternate_state_image}" ]]
-    then
-        die "State image does not exist: $alternate_state_image"
-    fi
-
-    info "Unpacking source image to $(relpath "${VM_TMP_DIR}")"
 
     rm -rf "${VM_TMP_DIR}"
-    mkdir -p "${VM_TMP_DIR}"
+    mkdir -p "${VM_TMP_DIR}" "${VM_TMP_ROOT}"
 
-    pushd "${VM_TMP_DIR}" >/dev/null
-    local src_dir=$(dirname "${VM_SRC_IMG}")
-    "${src_dir}/unpack_partitions.sh" "${VM_SRC_IMG}"
-    popd >/dev/null
-
-    # Partition paths that have been unpacked from VM_SRC_IMG
-    TEMP_ESP="${VM_TMP_DIR}"/part_${NUM_ESP}
-    TEMP_OEM="${VM_TMP_DIR}"/part_${NUM_OEM}
-    TEMP_ROOTFS="${VM_TMP_DIR}"/part_${NUM_ROOTFS_A}
-    TEMP_STATE="${VM_TMP_DIR}"/part_${NUM_STATEFUL}
-    # Copy the replacement STATE image if it is set
-    if [[ -n "${alternate_state_image}" ]]; then
-        cp --sparse=always "${alternate_state_image}" "${TEMP_STATE}"
-    fi
+    info "Initializing new disk image..."
+    cp --sparse=always "${VM_SRC_IMG}" "${VM_TMP_IMG}"
 
     if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
-      info "Initializing new partition table..."
-      write_partition_table "${disk_layout}" "${VM_TMP_IMG}"
-    fi
-}
-
-resize_state_partition() {
-    local disk_layout="${1:-$(_get_vm_opt DISK_LAYOUT)}"
-    local size_in_bytes=$(get_filesystem_size "${disk_layout}" ${NUM_STATEFUL})
-    local size_in_sectors=$(( size_in_bytes / 512 ))
-    local size_in_mb=$(( size_in_bytes / 1024 / 1024 ))
-    local original_size=$(stat -c%s "${TEMP_STATE}")
-
-    if [[ "${original_size}" -gt "${size_in_bytes}" ]]; then
-        die "Cannot resize state image to smaller than original."
+      # TODO(marineam): Fix this so --mbr_boot_code isn't required
+      local mbr_img="/usr/share/syslinux/gptmbr.bin"
+      "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
+          resize --mbr_boot_code="${mbr_img}" "${VM_TMP_IMG}"
     fi
 
-    info "Resizing state partition to ${size_in_mb}MB"
-    /sbin/e2fsck -pf "${TEMP_STATE}"
-    /sbin/resize2fs "${TEMP_STATE}" "${size_in_sectors}s"
+    info "Mounting image to $(relpath "${VM_TMP_ROOT}")"
+    "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
+        mount "${VM_TMP_IMG}" "${VM_TMP_ROOT}"
 }
 
 # If the current type defines a oem package install it to the given fs image.
 install_oem_package() {
     local oem_pkg=$(_get_vm_opt OEM_PACKAGE)
-    local oem_mnt="${VM_TMP_DIR}/oem"
+    local oem_mnt="${VM_TMP_ROOT}/usr/share/oem"
 
     if [[ -z "${oem_pkg}" ]]; then
         return 0
     fi
 
-    mkdir -p "${oem_mnt}"
-
-    # Install directly to root if this is not a partitioned image
-    if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 0 ]]; then
-      emerge_oem_package "${oem_mnt}"
-      return 0
-    fi
-
-    sudo mount -o loop "${TEMP_OEM}" "${oem_mnt}"
-    emerge_oem_package ${oem_mnt}
-    sudo umount "${oem_mnt}"
-    rm -rf "${oem_mnt}"
-}
-
-emerge_oem_package() {
-    local oem_pkg=$(_get_vm_opt OEM_PACKAGE)
-
     info "Installing ${oem_pkg} to OEM partition"
-    # TODO(polvi): figure out how to keep portage from putting these
-    # portage files on disk, we don't need or want them.
-    emerge-${BOARD} --root="$1" --root-deps=rdeps "${oem_pkg}"
+    emerge-${BOARD} --root="${oem_mnt}" --root-deps=rdeps "${oem_pkg}"
+    sudo rm -rf "${oem_mnt}/var"  # clean out /var/pkg/db and friends
 }
 
 # Write the vm disk image to the target directory in the proper format
 write_vm_disk() {
     if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
-      info "Writing partitions to new disk image"
-      dd if="${TEMP_ROOTFS}" of="${VM_TMP_IMG}" conv=notrunc,sparse \
-          bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_ROOTFS_A})
-      dd if="${TEMP_STATE}"  of="${VM_TMP_IMG}" conv=notrunc,sparse \
-          bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_STATEFUL})
-      dd if="${TEMP_ESP}"    of="${VM_TMP_IMG}" conv=notrunc,sparse \
-          bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_ESP})
-      dd if="${TEMP_OEM}"    of="${VM_TMP_IMG}" conv=notrunc,sparse \
-          bs=512 seek=$(partoffset ${VM_TMP_IMG} ${NUM_OEM})
+        # unmount before creating block device images
+        cleanup_mounts "${VM_TMP_ROOT}"
     fi
 
     if [[ $(_get_vm_opt HYBRID_MBR) -eq 1 ]]; then
@@ -338,60 +282,29 @@ _write_vmdk_scsi_disk() {
     qemu-img convert -f raw "$1" -O vmdk -o adapter_type=lsilogic "$2"
 }
 
-# the cpio is a little complicated because everything gets put into one
-# ramfs. So, it does a lot more work at the write disk step. 
+# The cpio "disk" is a bit special,
+# consists of a kernel+initrd not a block device
 _write_cpio_disk() {
     local cpio_target="${VM_TMP_DIR}/rootcpio"
-
-    if [ -f "$2" ]; then
-      rm $2
-    fi
-
-    # Create the cpio with squashfs embedded
-    _write_squashfs_root ${cpio_target}
-
-    # Create the cpio and gzip it
-    local cpio=${VM_TMP_DIR}/root.cpio
-    _write_dir_to_cpio "${cpio_target}" "${cpio}"
-    gzip < ${cpio} > $2
-    rm -rf "${cpio_target}"
-}
-
-_write_dir_to_cpio() {
-    pushd "$1" >/dev/null
-
-    append_flag=""
-    if [ -f "$2" ]; then
-      append_flag="-A"
-    fi
-    sudo find ./ | sudo cpio -o ${append_flag} -H newc -O "$2"
-    popd >/dev/null
-}
-
-_write_squashfs_root() {
-    local cpio_target="$1"
-    local root_mnt="${VM_TMP_DIR}/rootfs"
-    local oem_mnt="${VM_TMP_DIR}/oem"
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
 
-    mkdir -p "${root_mnt}"
+    # The STATE partition and all of its bind mounts shouldn't be
+    # packed into the squashfs image. Just ROOT and OEM.
+    if mountpoint -q "${VM_TMP_ROOT}/media/state"; then
+        sudo umount --all-targets "${VM_TMP_ROOT}/media/state"
+    fi
+
+    # Build the squashfs, embed squashfs into a gzipped cpio
     mkdir -p "${cpio_target}"
+    pushd "${cpio_target}" >/dev/null
+    sudo mksquashfs "${VM_TMP_ROOT}" ./newroot.squashfs
+    echo ./newroot.squashfs | cpio -o -H newc | gzip > "$2"
+    popd >/dev/null
 
-    # Roll the rootfs into the build dir
-    sudo mount -o loop,ro "${TEMP_ROOTFS}" "${root_mnt}"
-
-    # Roll the OEM into the build dir
-    sudo mount --bind "${oem_mnt}" "${root_mnt}"/usr/share/oem
-    # Build the squashfs
-    sudo mksquashfs "${root_mnt}" "${cpio_target}"/newroot.squashfs
-
-    cp "${root_mnt}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
-
-    sudo umount "${root_mnt}"/usr/share/oem
-    sudo umount "${root_mnt}"
-
-    sudo rm -rf "${root_mnt}"
+    # Pull the kernel out of the root filesystem
+    cp "${VM_TMP_ROOT}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
+    VM_GENERATED_FILES+=( "${dst_dir}/${vmlinuz_name}" )
 }
 
 # If a config format is defined write it!
@@ -438,7 +351,6 @@ EOF
 
 _write_pxe_conf() {
     local dst_name=$(basename "$VM_DST_IMG")
-    local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
 
     cat >"${VM_README}" <<EOF
@@ -449,7 +361,7 @@ If you have qemu installed (or in the SDK), you can start the image with:
 
 EOF
 
-    VM_GENERATED_FILES+=( "${dst_dir}/${vmlinuz_name}" "${VM_README}" )
+    VM_GENERATED_FILES+=( "${VM_README}" )
 }
 
 # Generate the vmware config file
@@ -712,6 +624,9 @@ _write_gce_conf() {
 
 vm_cleanup() {
     info "Cleaning up temporary files"
+    if mountpoint -q "${VM_TMP_ROOT}"; then
+        cleanup_mounts "${VM_TMP_ROOT}"
+    fi
     sudo rm -rf "${VM_TMP_DIR}"
 }
 

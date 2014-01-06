@@ -13,11 +13,12 @@ install_dev_packages() {
   local image_name=$1
 
   info "Adding developer packages to ${image_name}"
+  local disk_layout="${FLAGS_disk_layout:-base}"
+  local root_fs_dir="${BUILD_DIR}/rootfs"
 
-  trap "unmount_image ; delete_prompt" EXIT
-
-  mount_image "${BUILD_DIR}/${image_name}" "${root_fs_dir}" \
-    "${state_fs_dir}" "${esp_fs_dir}"
+  "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
+      mount "${BUILD_DIR}/${image_name}" "${root_fs_dir}"
+  trap "cleanup_mounts '${root_fs_dir}' && delete_prompt" EXIT
 
   # Install developer packages described in coreos-dev.
   emerge_to_image --root="${root_fs_dir}" coreos-base/coreos-dev
@@ -37,16 +38,12 @@ install_dev_packages() {
 
   # Zero all fs free space, not fatal since it won't work on linux < 3.2
   sudo fstrim "${root_fs_dir}" || true
-  sudo fstrim "${state_fs_dir}" || true
+  if [[ -d "${root_fs_dir}/media/state" ]]; then
+      sudo fstrim "${root_fs_dir}/media/state" || true
+  fi
 
   info "Developer image built and stored at ${image_name}"
 
-  cleanup_mounts
-
-  if should_build_image ${image_name}; then
-    ${SCRIPTS_DIR}/bin/cros_make_image_bootable "${BUILD_DIR}" \
-      ${image_name} --force_developer_mode --noenable_rootfs_verification
-  fi
-
+  cleanup_mounts "${root_fs_dir}"
   trap - EXIT
 }

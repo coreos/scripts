@@ -13,21 +13,11 @@
 SCRIPT_ROOT=$(dirname "$(readlink -f "$0")")
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
-. "${BUILD_LIBRARY_DIR}/disk_layout_util.sh" || exit 1
-. "${BUILD_LIBRARY_DIR}/build_common.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/vm_image_util.sh" || exit 1
-
-# Need to be inside the chroot to load chromeos-common.sh
-assert_inside_chroot
-
-# Load functions and constants for chromeos-install
-. /usr/lib/installer/chromeos-common.sh || exit 1
 . "${SCRIPT_ROOT}/lib/cros_vm_constants.sh" || exit 1
 
 # Flags
-DEFINE_string adjust_part "" \
-  "Adjustments to apply to the partition table"
 DEFINE_string board "${DEFAULT_BOARD}" \
   "Board for which the image was built"
 
@@ -41,8 +31,6 @@ DEFINE_string disk_layout "" \
   "The disk layout type to use for this image."
 DEFINE_integer mem "${DEFAULT_MEM}" \
   "Memory size for the vm config in MBs."
-DEFINE_string state_image "" \
-  "Stateful partition image (defaults to creating new statful partition)"
 DEFINE_boolean prod_image "${FLAGS_FALSE}" \
   "Use the production image instead of the default developer image."
 DEFINE_string to "" \
@@ -101,16 +89,11 @@ else
   set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${CHROMEOS_IMAGE_NAME}"
 fi
 
-locate_gpt
-legacy_offset_size_export ${VM_SRC_IMG}
-
 # Make sure things are cleaned up on failure
 trap vm_cleanup EXIT
 
-# Unpack image, using alternate state image if defined
-# Resize to use all available space in new disk layout
-unpack_source_disk "${FLAGS_disk_layout}" "${FLAGS_state_image}"
-resize_state_partition "${FLAGS_disk_layout}"
+# Setup new (raw) image, possibly resizing filesystems
+setup_disk_image "${FLAGS_disk_layout}"
 
 # Optionally install any OEM packages
 install_oem_package
