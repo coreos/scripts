@@ -74,6 +74,20 @@
         }
       }
     },
+    "base-usr":{
+      "3":{
+        "label":"USR-A",
+        "mount":"/usr"
+      },
+      "4":{
+        "label":"USR-B"
+      },
+      "9":{
+        "label":"ROOT",
+        "mount":"/",
+        "binds":{}
+      }
+    },
     "vm":{
       "9":{
         "label":"STATE",
@@ -81,10 +95,40 @@
         "blocks":"6291456"
       }
     },
+    "vm-usr":{
+      "3":{
+        "label":"USR-A",
+        "mount":"/usr"
+      },
+      "4":{
+        "label":"USR-B"
+      },
+      "9":{
+        "label":"ROOT",
+        "mount":"/",
+        "binds":{},
+        "blocks":"6291456"
+      }
+    },
     "vagrant":{
       "9":{
         "label":"STATE",
         "type":"data",
+        "blocks":"33587200"
+      }
+    },
+    "vagrant-usr":{
+      "3":{
+        "label":"USR-A",
+        "mount":"/usr"
+      },
+      "4":{
+        "label":"USR-B"
+      },
+      "9":{
+        "label":"ROOT",
+        "mount":"/",
+        "binds":{},
         "blocks":"33587200"
       }
     }

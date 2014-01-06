@@ -22,6 +22,8 @@ CROSS_PROFILES["x86_64-cros-linux-gnu"]="coreos:coreos/amd64/generic"
 declare -A BOARD_CHOSTS BOARD_PROFILES
 BOARD_CHOSTS["amd64-generic"]="x86_64-cros-linux-gnu"
 BOARD_PROFILES["amd64-generic"]="coreos:coreos/amd64/generic"
+BOARD_CHOSTS["amd64-usr"]="x86_64-cros-linux-gnu"
+BOARD_PROFILES["amd64-usr"]="coreos:coreos/amd64/usr"
 BOARD_NAMES=( "${!BOARD_CHOSTS[@]}" )
 
 # Declare the above globals as read-only to avoid accidental conflicts.
