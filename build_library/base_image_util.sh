@@ -52,6 +52,7 @@ create_base_image() {
 
   ${BUILD_LIBRARY_DIR}/create_legacy_bootloader_templates.sh \
     --arch=${ARCH} \
+    --disk_layout="${disk_layout}" \
     --boot_dir="${root_fs_dir}"/boot \
     --esp_dir="${root_fs_dir}"/boot/efi \
     --boot_args="${FLAGS_boot_args}"
