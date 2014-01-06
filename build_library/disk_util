@@ -450,8 +450,7 @@ def Mount(options):
 
     mounts[path] = part
 
-  rootfs = mounts.pop('/', None)
-  if not rootfs:
+  if '/' not in mounts:
     raise InvalidLayout('No partition defined to mount on /')
 
   def DoMount(mount):
@@ -478,9 +477,8 @@ def Mount(options):
       Sudo(['mkdir', '-p', full_src, full_dst])
       Sudo(['mount', '--bind', full_src, full_dst])
 
-  DoMount(rootfs)
-  for mount in mounts.itervalues():
-    DoMount(mount)
+  for mount in sorted(mounts, key=len):
+    DoMount(mounts[mount])
 
 def Umount(options):
   """Unmount the given path.
