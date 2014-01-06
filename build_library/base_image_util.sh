@@ -6,9 +6,8 @@
 
 create_base_image() {
   local image_name=$1
-  local rootfs_verification_enabled=$2
+  local disk_layout=$2
 
-  local disk_layout="${FLAGS_disk_layout:-base}"
   local disk_img="${BUILD_DIR}/${image_name}"
   local mbr_img="/usr/share/syslinux/gptmbr.bin"
   local root_fs_dir="${BUILD_DIR}/rootfs"
@@ -53,6 +52,7 @@ create_base_image() {
 
   ${BUILD_LIBRARY_DIR}/create_legacy_bootloader_templates.sh \
     --arch=${ARCH} \
+    --disk_layout="${disk_layout}" \
     --boot_dir="${root_fs_dir}"/boot \
     --esp_dir="${root_fs_dir}"/boot/efi \
     --boot_args="${FLAGS_boot_args}"

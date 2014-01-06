@@ -198,7 +198,8 @@ _disk_ext() {
 }
 
 setup_disk_image() {
-    local disk_layout="${1:-$(_get_vm_opt DISK_LAYOUT)}"
+    local suffix=$(portageq-$BOARD envvar COREOS_DISK_LAYOUT_SUFFIX)
+    local disk_layout="${1:-$(_get_vm_opt DISK_LAYOUT)}${suffix}"
 
     rm -rf "${VM_TMP_DIR}"
     mkdir -p "${VM_TMP_DIR}" "${VM_TMP_ROOT}"

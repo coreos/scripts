@@ -22,6 +22,8 @@ DEFINE_string esp_dir "" \
   "Path to ESP partition mount point (Default: none)"
 DEFINE_string boot_args "" \
   "Additional boot arguments to pass to the commandline (Default: '')"
+DEFINE_string disk_layout "base" \
+  "The disk layout type to use for this image."
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -34,10 +36,20 @@ common_args="${common_args} ${FLAGS_boot_args}"
 
 # Get partition UUIDs from the json config
 get_uuid() {
-  "${BUILD_LIBRARY_DIR}/disk_util" readuuid "$1"
+  "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${FLAGS_disk_layout}" \
+      readuuid "$1"
 }
-ROOTA="PARTUUID=$(get_uuid ROOT-A)"
-ROOTB="PARTUUID=$(get_uuid ROOT-B)"
+
+# Filesystem args differ between the old and new usr layouts.
+if [[ "${FLAGS_disk_layout}" == *-usr ]]; then
+  gptprio_args="root=LABEL=ROOT usr=gptprio:"
+  slot_a_args="root=LABEL=ROOT usr=PARTUUID=$(get_uuid USR-A)"
+  slot_b_args="root=LABEL=ROOT usr=PARTUUID=$(get_uuid USR-B)"
+else
+  gptprio_args="root=gptprio:"
+  slot_a_args="root=PARTUUID=$(get_uuid ROOT-A)"
+  slot_b_args="root=PARTUUID=$(get_uuid ROOT-B)"
+fi
 
 GRUB_DIR="${FLAGS_boot_dir}/grub"
 SYSLINUX_DIR="${FLAGS_boot_dir}/syslinux"
@@ -54,11 +66,11 @@ timeout         0
 
 title           CoreOS A Root
 root            (hd0,0)
-kernel          /syslinux/vmlinuz.A ${grub_args} root=${ROOTA}
+kernel          /syslinux/vmlinuz.A ${grub_args} ${slot_a_args}
 
 title           CoreOS B Root
 root            (hd0,0)
-kernel          /syslinux/vmlinuz.B ${grub_args} root=${ROOTB}
+kernel          /syslinux/vmlinuz.B ${grub_args} ${slot_b_args}
 EOF
   info "Emitted ${GRUB_DIR}/menu.lst.A"
 
@@ -101,7 +113,7 @@ EOF
 label boot_kernel
   menu label boot_kernel
   kernel vmlinuz-boot_kernel
-  append ${syslinux_args} root=gptprio:
+  append ${syslinux_args} ${gptprio_args}
 EOF
   info "Emitted ${SYSLINUX_DIR}/boot_kernel.cfg"
 
@@ -109,7 +121,7 @@ EOF
 label coreos.A
   menu label coreos.A
   kernel vmlinuz.A
-  append ${syslinux_args} root=${ROOTA}
+  append ${syslinux_args} ${slot_a_args}
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.A.cfg"
 
@@ -117,7 +129,7 @@ EOF
 label coreos.B
   menu label coreos.B
   kernel vmlinuz.B
-  append ${syslinux_args} root=${ROOTB}
+  append ${syslinux_args} ${slot_b_args}
 EOF
   info "Emitted ${SYSLINUX_DIR}/root.B.cfg"
 }
@@ -133,6 +145,8 @@ copy_to_esp() {
   sudo cp -r "${SYSLINUX_DIR}/." "${FLAGS_esp_dir}/syslinux"
 
   # Stage all kernels with the only one we built.
+  # FIXME(marineam): without an EFI bootloader like gummiboot we currently
+  # don't have a way to set the correct mount options based on disk layout.
   for kernel in syslinux/{vmlinuz-boot_kernel,vmlinuz.A,vmlinuz.B} \
                 EFI/boot/bootx64.efi
   do
