@@ -313,15 +313,15 @@ def FormatExt(part, device):
                   device,
                   part['fs_blocks']])
 
-  # TODO(marineam): Make more of these fs options configurable.
-  Sudo(['tune2fs', '-L', part['label'],
-                   '-U', 'clear',
-                   '-T', '20091119110000',
-                   '-c', '0', '-i', '0', # Disable auto fsck
-                   '-m', '0', '-r', '0', # Disable reserve blocks
-                   '-e', 'remount-ro',
-                   device],
-                   stdout_null=True)
+  tune_cmd = ['tune2fs', '-L', part['label'], '-e', 'remount-ro']
+
+  if part['type'] in ('coreos-rootfs', 'coreos-usr'):
+    tune_cmd += ['-U', 'clear',
+                 '-T', '20091119110000',
+                 '-c', '0', '-i', '0', # Disable auto fsck
+                 '-m', '0', '-r', '0'] # Disable reserve blocks
+
+  Sudo(tune_cmd + [device], stdout_null=True)
 
 
 def FormatFat(part, device):
@@ -424,7 +424,6 @@ def Resize(options):
     with PartitionLoop(options, part) as loop_dev:
       Sudo(['e2fsck', '-p', '-f', loop_dev], stdout_null=True)
       Sudo(['resize2fs', loop_dev, str(part['fs_blocks'])])
-      Sudo(['tune2fs', '-U', 'clear', loop_dev], stdout_null=True)
 
 
 def Mount(options):
