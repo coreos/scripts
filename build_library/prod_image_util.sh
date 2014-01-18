@@ -33,15 +33,16 @@ setup_prod_image() {
   sudo chown root:root "$key_location/update-payload-key.pub.pem"
   sudo chmod 644 "$key_location/update-payload-key.pub.pem"
 
-  # Make the filesystem un-mountable as read-write.
-  if [ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]; then
-    warn "Disabling r/w mount of the root filesystem"
-    sudo mount -o remount,ro "${root_fs_dir}"
-    root_dev=$(awk -v mnt="${root_fs_dir}" \
-               '$2 == mnt { print $1 }' /proc/mounts)
-    disable_rw_mount "$root_dev"
-  fi
-
   cleanup_mounts "${root_fs_dir}"
   trap - EXIT
+
+  # Make the filesystem un-mountable as read-write.
+  if [ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]; then
+    local ro_label="ROOT-A"
+    if [[ "${disk_layout}" == *-usr ]]; then
+      ro_label="USR-A"
+    fi
+    "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
+      tune --disable2fs_rw "${BUILD_DIR}/${image_name}" "${ro_label}"
+  fi
 }
