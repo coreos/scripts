@@ -48,8 +48,10 @@ install_dev_packages() {
 
   # Zero all fs free space, not fatal since it won't work on linux < 3.2
   sudo fstrim "${root_fs_dir}" || true
-  if [[ -d "${root_fs_dir}/media/state" ]]; then
-      sudo fstrim "${root_fs_dir}/media/state" || true
+  if [[ "${disk_layout}" == *-usr ]]; then
+    sudo fstrim "${root_fs_dir}/usr" || true
+  else
+    sudo fstrim "${root_fs_dir}/media/state" || true
   fi
 
   info "Developer image built and stored at ${image_name}"
