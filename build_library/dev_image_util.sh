@@ -36,6 +36,16 @@ install_dev_packages() {
   sudo mkdir -p "${root_fs_dir}/root"
   sudo touch "${root_fs_dir}/root/.dev_mode"
 
+  # Remount the system partition read-write by default.
+  # The remount services are provided by coreos-base/coreos-init
+  local fs_wants="${root_fs_dir}/usr/lib/systemd/system/local-fs.target.wants"
+  sudo mkdir -p "${fs_wants}"
+  if [[ "${disk_layout}" == *-usr ]]; then
+    sudo ln -s ../remount-usr.service "${fs_wants}"
+  else
+    sudo ln -s ../remount-root.service "${fs_wants}"
+  fi
+
   # Zero all fs free space, not fatal since it won't work on linux < 3.2
   sudo fstrim "${root_fs_dir}" || true
   if [[ -d "${root_fs_dir}/media/state" ]]; then
