@@ -61,7 +61,7 @@
       },
       "9":{
         "label":"STATE",
-        "type":"data",
+        "type":"coreos-resize",
         "blocks":"1048576",
         "fs_type":"ext4",
         "mount":"/media/state",
@@ -90,7 +90,6 @@
     "vm":{
       "9":{
         "label":"STATE",
-        "type":"data",
         "blocks":"6291456"
       }
     },
@@ -112,7 +111,6 @@
     "vagrant":{
       "9":{
         "label":"STATE",
-        "type":"data",
         "blocks":"33587200"
       }
     },
