@@ -33,6 +33,16 @@ setup_prod_image() {
   sudo chown root:root "$key_location/update-payload-key.pub.pem"
   sudo chmod 644 "$key_location/update-payload-key.pub.pem"
 
+  # clean-ups of things we do not need
+  sudo rm ${root_fs_dir}/etc/csh.env
+  sudo rm ${root_fs_dir}/etc/gentoo-release
+  sudo rm -rf ${root_fs_dir}/var/db/pkg
+  sudo rm ${root_fs_dir}/var/db/Makefile
+  # clear them out explicitly, so this fails if something else gets dropped
+  # into xinetd.d
+  sudo rm ${root_fs_dir}/etc/xinetd.d/rsyncd
+  sudo rm -r ${root_fs_dir}/etc/xinetd.d
+
   cleanup_mounts "${root_fs_dir}"
   trap - EXIT
 
