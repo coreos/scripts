@@ -42,6 +42,9 @@ setup_prod_image() {
   # into xinetd.d
   sudo rm ${root_fs_dir}/etc/xinetd.d/rsyncd
   sudo rmdir ${root_fs_dir}/etc/xinetd.d
+  # will be readded by tmpfiles.d
+  sudo rm -rf ${root_fs_dir}/etc/systemd
+
 
   cleanup_mounts "${root_fs_dir}"
   trap - EXIT
