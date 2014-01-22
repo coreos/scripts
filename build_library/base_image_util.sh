@@ -42,8 +42,13 @@ create_base_image() {
   # Record directories installed to the state partition.
   # Ignore /var/tmp, systemd covers this entry.
   sudo "${BUILD_LIBRARY_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
-      --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image.conf" \
+      --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image_var.conf" \
       --ignore=/var/tmp "${root_fs_dir}/var"
+  if [[ "${disk_layout}" == *-usr ]]; then
+      sudo "${BUILD_LIBRARY_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
+          --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image_etc.conf" \
+          "${root_fs_dir}/etc"
+  fi
 
   # Set /etc/lsb-release on the image.
   "${BUILD_LIBRARY_DIR}/set_lsb_release" \
