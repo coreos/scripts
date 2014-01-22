@@ -41,7 +41,7 @@ setup_prod_image() {
   # clear them out explicitly, so this fails if something else gets dropped
   # into xinetd.d
   sudo rm ${root_fs_dir}/etc/xinetd.d/rsyncd
-  sudo rm -r ${root_fs_dir}/etc/xinetd.d
+  sudo rmdir ${root_fs_dir}/etc/xinetd.d
 
   cleanup_mounts "${root_fs_dir}"
   trap - EXIT
