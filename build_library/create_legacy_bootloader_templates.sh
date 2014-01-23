@@ -113,7 +113,7 @@ EOF
 label boot_kernel
   menu label boot_kernel
   kernel vmlinuz-boot_kernel
-  append ${syslinux_args} ${gptprio_args}
+  append ${syslinux_args} ${gptprio_args} maxcpus=1
 EOF
   info "Emitted ${SYSLINUX_DIR}/boot_kernel.cfg"
 
