@@ -5,6 +5,7 @@ VM_NAME=
 VM_UUID=
 VM_IMAGE=
 VM_MEMORY=
+VM_NCPUS="`grep -c ^processor /proc/cpuinfo`"
 IMAGE_PATH="${SCRIPT_DIR}/${VM_IMAGE}"
 SSH_PORT=2222
 SSH_KEYS=""
@@ -74,11 +75,14 @@ fi
 
 
 # Default to KVM, fall back on full emulation
+# Emulate the host CPU closely in both features and cores.
 # ${METADATA} will be mounted in CoreOS as /media/metadata
 qemu-system-x86_64 \
     -name "$VM_NAME" \
     -uuid "$VM_UUID" \
     -m ${VM_MEMORY} \
+    -cpu host \
+    -smp "${VM_NCPUS}" \
     -machine accel=kvm:tcg \
     -drive index=0,if=virtio,media=disk,format=qcow2,file="${IMAGE_PATH}" \
     -net nic,vlan=0,model=virtio \
