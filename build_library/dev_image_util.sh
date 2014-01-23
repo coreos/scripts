@@ -6,6 +6,37 @@
 # images from base images.  The main function for export in this
 # library is 'install_dev_packages'.
 
+configure_dev_portage() {
+    # Need profiles at the bare minimum
+    local repo
+    for repo in portage-stable coreos-overlay; do
+        sudo mkdir -p "$1/var/lib/portage/${repo}"
+        sudo rsync -rtl --exclude=md5-cache \
+            "${SRC_ROOT}/third_party/${repo}/metadata" \
+            "${SRC_ROOT}/third_party/${repo}/profiles" \
+            "$1/var/lib/portage/${repo}"
+    done
+
+    sudo mkdir -p "$1/etc/portage"
+    sudo_clobber "$1/etc/portage/make.conf" <<EOF
+# make.conf for CoreOS dev images
+ARCH=$(get_board_arch $BOARD)
+CHOST=$(get_board_chost $BOARD)
+BOARD_USE="$BOARD"
+
+# Use /var/lib/portage instead of /usr/portage
+DISTDIR="/var/lib/portage/distfiles"
+PKGDIR="/var/lib/portage/packages"
+PORTDIR="/var/lib/portage/portage-stable"
+PORTDIR_OVERLAY="/var/lib/portage/coreos-overlay"
+EOF
+
+    # Now set the correct profile
+    sudo PORTAGE_CONFIGROOT="$1" ROOT="$1" \
+        PORTDIR="$1/var/lib/portage/portage-stable" \
+        PORTDIR_OVERLAY="$1/var/lib/portage/coreos-overlay" \
+        eselect profile set --force $(get_board_profile $BOARD)
+}
 
 # Modifies an existing image to add development packages.
 # Takes as an arg the name of the image to be created.
@@ -26,8 +57,8 @@ install_dev_packages() {
   # Make sure profile.env and ld.so.cache has been generated
   sudo ROOT="${root_fs_dir}" env-update
 
-  # Install the bare necessary files so that the "emerge" command works
-  sudo mkdir -p ${root_fs_dir}/etc/make.profile
+  # Setup portage for emerge and gmerge
+  configure_dev_portage "${root_fs_dir}"
 
   # Mark the image as a developer image (input to chromeos_startup).
   # TODO(arkaitzr): Remove this file when applications no longer rely on it
