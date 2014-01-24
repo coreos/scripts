@@ -38,6 +38,9 @@ setup_prod_image() {
   sudo rm ${root_fs_dir}/etc/gentoo-release
   sudo rm -rf ${root_fs_dir}/var/db/pkg
   sudo rm ${root_fs_dir}/var/db/Makefile
+  sudo rm ${root_fs_dir}/etc/locale.gen
+  sudo rm -rf ${root_fs_dir}/etc/lvm/
+
   # clear them out explicitly, so this fails if something else gets dropped
   # into xinetd.d
   sudo rm ${root_fs_dir}/etc/xinetd.d/rsyncd
