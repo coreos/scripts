@@ -41,6 +41,13 @@ setup_prod_image() {
   sudo rm ${root_fs_dir}/etc/locale.gen
   sudo rm -rf ${root_fs_dir}/etc/lvm/
 
+  # systemd specific stuff because we want to keep /etc/systemd, but
+  # none of these guys
+  sudo rmdir ${root_fs_dir}/etc/binfmt.d
+  sudo rmdir ${root_fs_dir}/etc/sysctl.d
+  sudo rmdir ${root_fs_dir}/etc/tmpfiles.d
+  sudo rmdir ${root_fs_dir}/etc/modules-load.d
+
   # clear them out explicitly, so this fails if something else gets dropped
   # into xinetd.d
   sudo rm ${root_fs_dir}/etc/xinetd.d/rsyncd
