@@ -170,7 +170,8 @@ COREOS_PATCH=${COREOS_PATCH}
 COREOS_SDK_VERSION=${COREOS_SDK_VERSION}
 EOF
 
-upload_image "${BUILD_DIR}/au-generator.zip" "${BUILD_DIR}/version.txt"
+upload_image -d "${BUILD_DIR}/au-generator.zip.DIGESTS" \
+    "${BUILD_DIR}/au-generator.zip" "${BUILD_DIR}/version.txt"
 
 # Create a named symlink.
 LINK_NAME="${FLAGS_output_root}/${BOARD}/${FLAGS_symlink}"

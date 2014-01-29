@@ -632,7 +632,8 @@ vm_cleanup() {
 }
 
 vm_upload() {
-    upload_image "${VM_GENERATED_FILES[@]}"
+    local digests="${VM_GENERATED_FILES[0]}.DIGESTS"
+    upload_image -d "${digests}" "${VM_GENERATED_FILES[@]}"
 }
 
 print_readme() {

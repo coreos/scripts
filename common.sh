@@ -693,40 +693,45 @@ enable_rw_mount() {
 
 # Generate a DIGESTS file, as normally used by Gentoo.
 # This is an alternative to shash which doesn't know how to report errors.
-# Usage: make_digests file1 [file2...]
-# Output: file1.DIGESTS
-# Any extra files be hashed and listed in file1.DIGESTS
+# Usage: make_digests -d file.DIGESTS file1 [file2...]
 _digest_types="md5 sha1 sha512"
 make_digests() {
-    local dirname=$(dirname "$1")
-    local basename=$(basename "$1")
+    [[ "$1" == "-d" ]] || die
+    local digests="$(readlink -f "$2")"
+    shift 2
 
-    pushd "${dirname}" >/dev/null
-    echo -n > "${basename}.DIGESTS"
+    pushd "$(dirname "$1")" >/dev/null
+    echo -n > "${digests}"
     for filename in "$@"; do
         filename=$(basename "$filename")
         info "Computing DIGESTS for ${filename}"
         for hash_type in $_digest_types; do
-            echo "# $hash_type HASH" | tr "a-z" "A-Z" >> "${basename}.DIGESTS"
-            ${hash_type}sum "${filename}" >> "${basename}.DIGESTS"
+            echo "# $hash_type HASH" | tr "a-z" "A-Z" >> "${digests}"
+            ${hash_type}sum "${filename}" >> "${digests}"
         done
     done
     popd >/dev/null
 }
 
 # Validate a DIGESTS file. Essentially the inverse of make_digests.
-# Usage: verify_digests file1 [file2...]
-# Checks the hash of all given files using file1.DIGESTS
+# Usage: verify_digests [-d file.DIGESTS] file1 [file2...]
+# If -d is not specified file1.DIGESTS will be used
 verify_digests() {
-    local dirname=$(dirname "$1")
-    local basename=$(basename "$1")
+    local digests
+    if [[ "$1" == "-d" ]]; then
+        [[ -n "$2" ]] || die "-d requires an argument"
+        digests="$(readlink -f "$2")"
+        shift 2
+    else
+        digests=$(basename "${1}.DIGESTS")
+    fi
 
-    pushd "${dirname}" >/dev/null
+    pushd "$(dirname "$1")" >/dev/null
     for filename in "$@"; do
         filename=$(basename "$filename")
         info "Validating DIGESTS for ${filename}"
         for hash_type in $_digest_types; do
-            grep -A1 -i "^# ${hash_type} HASH$" "${basename}.DIGESTS" | \
+            grep -A1 -i "^# ${hash_type} HASH$" "${digests}" | \
                 grep "$filename$" | ${hash_type}sum -c - --strict || return 1
             # Also check that none of the greps failed in the above pipeline
             [[ -z ${PIPESTATUS[*]#0} ]] || return 1

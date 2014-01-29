@@ -85,11 +85,24 @@ upload_packages() {
     upload_files packages ${def_upload_path} "pkgs/" "${board_packages}"/*
 }
 
-# Upload a image along with optional supporting files
-# The image file must be the first argument
+# Upload a set of files (usually images) and digest, optionally w/ gpg sig
+# If more than one file is specified -d must be the first argument
+# Usage: upload_image [-d file.DIGESTS] file1 [file2...]
 upload_image() {
     [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]] || return 0
     [[ -n "${BOARD}" ]] || die "board_options.sh must be sourced first"
+
+    # The name to use for .DIGESTS and .DIGESTS.asc must be explicit if
+    # there is more than one file to upload to avoid potential confusion.
+    local digests
+    if [[ "$1" == "-d" ]]; then
+        [[ -n "$2" ]] || die "-d requires an argument"
+        digests="$2"
+        shift 2
+    else
+        [[ $# -eq 1 ]] || die "-d is required for multi-file uploads"
+        digests="${1}.DIGESTS"
+    fi
 
     local uploads=()
     local filename
@@ -110,18 +123,18 @@ upload_image() {
 
     # For consistency generate a .DIGESTS file similar to the one catalyst
     # produces for the SDK tarballs and up upload it too.
-    make_digests "${uploads[@]}"
-    uploads+=( "${uploads[0]}.DIGESTS" )
+    make_digests -d "${digests}" "${uploads[@]}"
+    uploads+=( "${digests}" )
 
     # Create signature as ...DIGESTS.asc as Gentoo does.
     if [[ -n "${FLAGS_sign_digests}" ]]; then
-      rm -f "${uploads[0]}.DIGESTS.asc"
+      rm -f "${digests}.asc"
       gpg --batch --local-user "${FLAGS_sign_digests}" \
-          --clearsign "${uploads[0]}.DIGESTS" || die "gpg failed"
-      uploads+=( "${uploads[0]}.DIGESTS.asc" )
+          --clearsign "${digests}" || die "gpg failed"
+      uploads+=( "${digests}.asc" )
     fi
 
-    local log_msg="${1##*/}"
+    local log_msg=$(basename "$digests" .DIGESTS)
     local def_upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
     upload_files "${log_msg}" "${def_upload_path}" "" "${uploads[@]}"
 }
