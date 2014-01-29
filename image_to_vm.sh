@@ -106,7 +106,7 @@ vm_cleanup
 trap - EXIT
 
 # Optionally upload all of our hard work
-upload_image "${VM_GENERATED_FILES[@]}"
+vm_upload
 
 # Ready to set sail!
 okboat

@@ -631,6 +631,10 @@ vm_cleanup() {
     sudo rm -rf "${VM_TMP_DIR}"
 }
 
+vm_upload() {
+    upload_image "${VM_GENERATED_FILES[@]}"
+}
+
 print_readme() {
     local filename
     info "Files written to $(relpath "$(dirname "${VM_DST_IMG}")")"
