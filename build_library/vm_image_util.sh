@@ -631,6 +631,44 @@ vm_cleanup() {
     sudo rm -rf "${VM_TMP_DIR}"
 }
 
+vm_upload() {
+    local digests="$(_dst_dir)/$(_dst_name .DIGESTS)"
+    upload_image -d "${digests}" "${VM_GENERATED_FILES[@]}"
+
+    # FIXME(marineam): Temporary alternate name for .DIGESTS
+    # This used to be derived from the first file listed in
+    # ${VM_GENERATED_FILES[@]}", usually $VM_DST_IMG or similar.
+    # Since not everything actually uploads $VM_DST_IMG this was not very
+    # consistent and relying on ordering was breakable.
+    # Now the common prefix, output by $(_dst_name) is used above.
+    # Some download/install scripts may still refer to the old name.
+    local uploaded legacy_digests
+    for uploaded in "${VM_GENERATED_FILES[@]}"; do
+        if [[ "${uploaded}" == "${VM_DST_IMG}" ]]; then
+            legacy_digests="$(_dst_dir)/$(basename ${VM_DST_IMG}).DIGESTS"
+            break
+        fi
+    done
+
+    # Since depending on the ordering of $VM_GENERATED_FILES is brittle only
+    # use it if $VM_DST_IMG isn't included in the uploaded files.
+    if [[ -z "${legacy_digests}" ]]; then
+        legacy_digests="${VM_GENERATED_FILES[0]}.DIGESTS"
+    fi
+
+    [[ "${legacy_digests}" != "${digests}" ]] || return
+
+    local legacy_uploads=( "${legacy_digests}" )
+    cp "${digests}" "${legacy_digests}"
+    if [[ -e "${digests}.asc" ]]; then
+        legacy_uploads+=( "${legacy_digests}.asc" )
+        cp "${digests}.asc" "${legacy_digests}.asc"
+    fi
+
+    local def_upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
+    upload_files "$(_dst_name)" "${def_upload_path}" "" "${legacy_uploads[@]}"
+}
+
 print_readme() {
     local filename
     info "Files written to $(relpath "$(dirname "${VM_DST_IMG}")")"
