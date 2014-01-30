@@ -635,6 +635,8 @@ vm_upload() {
     local digests="$(_dst_dir)/$(_dst_name .DIGESTS)"
     upload_image -d "${digests}" "${VM_GENERATED_FILES[@]}"
 
+    [[ -e "${digests}" ]] || return 0
+
     # FIXME(marineam): Temporary alternate name for .DIGESTS
     # This used to be derived from the first file listed in
     # ${VM_GENERATED_FILES[@]}", usually $VM_DST_IMG or similar.
@@ -656,7 +658,7 @@ vm_upload() {
         legacy_digests="${VM_GENERATED_FILES[0]}.DIGESTS"
     fi
 
-    [[ "${legacy_digests}" != "${digests}" ]] || return
+    [[ "${legacy_digests}" != "${digests}" ]] || return 0
 
     local legacy_uploads=( "${legacy_digests}" )
     cp "${digests}" "${legacy_digests}"
