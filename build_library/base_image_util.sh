@@ -2,8 +2,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-. "${SRC_ROOT}/platform/dev/toolchain_utils.sh" || exit 1
-
 create_base_image() {
   local image_name=$1
   local disk_layout=$2
