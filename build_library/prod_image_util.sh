@@ -40,6 +40,34 @@ setup_prod_image() {
   sudo rm ${root_fs_dir}/var/db/Makefile
   sudo rm ${root_fs_dir}/etc/locale.gen
   sudo rm -rf ${root_fs_dir}/etc/lvm/
+  sudo rm ${root_fs_dir}/etc/wgetrc
+  sudo rm ${root_fs_dir}/etc/rsyncd.conf
+  sudo rm ${root_fs_dir}/etc/nscd.conf
+  sudo rm ${root_fs_dir}/etc/environment
+  sudo rm ${root_fs_dir}/etc/idmapd.conf
+  sudo rm ${root_fs_dir}/etc/exports
+  sudo rm ${root_fs_dir}/etc/e2fsck.conf
+  sudo rm -rf ${root_fs_dir}/etc/lxc
+  sudo rm -rf ${root_fs_dir}/etc/profile.d
+
+  # these are all left over from the build system
+  sudo rm ${root_fs_dir}/etc/env.d/00glibc
+  sudo rm ${root_fs_dir}/etc/env.d/04gcc-x86_64-cros-linux-gnu
+  sudo rm ${root_fs_dir}/etc/env.d/30gnupg
+  sudo rm ${root_fs_dir}/etc/env.d/70less
+  sudo rm ${root_fs_dir}/etc/env.d/90nss
+  sudo rm ${root_fs_dir}/etc/env.d/98ca-certificates
+  sudo rm ${root_fs_dir}/etc/env.d/99editor
+  sudo rm -rf ${root_fs_dir}/etc/env.d/gcc/
+
+  # /etc/ssl/certs is the important one, and everything in there
+  # is linked to /usr/share/
+  sudo rm -rf ${root_fs_dir}/etc/ssl/misc
+  sudo rm ${root_fs_dir}/etc/ssl/openssl.cnf
+  sudo rm ${root_fs_dir}/etc/ssl/certs/README.RootCerts
+  sudo rm ${root_fs_dir}/etc/ssl/certs/ca-certificates.crt
+
+
 
   # clear them out explicitly, so this fails if something else gets dropped
   # into xinetd.d
