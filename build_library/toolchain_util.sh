@@ -105,6 +105,30 @@ get_board_profile() {
     done
 }
 
+# Usage: get_board_binhost [-t] board [version...]
+# -t: toolchain only, full rebuilds re-using toolchain pkgs
+# If no versions are specified the current and SDK versions are used.
+get_board_binhost() {
+    local toolchain_only=0 board ver
+    if [[ "$1" == "-t" ]]; then
+        toolchain_only=1
+        shift
+    fi
+    board="$1"
+    shift
+
+    if [[ $# -eq 0 ]]; then
+        set -- "${COREOS_VERSION_ID}" "${COREOS_SDK_VERSION}"
+    fi
+
+    for ver in "$@"; do
+        if [[ $toolchain_only -eq 0 ]]; then
+            echo "${COREOS_DOWNLOAD_ROOT}/${board}/${ver}/pkgs/"
+        fi
+        echo "${COREOS_DOWNLOAD_ROOT}/${board}/${ver}/toolchain/"
+    done
+}
+
 # Usage: get_cross_pkgs chost [chost2...]
 get_cross_pkgs() {
     local cross_chost native_pkg
