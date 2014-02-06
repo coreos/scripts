@@ -3,7 +3,7 @@
 # found in the LICENSE file.
 
 GSUTIL_OPTS=
-UPLOAD_ROOT="${COREOS_UPLOAD_ROOT:-gs://storage.core-os.net/coreos}"
+UPLOAD_ROOT=
 UPLOAD_PATH=
 UPLOAD_DEFAULT=${FLAGS_FALSE}
 if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
@@ -17,8 +17,10 @@ DEFINE_boolean parallel ${FLAGS_TRUE} \
   "Enable parallelism in gsutil."
 DEFINE_boolean upload ${UPLOAD_DEFAULT} \
   "Upload all packages/images via gsutil."
+DEFINE_string upload_root "${COREOS_UPLOAD_ROOT}" \
+  "Upload prefix, board/version/etc will be appended. Must be a gs:// URL."
 DEFINE_string upload_path "" \
-  "Upload files to an alternative location. Must be a full gs:// URL."
+  "Full upload path, overrides --upload_root. Must be a full gs:// URL."
 DEFINE_string sign_digests "" \
   "Sign image DIGESTS files with the given GPG key."
 
@@ -29,7 +31,18 @@ check_gsutil_opts() {
         GSUTIL_OPTS="-m"
     fi
 
+    if [[ -n "${FLAGS_upload_root}" ]]; then
+        if [[ "${FLAGS_upload_root}" != gs://* ]]; then
+            die_notrace "--upload_root must be a gs:// URL"
+        fi
+        # Make sure the path doesn't end with a slash
+        UPLOAD_ROOT="${FLAGS_upload_root%%/}"
+    fi
+
     if [[ -n "${FLAGS_upload_path}" ]]; then
+        if [[ "${FLAGS_upload_path}" != gs://* ]]; then
+            die_notrace "--upload_path must be a gs:// URL"
+        fi
         # Make sure the path doesn't end with a slash
         UPLOAD_PATH="${FLAGS_upload_path%%/}"
     fi

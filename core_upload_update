@@ -77,5 +77,5 @@ core-admin new-version \
 
 # Copy the vagrant boxes and pre-built images over to the track mirror
 gsutil cp \
-    "gs://storage.core-os.net/coreos/amd64-generic/${FLAGS_version}/*" \
-    "gs://storage.core-os.net/coreos/amd64-generic/${FLAGS_track}/"
+    "${COREOS_UPLOAD_ROOT}/amd64-generic/${FLAGS_version}/*" \
+    "${COREOS_UPLOAD_ROOT}/amd64-generic/${FLAGS_track}/"
