@@ -40,7 +40,7 @@ do
 done
 
 shift $((script_args - 1))
-[ "$1" == "--" ] && shift
+[ "$1" = "--" ] && shift
 
 
 METADATA=$(mktemp -t -d coreos-meta-data.XXXXXXXXXX)
