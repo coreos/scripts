@@ -329,6 +329,7 @@ _write_qemu_conf() {
         -e "s%^VM_IMAGE=.*%VM_IMAGE='${dst_name}'%" \
         -e "s%^VM_MEMORY=.*%VM_MEMORY='${vm_mem}'%" \
         "${BUILD_LIBRARY_DIR}/qemu_template.sh" > "${script}"
+    checkbashisms --posix "${script}" || die
     chmod +x "${script}"
 
     cat >"${VM_README}" <<EOF
