@@ -217,7 +217,6 @@ else
 fi
 
 info "Configuring portage in ${BOARD_ROOT}"
-echo "eselect will report '!!! Warning: Strange path.' but that's OK"
 cmds=(
   "mkdir -p '${BOARD_ROOT}' '${BOARD_PROFILE}' '${BOARD_ETC}/portage/hooks'"
   "ROOT='${BOARD_ROOT}' eselect profile set --force '${PORTAGE_PROFILE}'"

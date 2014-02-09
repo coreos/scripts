@@ -173,7 +173,6 @@ _configure_sysroot() {
     fi
 
     $sudo mkdir -p "${ROOT}/etc/portage"
-    echo "eselect will report '!!! Warning: Strange path.' but that's OK"
     $sudo eselect profile set --force "$profile"
 
     $sudo tee "${ROOT}/etc/portage/make.conf" >/dev/null <<EOF
