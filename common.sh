@@ -314,13 +314,15 @@ source "$COREOS_VERSION_FILE" || die "Cannot source version.txt"
 # Official builds must set COREOS_OFFICIAL=1 to use an official version.
 # Unofficial builds always appended the date/time as a build identifier.
 # Also do not alter the version if using an alternate version.txt path.
+COREOS_BUILD_ID=""
 if [[ ${COREOS_OFFICIAL:-0} -ne 1 &&
     "${COREOS_VERSION_FILE}" =~ /\.repo/manifests/version.txt ]]; then
-  COREOS_PATCH="${COREOS_PATCH}+$(date +%Y-%m-%d-%H%M)"
+  COREOS_BUILD_ID=$(date +%Y-%m-%d-%H%M)
 fi
 
 # Full version string.
-COREOS_VERSION_STRING="${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}"
+COREOS_VERSION_ID="${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}"
+COREOS_VERSION_STRING="${COREOS_VERSION_ID}${COREOS_BUILD_ID++}${COREOS_BUILD_ID}"
 
 # Calculate what today's build version should be, used by release
 # scripts to provide a reasonable default value. The value is the number
