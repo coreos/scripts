@@ -248,7 +248,7 @@ sudo_clobber "${BOARD_SETUP}" <<EOF
 # Created by setup_board
 CHOST="${BOARD_CHOST}"
 ROOT="${BOARD_ROOT}/"
-MAKEOPTS="--jobs=${NUM_JOBS} --load-average=${NUM_JOBS}"
+MAKEOPTS="--jobs=${NUM_JOBS} --load-average=$((NUM_JOBS * 2))"
 PKG_CONFIG="pkg-config-${BOARD_VARIANT}"
 BOARD_USE="${BOARD_VARIANT}"
 PORTAGE_BINHOST="${BOARD_BINHOST}"
