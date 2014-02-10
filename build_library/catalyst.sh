@@ -250,11 +250,13 @@ build_stage() {
 }
 
 build_snapshot() {
-    if [[ -f "$CATALYST_ROOT/snapshots/portage-${FLAGS_version}.tar.bz2" ]]
+    local snapshot="portage-${FLAGS_version}.tar.bz2"
+    local snapshot_path="$CATALYST_ROOT/snapshots/${snapshot}"
+    if [[ -f "${snapshot_path}" && $FLAGS_rebuild == $FLAGS_FALSE ]]
     then
-        info "Skipping snapshot, portage-${FLAGS_version}.tar.bz2 exists"
+        info "Skipping snapshot, ${snapshot_path} exists"
     else
-        info "Creating snapshot portage-${FLAGS_version}.tar.bz2"
+        info "Creating snapshot ${snapshot_path}"
         catalyst $DEBUG -c "$TEMPDIR/catalyst.conf" -s "$FLAGS_version"
     fi
 }
