@@ -7,9 +7,16 @@
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
-DEFINE_integer build "${TODAYS_VERSION}" \
-    "Branch name (aka 'build'), should be days since 2013-7-1"
-DEFINE_integer branch 0 "Branch revision, normally 0"
+DEFAULT_BUILD=${TODAYS_VERSION}
+DEFAULT_BRANCH=0
+
+# Increment $BRANCH if we already are on a version from today
+if [[ ${DEFAULT_BUILD} -eq ${COREOS_BUILD} ]]; then
+    DEFAULT_BRANCH=$((COREOS_BRANCH + 1))
+fi
+
+DEFINE_integer build ${DEFAULT_BUILD} "Branch major version (aka 'build')"
+DEFINE_integer branch ${DEFAULT_BRANCH} "Branch revision or minor version"
 DEFINE_integer patch 0 "Branch patch id, normally 0"
 DEFINE_string track "dev-channel" "Set the given track to this new branch"
 DEFINE_string sdk_version "${COREOS_VERSION_ID}" \
