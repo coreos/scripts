@@ -11,8 +11,7 @@ COREOS_SDK_ARCH="amd64" # We are unlikely to support anything else.
 COREOS_SDK_TARBALL="coreos-sdk-${COREOS_SDK_ARCH}-${COREOS_SDK_VERSION}.tar.bz2"
 COREOS_SDK_TARBALL_CACHE="${REPO_CACHE_DIR}/sdks"
 COREOS_SDK_TARBALL_PATH="${COREOS_SDK_TARBALL_CACHE}/${COREOS_SDK_TARBALL}"
-COREOS_SDK_URL_PREFIX="http://storage.core-os.net/coreos/sdk"
-COREOS_SDK_URL="${COREOS_SDK_URL_PREFIX}/${COREOS_SDK_ARCH}/${COREOS_SDK_VERSION}/${COREOS_SDK_TARBALL}"
+COREOS_SDK_URL="${COREOS_DOWNLOAD_ROOT}/sdk/${COREOS_SDK_ARCH}/${COREOS_SDK_VERSION}/${COREOS_SDK_TARBALL}"
 
 # Download the current SDK tarball (if required) and verify digests/sig
 sdk_download_tarball() {

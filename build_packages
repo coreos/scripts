@@ -47,6 +47,10 @@ show_help_if_requested "$@"
 # The following options are advanced options, only available to those willing
 # to read the source code. They are not shown in help output, since they are
 # not needed for the typical developer workflow.
+DEFINE_string getbinpkgver "" \
+  "Use binary packages from a specific version."
+DEFINE_boolean toolchainpkgonly $FLAGS_FALSE \
+  "Use binary packages only for the board toolchain."
 DEFINE_string accept_licenses "" \
   "Licenses to append to the accept list."
 DEFINE_boolean fast "${DEFAULT_FAST}" \
@@ -91,7 +95,7 @@ check_gsutil_opts
 CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
 
 # Before we can run any tools, we need to update chroot or setup_board.
-UPDATE_ARGS=()
+UPDATE_ARGS=( --regen_configs )
 if [[ -n ${FLAGS_accept_licenses} ]]; then
   UPDATE_ARGS+=( --accept_licenses "${FLAGS_accept_licenses}" )
 fi
@@ -106,6 +110,14 @@ if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
     UPDATE_ARGS+=( --getbinpkg )
   else
     UPDATE_ARGS+=( --nogetbinpkg )
+  fi
+  if [[ "${FLAGS_toolchainpkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+    UPDATE_ARGS+=( --toolchainpkgonly )
+  else
+    UPDATE_ARGS+=( --notoolchainpkgonly )
+  fi
+  if [[ -n "${FLAGS_getbinpkgver}" ]]; then
+    UPDATE_ARGS+=( --getbinpkgver="${FLAGS_getbinpkgver}" )
   fi
 else
   UPDATE_ARGS+=( --nousepkg )

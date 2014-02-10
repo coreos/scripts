@@ -33,6 +33,10 @@ show_help_if_requested "$@"
 # The following options are advanced options, only available to those willing
 # to read the source code. They are not shown in help output, since they are
 # not needed for the typical developer workflow.
+DEFINE_string getbinpkgver "" \
+  "Use binary packages from a specific version."
+DEFINE_boolean toolchainpkgonly $FLAGS_FALSE \
+  "Use binary packages only for the board toolchain."
 DEFINE_string accept_licenses "" \
   "Licenses to append to the accept list."
 DEFINE_boolean fast "${DEFAULT_FAST}" \
@@ -124,6 +128,16 @@ EOF
   sudo_multi "${cmds[@]}"
 }
 
+generate_binhost_list() {
+  local t
+  [[ "${FLAGS_toolchainpkgonly}" -eq "${FLAGS_TRUE}" ]] && t="-t"
+  FLAGS_getbinpkgver="${FLAGS_getbinpkgver/current/${COREOS_VERSION_ID}}"
+  FLAGS_getbinpkgver="${FLAGS_getbinpkgver/latest/${COREOS_VERSION_ID}}"
+  FLAGS_getbinpkgver="${FLAGS_getbinpkgver/sdk/${COREOS_SDK_VERSION}}"
+
+  get_board_binhost $t "${BOARD}" ${FLAGS_getbinpkgver}
+}
+
 # Parse command line flags
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -180,6 +194,7 @@ BOARD_PROFILE="${BOARD_ETC}/portage/profile"
 BOARD_ARCH=$(get_board_arch "$BOARD")
 BOARD_CHOST=$(get_board_chost ${BOARD})
 PORTAGE_PROFILE=$(get_board_profile "$BOARD")
+BOARD_BINHOST=$(generate_binhost_list)
 
 if [ -d "${BOARD_ROOT}" ]; then
   if [[ ${FLAGS_force} -eq ${FLAGS_TRUE} ]]; then
@@ -202,7 +217,6 @@ else
 fi
 
 info "Configuring portage in ${BOARD_ROOT}"
-echo "eselect will report '!!! Warning: Strange path.' but that's OK"
 cmds=(
   "mkdir -p '${BOARD_ROOT}' '${BOARD_PROFILE}' '${BOARD_ETC}/portage/hooks'"
   "ROOT='${BOARD_ROOT}' eselect profile set --force '${PORTAGE_PROFILE}'"
@@ -237,6 +251,7 @@ ROOT="${BOARD_ROOT}/"
 MAKEOPTS="--jobs=${NUM_JOBS} --load-average=${NUM_JOBS}"
 PKG_CONFIG="pkg-config-${BOARD_VARIANT}"
 BOARD_USE="${BOARD_VARIANT}"
+PORTAGE_BINHOST="${BOARD_BINHOST}"
 ${ACCEPT_LICENSE}
 EOF
 
