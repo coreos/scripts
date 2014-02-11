@@ -322,7 +322,7 @@ fi
 
 # Full version string.
 COREOS_VERSION_ID="${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}"
-COREOS_VERSION_STRING="${COREOS_VERSION_ID}${COREOS_BUILD_ID++}${COREOS_BUILD_ID}"
+COREOS_VERSION_STRING="${COREOS_VERSION_ID}${COREOS_BUILD_ID:++}${COREOS_BUILD_ID}"
 
 # Calculate what today's build version should be, used by release
 # scripts to provide a reasonable default value. The value is the number
