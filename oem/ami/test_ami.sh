@@ -63,7 +63,6 @@ else
     exit 1
 fi
 
-
 echo -n "Creating keys and security group... "
 key_name="autotest-`date +%s`"
 key_file="/tmp/$key_name"
@@ -105,18 +104,29 @@ declare -a ips=($($ec2_cmd | grep INSTANCE | cut -f4))
 # sleep until all the sockets we need come up
 for host in ${ips[@]}; do
     for port in 22 4001 7001; do
-        timeout 90 perl -MIO::Socket::INET -e "
+        timeout 120 perl -MIO::Socket::INET -e "
             until(new IO::Socket::INET('$host:$port')){sleep 1}"
     done
 done
 echo "OK ($instances)"
 
+echo "Running coretest..."
+for host in ${ips[@]}; do
+    if ! ssh -i "$key_file" -l core -o StrictHostKeyChecking=no "$host" \
+            coretest -test.v=true -test.parallel=8
+    then
+        echo "coretest failed for $host" >&2
+        exit 1
+    fi
+done
+echo "OK"
+
 echo -n "Testing etcd... "
 test_key="v1/keys/test"
 # XXX: the sleep *should never* be required, this is a bug in etcd
-sleep 1
+sleep 5
 curl --fail -s -L "${ips[0]}:4001/$test_key" -d value="$token" > /dev/null
-sleep 1
+sleep 5
 for host in ${ips[@]}; do
     if ! curl --fail -s -L "${host}:4001/$test_key" | grep -q $token; then
         echo "etcd bootstrap appears to have failed for $host" >&2
@@ -125,36 +135,7 @@ for host in ${ips[@]}; do
 done
 echo "OK"
 
-AUTOTEST_DIR=$(mktemp -d)
-trap 'cd /; rm -rf "${AUTOTEST_DIR}"' EXIT
-pushd "${AUTOTEST_DIR}"
-
-wget https://github.com/autotest/autotest/archive/0.15.1.tar.gz
-tar -xzf 0.15.1.tar.gz
-git clone git://github.com/coreos/coreos-autotest.git
-cp -r ./coreos-autotest/client/* ./autotest-0.15.1/client/tests
-
-cp ~/.ssh/config ~/.ssh/config.back
-for host in ${ips[@]}; do
-cat >> ~/.ssh/config <<EOF
-Host $host
-User core
-IdentityFile $key_file
-EOF
-done
-
-pushd autotest-0.15.1
-sed -i 's_/usr/local/autotest,/home/autotest_/tmp/autotest_' global_config.ini
-
-for file in `find -wholename "./client/tests/coreos_*/control"`
-do
-	./server/autotest-remote -m ${ips} -c ${file} --install-in-tmpdir --ssh-user core
-done
-popd
-popd
-
 echo -n "Cleaning up environment... "
-cp ~/.ssh/config.back ~/.ssh/config
 ec2-terminate-instances $instances > /dev/null
 while ! $ec2_cmd | grep INSTANCE | grep -q terminated
   do sleep 10; done
