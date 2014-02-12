@@ -110,6 +110,17 @@ for host in ${ips[@]}; do
 done
 echo "OK ($instances)"
 
+echo "Running coretest..."
+for host in ${ips[@]}; do
+    if ! ssh -i "$key_file" -l core -o StrictHostKeyChecking=no "$host" \
+            coretest -test.v=true -test.parallel=8
+    then
+        echo "coretest failed for $host" >&2
+        exit 1
+    fi
+done
+echo "OK"
+
 echo -n "Testing etcd... "
 test_key="v1/keys/test"
 # XXX: the sleep *should never* be required, this is a bug in etcd
