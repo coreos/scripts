@@ -104,7 +104,7 @@ declare -a ips=($($ec2_cmd | grep INSTANCE | cut -f4))
 # sleep until all the sockets we need come up
 for host in ${ips[@]}; do
     for port in 22 4001 7001; do
-        timeout 90 perl -MIO::Socket::INET -e "
+        timeout 120 perl -MIO::Socket::INET -e "
             until(new IO::Socket::INET('$host:$port')){sleep 1}"
     done
 done
@@ -113,9 +113,9 @@ echo "OK ($instances)"
 echo -n "Testing etcd... "
 test_key="v1/keys/test"
 # XXX: the sleep *should never* be required, this is a bug in etcd
-sleep 1
+sleep 5
 curl --fail -s -L "${ips[0]}:4001/$test_key" -d value="$token" > /dev/null
-sleep 1
+sleep 5
 for host in ${ips[@]}; do
     if ! curl --fail -s -L "${host}:4001/$test_key" | grep -q $token; then
         echo "etcd bootstrap appears to have failed for $host" >&2
