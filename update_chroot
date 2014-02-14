@@ -118,6 +118,7 @@ sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
     sys-apps/portage \
     sys-devel/crossdev \
     sys-devel/sysroot-wrappers \
+    sys-libs/nss-usrfiles \
     "${TOOLCHAIN_PKGS[@]}"
 
 if [[ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" && \
