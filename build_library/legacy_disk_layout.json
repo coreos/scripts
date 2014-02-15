@@ -69,7 +69,6 @@
           "overlays/home":"/home",
           "overlays/opt":"/opt",
           "overlays/srv":"/srv",
-          "overlays/usr/local":"/usr/local",
           "overlays/var":"/var"
         }
       }
