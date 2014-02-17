@@ -35,7 +35,6 @@ setup_prod_image() {
 
   # clean-ups of things we do not need
   sudo rm ${root_fs_dir}/etc/csh.env
-  sudo rm ${root_fs_dir}/etc/gentoo-release
   sudo rm -rf ${root_fs_dir}/var/db/pkg
   sudo rm ${root_fs_dir}/var/db/Makefile
   sudo rm ${root_fs_dir}/etc/locale.gen
