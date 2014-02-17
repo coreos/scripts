@@ -113,7 +113,7 @@ fi
 # In first pass, update portage and toolchains. Lagged updates of both
 # can cause serious issues later.
 info "Updating basic system packages"
-sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
+sudo -E ${EMERGE_CMD} --quiet ${EMERGE_FLAGS} \
     dev-util/ccache \
     sys-apps/portage \
     sys-devel/crossdev \
