@@ -138,12 +138,17 @@ delete_existing() {
 }
 
 init_users () {
-  if grep -q "^${SUDO_USER}:[^:]*:${SUDO_UID}:${SUDO_GID}:" \
-      "${FLAGS_chroot}/etc/passwd"; then
+  # make sure user/group database files exist
+  touch "${FLAGS_chroot}/etc/"{group,gshadow,passwd,shadow}
+  chmod 640 "${FLAGS_chroot}/etc/"{gshadow,shadow}
+
+  # update or add developer user and group
+  local userent=$(bare_chroot getent passwd "${SUDO_USER}") || true
+  if [[ "${userent}" =~ ^[^:]*:[^:]*:${SUDO_UID}:${SUDO_GID}: ]]; then
     info "Updating ${SUDO_USER} (already exists in chroot)..."
     bare_chroot usermod -a -G "${DEFGROUPS}" \
         -s /bin/bash -m -d "/home/${SUDO_USER}" "${SUDO_USER}"
-  elif grep -q "^${SUDO_USER}:" "${FLAGS_chroot}/etc/passwd"; then
+  elif [[ -n "${userent}" ]]; then
     die "User ${SUDO_USER} exists in chroot with different UID/GID"
   else
     info "Adding user ${SUDO_USER}..."
@@ -152,27 +157,33 @@ init_users () {
     group_name=$(getent group "${SUDO_GID}" | cut -d: -f1)
     [[ -n "${group_name}" ]] || die "Looking up gid $SUDO_GID failed."
 
-    if grep -q "^${group_name}:[^:]*:${SUDO_GID}:" "${FLAGS_chroot}/etc/group"
-    then
+    local groupent=$(bare_chroot getent group "${group_name}") || true
+    if [[ "${groupent}" =~ ^[^:]*:[^:]*:${SUDO_GID}: ]]; then
       true # group/gid exists, don't need to add it
-    elif grep -q "^${group_name}:" "${FLAGS_chroot}/etc/group"; then
+    elif [[ -n "${groupent}" ]]; then
       die "Group ${group_name} exists in chroot with different GID"
     else
       bare_chroot groupadd -o -g "${SUDO_GID}" "${group_name}"
     fi
 
+    bare_chroot useradd -o \
+        -G "${DEFGROUPS}" -g "${SUDO_GID}" -u "${SUDO_UID}" \
+        -s /bin/bash -m -c "${full_name}" "${SUDO_USER}"
+
+    # TODO(marineam): this can be removed once baselayout 3 is merged
     # We need the UID to match the host user's. This can conflict with
     # a particular chroot UID. At the same time, the added user has to
     # be a primary user for the given UID for sudo to work, which is
     # determined by the order in /etc/passwd. Let's put ourselves on top
     # of the file.
-    bare_chroot useradd -o \
-        -G "${DEFGROUPS}" -g "${SUDO_GID}" -u "${SUDO_UID}" \
-        -s /bin/bash -m -c "${full_name}" "${SUDO_USER}"
     # Because passwd generally isn't sorted and the entry ended up at the
     # bottom, it is safe to just take it and move it to top instead.
-    sed -e '1{h;d};$!{H;d};$G' -i "${FLAGS_chroot}/etc/group"
-    sed -e '1{h;d};$!{H;d};$G' -i "${FLAGS_chroot}/etc/passwd"
+    if [[ $(wc -l <"${FLAGS_chroot}/etc/passwd") -gt 1 ]]; then
+      sed -e '1{h;d};$!{H;d};$G' -i "${FLAGS_chroot}/etc/passwd"
+    fi
+    if [[ $(wc -l <"${FLAGS_chroot}/etc/group") -gt 1 ]]; then
+      sed -e '1{h;d};$!{H;d};$G' -i "${FLAGS_chroot}/etc/group"
+    fi
   fi
 }
 
