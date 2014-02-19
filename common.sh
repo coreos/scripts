@@ -392,8 +392,8 @@ if [[ -f ${GCLIENT_ROOT}/src/scripts/.default_board ]]; then
   fi
 fi
 
-# Enable --fast by default.
-DEFAULT_FAST=${FLAGS_TRUE}
+# Disable --fast in most commands
+DEFAULT_FAST=${FLAGS_FALSE}
 
 # Directory to store built images.  Should be set by sourcing script when used.
 BUILD_DIR=
