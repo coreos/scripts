@@ -645,20 +645,26 @@ vm_upload() {
     # consistent and relying on ordering was breakable.
     # Now the common prefix, output by $(_dst_name) is used above.
     # Some download/install scripts may still refer to the old name.
-    local uploaded legacy_digests
+    local uploaded legacy_uploaded
     for uploaded in "${VM_GENERATED_FILES[@]}"; do
         if [[ "${uploaded}" == "${VM_DST_IMG}" ]]; then
-            legacy_digests="$(_dst_dir)/$(basename ${VM_DST_IMG}).DIGESTS"
+            legacy_uploaded="$(_dst_dir)/$(basename ${VM_DST_IMG})"
             break
         fi
     done
 
     # Since depending on the ordering of $VM_GENERATED_FILES is brittle only
     # use it if $VM_DST_IMG isn't included in the uploaded files.
-    if [[ -z "${legacy_digests}" ]]; then
-        legacy_digests="${VM_GENERATED_FILES[0]}.DIGESTS"
+    if [[ -z "${legacy_uploaded}" ]]; then
+        legacy_uploaded="${VM_GENERATED_FILES[0]}"
     fi
 
+    # If upload_images compressed $legacy_uploaded be sure to add .bz2
+    if [[ "${legacy_uploaded}" =~ \.(img|bin|vdi|vmdk)$ ]]; then
+        legacy_uploaded+="${IMAGE_ZIPEXT}"
+    fi
+
+    local legacy_digests="${legacy_uploaded}.DIGESTS"
     [[ "${legacy_digests}" != "${digests}" ]] || return 0
 
     local legacy_uploads=( "${legacy_digests}" )
