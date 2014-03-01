@@ -114,7 +114,7 @@ upload_image() {
         shift 2
     else
         [[ $# -eq 1 ]] || die "-d is required for multi-file uploads"
-        digests="${1}.DIGESTS"
+        # digests is assigned after image is possibly compressed/renamed
     fi
 
     local uploads=()
@@ -133,6 +133,10 @@ upload_image() {
             uploads+=( "${filename}" )
         fi
     done
+
+    if [[ -z "${digests}" ]]; then
+        digests="${uploads[0]}.DIGESTS"
+    fi
 
     # For consistency generate a .DIGESTS file similar to the one catalyst
     # produces for the SDK tarballs and up upload it too.
