@@ -74,8 +74,6 @@ cat <<EOF
 export TERM='${TERM}'
 export MAKEOPTS='--jobs=${NUM_JOBS} --load-average=${load}'
 export EMERGE_DEFAULT_OPTS="\$MAKEOPTS"
-# Catalyst overrides FEATURES so set it's own variable instead.
-export clst_myfeatures='-ebuild-locks'
 EOF
 }
 
