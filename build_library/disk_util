@@ -765,7 +765,7 @@ def DoParseOnly(options):
 
 def main(argv):
   default_layout_file = os.environ.get('DISK_LAYOUT_FILE',
-          os.path.join(os.path.dirname(__file__), 'legacy_disk_layout.json'))
+          os.path.join(os.path.dirname(__file__), 'disk_layout.json'))
   default_layout_type = os.environ.get('DISK_LAYOUT_TYPE', 'base')
 
   parser = argparse.ArgumentParser(

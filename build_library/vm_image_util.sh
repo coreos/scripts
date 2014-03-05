@@ -50,7 +50,7 @@ IMG_DEFAULT_OEM_PACKAGE=
 # May be raw, qcow2 (qemu), or vmdk (vmware, virtualbox)
 IMG_DEFAULT_DISK_FORMAT=raw
 
-# Name of the partition layout from legacy_disk_layout.json
+# Name of the partition layout from disk_layout.json
 IMG_DEFAULT_DISK_LAYOUT=base
 
 # Name of the target config format, default is no config
