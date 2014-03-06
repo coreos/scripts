@@ -42,9 +42,10 @@ get_uuid() {
 
 # Filesystem args differ between the old and new usr layouts.
 if [[ "${FLAGS_disk_layout}" == *-usr ]]; then
-  gptprio_args="root=LABEL=ROOT usr=gptprio:"
-  slot_a_args="root=LABEL=ROOT usr=PARTUUID=$(get_uuid USR-A)"
-  slot_b_args="root=LABEL=ROOT usr=PARTUUID=$(get_uuid USR-B)"
+  root_args="root=LABEL=ROOT rootflags=subvol=root"
+  gptprio_args="${root_args} usr=gptprio:"
+  slot_a_args="${root_args} usr=PARTUUID=$(get_uuid USR-A)"
+  slot_b_args="${root_args} usr=PARTUUID=$(get_uuid USR-B)"
 else
   gptprio_args="root=gptprio:"
   slot_a_args="root=PARTUUID=$(get_uuid ROOT-A)"

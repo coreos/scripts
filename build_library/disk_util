@@ -38,7 +38,7 @@ def LoadPartitionConfig(options):
   valid_layout_keys = set((
       '_comment', 'type', 'num', 'label', 'blocks', 'block_size', 'fs_blocks',
       'fs_block_size', 'fs_type', 'features', 'uuid', 'alignment', 'mount',
-      'binds'))
+      'binds', 'fs_subvolume'))
   integer_layout_keys = set((
       'blocks', 'block_size', 'fs_blocks', 'fs_block_size', 'alignment'))
   required_layout_keys = set(('type', 'num', 'label', 'blocks'))
@@ -99,9 +99,12 @@ def LoadPartitionConfig(options):
           raise InvalidLayout('Invalid uuid %r: %s' % (part['uuid'], e))
 
       if 'fs_type' in part:
-        if part['fs_type'] not in ('ext2', 'ext4', 'vfat'):
+        if part['fs_type'] not in ('btrfs', 'ext2', 'ext4', 'vfat'):
           raise InvalidLayout('Invalid fs_type: %r' % part['fs_type'])
 
+      if 'fs_subvolume' in part:
+        if part.get('fs_type', None) != 'btrfs':
+          raise InvalidLayout('Invalid fs: only btrfs supports subvolumes')
 
   def Align(count, alignment):
     offset = count % alignment
@@ -300,6 +303,33 @@ def Sudo(cmd, stdout_null=False):
       null.close()
 
 
+def FormatBtrfs(part, device):
+  """Format an ext2 or ext4 filesystem.
+
+  Args:
+    part: dict defining the partition
+    device: name of the block device to format
+  """
+  Sudo(['mkfs.btrfs', '--byte-count', part['fs_bytes'],
+                      '--label', part['label'],
+                      # must use mixed chunks at this point because
+                      # the filesystem size is too small.
+                      '--data', 'single',
+                      '--metadata', 'single',
+                      '--mixed',
+                      device])
+
+  if part.get('fs_subvolume', None):
+    btrfs_mount = tempfile.mkdtemp()
+    subvol_path = '%s/%s' % (btrfs_mount, part['fs_subvolume'])
+    Sudo(['mount', '-t', 'btrfs', device, btrfs_mount])
+    try:
+      Sudo(['btrfs', 'subvolume', 'create', subvol_path])
+    finally:
+      Sudo(['umount', btrfs_mount])
+      os.rmdir(btrfs_mount)
+
+
 def FormatExt(part, device):
   """Format an ext2 or ext4 filesystem.
 
@@ -394,10 +424,39 @@ def Format(options):
     with PartitionLoop(options, part) as loop_dev:
       if part['fs_type'] in ('ext2', 'ext4'):
         FormatExt(part, loop_dev)
+      elif part['fs_type'] == 'btrfs':
+        FormatBtrfs(part, loop_dev)
       elif part['fs_type'] == 'vfat':
         FormatFat(part, loop_dev)
       else:
         raise Exception("Unhandled fs type %s" % part['fs_type'])
+
+
+def ResizeExt(part, device):
+  """Resize ext[234] filesystems.
+
+  Args:
+    part: dict defining the partition
+    device: name of the block device
+  """
+  Sudo(['e2fsck', '-p', '-f', loop_dev], stdout_null=True)
+  Sudo(['resize2fs', loop_dev, str(part['fs_blocks'])])
+
+
+def ResizeBtrfs(part, device):
+  """Resize btrfs filesystems.
+
+  Args:
+    part: dict defining the partition
+    device: name of the block device
+  """
+  btrfs_mount = tempfile.mkdtemp()
+  Sudo(['mount', '-t', 'btrfs', device, btrfs_mount])
+  try:
+    Sudo(['btrfs', 'filesystem', 'resize', part['fs_bytes'], btrfs_mount])
+  finally:
+    Sudo(['umount', btrfs_mount])
+    os.rmdir(btrfs_mount)
 
 
 def Resize(options):
@@ -411,19 +470,23 @@ def Resize(options):
   WritePartitionTable(options, config, partitions)
 
   for part in partitions.itervalues():
-    if part.get('fs_type', None) not in ('ext2', 'ext4'):
+    resize_func = None
+    if not part.get('fs_type', None):
       continue
     elif part['bytes'] == part['image_bytes']:
       continue
-    elif not IsE2fsReadWrite(options, part):
+    elif part['fs_type'] in ('ext2', 'ext4') and IsE2fsReadWrite(options, part):
+      resize_func = ResizeExt
+    elif part.get('fs_type', None) == 'btrfs':
+      resize_func = ResizeBtrfs
+    else:
       continue
 
     print "Resizing partition %s (%s) to %s bytes" % (
             part['num'], part['label'], part['fs_bytes'])
 
     with PartitionLoop(options, part) as loop_dev:
-      Sudo(['e2fsck', '-p', '-f', loop_dev], stdout_null=True)
-      Sudo(['resize2fs', loop_dev, str(part['fs_blocks'])])
+      resize_func(part, loop_dev)
 
 
 def Mount(options):
@@ -462,6 +525,9 @@ def Mount(options):
     elif (mount.get('fs_type', None) in ('ext2', 'ext4') and
           not IsE2fsReadWrite(options, mount)):
       mount_opts.append('ro')
+
+    if mount.get('fs_subvolume', None):
+      mount_opts.append('subvol=%s' % mount['fs_subvolume'])
 
     Sudo(['mkdir', '-p', full_path])
     Sudo(['mount', '-t', mount.get('fs_type', 'auto'),
@@ -765,7 +831,7 @@ def DoParseOnly(options):
 
 def main(argv):
   default_layout_file = os.environ.get('DISK_LAYOUT_FILE',
-          os.path.join(os.path.dirname(__file__), 'legacy_disk_layout.json'))
+          os.path.join(os.path.dirname(__file__), 'disk_layout.json'))
   default_layout_type = os.environ.get('DISK_LAYOUT_TYPE', 'base')
 
   parser = argparse.ArgumentParser(

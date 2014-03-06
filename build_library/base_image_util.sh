@@ -55,7 +55,7 @@ create_base_image() {
   --root="${root_fs_dir}" \
   --board="${BOARD}"
 
-  ${BUILD_LIBRARY_DIR}/create_legacy_bootloader_templates.sh \
+  ${BUILD_LIBRARY_DIR}/configure_bootloaders.sh \
     --arch=${ARCH} \
     --disk_layout="${disk_layout}" \
     --boot_dir="${root_fs_dir}"/boot \
