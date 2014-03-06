@@ -83,6 +83,8 @@
       },
       "9":{
         "label":"ROOT",
+        "fs_type":"btrfs",
+        "fs_subvolume":"root",
         "mount":"/",
         "binds":{}
       }
@@ -103,6 +105,8 @@
       },
       "9":{
         "label":"ROOT",
+        "fs_type":"btrfs",
+        "fs_subvolume":"root",
         "mount":"/",
         "binds":{},
         "blocks":"6291456"
@@ -124,6 +128,8 @@
       },
       "9":{
         "label":"ROOT",
+        "fs_type":"btrfs",
+        "fs_subvolume":"root",
         "mount":"/",
         "binds":{},
         "blocks":"33587200"
