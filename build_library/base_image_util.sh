@@ -7,12 +7,11 @@ create_base_image() {
   local disk_layout=$2
 
   local disk_img="${BUILD_DIR}/${image_name}"
-  local mbr_img="/usr/share/syslinux/gptmbr.bin"
   local root_fs_dir="${BUILD_DIR}/rootfs"
 
   info "Using image type ${disk_layout}"
   "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
-      format --mbr_boot_code="${mbr_img}" "${disk_img}"
+      format "${disk_img}"
 
   "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
       mount "${disk_img}" "${root_fs_dir}"

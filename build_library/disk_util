@@ -15,6 +15,10 @@ import uuid
 # First sector we can use.
 GPT_RESERVED_SECTORS = 34
 
+# Default MBR boot code for hybrid MBRs
+DEFAULT_MBR_BOOT_CODE = '/usr/share/syslinux/mbr.bin'
+
+
 class ConfigNotFound(Exception):
   pass
 class PartitionNotFound(Exception):
@@ -22,6 +26,8 @@ class PartitionNotFound(Exception):
 class InvalidLayout(Exception):
   pass
 class InvalidAdjustment(Exception):
+  pass
+class InvalidBootCode(Exception):
   pass
 
 
@@ -254,7 +260,7 @@ def WritePartitionTable(options, config=None, partitions=None):
 
   Cgpt('create', '-c', '-s', config['metadata']['blocks'], options.disk_image)
 
-  esp_number = None
+  syslinux = None
   for partition in partitions.itervalues():
     if partition['type'] != 'blank':
       Cgpt('add', '-i', partition['num'],
@@ -265,17 +271,28 @@ def WritePartitionTable(options, config=None, partitions=None):
                   '-u', partition['uuid'],
                   options.disk_image)
 
-    if partition['type'] == 'efi':
-      esp_number = partition['num']
+      features = partition.get('features', [])
+      if not syslinux and 'syslinux' in features:
+        syslinux = partition['num']
 
-  if esp_number is None:
-    raise InvalidLayout('Table does not include an EFI partition.')
+  if syslinux and options.mbr_boot_code:
+    # Enable legacy boot flag and generate a hybrid MBR partition table
+    Cgpt('add', '-i', syslinux, '-B1', options.disk_image)
 
-  if options.mbr_boot_code:
-    Cgpt('boot', '-p',
-                 '-b', options.mbr_boot_code,
-                 '-i', esp_number,
-                 options.disk_image)
+    try:
+      with open(options.mbr_boot_code, 'r') as mbr_fd:
+        mbr_code = mbr_fd.read()
+    except IOError, ex:
+      raise InvalidBootCode("Failed to read %s: %s",
+                            options.mbr_boot_code, ex)
+
+    # The boot code must fit in the first 440 bytes of disk
+    if len(mbr_code) != 440:
+      raise InvalidBootCode("Invalid %s size %s, must be 440 bytes",
+                            options.mbr_boot_code, len(mbr_code))
+
+    with open(options.disk_image, 'r+') as image_fd:
+      image_fd.write(mbr_code)
 
   Cgpt('show', options.disk_image)
 
@@ -847,19 +864,19 @@ def main(argv):
           help='initialize new partition table')
   a.add_argument('--update', action='store_false', dest='create',
           help='update existing partition table')
-  a.add_argument('--mbr_boot_code',
+  a.add_argument('--mbr_boot_code', default=DEFAULT_MBR_BOOT_CODE,
           help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
   a.set_defaults(func=WritePartitionTable)
 
   a = actions.add_parser('format', help='write gpt and filesystems to image')
-  a.add_argument('--mbr_boot_code',
+  a.add_argument('--mbr_boot_code', default=DEFAULT_MBR_BOOT_CODE,
           help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
   a.set_defaults(func=Format, create=True)
 
   a = actions.add_parser('resize', help='write gpt and resize filesystems')
-  a.add_argument('--mbr_boot_code',
+  a.add_argument('--mbr_boot_code', default=DEFAULT_MBR_BOOT_CODE,
           help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
   a.set_defaults(func=Resize, create=False)
