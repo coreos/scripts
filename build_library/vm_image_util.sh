@@ -43,6 +43,9 @@ IMG_DEFAULT_HYBRID_MBR=0
 # If set to 0 then a partition skeleton won't be laid out on VM_TMP_IMG
 IMG_DEFAULT_PARTITIONED_IMG=1
 
+# If set to 0 boot_kernel is skipped
+IMG_DEFAULT_BOOT_KERNEL=1
+
 # If set install the given package name to the OEM partition
 IMG_DEFAULT_OEM_PACKAGE=
 
@@ -67,6 +70,7 @@ IMG_qemu_CONF_FORMAT=qemu
 ## xen
 # Hybrid is required by pvgrub (pygrub supports GPT but we support both)
 IMG_xen_HYBRID_MBR=1
+IMG_xen_BOOT_KERNEL=0
 IMG_xen_CONF_FORMAT=xl
 
 ## virtualbox
@@ -99,6 +103,7 @@ IMG_vmware_insecure_OEM_PACKAGE=oem-vagrant
 
 ## ami
 IMG_ami_HYBRID_MBR=1
+IMG_ami_BOOT_KERNEL=0
 IMG_ami_OEM_PACKAGE=oem-ami
 
 ## openstack, supports ec2's metadata format so use oem-ami
@@ -117,7 +122,7 @@ IMG_gce_CONF_FORMAT=gce
 IMG_gce_OEM_PACKAGE=oem-gce
 
 ## rackspace
-# TODO: package doesn't exist yet
+IMG_rackspace_BOOT_KERNEL=0
 IMG_rackspace_OEM_PACKAGE=oem-rackspace
 
 ###########################################################
@@ -217,6 +222,11 @@ setup_disk_image() {
     info "Mounting image to $(relpath "${VM_TMP_ROOT}")"
     "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
         mount "${VM_TMP_IMG}" "${VM_TMP_ROOT}"
+
+    local SYSLINUX_DIR="${VM_TMP_ROOT}/boot/efi/syslinux"
+    if [[ $(_get_vm_opt BOOT_KERNEL) -eq 0 ]]; then
+        sudo mv "${SYSLINUX_DIR}/default.cfg.A" "${SYSLINUX_DIR}/default.cfg"
+    fi
 }
 
 # If the current type defines a oem package install it to the given fs image.

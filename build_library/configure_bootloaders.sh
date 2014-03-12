@@ -95,7 +95,9 @@ configure_syslinux() {
 SERIAL 0 115200
 PROMPT 0
 TIMEOUT 0
-DEFAULT boot_kernel
+
+# controls which kernel is the default
+include /syslinux/default.cfg
 
 include /syslinux/boot_kernel.cfg
 
@@ -106,6 +108,21 @@ include /syslinux/root.A.cfg
 include /syslinux/root.B.cfg
 EOF
   info "Emitted ${SYSLINUX_DIR}/syslinux.cfg"
+
+  sudo_clobber "${SYSLINUX_DIR}/default.cfg" <<EOF
+DEFAULT boot_kernel
+EOF
+  info "Emitted ${SYSLINUX_DIR}/default.cfg"
+
+  sudo_clobber "${SYSLINUX_DIR}/default.cfg.A" <<EOF
+DEFAULT coreos.A
+EOF
+  info "Emitted ${SYSLINUX_DIR}/default.cfg.A"
+
+  sudo_clobber "${SYSLINUX_DIR}/default.cfg.B" <<EOF
+DEFAULT coreos.B
+EOF
+  info "Emitted ${SYSLINUX_DIR}/default.cfg.B"
 
   # Different files are used so that the updater can only touch the file it
   # needs to for a given change.  This will minimize any potential accidental
