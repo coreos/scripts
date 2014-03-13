@@ -37,9 +37,6 @@ VM_UUID=
 VM_GENERATED_FILES=()
 
 ## DEFAULT
-# If set to 1 use a hybrid GPT/MBR format instead of plain GPT
-IMG_DEFAULT_HYBRID_MBR=0
-
 # If set to 0 then a partition skeleton won't be laid out on VM_TMP_IMG
 IMG_DEFAULT_PARTITIONED_IMG=1
 
@@ -68,8 +65,6 @@ IMG_qemu_DISK_LAYOUT=vm
 IMG_qemu_CONF_FORMAT=qemu
 
 ## xen
-# Hybrid is required by pvgrub (pygrub supports GPT but we support both)
-IMG_xen_HYBRID_MBR=1
 IMG_xen_BOOT_KERNEL=0
 IMG_xen_CONF_FORMAT=xl
 
@@ -102,7 +97,6 @@ IMG_vmware_insecure_CONF_FORMAT=vmware_zip
 IMG_vmware_insecure_OEM_PACKAGE=oem-vagrant
 
 ## ami
-IMG_ami_HYBRID_MBR=1
 IMG_ami_BOOT_KERNEL=0
 IMG_ami_OEM_PACKAGE=oem-ami
 
@@ -213,10 +207,8 @@ setup_disk_image() {
     cp --sparse=always "${VM_SRC_IMG}" "${VM_TMP_IMG}"
 
     if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
-      # TODO(marineam): Fix this so --mbr_boot_code isn't required
-      local mbr_img="/usr/share/syslinux/gptmbr.bin"
       "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
-          resize --mbr_boot_code="${mbr_img}" "${VM_TMP_IMG}"
+          resize "${VM_TMP_IMG}"
     fi
 
     info "Mounting image to $(relpath "${VM_TMP_ROOT}")"
@@ -250,31 +242,10 @@ write_vm_disk() {
         cleanup_mounts "${VM_TMP_ROOT}"
     fi
 
-    if [[ $(_get_vm_opt HYBRID_MBR) -eq 1 ]]; then
-        info "Creating hybrid MBR"
-        _write_hybrid_mbr "${VM_TMP_IMG}"
-    fi
-
     local disk_format=$(_get_vm_opt DISK_FORMAT)
     info "Writing $disk_format image $(basename "${VM_DST_IMG}")"
     _write_${disk_format}_disk "${VM_TMP_IMG}" "${VM_DST_IMG}"
     VM_GENERATED_FILES+=( "${VM_DST_IMG}" )
-}
-
-_write_hybrid_mbr() {
-    # TODO(marineam): Switch to sgdisk
-    /usr/sbin/gdisk "$1" <<EOF
-r
-h
-1
-N
-c
-Y
-N
-w
-Y
-Y
-EOF
 }
 
 _write_raw_disk() {
