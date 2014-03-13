@@ -75,7 +75,7 @@ fi
 # COREOS_RELEASE_TRACK and COREOS_RELEASE_VERSION are used by the software
 #   update service.
 # DISTRIB_* are the standard names for the same values.
-sudo mkdir -p "${ROOT_FS_DIR}/etc"
+sudo mkdir -p "${ROOT_FS_DIR}/usr/share/coreos"
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/lsb-release" <<EOF
 DISTRIB_ID=$COREOS_VERSION_NAME
 DISTRIB_RELEASE=$COREOS_VERSION_STRING
@@ -90,6 +90,7 @@ COREOS_AUSERVER=$COREOS_VERSION_AUSERVER
 COREOS_DEVSERVER=$COREOS_VERSION_DEVSERVER
 EOF
 
+sudo mkdir -p "${ROOT_FS_DIR}/etc"
 sudo ln -sf "../usr/share/coreos/lsb-release" "${ROOT_FS_DIR}/etc/lsb-release"
 
 # For things like python which read gentoo-release
@@ -100,7 +101,6 @@ EOF
 # Aaaannd for the new systemd world order
 # os-release provides a separate build-id field, so split it from version
 OS_ID=$(tr '[:upper:]' '[:lower:]' <<<"$COREOS_VERSION_NAME")
-sudo mkdir -p "${ROOT_FS_DIR}/usr/share/coreos"
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/os-release" <<EOF
 NAME=$COREOS_VERSION_NAME
 ID=$OS_ID
