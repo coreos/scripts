@@ -115,7 +115,7 @@ EOF
 if [[ -a "${ROOT_FS_DIR}/etc/os-release" ]] ; then
   sudo rm "${ROOT_FS_DIR}/etc/os-release"
 fi
-sudo ln -s "/usr/share/coreos/os-release" "${ROOT_FS_DIR}/etc/os-release"
+sudo ln -s "../usr/share/coreos/os-release" "${ROOT_FS_DIR}/etc/os-release"
 
 # Create the defaults for the coreos configuration files in the usr directory
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/release" <<EOF
