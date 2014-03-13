@@ -43,7 +43,7 @@ test_image_content() {
   local portageq="portageq-$BOARD"
 
   local binaries=(
-    "$root/boot/vmlinuz"
+    "$root/usr/boot/vmlinuz"
     "$root/bin/sed"
   )
 

@@ -55,10 +55,15 @@ create_base_image() {
   --root="${root_fs_dir}" \
   --board="${BOARD}"
 
+  local boot_dir="/boot"
+  if [[ "${disk_layout}" == *-usr ]]; then
+    boot_dir="/usr/boot"
+  fi
+
   ${BUILD_LIBRARY_DIR}/configure_bootloaders.sh \
     --arch=${ARCH} \
     --disk_layout="${disk_layout}" \
-    --boot_dir="${root_fs_dir}"/boot \
+    --boot_dir="${root_fs_dir}${boot_dir}" \
     --esp_dir="${root_fs_dir}"/boot/efi \
     --boot_args="${FLAGS_boot_args}"
 
