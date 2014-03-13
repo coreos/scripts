@@ -112,10 +112,7 @@ EOF
 # The first time through the image, we have an os-release from a package,
 # the second time through this script, we don't, so we need to test if it's
 # present before trying to remove it.
-if [[ -a "${ROOT_FS_DIR}/etc/os-release" ]] ; then
-  sudo rm "${ROOT_FS_DIR}/etc/os-release"
-fi
-sudo ln -s "../usr/share/coreos/os-release" "${ROOT_FS_DIR}/etc/os-release"
+sudo ln -sf "../usr/share/coreos/os-release" "${ROOT_FS_DIR}/etc/os-release"
 
 # Create the defaults for the coreos configuration files in the usr directory
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/release" <<EOF
