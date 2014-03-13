@@ -41,7 +41,7 @@ if [[ -n "${FLAGS_production_track}" ]]; then
 ${COREOS_VERSION_TRACK} $FLAGS_board test"
   if [[ "${FLAGS_production_track}" != "sdk" ]]; then
     if [[ "${FLAGS_board}" == "amd64-usr" ]]; then
-      COREOS_VERSION_AUSERVER="https://public.roller.core-os.net/v1/update/"
+      COREOS_VERSION_AUSERVER="http://public.roller.core-os.net/v1/update/"
     else
       COREOS_VERSION_AUSERVER="https://api.core-os.net/v1/update/"
     fi
