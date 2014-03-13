@@ -76,7 +76,7 @@ fi
 #   update service.
 # DISTRIB_* are the standard names for the same values.
 sudo mkdir -p "${ROOT_FS_DIR}/etc"
-sudo_clobber "${ROOT_FS_DIR}/etc/lsb-release" <<EOF
+sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/lsb-release" <<EOF
 DISTRIB_ID=$COREOS_VERSION_NAME
 DISTRIB_RELEASE=$COREOS_VERSION_STRING
 DISTRIB_CODENAME="napping to fan noise / silence. the build successful / type git bisect good"
@@ -89,6 +89,8 @@ COREOS_RELEASE_VERSION=$COREOS_VERSION_STRING
 COREOS_AUSERVER=$COREOS_VERSION_AUSERVER
 COREOS_DEVSERVER=$COREOS_VERSION_DEVSERVER
 EOF
+
+sudo ln -sf "../usr/share/coreos/lsb-release" "${ROOT_FS_DIR}/etc/lsb-release"
 
 # For things like python which read gentoo-release
 sudo_clobber "${ROOT_FS_DIR}/etc/gentoo-release" <<EOF
