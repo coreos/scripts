@@ -33,11 +33,18 @@ ROOT_FS_DIR="$FLAGS_root"
 
 COREOS_VERSION_NAME="CoreOS"
 if [[ -n "${FLAGS_production_track}" ]]; then
+  if [[ "${$FLAGS_board}" == "amd64-usr" ]]; then
+    FLAGS_production_track="alpha"
+  fi
   COREOS_VERSION_TRACK="${FLAGS_production_track}"
   COREOS_VERSION_DESCRIPTION="${COREOS_VERSION_STRING} (Official Build) \
 ${COREOS_VERSION_TRACK} $FLAGS_board test"
   if [[ "${FLAGS_production_track}" != "sdk" ]]; then
-    COREOS_VERSION_AUSERVER="https://public.roller.core-os.net/v1/update/"
+    if [[ "${$FLAGS_board}" == "amd64-usr" ]]; then
+      COREOS_VERSION_AUSERVER="https://public.roller.core-os.net/v1/update/"
+    else
+      COREOS_VERSION_AUSERVER="https://api.core-os.net/v1/update/"
+    fi
   else
     COREOS_VERSION_AUSERVER=""
   fi
@@ -50,6 +57,7 @@ else
   : ${COREOS_VERSION_AUSERVER:="http://$(hostname --fqdn):8080/update"}
   : ${COREOS_VERSION_DEVSERVER:="http://$(hostname --fqdn):8080"}
 fi
+
 
 # TODO(marineam): come up with a way to support continous integration builds,
 # this would provide all the bells and whistles for 'master' branch images.
