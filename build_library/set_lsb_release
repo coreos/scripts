@@ -33,14 +33,14 @@ ROOT_FS_DIR="$FLAGS_root"
 
 COREOS_VERSION_NAME="CoreOS"
 if [[ -n "${FLAGS_production_track}" ]]; then
-  if [[ "${$FLAGS_board}" == "amd64-usr" ]]; then
+  if [[ "${FLAGS_board}" == "amd64-usr" ]]; then
     FLAGS_production_track="alpha"
   fi
   COREOS_VERSION_TRACK="${FLAGS_production_track}"
   COREOS_VERSION_DESCRIPTION="${COREOS_VERSION_STRING} (Official Build) \
 ${COREOS_VERSION_TRACK} $FLAGS_board test"
   if [[ "${FLAGS_production_track}" != "sdk" ]]; then
-    if [[ "${$FLAGS_board}" == "amd64-usr" ]]; then
+    if [[ "${FLAGS_board}" == "amd64-usr" ]]; then
       COREOS_VERSION_AUSERVER="https://public.roller.core-os.net/v1/update/"
     else
       COREOS_VERSION_AUSERVER="https://api.core-os.net/v1/update/"
@@ -98,7 +98,8 @@ EOF
 # Aaaannd for the new systemd world order
 # os-release provides a separate build-id field, so split it from version
 OS_ID=$(tr '[:upper:]' '[:lower:]' <<<"$COREOS_VERSION_NAME")
-sudo_clobber "${ROOT_FS_DIR}/etc/os-release" <<EOF
+sudo mkdir -p "${ROOT_FS_DIR}/usr/share/coreos"
+sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/os-release" <<EOF
 NAME=$COREOS_VERSION_NAME
 ID=$OS_ID
 VERSION=$COREOS_VERSION_STRING
@@ -108,9 +109,15 @@ PRETTY_NAME="$COREOS_VERSION_NAME $COREOS_VERSION_DESCRIPTION"
 ANSI_COLOR="1;32"
 HOME_URL="http://www.coreos.com/"
 EOF
+# The first time through the image, we have an os-release from a package,
+# the second time through this script, we don't, so we need to test if it's
+# present before trying to remove it.
+if [[ -a "${ROOT_FS_DIR}/etc/os-release" ]] ; then
+  sudo rm "${ROOT_FS_DIR}/etc/os-release"
+fi
+sudo ln -s "/usr/share/coreos/os-release" "${ROOT_FS_DIR}/etc/os-release"
 
 # Create the defaults for the coreos configuration files in the usr directory
-sudo mkdir -p "${ROOT_FS_DIR}/usr/share/coreos"
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/release" <<EOF
 COREOS_RELEASE_VERSION=$COREOS_VERSION_STRING
 EOF
