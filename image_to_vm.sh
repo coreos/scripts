@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash +x
 
 # Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
@@ -25,6 +25,10 @@ DEFINE_string board "${DEFAULT_BOARD}" \
 # behavior from image_to_usb.sh
 DEFINE_string format "qemu" \
   "Output format, one of: ${VALID_IMG_TYPES[*]}"
+DEFINE_string update_group "alpha" \
+  "The default update group shipped with the image"
+DEFINE_string update_server "http://public.roller.core-os.net/v1/update/" \
+  "The default update server shipped with the image"
 DEFINE_string from "" \
   "Directory containing rootfs.image and mbr.image"
 DEFINE_string disk_layout "" \
@@ -97,6 +101,9 @@ setup_disk_image "${FLAGS_disk_layout}"
 
 # Optionally install any OEM packages
 install_oem_package
+
+# Optionally change the update group
+install_update_config "${FLAGS_update_group}" "${FLAGS_update_server}"
 
 # Changes done, glue it together
 write_vm_disk
