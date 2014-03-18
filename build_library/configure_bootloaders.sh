@@ -162,11 +162,14 @@ copy_to_esp() {
   sudo cp -r "${GRUB_DIR}/." "${FLAGS_esp_dir}/boot/grub"
   sudo cp -r "${SYSLINUX_DIR}/." "${FLAGS_esp_dir}/syslinux"
 
+  # Install UEFI bootloader
+  sudo cp /usr/share/syslinux/efi64/ldlinux.e64 \
+    "${FLAGS_esp_dir}/EFI/boot/ldlinux.e64"
+  sudo cp /usr/share/syslinux/efi64/syslinux.efi \
+    "${FLAGS_esp_dir}/EFI/boot/bootx64.efi"
+
   # Stage all kernels with the only one we built.
-  # FIXME(marineam): without an EFI bootloader like gummiboot we currently
-  # don't have a way to set the correct mount options based on disk layout.
-  for kernel in syslinux/{vmlinuz-boot_kernel,vmlinuz.A,vmlinuz.B} \
-                EFI/boot/bootx64.efi
+  for kernel in syslinux/{vmlinuz-boot_kernel,vmlinuz.A,vmlinuz.B}
   do
     sudo cp "${FLAGS_boot_dir}/vmlinuz" "${FLAGS_esp_dir}/${kernel}"
   done
