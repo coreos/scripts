@@ -235,6 +235,35 @@ install_oem_package() {
     sudo rm -rf "${oem_mnt}/var"  # clean out /var/pkg/db and friends
 }
 
+# Install a new /etc/oem-release if the group varies from the default one
+install_update_config() {
+    local update_group=$1
+    local update_server=$2
+    local default_update_config="${VM_TMP_ROOT}/usr/share/coreos/update.conf"
+    local overlay_update_config="${VM_TMP_ROOT}/etc/coreos/update.conf"
+
+    if [[ -z "${update_group}" ]]; then
+        return 0
+    fi
+    if [[ ! -e "${default_update_config}" ]]; then
+	info "Image does not appear to support update groups, skipping"
+        return 0
+    fi
+    if grep -q "GROUP=${update_group}" $default_update_config && \
+       grep -q "SERVER=${update_server}" $default_update_config; then
+	info "Update group (${update_group}) and server (${update_server}) config already configured"
+        return 0
+    fi
+
+    info "Installing overlay /etc/coreos/update.conf, setting group ${update_group}"
+    sudo mkdir -p $(dirname ${overlay_update_config})
+    sudo tee "${overlay_update_config}" <<EOF
+SERVER=${update_server}
+GROUP=${update_group}
+EOF
+
+}
+
 # Write the vm disk image to the target directory in the proper format
 write_vm_disk() {
     if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
