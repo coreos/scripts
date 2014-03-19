@@ -60,8 +60,7 @@ if [[ "$STAGES" =~ stage4 ]]; then
     rm -rf "${TEMPDIR}/stage4_overlay"
     mkdir -p "${TEMPDIR}/stage4_overlay"
     "${BUILD_LIBRARY_DIR}/set_lsb_release" \
-        --root "${TEMPDIR}/stage4_overlay" \
-        --production_track sdk --board "${ARCH}-host"
+        --root "${TEMPDIR}/stage4_overlay"
 fi
 
 catalyst_build

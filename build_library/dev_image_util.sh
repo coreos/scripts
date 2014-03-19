@@ -38,11 +38,32 @@ EOF
         eselect profile set --force $(get_board_profile $BOARD)
 }
 
+detect_dev_url() {
+    local port=":8080"
+    local host=$(hostname --fqdn 2>/dev/null)
+    if [[ -z "${host}" ]]; then
+        host=$(ip addr show scope global | \
+            awk '$1 == "inet" { sub(/[/].*/, "", $2); print $2; exit }')
+    fi
+    if [[ -n "${host}" ]]; then
+        echo "http://${host}${port}"
+    fi
+}
+
 # Modifies an existing image to add development packages.
 # Takes as an arg the name of the image to be created.
 install_dev_packages() {
   local image_name=$1
   local disk_layout=$2
+  local devserver=$(detect_dev_url)
+  local auserver=""
+
+  if [[ -n "${devserver}" ]]; then
+    info "Using ${devserver} for local dev server URL."
+    auserver="${devserver}/update"
+  else
+    info "Unable do detect local dev server address."
+  fi
 
   info "Adding developer packages to ${image_name}"
   local root_fs_dir="${BUILD_DIR}/rootfs"
@@ -58,7 +79,16 @@ install_dev_packages() {
   sudo ROOT="${root_fs_dir}" env-update
 
   # Setup portage for emerge and gmerge
-  configure_dev_portage "${root_fs_dir}"
+  configure_dev_portage "${root_fs_dir}" "${devserver}"
+
+  sudo mkdir -p "${root_fs_dir}/etc/coreos"
+  sudo_clobber "${root_fs_dir}/etc/coreos/update.conf" <<EOF
+SERVER=${auserver}
+GROUP=developer-build
+
+# For gmerge
+DEVSERVER=${devserver}
+EOF
 
   # Mark the image as a developer image (input to chromeos_startup).
   # TODO(arkaitzr): Remove this file when applications no longer rely on it

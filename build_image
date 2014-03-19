@@ -23,6 +23,8 @@ DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
 DEFINE_string disk_layout "base" \
   "The disk layout type to use for this image."
+DEFINE_string prod_group "" \
+  "The update group for production images."
 
 # include upload options
 . "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
@@ -122,6 +124,14 @@ mkdir -p "${BUILD_DIR}"
 DISK_LAYOUT_SUFFIX=$(portageq-$BOARD envvar COREOS_DISK_LAYOUT_SUFFIX)
 DISK_LAYOUT="${FLAGS_disk_layout:-base}${DISK_LAYOUT_SUFFIX}"
 
+if [[ -z "${FLAGS_prod_group}" ]]; then
+  if [[ "$BOARD" == "amd64-generic" ]]; then
+    FLAGS_prod_group="dev-channel"
+  else
+    FLAGS_prod_group="alpha"
+  fi
+fi
+
 # Create the base image.
 create_base_image ${PRISTINE_IMAGE_NAME} ${DISK_LAYOUT}
 if should_build_image ${PRISTINE_IMAGE_NAME}; then
@@ -149,7 +159,7 @@ if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
   copy_image ${CHROMEOS_BASE_IMAGE_NAME} ${COREOS_PRODUCTION_IMAGE_NAME}
 
   setup_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT} \
-    "dev-channel" \
+    "${FLAGS_prod_group}" \
     ${SRC_ROOT}/third_party/coreos-overlay/coreos-base/coreos-au-key/files/update-payload-key.pub.pem
 
   upload_image "${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"

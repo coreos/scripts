@@ -6,7 +6,7 @@
 setup_prod_image() {
   local image_name="$1"
   local disk_layout="$2"
-  local update_track="$3"
+  local update_group="$3"
   local au_key="$4"
 
   info "Configuring production image ${image_name}"
@@ -22,7 +22,7 @@ setup_prod_image() {
 
   # Replace /etc/lsb-release on the image.
   "${BUILD_LIBRARY_DIR}/set_lsb_release" \
-    --production_track="${update_track}" \
+    --group="${update_group}" \
     --root="${root_fs_dir}" \
     --board="${BOARD}"
 
