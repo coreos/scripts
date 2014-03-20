@@ -60,8 +60,8 @@ switch_to_strict_mode
 create_host_setup
 
 # Run version hooks as pre-update
-if [[ -f /etc/lsb-release ]]; then
-  OLDVER=$(grep "^COREOS_RELEASE_VERSION=" /etc/lsb-release | cut -d = -f 2-)
+if [[ -f /etc/os-release ]]; then
+  OLDVER=$(grep "^VERSION=" /etc/os-release | cut -d = -f 2-)
 else
   OLDVER="0.0.0"
 fi
@@ -84,9 +84,7 @@ for update_script in ${SCRIPTS_DIR}/sdk_lib/updates/*.sh; do
   fi
 done
 
-"${BUILD_LIBRARY_DIR}/set_lsb_release" \
-    --root / --production_track sdk \
-    --board "$(portageq envvar ARCH)-host"
+"${BUILD_LIBRARY_DIR}/set_lsb_release" --root /
 
 EMERGE_FLAGS="-uNv --with-bdeps=y --select"
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
