@@ -38,7 +38,7 @@ fi
 # their assigned prefix for the first 3 bytes followed by 3 random bytes.
 VBOX_MAC_PREFIX=080027
 macgen() {
-    hexdump -n3 -e "\"${VBOX_MAC_PREFIX}%X\n\"" /dev/urandom
+    hexdump -n3 -e "\"${VBOX_MAC_PREFIX}%06X\n\"" /dev/urandom
 }
 
 # Used in both the ovf and Vagrantfile
