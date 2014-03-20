@@ -270,22 +270,28 @@ _write_cpio_disk() {
     local cpio_target="${VM_TMP_DIR}/rootcpio"
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
+    local base_dir="${VM_TMP_ROOT}/usr"
+    local squashfs="usr.squashfs"
 
-    # The STATE partition and all of its bind mounts shouldn't be
-    # packed into the squashfs image. Just ROOT and OEM.
-    if mountpoint -q "${VM_TMP_ROOT}/media/state"; then
+    # If not a /usr image pack up root instead
+    if ! mountpoint -q "${base_dir}"; then
+        base_dir="${VM_TMP_ROOT}"
+        squashfs="newroot.squashfs"
+
+        # The STATE partition and all of its bind mounts shouldn't be
+        # packed into the squashfs image. Just ROOT and OEM.
         sudo umount --all-targets "${VM_TMP_ROOT}/media/state"
     fi
 
     # Build the squashfs, embed squashfs into a gzipped cpio
     mkdir -p "${cpio_target}"
     pushd "${cpio_target}" >/dev/null
-    sudo mksquashfs "${VM_TMP_ROOT}" ./newroot.squashfs
-    echo ./newroot.squashfs | cpio -o -H newc | gzip > "$2"
+    sudo mksquashfs "${base_dir}" "./${squashfs}"
+    echo "./${squashfs}" | cpio -o -H newc | gzip > "$2"
     popd >/dev/null
 
-    # Pull the kernel out of the root filesystem
-    cp "${VM_TMP_ROOT}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
+    # Pull the kernel out of the filesystem
+    cp "${base_dir}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
     VM_GENERATED_FILES+=( "${dst_dir}/${vmlinuz_name}" )
 }
 
