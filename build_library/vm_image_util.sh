@@ -109,7 +109,6 @@ IMG_openstack_OEM_PACKAGE=oem-ami
 IMG_pxe_DISK_FORMAT=cpio
 IMG_pxe_PARTITIONED_IMG=0
 IMG_pxe_CONF_FORMAT=pxe
-IMG_pxe_OEM_PACKAGE=oem-pxe
 
 ## gce, image tarball
 IMG_gce_CONF_FORMAT=gce
@@ -279,7 +278,7 @@ _write_cpio_disk() {
         squashfs="newroot.squashfs"
 
         # The STATE partition and all of its bind mounts shouldn't be
-        # packed into the squashfs image. Just ROOT and OEM.
+        # packed into the squashfs image. Just ROOT.
         sudo umount --all-targets "${VM_TMP_ROOT}/media/state"
     fi
 
