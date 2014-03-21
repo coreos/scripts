@@ -18,6 +18,8 @@ AKI["sa-east-1"]=aki-c88f51d5
 
 USAGE="Usage: $0 -V 100.0.0
     -V VERSION  Find AMI by CoreOS version. (required)
+    -b BOARD    Set to the board name, amd64-usr or amd64-generic
+    -g GROUP    Set the update group, default is based on BOARD
     -K KEY      Path to Amazon API private key.
     -C CERT     Path to Amazon API key certificate.
     -h          this ;-)
@@ -27,14 +29,18 @@ This script must be run from an ec2 host with the ec2 tools installed.
 "
 
 IMAGE="coreos_production_ami"
-URL_FMT="gs://storage.core-os.net/coreos/amd64-generic/%s/${IMAGE}_%s.txt"
+URL_FMT="gs://storage.core-os.net/coreos/%s/%s/${IMAGE}_%s.txt"
 AMI=
 VER=
+BOARD="amd64-generic"
+GROUP=""
 
-while getopts "a:V:K:C:hv" OPTION
+while getopts "V:b:g:K:C:hv" OPTION
 do
     case $OPTION in
         V) VER="$OPTARG";;
+        b) BOARD="$OPTARG";;
+        g) GROUP="$OPTARG";;
         K) export EC2_PRIVATE_KEY="$OPTARG";;
         C) export EC2_CERT="$OPTARG";;
         h) echo "$USAGE"; exit;;
@@ -56,10 +62,11 @@ fi
 
 declare -A AMIS
 for r in "${!AKI[@]}"; do
-    AMI=$(ec2-describe-images --region=${r} -F name="CoreOS-$VER" | grep -m1 ^IMAGE \
+    AMI=$(ec2-describe-images --region=${r} -F name="CoreOS-$GROUP-$VER" \
+        | grep -m1 ^IMAGE \
         | cut -f2) || true # Don't die silently, error messages are good
     if [[ -z "$AMI" ]]; then
-        echo "$0: Cannot find ${r} AMI for CoreOS $VER" >&2
+        echo "$0: Cannot find ${r} AMI for CoreOS $GROUP $VER" >&2
         continue
     fi
     AMIS[${r}]=$AMI
@@ -67,7 +74,7 @@ done
 
 OUT=
 for r in "${!AMIS[@]}"; do
-    url=$(printf "$URL_FMT" "$VER" "$r")
+    url=$(printf "$URL_FMT" "$BOARD" "$VER" "$r")
     tmp=$(mktemp --suffix=.txt)
     trap "rm -f '$tmp'" EXIT
     echo "${AMIS[$r]}" > "$tmp"
@@ -79,7 +86,7 @@ for r in "${!AMIS[@]}"; do
         OUT="${OUT}|${r}=${AMIS[$r]}"
     fi
 done
-url=$(printf "$URL_FMT" "$VER" "all")
+url=$(printf "$URL_FMT" "$BOARD" "$VER" "all")
 tmp=$(mktemp --suffix=.txt)
 trap "rm -f '$tmp'" EXIT
 echo "$OUT" > "$tmp"
