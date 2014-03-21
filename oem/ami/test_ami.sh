@@ -109,6 +109,11 @@ coreos:
         discovery: $discovery
         addr: \$private_ipv4:4001
         peer-addr: \$private_ipv4:7001
+    units:
+      - name: etcd.service
+        command: start
+      - name: fleet.service
+        command: start
 "
 fi
 
