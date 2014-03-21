@@ -25,14 +25,18 @@ AKI["sa-east-1"]=aki-c88f51d5
 
 readonly COREOS_EPOCH=1372636800
 VERSION="master"
+BOARD="amd64-generic"
+GROUP=""
 IMAGE="coreos_production_ami_image.bin.bz2"
-URL_FMT="http://storage.core-os.net/coreos/amd64-generic/%s/$IMAGE"
+URL_FMT="http://storage.core-os.net/coreos/%s/%s/$IMAGE"
 IMG_URL=""
 IMG_PATH=""
 
 USAGE="Usage: $0 [-V 1.2.3] [-p path/image.bz2 | -u http://foo/image.bz2]
 Options:
     -V VERSION  Set the version of this AMI, default is 'master'
+    -b BOARD    Set to the board name, amd64-usr or amd64-generic
+    -g GROUP    Set the update group, default is based on BOARD
     -p PATH     Path to compressed disk image, overrides -u
     -u URL      URL to compressed disk image, derived from -V if unset.
     -K KEY      Path to Amazon API private key.
@@ -43,10 +47,12 @@ Options:
 This script must be run from an ec2 host with the ec2 tools installed.
 "
 
-while getopts "V:p:u:K:C:hv" OPTION
+while getopts "V:b:g:p:u:K:C:hv" OPTION
 do
     case $OPTION in
         V) VERSION="$OPTARG";;
+        b) BOARD="$OPTARG";;
+        g) GROUP="$OPTARG";;
         p) IMG_PATH="$OPTARG";;
         u) IMG_URL="$OPTARG";;
         K) export EC2_PRIVATE_KEY="$OPTARG";;
@@ -71,7 +77,7 @@ if [[ -n "$IMG_PATH" ]]; then
     IMG_URL=$(basename "$IMG_PATH")
 else
     if [[ -z "$IMG_URL" ]]; then
-        IMG_URL=$(printf "$URL_FMT" "$VERSION")
+        IMG_URL=$(printf "$URL_FMT" "$BOARD" "$VERSION")
     fi
     if ! curl --fail -s --head "$IMG_URL" >/dev/null; then
         echo "$0: Image URL unavailable: $IMG_URL" >&2
@@ -82,9 +88,19 @@ fi
 if [[ "$VERSION" == "master" ]]; then
     # Come up with something more descriptive and timestamped
     TODAYS_VERSION=$(( (`date +%s` - ${COREOS_EPOCH}) / 86400 ))
-    VERSION="master-${TODAYS_VERSION}-$(date +%H-%M)"
+    VERSION="${TODAYS_VERSION}-$(date +%H-%M)"
+    GROUP="master"
 fi
 
+if [[ -z "$GROUP" ]]; then
+    if [[ "$BOARD" == "amd64-generic" ]]; then
+        GROUP="dev-channel"
+    elif [[ "$BOARD" == "amd64-usr" ]]; then
+        GROUP="alpha"
+    else
+        GROUP="$BOARD"
+    fi
+fi
 
 # Size of AMI file system
 # TODO: Perhaps define size and arch in a metadata file image_to_vm creates?
@@ -93,8 +109,8 @@ arch=x86_64
 arch2=amd64
 ephemeraldev=/dev/sdb
 # The name has a limited set of allowed characterrs
-name=$(sed -e "s%[^A-Za-z0-9()\\./_-]%_%g" <<< "CoreOS-$VERSION")
-description="CoreOS $VERSION"
+name=$(sed -e "s%[^A-Za-z0-9()\\./_-]%_%g" <<< "CoreOS-$GROUP-$VERSION")
+description="CoreOS $GROUP $VERSION"
 
 zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
 zone=$(curl --fail -s $zoneurl)
@@ -179,7 +195,7 @@ ec2-delete-volume "$volumeid"
 cat <<EOF
 AMI: $amiid $region $arch2
 
-CoreOS $VERSION
+$description
 architecture: $arch ($arch2)
 region:       $region ($zone)
 aki id:       $akiid

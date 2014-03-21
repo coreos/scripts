@@ -26,6 +26,8 @@ AKI["sa-east-1"]=aki-c88f51d5
 USAGE="Usage: $0 -a ami-id
     -a ami-id   ID of the AMI to be coppied.
     -V VERSION  Find AMI by CoreOS version.
+    -b BOARD    Set to the board name, amd64-usr or amd64-generic
+    -g GROUP    Set the update group, default is based on BOARD
     -K KEY      Path to Amazon API private key.
     -C CERT     Path to Amazon API key certificate.
     -h          this ;-)
@@ -36,12 +38,16 @@ This script must be run from an ec2 host with the ec2 tools installed.
 
 AMI=
 VER=
+BOARD="amd64-generic"
+GROUP=""
 
-while getopts "a:V:K:C:hv" OPTION
+while getopts "a:V:b:g:K:C:hv" OPTION
 do
     case $OPTION in
         a) AMI="$OPTARG";;
         V) VER="$OPTARG";;
+        b) BOARD="$OPTARG";;
+        g) GROUP="$OPTARG";;
         K) export EC2_PRIVATE_KEY="$OPTARG";;
         C) export EC2_CERT="$OPTARG";;
         h) echo "$USAGE"; exit;;
@@ -60,11 +66,21 @@ if [[ -z "$VER" ]]; then
     exit 1
 fi
 
+if [[ -z "$GROUP" ]]; then
+    if [[ "$BOARD" == "amd64-generic" ]]; then
+        GROUP="dev-channel"
+    elif [[ "$BOARD" == "amd64-usr" ]]; then
+        GROUP="alpha"
+    else
+        GROUP="$BOARD"
+    fi
+fi
+
 if [[ -z "$AMI" ]]; then
-    AMI=$(ec2-describe-images -F name="CoreOS-$VER" | grep -m1 ^IMAGE \
+    AMI=$(ec2-describe-images -F name="CoreOS-$GROUP-$VER" | grep -m1 ^IMAGE \
         | cut -f2) || true # Don't die silently, error messages are good
     if [[ -z "$AMI" ]]; then
-        echo "$0: Cannot find an AMI for CoreOS $VER" >&2
+        echo "$0: Cannot find an AMI for CoreOS $GROUP $VER" >&2
         exit 1
     fi
 else
@@ -76,8 +92,8 @@ else
 fi
 
 # The name has a limited set of allowed characterrs
-name=$(sed -e "s%[^A-Za-z0-9()\\./_-]%_%g" <<< "CoreOS-$VER")
-description="CoreOS $VER"
+name=$(sed -e "s%[^A-Za-z0-9()\\./_-]%_%g" <<< "CoreOS-$GROUP-$VER")
+description="CoreOS $GROUP $VER"
 
 zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
 zone=$(curl --fail -s $zoneurl)

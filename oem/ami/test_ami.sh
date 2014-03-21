@@ -14,6 +14,8 @@ set -e -o pipefail
 USAGE="Usage: $0 -a ami-id
     -a ami-id   ID of the AMI to be tests
     -V VERSION  Find AMI by CoreOS version.
+    -b BOARD    Set to the board name, amd64-usr or amd64-generic
+    -g GROUP    Set the update group, default is based on BOARD
     -K KEY      Path to Amazon API private key.
     -C CERT     Path to Amazon API key certificate.
     -h          this ;-)
@@ -25,12 +27,16 @@ This script must be run from an ec2 host with the ec2 tools installed.
 
 AMI=
 VER=
+BOARD="amd64-generic"
+GROUP=""
 
-while getopts "a:V:K:C:hv" OPTION
+while getopts "a:V:b:g:K:C:hv" OPTION
 do
     case $OPTION in
         a) AMI="$OPTARG";;
         V) VER="$OPTARG";;
+        b) BOARD="$OPTARG";;
+        g) GROUP="$OPTARG";;
         K) export EC2_PRIVATE_KEY="$OPTARG";;
         C) export EC2_CERT="$OPTARG";;
         h) echo "$USAGE"; exit;;
@@ -44,11 +50,21 @@ if [[ $(id -u) -eq 0 ]]; then
     exit 1
 fi
 
+if [[ -z "$GROUP" ]]; then
+    if [[ "$BOARD" == "amd64-generic" ]]; then
+        GROUP="dev-channel"
+    elif [[ "$BOARD" == "amd64-usr" ]]; then
+        GROUP="alpha"
+    else
+        GROUP="$BOARD"
+    fi
+fi
+
 if [[ -z "$AMI" && -n "$VER" ]]; then
-    AMI=$(ec2-describe-images -F name="CoreOS-$VER" | grep -m1 ^IMAGE \
+    AMI=$(ec2-describe-images -F name="CoreOS-$GROUP-$VER" | grep -m1 ^IMAGE \
         | cut -f2) || true # Don't die silently, error messages are good
     if [[ -z "$AMI" ]]; then
-        echo "$0: Cannot find an AMI for CoreOS $VER" >&2
+        echo "$0: Cannot find an AMI for CoreOS $GROUP $VER" >&2
         exit 1
     fi
 elif [[ -n "$AMI" ]]; then
@@ -82,10 +98,28 @@ zone=$(curl --fail -s $zoneurl)
 region=$(echo $zone | sed 's/.$//')
 
 token=$(uuidgen)
+if [[ "$BOARD" == "amd64-generic" ]]; then
+    userdata="$token"
+else
+    discovery=$(curl --fail -s https://discovery.etcd.io/new)
+    userdata="#cloud-config
+
+coreos:
+    etcd:
+        discovery: $discovery
+        addr: \$private_ipv4:4001
+        peer-addr: \$private_ipv4:7001
+    units:
+      - name: etcd.service
+        command: start
+      - name: fleet.service
+        command: start
+"
+fi
 
 echo -n "Booting instances... "
 instances=$(ec2-run-instances \
-    --user-data "$token" \
+    --user-data "$userdata" \
     --instance-type "t1.micro" \
     --instance-count 3 \
     --group "$sg_name" \
@@ -140,6 +174,7 @@ ec2-terminate-instances $instances > /dev/null
 while ! $ec2_cmd | grep INSTANCE | grep -q terminated
   do sleep 10; done
 
+sleep 10
 ec2-delete-group $sg_name > /dev/null
 ec2-delete-keypair $key_name > /dev/null
 rm $key_file
