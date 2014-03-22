@@ -60,6 +60,16 @@ if [[ ! -n "$VER" ]]; then
     exit 1
 fi
 
+if [[ -z "$GROUP" ]]; then
+    if [[ "$BOARD" == "amd64-generic" ]]; then
+        GROUP="dev-channel"
+    elif [[ "$BOARD" == "amd64-usr" ]]; then
+        GROUP="alpha"
+    else
+        GROUP="$BOARD"
+    fi
+fi
+
 declare -A AMIS
 for r in "${!AKI[@]}"; do
     AMI=$(ec2-describe-images --region=${r} -F name="CoreOS-$GROUP-$VER" \
