@@ -73,8 +73,6 @@ switch_to_strict_mode
 
 . "${SCRIPT_ROOT}"/sdk_lib/make_conf_util.sh
 
-DEFGROUPS="adm,cdrom,floppy,audio,video,portage"
-
 USEPKG=""
 if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
   # Use binary packages. Include all build-time dependencies,
@@ -142,49 +140,31 @@ init_users () {
   touch "${FLAGS_chroot}/etc/"{group,gshadow,passwd,shadow}
   chmod 640 "${FLAGS_chroot}/etc/"{gshadow,shadow}
 
-  # update or add developer user and group
-  local userent=$(bare_chroot getent passwd "${SUDO_USER}") || true
-  if [[ "${userent}" =~ ^[^:]*:[^:]*:${SUDO_UID}:${SUDO_GID}: ]]; then
-    info "Updating ${SUDO_USER} (already exists in chroot)..."
-    bare_chroot usermod -a -G "${DEFGROUPS}" \
-        -s /bin/bash -m -d "/home/${SUDO_USER}" "${SUDO_USER}"
-  elif [[ -n "${userent}" ]]; then
-    die "User ${SUDO_USER} exists in chroot with different UID/GID"
-  else
-    info "Adding user ${SUDO_USER}..."
-    local full_name group_name
-    full_name=$(getent passwd "${SUDO_USER}" | cut -d: -f5)
-    group_name=$(getent group "${SUDO_GID}" | cut -d: -f1)
-    [[ -n "${group_name}" ]] || die "Looking up gid $SUDO_GID failed."
-
-    local groupent=$(bare_chroot getent group "${group_name}") || true
-    if [[ "${groupent}" =~ ^[^:]*:[^:]*:${SUDO_GID}: ]]; then
-      true # group/gid exists, don't need to add it
-    elif [[ -n "${groupent}" ]]; then
-      die "Group ${group_name} exists in chroot with different GID"
-    else
-      bare_chroot groupadd -o -g "${SUDO_GID}" "${group_name}"
-    fi
-
-    bare_chroot useradd -o \
-        -G "${DEFGROUPS}" -g "${SUDO_GID}" -u "${SUDO_UID}" \
-        -s /bin/bash -m -c "${full_name}" "${SUDO_USER}"
-
-    # TODO(marineam): this can be removed once baselayout 3 is merged
-    # We need the UID to match the host user's. This can conflict with
-    # a particular chroot UID. At the same time, the added user has to
-    # be a primary user for the given UID for sudo to work, which is
-    # determined by the order in /etc/passwd. Let's put ourselves on top
-    # of the file.
-    # Because passwd generally isn't sorted and the entry ended up at the
-    # bottom, it is safe to just take it and move it to top instead.
-    if [[ $(wc -l <"${FLAGS_chroot}/etc/passwd") -gt 1 ]]; then
-      sed -e '1{h;d};$!{H;d};$G' -i "${FLAGS_chroot}/etc/passwd"
-    fi
-    if [[ $(wc -l <"${FLAGS_chroot}/etc/group") -gt 1 ]]; then
-      sed -e '1{h;d};$!{H;d};$G' -i "${FLAGS_chroot}/etc/group"
-    fi
+  # do nothing with the CoreOS system user
+  if [[ "${SUDO_USER}" == core ]]; then
+    return
   fi
+
+  local baselayout="${FLAGS_chroot}/usr/share/baselayout"
+  local full_name=$(getent passwd "${SUDO_USER}" | cut -d: -f5)
+  local group_name=$(getent group "${SUDO_GID}" | cut -d: -f1)
+  [[ -n "${group_name}" ]] || die "Looking up gid $SUDO_GID failed."
+
+  if ! grep -q "^${group_name}:" "${baselayout}/group"; then
+    info "Adding group ${group_name}..."
+    bare_chroot groupadd -o -g "${SUDO_GID}" "${group_name}"
+  fi
+
+  info "Adding user ${SUDO_USER}..."
+  bare_chroot useradd -o -g "${SUDO_GID}" -u "${SUDO_UID}" \
+      -s /bin/bash -m -c "${full_name}" "${SUDO_USER}"
+
+  # copy and update other system groups the developer should be in
+  local group
+  for group in kvm portage; do
+    grep "^${group}:" "${baselayout}/group" >> "${FLAGS_chroot}/etc/group"
+    bare_chroot gpasswd -a "${SUDO_USER}" "${group}"
+  done
 }
 
 init_setup () {
