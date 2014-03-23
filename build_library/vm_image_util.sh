@@ -272,6 +272,8 @@ _write_cpio_disk() {
     local base_dir="${VM_TMP_ROOT}/usr"
     local squashfs="usr.squashfs"
 
+    sudo mkdir -p "${cpio_target}/etc"
+
     # If not a /usr image pack up root instead
     if ! mountpoint -q "${base_dir}"; then
         base_dir="${VM_TMP_ROOT}"
@@ -280,13 +282,37 @@ _write_cpio_disk() {
         # The STATE partition and all of its bind mounts shouldn't be
         # packed into the squashfs image. Just ROOT.
         sudo umount --all-targets "${VM_TMP_ROOT}/media/state"
+
+        # Set squashfs as the default root filesystem
+        sudo_clobber "${cpio_target}/etc/fstab" <<EOF
+${squashfs} /sysroot squashfs x-initrd.mount 0 0
+tmpfs /sysroot/usr/share/oem tmpfs size=0,mode=755,x-initrd.mount 0 0
+EOF
+    else
+        # Set tmpfs as default root, squashfs as default /usr
+        sudo_clobber "${cpio_target}/etc/fstab" <<EOF
+tmpfs /sysroot tmpfs mode=755,x-initrd.mount 0 0
+${squashfs} /sysroot/usr squashfs x-initrd.mount 0 0
+tmpfs /sysroot/usr/share/oem tmpfs size=0,mode=755,x-initrd.mount 0 0
+EOF
+
+        # Use OEM cloud-config to setup the core user's password
+        if [[ -s /etc/shared_user_passwd.txt ]]; then
+            sudo mkdir -p "${cpio_target}/usr/share/oem"
+            sudo_clobber "${cpio_target}/usr/share/oem/cloud-config.yml" <<EOF
+#cloud-config
+
+users:
+  - name: core
+    passwd: $(</etc/shared_user_passwd.txt)
+EOF
+        fi
     fi
 
     # Build the squashfs, embed squashfs into a gzipped cpio
-    mkdir -p "${cpio_target}"
     pushd "${cpio_target}" >/dev/null
     sudo mksquashfs "${base_dir}" "./${squashfs}"
-    echo "./${squashfs}" | cpio -o -H newc | gzip > "$2"
+    find . | cpio -o -H newc | gzip > "$2"
     popd >/dev/null
 
     # Pull the kernel out of the filesystem
