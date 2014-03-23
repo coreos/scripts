@@ -329,16 +329,12 @@ write_vm_conf() {
     fi
 }
 
-_write_qemu_conf() {
-    local vm_mem="${1:-$(_get_vm_opt MEM)}"
-    local src_name=$(basename "$VM_SRC_IMG")
-    local dst_name=$(basename "$VM_DST_IMG")
-    local dst_dir=$(dirname "$VM_DST_IMG")
-    local script="${dst_dir}/$(_src_to_dst_name "${src_name}" ".sh")"
+_write_qemu_common() {
+    local script="$1"
+    local vm_mem="$(_get_vm_opt MEM)"
 
     sed -e "s%^VM_NAME=.*%VM_NAME='${VM_NAME}'%" \
         -e "s%^VM_UUID=.*%VM_UUID='${VM_UUID}'%" \
-        -e "s%^VM_IMAGE=.*%VM_IMAGE='${dst_name}'%" \
         -e "s%^VM_MEMORY=.*%VM_MEMORY='${vm_mem}'%" \
         "${BUILD_LIBRARY_DIR}/qemu_template.sh" > "${script}"
     checkbashisms --posix "${script}" || die
@@ -363,19 +359,31 @@ EOF
     VM_GENERATED_FILES+=( "${script}" "${VM_README}" )
 }
 
-_write_pxe_conf() {
+_write_qemu_conf() {
+    local script="$(_dst_dir)/$(_dst_name ".sh")"
     local dst_name=$(basename "$VM_DST_IMG")
+
+    _write_qemu_common "${script}"
+    sed -e "s%^VM_IMAGE=.*%VM_IMAGE='${dst_name}'%" -i "${script}"
+}
+
+_write_pxe_conf() {
+    local script="$(_dst_dir)/$(_dst_name ".sh")"
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
+    local dst_name=$(basename "$VM_DST_IMG")
 
-    cat >"${VM_README}" <<EOF
-If you have qemu installed (or in the SDK), you can start the image with:
-  cd path/to/image
+    _write_qemu_common "${script}"
+    sed -e "s%^VM_KERNEL=.*%VM_KERNEL='${vmlinuz_name}'%" \
+        -e "s%^VM_INITRD=.*%VM_INITRD='${dst_name}'%" -i "${script}"
 
-  qemu-kvm -m 1024 -kernel ${vmlinuz_name} -initrd ${dst_name} -append 'state=tmpfs: root=squashfs: sshkey="PUT AN SSH KEY HERE"'
+    cat >>"${VM_README}" <<EOF
 
+You can pass extra kernel parameters with -append, for example:
+  ./$(basename "${script}") -curses -append 'sshkey="PUT AN SSH KEY HERE"'
+
+When using -nograhic or -serial you must also enable the serial console:
+  ./$(basename "${script}") -nographic -append 'console=ttyS0,115200n8'
 EOF
-
-    VM_GENERATED_FILES+=( "${VM_README}" )
 }
 
 # Generate the vmware config file
