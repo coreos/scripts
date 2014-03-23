@@ -11,6 +11,7 @@ VALID_IMG_TYPES=(
     openstack
     qemu
     rackspace
+    rackspace_vhd
     vagrant
     vagrant_vmware_fusion
     virtualbox
@@ -118,6 +119,9 @@ IMG_gce_OEM_PACKAGE=oem-gce
 ## rackspace
 IMG_rackspace_BOOT_KERNEL=0
 IMG_rackspace_OEM_PACKAGE=oem-rackspace
+IMG_rackspace_vhd_BOOT_KERNEL=0
+IMG_rackspace_vhd_DISK_FORMAT=vhd
+IMG_rackspace_vhd_OEM_PACKAGE=oem-rackspace
 
 ###########################################################
 
@@ -254,6 +258,10 @@ _write_raw_disk() {
 
 _write_qcow2_disk() {
     qemu-img convert -f raw "$1" -O qcow2 "$2"
+}
+
+_write_vhd_disk() {
+    qemu-img convert -f raw "$1" -O vpc "$2"
 }
 
 _write_vmdk_ide_disk() {
