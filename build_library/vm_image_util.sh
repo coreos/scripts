@@ -381,7 +381,7 @@ _write_pxe_conf() {
 You can pass extra kernel parameters with -append, for example:
   ./$(basename "${script}") -curses -append 'sshkey="PUT AN SSH KEY HERE"'
 
-When using -nograhic or -serial you must also enable the serial console:
+When using -nographic or -serial you must also enable the serial console:
   ./$(basename "${script}") -nographic -append 'console=ttyS0,115200n8'
 EOF
 }
