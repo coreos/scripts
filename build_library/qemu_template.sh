@@ -4,15 +4,17 @@ SCRIPT_DIR="`dirname "$0"`"
 VM_NAME=
 VM_UUID=
 VM_IMAGE=
+VM_KERNEL=
+VM_INITRD=
 VM_MEMORY=
 VM_NCPUS="`grep -c ^processor /proc/cpuinfo`"
-IMAGE_PATH="${SCRIPT_DIR}/${VM_IMAGE}"
 SSH_PORT=2222
 SSH_KEYS=""
 USAGE="Usage: $0 [-a authorized_keys] [--] [qemu options...]
 Options:
     -a FILE     SSH public keys for login access. [~/.ssh/id_{dsa,rsa}.pub]
     -p PORT     The port on localhost to map to the VM's sshd. [2222]
+    -s          Safe settings: single simple cpu, ide disks.
     -h          this ;-)
 
 This script is a wrapper around qemu for starting CoreOS virtual machines.
@@ -26,12 +28,14 @@ Any arguments after -a and -p will be passed through to qemu, -- may be
 used as an explicit separator. See the qemu(1) man page for more details.
 "
 
+safe_args=0
 script_args=1
-while getopts ":a:p:vh" OPTION
+while getopts ":a:p:svh" OPTION
 do
     case $OPTION in
         a) SSH_KEYS="$OPTARG" ;;
         p) SSH_PORT="$OPTARG" ;;
+        s) safe_args=1 ;;
         v) set -x ;;
         h) echo "$USAGE"; exit ;;
         ?) break ;;
@@ -73,18 +77,35 @@ else
     done
 fi
 
+# Start assembling our default command line arguments
+if [ "${safe_args}" -eq 1 ]; then
+    disk_type="ide"
+else
+    disk_type="virtio"
+    # Emulate the host CPU closely in both features and cores.
+    set -- -cpu host -smp "${VM_NCPUS}" "$@"
+fi
+
+if [ -n "${VM_IMAGE}" ]; then
+    set -- -drive if=${disk_type},file="${SCRIPT_DIR}/${VM_IMAGE}" "$@"
+fi
+
+if [ -n "${VM_KERNEL}" ]; then
+    set -- -kernel "${SCRIPT_DIR}/${VM_KERNEL}" "$@"
+fi
+
+if [ -n "${VM_INITRD}" ]; then
+    set -- -initrd "${SCRIPT_DIR}/${VM_INITRD}" "$@"
+fi
+
 
 # Default to KVM, fall back on full emulation
-# Emulate the host CPU closely in both features and cores.
 # ${METADATA} will be mounted in CoreOS as /media/metadata
 qemu-system-x86_64 \
     -name "$VM_NAME" \
     -uuid "$VM_UUID" \
     -m ${VM_MEMORY} \
-    -cpu host \
-    -smp "${VM_NCPUS}" \
     -machine accel=kvm:tcg \
-    -drive index=0,if=virtio,media=disk,format=qcow2,file="${IMAGE_PATH}" \
     -net nic,vlan=0,model=virtio \
     -net user,vlan=0,hostfwd=tcp::"${SSH_PORT}"-:22 \
     -fsdev local,id=metadata,security_model=none,readonly,path="${METADATA}" \
@@ -96,4 +117,4 @@ RET=$?
 # Cleanup!
 rm -rf "${METADATA}"
 trap - EXIT
-exit $?
+exit ${RET}

@@ -111,7 +111,6 @@ IMG_openstack_OEM_PACKAGE=oem-ami
 IMG_pxe_DISK_FORMAT=cpio
 IMG_pxe_PARTITIONED_IMG=0
 IMG_pxe_CONF_FORMAT=pxe
-IMG_pxe_OEM_PACKAGE=oem-pxe
 
 ## gce, image tarball
 IMG_gce_CONF_FORMAT=gce
@@ -279,22 +278,54 @@ _write_cpio_disk() {
     local cpio_target="${VM_TMP_DIR}/rootcpio"
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
+    local base_dir="${VM_TMP_ROOT}/usr"
+    local squashfs="usr.squashfs"
 
-    # The STATE partition and all of its bind mounts shouldn't be
-    # packed into the squashfs image. Just ROOT and OEM.
-    if mountpoint -q "${VM_TMP_ROOT}/media/state"; then
+    sudo mkdir -p "${cpio_target}/etc"
+
+    # If not a /usr image pack up root instead
+    if ! mountpoint -q "${base_dir}"; then
+        base_dir="${VM_TMP_ROOT}"
+        squashfs="newroot.squashfs"
+
+        # The STATE partition and all of its bind mounts shouldn't be
+        # packed into the squashfs image. Just ROOT.
         sudo umount --all-targets "${VM_TMP_ROOT}/media/state"
+
+        # Set squashfs as the default root filesystem
+        sudo_clobber "${cpio_target}/etc/fstab" <<EOF
+${squashfs} /sysroot squashfs x-initrd.mount 0 0
+tmpfs /sysroot/usr/share/oem tmpfs size=0,mode=755,x-initrd.mount 0 0
+EOF
+    else
+        # Set tmpfs as default root, squashfs as default /usr
+        sudo_clobber "${cpio_target}/etc/fstab" <<EOF
+tmpfs /sysroot tmpfs mode=755,x-initrd.mount 0 0
+${squashfs} /sysroot/usr squashfs x-initrd.mount 0 0
+tmpfs /sysroot/usr/share/oem tmpfs size=0,mode=755,x-initrd.mount 0 0
+EOF
+
+        # Use OEM cloud-config to setup the core user's password
+        if [[ -s /etc/shared_user_passwd.txt ]]; then
+            sudo mkdir -p "${cpio_target}/usr/share/oem"
+            sudo_clobber "${cpio_target}/usr/share/oem/cloud-config.yml" <<EOF
+#cloud-config
+
+users:
+  - name: core
+    passwd: $(</etc/shared_user_passwd.txt)
+EOF
+        fi
     fi
 
     # Build the squashfs, embed squashfs into a gzipped cpio
-    mkdir -p "${cpio_target}"
     pushd "${cpio_target}" >/dev/null
-    sudo mksquashfs "${VM_TMP_ROOT}" ./newroot.squashfs
-    echo ./newroot.squashfs | cpio -o -H newc | gzip > "$2"
+    sudo mksquashfs "${base_dir}" "./${squashfs}"
+    find . | cpio -o -H newc | gzip > "$2"
     popd >/dev/null
 
-    # Pull the kernel out of the root filesystem
-    cp "${VM_TMP_ROOT}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
+    # Pull the kernel out of the filesystem
+    cp "${base_dir}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
     VM_GENERATED_FILES+=( "${dst_dir}/${vmlinuz_name}" )
 }
 
@@ -307,16 +338,12 @@ write_vm_conf() {
     fi
 }
 
-_write_qemu_conf() {
-    local vm_mem="${1:-$(_get_vm_opt MEM)}"
-    local src_name=$(basename "$VM_SRC_IMG")
-    local dst_name=$(basename "$VM_DST_IMG")
-    local dst_dir=$(dirname "$VM_DST_IMG")
-    local script="${dst_dir}/$(_src_to_dst_name "${src_name}" ".sh")"
+_write_qemu_common() {
+    local script="$1"
+    local vm_mem="$(_get_vm_opt MEM)"
 
     sed -e "s%^VM_NAME=.*%VM_NAME='${VM_NAME}'%" \
         -e "s%^VM_UUID=.*%VM_UUID='${VM_UUID}'%" \
-        -e "s%^VM_IMAGE=.*%VM_IMAGE='${dst_name}'%" \
         -e "s%^VM_MEMORY=.*%VM_MEMORY='${vm_mem}'%" \
         "${BUILD_LIBRARY_DIR}/qemu_template.sh" > "${script}"
     checkbashisms --posix "${script}" || die
@@ -341,19 +368,31 @@ EOF
     VM_GENERATED_FILES+=( "${script}" "${VM_README}" )
 }
 
-_write_pxe_conf() {
+_write_qemu_conf() {
+    local script="$(_dst_dir)/$(_dst_name ".sh")"
     local dst_name=$(basename "$VM_DST_IMG")
+
+    _write_qemu_common "${script}"
+    sed -e "s%^VM_IMAGE=.*%VM_IMAGE='${dst_name}'%" -i "${script}"
+}
+
+_write_pxe_conf() {
+    local script="$(_dst_dir)/$(_dst_name ".sh")"
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
+    local dst_name=$(basename "$VM_DST_IMG")
 
-    cat >"${VM_README}" <<EOF
-If you have qemu installed (or in the SDK), you can start the image with:
-  cd path/to/image
+    _write_qemu_common "${script}"
+    sed -e "s%^VM_KERNEL=.*%VM_KERNEL='${vmlinuz_name}'%" \
+        -e "s%^VM_INITRD=.*%VM_INITRD='${dst_name}'%" -i "${script}"
 
-  qemu-kvm -m 1024 -kernel ${vmlinuz_name} -initrd ${dst_name} -append 'state=tmpfs: root=squashfs: sshkey="PUT AN SSH KEY HERE"'
+    cat >>"${VM_README}" <<EOF
 
+You can pass extra kernel parameters with -append, for example:
+  ./$(basename "${script}") -curses -append 'sshkey="PUT AN SSH KEY HERE"'
+
+When using -nographic or -serial you must also enable the serial console:
+  ./$(basename "${script}") -nographic -append 'console=ttyS0,115200n8'
 EOF
-
-    VM_GENERATED_FILES+=( "${VM_README}" )
 }
 
 # Generate the vmware config file
