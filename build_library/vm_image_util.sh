@@ -67,6 +67,7 @@ IMG_qemu_CONF_FORMAT=qemu
 
 ## xen
 IMG_xen_BOOT_KERNEL=0
+IMG_xen_DISK_FORMAT=vhd
 IMG_xen_CONF_FORMAT=xl
 
 ## virtualbox
@@ -457,6 +458,7 @@ _write_xl_conf() {
     local dst_dir=$(dirname "$VM_DST_IMG")
     local pygrub="${dst_dir}/$(_src_to_dst_name "${src_name}" "_pygrub.cfg")"
     local pvgrub="${dst_dir}/$(_src_to_dst_name "${src_name}" "_pvgrub.cfg")"
+    local disk_format=$(_get_vm_opt DISK_FORMAT)
 
     # Set up the few differences between pygrub and pvgrub
     echo '# Xen PV config using pygrub' > "${pygrub}"
@@ -477,7 +479,7 @@ memory = "${vm_mem}"
 vcpus = 2
 # TODO(marineam): networking...
 vif = [ ]
-disk = [ '${dst_name},raw,xvda' ]
+disk = [ '${dst_name},${disk_format},xvda' ]
 EOF
 
     cat > "${VM_README}" <<EOF
