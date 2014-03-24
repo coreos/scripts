@@ -118,7 +118,7 @@ get_board_binhost() {
     shift
 
     if [[ $# -eq 0 ]]; then
-        set -- "${COREOS_VERSION_ID}" "${COREOS_SDK_VERSION}"
+        set -- "${COREOS_SDK_VERSION}" "${COREOS_VERSION_ID}"
     fi
 
     for ver in "$@"; do
