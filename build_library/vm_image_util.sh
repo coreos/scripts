@@ -10,6 +10,7 @@ VALID_IMG_TYPES=(
     pxe
     openstack
     qemu
+    qemu_no_kexec
     rackspace
     rackspace_vhd
     vagrant
@@ -64,6 +65,11 @@ IMG_DEFAULT_MEM=1024
 IMG_qemu_DISK_FORMAT=qcow2
 IMG_qemu_DISK_LAYOUT=vm
 IMG_qemu_CONF_FORMAT=qemu
+
+IMG_qemu_no_kexec_BOOT_KERNEL=0
+IMG_qemu_no_kexec_DISK_FORMAT=qcow2
+IMG_qemu_no_kexec_DISK_LAYOUT=vm
+IMG_qemu_no_kexec_CONF_FORMAT=qemu
 
 ## xen
 IMG_xen_BOOT_KERNEL=0
