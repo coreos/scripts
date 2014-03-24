@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# Copyright (c) 2014 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+DEFINE_string board "all" \
+    "Clean only builds for the given board or all boards."
+DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
+    "Directory containing image result directories."
+DEFINE_boolean keep_latest ${FLAGS_TRUE} \
+    "Do not delete the latest successful image."
+
+# Parse flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+switch_to_strict_mode
+
+shopt -s nullglob
+
+if [[ ! -d "${FLAGS_output_root}" ]]; then
+    die_notrace "Output directory not found: ${FLAGS_output_root}"
+fi
+
+if [[ "${FLAGS_board}" == all ]]; then
+    board_paths=( "${FLAGS_output_root}"/* )
+elif [[ -d "${FLAGS_output_root}/${FLAGS_board}" ]]; then
+    board_paths=( "${FLAGS_output_root}/${FLAGS_board}" )
+else
+    die_notrace "Board directory not found: ${FLAGS_output_root}/${FLAGS_board}"
+fi
+
+before=$(df -k "${FLAGS_output_root}" | awk '$3 ~ /^[0-9]+$/ { print $3 }')
+for board_path in "${board_paths[@]}"; do
+    if [[ ! -d "${board_path}" ]]; then
+        continue
+    fi
+
+    for image_path in "${board_path}"/*; do
+        if [[ -h "${image_path}" || ! -d "${image_path}" ]]; then
+            continue
+        fi
+
+        if [[ ${FLAGS_keep_latest} -eq ${FLAGS_TRUE} &&
+              "${board_path}/latest" -ef "${image_path}" ]]; then
+            continue
+        fi
+
+        # best effort attempt to clean up old mounts
+        safe_umount_tree "${image_path}"
+
+        info "Deleting ${board_path##*/}/${image_path##*/}"
+        sudo rm -rf "${image_path}"
+    done
+
+    # cleanup broken symlinks
+    if [[ -h "${board_path}/latest" && ! -e "${board_path}/latest" ]]; then
+        rm "${board_path}/latest"
+    fi
+done
+
+after=$(df -k "${FLAGS_output_root}" | awk '$3 ~ /^[0-9]+$/ { print $3 }')
+saved=$(( before - after ))
+if [[ ${saved} -lt 1024 ]]; then
+    info "Deleted ${saved} KB"
+elif [[ ${saved} -lt 1048576 ]]; then
+    saved_mb=$(bc <<<"scale=2; ${saved} / 1024")
+    info "Deleted ${saved_mb} MB"
+else
+    saved_gb=$(bc <<<"scale=2; ${saved} / 1048576")
+    info "Deleted ${saved_gb} GB"
+fi
