@@ -11,6 +11,7 @@ VALID_IMG_TYPES=(
     openstack
     qemu
     rackspace
+    rackspace_vhd
     vagrant
     vagrant_vmware_fusion
     virtualbox
@@ -66,6 +67,7 @@ IMG_qemu_CONF_FORMAT=qemu
 
 ## xen
 IMG_xen_BOOT_KERNEL=0
+IMG_xen_DISK_FORMAT=vhd
 IMG_xen_CONF_FORMAT=xl
 
 ## virtualbox
@@ -118,6 +120,9 @@ IMG_gce_OEM_PACKAGE=oem-gce
 ## rackspace
 IMG_rackspace_BOOT_KERNEL=0
 IMG_rackspace_OEM_PACKAGE=oem-rackspace
+IMG_rackspace_vhd_BOOT_KERNEL=0
+IMG_rackspace_vhd_DISK_FORMAT=vhd
+IMG_rackspace_vhd_OEM_PACKAGE=oem-rackspace
 
 ###########################################################
 
@@ -254,6 +259,10 @@ _write_raw_disk() {
 
 _write_qcow2_disk() {
     qemu-img convert -f raw "$1" -O qcow2 "$2"
+}
+
+_write_vhd_disk() {
+    qemu-img convert -f raw "$1" -O vpc "$2"
 }
 
 _write_vmdk_ide_disk() {
@@ -449,6 +458,7 @@ _write_xl_conf() {
     local dst_dir=$(dirname "$VM_DST_IMG")
     local pygrub="${dst_dir}/$(_src_to_dst_name "${src_name}" "_pygrub.cfg")"
     local pvgrub="${dst_dir}/$(_src_to_dst_name "${src_name}" "_pvgrub.cfg")"
+    local disk_format=$(_get_vm_opt DISK_FORMAT)
 
     # Set up the few differences between pygrub and pvgrub
     echo '# Xen PV config using pygrub' > "${pygrub}"
@@ -469,7 +479,7 @@ memory = "${vm_mem}"
 vcpus = 2
 # TODO(marineam): networking...
 vif = [ ]
-disk = [ '${dst_name},raw,xvda' ]
+disk = [ '${dst_name},${disk_format},xvda' ]
 EOF
 
     cat > "${VM_README}" <<EOF
