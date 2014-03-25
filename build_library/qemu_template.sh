@@ -98,12 +98,14 @@ if [ -n "${VM_INITRD}" ]; then
     set -- -initrd "${SCRIPT_DIR}/${VM_INITRD}" "$@"
 fi
 
+if [ -n "${VM_UUID}" ]; then
+    set -- -uuid "$VM_UUID" "$@"
+fi
 
 # Default to KVM, fall back on full emulation
 # ${METADATA} will be mounted in CoreOS as /media/metadata
 qemu-system-x86_64 \
     -name "$VM_NAME" \
-    -uuid "$VM_UUID" \
     -m ${VM_MEMORY} \
     -machine accel=kvm:tcg \
     -net nic,vlan=0,model=virtio \

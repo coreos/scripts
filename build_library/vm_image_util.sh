@@ -33,7 +33,6 @@ VM_TMP_ROOT=
 VM_DST_IMG=
 VM_README=
 VM_NAME=
-VM_UUID=
 
 # Contains a list of all generated files
 VM_GENERATED_FILES=()
@@ -161,7 +160,6 @@ set_vm_paths() {
     VM_TMP_IMG="${VM_TMP_DIR}/disk_image.bin"
     VM_TMP_ROOT="${VM_TMP_DIR}/rootfs"
     VM_NAME="$(_src_to_dst_name "${src_name}" "")-${COREOS_VERSION_STRING}"
-    VM_UUID=$(uuidgen)
     VM_README="${dst_dir}/$(_src_to_dst_name "${src_name}" ".README")"
 }
 
@@ -349,7 +347,6 @@ _write_qemu_common() {
     local vm_mem="$(_get_vm_opt MEM)"
 
     sed -e "s%^VM_NAME=.*%VM_NAME='${VM_NAME}'%" \
-        -e "s%^VM_UUID=.*%VM_UUID='${VM_UUID}'%" \
         -e "s%^VM_MEMORY=.*%VM_MEMORY='${vm_mem}'%" \
         "${BUILD_LIBRARY_DIR}/qemu_template.sh" > "${script}"
     checkbashisms --posix "${script}" || die
@@ -518,7 +515,6 @@ _write_xl_conf() {
 
 builder = "generic"
 name = "${VM_NAME}"
-uuid = "${VM_UUID}"
 
 memory = "${vm_mem}"
 vcpus = 2
