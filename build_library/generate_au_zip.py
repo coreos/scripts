@@ -26,6 +26,7 @@ STATIC_FILES = ['/usr/bin/old_bins/cgpt',
                 '%s/chromeos-common.sh' % SCRIPTS_DIR,
                 '%s/common.sh' % SCRIPTS_DIR,
                 '%s/core_upload_update' % SCRIPTS_DIR,
+                '%s/core_roller_upload' % SCRIPTS_DIR,
                 ]
 
 DYNAMIC_EXECUTABLES = ['/usr/bin/delta_generator',

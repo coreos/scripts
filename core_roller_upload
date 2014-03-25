@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# Copyright (c) 2013 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+# We have to simple-mindedly set GCLIENT_ROOT in case we're running from
+# au-generator.zip because common.sh will fail while auto-detect it.
+export GCLIENT_ROOT=$(readlink -f "${SCRIPT_ROOT}/../../")
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+DEFINE_string board "amd64-usr" \
+    "Board type of the image"
+DEFINE_string group "alpha" \
+    "Group that this update goes into."
+DEFINE_string image "coreos_production_image.bin" \
+    "Path to the production image (not base/dev/qemu/xen/etc)"
+DEFINE_string version "${COREOS_VERSION_STRING}" \
+    "Version number of this build."
+
+DEFINE_string user "" \
+    "User for roller."
+DEFINE_string api_key "" \
+    "API key for roller."
+DEFINE_string endpoint "https://public.roller.core-os.net" \
+    "Roller endpoint to update."
+
+
+FLAGS_HELPS="usage: $SCRIPTNAME [flags]
+
+Setting everything up for use\n
+
+1) Run 'gsutil config' and use project id coreos.com:core-update-storage\n
+2) Ensure rollerctl is installed in your path\n
+
+NOTE: Use the coreos_production_image.bin not base, developer, vm, etc...
+"
+
+# Parse flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+switch_to_strict_mode
+
+[[ -z "${FLAGS_api_key}" ]] && die "--api_key is required"
+[[ -z "${FLAGS_user}" ]] && die "--user is required"
+
+MD5SUM=$(md5sum ${FLAGS_image} | cut -f1 -d" ")
+URL="update-storage.core-os.net/${FLAGS_board}/${FLAGS_group}/$MD5SUM/update.gz"
+gsutil cp "update.gz" gs://${URL}
+
+rollerctl \
+	-s ${FLAGS_endpoint}
+	-u ${FLAGS_user} \
+	-k ${FLAGS_api_key} \
+	new-package \
+	--url "http://${URL}" \
+	--file "update.gz" \
+	--meta "update.meta" \
+	--version "${FLAGS_version}"
+
+# Copy the vagrant boxes and pre-built images over to the group mirror
+gsutil cp \
+    "${COREOS_UPLOAD_ROOT}/${FLAGS_board}/${FLAGS_version}/*" \
+    "${COREOS_UPLOAD_ROOT}/${FLAGS_board}/${FLAGS_group}/"
