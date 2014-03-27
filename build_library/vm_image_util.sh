@@ -301,6 +301,9 @@ _write_cpio_disk() {
 ${squashfs} /sysroot squashfs x-initrd.mount 0 0
 tmpfs /sysroot/usr/share/oem tmpfs size=0,mode=755,x-initrd.mount 0 0
 EOF
+
+        # Inject /usr/.noupdate into squashfs to disable update_engine
+        echo "/usr/.noupdate f 444 root root echo -n" >"${VM_TMP_DIR}/extra"
     else
         # Set tmpfs as default root, squashfs as default /usr
         sudo_clobber "${cpio_target}/etc/fstab" <<EOF
@@ -320,11 +323,14 @@ users:
     passwd: $(</etc/shared_user_passwd.txt)
 EOF
         fi
+
+        # Inject /usr/.noupdate into squashfs to disable update_engine
+        echo "/.noupdate f 444 root root echo -n" >"${VM_TMP_DIR}/extra"
     fi
 
     # Build the squashfs, embed squashfs into a gzipped cpio
     pushd "${cpio_target}" >/dev/null
-    sudo mksquashfs "${base_dir}" "./${squashfs}"
+    sudo mksquashfs "${base_dir}" "./${squashfs}" -pf "${VM_TMP_DIR}/extra"
     find . | cpio -o -H newc | gzip > "$2"
     popd >/dev/null
 
