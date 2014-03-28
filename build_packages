@@ -63,12 +63,6 @@ DEFINE_boolean skip_chroot_upgrade "${FLAGS_FALSE}" \
   "Don't run the chroot upgrade automatically; use with care."
 DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
   "Don't update toolchain automatically."
-DEFINE_boolean withdev "${FLAGS_TRUE}" \
-  "Build useful developer friendly utilities."
-DEFINE_boolean withdebug "${FLAGS_TRUE}" \
-  "Build debug versions of Chromium-OS-specific packages."
-DEFINE_boolean withtest "${FLAGS_TRUE}" \
-  "Build packages required for testing."
 
 # The --reuse_pkgs_from_local_boards flag tells Portage to share binary
 # packages between boards that are built locally, so that the total time
@@ -186,28 +180,6 @@ if [[ "${FLAGS_showoutput}" -eq "${FLAGS_TRUE}" && \
   EMERGE_FLAGS+=( --show-output )
 fi
 
-if [[ "${FLAGS_withdebug}" -eq "${FLAGS_FALSE}" ]]; then
-  export USE="${USE} -cros-debug"
-fi
-
-# Figure out which packages we should be building.
-PACKAGES=( "$@" )
-if [[ $# -eq 0 ]]; then
-  PACKAGES=( coreos-base/coreos )
-  if [[ "${FLAGS_withdev}" -eq "${FLAGS_TRUE}" ]]; then
-    PACKAGES+=( coreos-base/coreos-dev )
-  fi
-fi
-
-# Verify that all packages can be emerged from scratch, without any
-# backtracking. Only print the output if this step fails.
-info "Checking package dependencies are correct: ${PACKAGES[*]}"
-if ! OUTPUT=$(emerge-${FLAGS_board} -pe --backtrack=0 \
-              "${PACKAGES[@]}" 2>&1); then
-  printf "%s\n" "${OUTPUT}"
-  die_notrace "emerge detected broken ebuilds. See error message above."
-fi
-
 # Build cros_workon packages when they are changed.
 CROS_WORKON_PKGS=()
 if [ "${FLAGS_noworkon}" -eq "${FLAGS_FALSE}" ]; then
@@ -223,7 +195,7 @@ if [[ ${#CROS_WORKON_PKGS[@]} -gt 0 ]]; then
 fi
 
 info "Merging board packages now"
-sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" "${PACKAGES[@]}"
+sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" coreos-devel/board-packages
 
 info "Checking build root"
 test_image_content "${BOARD_ROOT}"
