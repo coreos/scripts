@@ -2,13 +2,12 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-create_base_image() {
+start_image() {
   local image_name=$1
   local disk_layout=$2
-  local update_group="$3"
+  local root_fs_dir=$3
 
   local disk_img="${BUILD_DIR}/${image_name}"
-  local root_fs_dir="${BUILD_DIR}/rootfs"
 
   info "Using image type ${disk_layout}"
   "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
@@ -26,16 +25,12 @@ create_base_image() {
   # FIXME(marineam): Work around glibc setting EROOT=$ROOT
   # https://bugs.gentoo.org/show_bug.cgi?id=473728#c12
   sudo mkdir -p "${root_fs_dir}/etc/ld.so.conf.d"
+}
 
-  # We "emerge --root=${root_fs_dir} --root-deps=rdeps --usepkgonly" all of the
-  # runtime packages for chrome os. This builds up a chrome os image from
-  # binary packages with runtime dependencies only.  We use INSTALL_MASK to
-  # trim the image size as much as possible.
-  emerge_prod_gcc --root="${root_fs_dir}"
-  emerge_to_image --root="${root_fs_dir}" ${BASE_PACKAGE}
-
-  # Make sure profile.env and ld.so.cache has been generated
-  sudo ROOT="${root_fs_dir}" env-update
+finish_image() {
+  local disk_layout=$1
+  local root_fs_dir=$2
+  local update_group=$3
 
   # Record directories installed to the state partition.
   # Explicitly ignore entries covered by existing configs.

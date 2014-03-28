@@ -3,16 +3,19 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-setup_prod_image() {
+create_prod_image() {
   local image_name="$1"
   local disk_layout="$2"
+  local update_group="$3"
 
-  info "Configuring production image ${image_name}"
+  info "Building production image ${image_name}"
   local root_fs_dir="${BUILD_DIR}/rootfs"
 
-  "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
-      mount "${BUILD_DIR}/${image_name}" "${root_fs_dir}"
-  trap "cleanup_mounts '${root_fs_dir}' && delete_prompt" EXIT
+  start_image "${image_name}" "${disk_layout}" "${root_fs_dir}"
+
+  # Install minimal GCC (libs only) and then everything else
+  emerge_prod_gcc "${root_fs_dir}"
+  emerge_to_image "${root_fs_dir}" coreos-base/coreos
 
   # clean-ups of things we do not need
   sudo rm ${root_fs_dir}/etc/csh.env
@@ -38,8 +41,7 @@ EOF
   sudo rm ${root_fs_dir}/etc/xinetd.d/rsyncd
   sudo rmdir ${root_fs_dir}/etc/xinetd.d
 
-  cleanup_mounts "${root_fs_dir}"
-  trap - EXIT
+  finish_image "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
   # Make the filesystem un-mountable as read-write.
   if [ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]; then

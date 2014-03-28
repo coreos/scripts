@@ -107,6 +107,7 @@ generate_update() {
 # Arguments to this command are passed as addition options/arguments
 # to the basic emerge command.
 emerge_to_image() {
+  local root_fs_dir="$1"; shift
   local mask="${INSTALL_MASK:-$(portageq-$BOARD envvar PROD_INSTALL_MASK)}"
   test -n "$mask" || die "PROD_INSTALL_MASK not defined"
 
@@ -122,12 +123,16 @@ emerge_to_image() {
     emerge_cmd+=" --jobs=$FLAGS_jobs"
   fi
 
-  sudo -E INSTALL_MASK="$mask" ${emerge_cmd} "$@"
+  sudo -E INSTALL_MASK="$mask" ${emerge_cmd} --root="${root_fs_dir}" "$@"
+
+  # Make sure profile.env and ld.so.cache has been generated
+  sudo -E ROOT="${root_fs_dir}" env-update
 }
 
 # The GCC package includes both its libraries and the compiler.
 # In prod images we only need the shared libraries.
 emerge_prod_gcc() {
+    local root_fs_dir="$1"; shift
     local mask="${INSTALL_MASK:-$(portageq-$BOARD envvar PROD_INSTALL_MASK)}"
     test -n "$mask" || die "PROD_INSTALL_MASK not defined"
 
@@ -143,5 +148,5 @@ emerge_prod_gcc() {
         /usr/share/gcc-data/*/*/c99
         /usr/share/gcc-data/*/*/python"
 
-    INSTALL_MASK="${mask}" emerge_to_image --nodeps sys-devel/gcc "$@"
+    INSTALL_MASK="${mask}" emerge_to_image "${root_fs_dir}" --nodeps sys-devel/gcc "$@"
 }

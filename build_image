@@ -102,8 +102,6 @@ for arg in "$@"; do
   esac
 done
 
-BASE_PACKAGE="coreos-base/coreos"
-
 eclean-$BOARD -d packages
 
 if [[ ${skip_blacklist_check} -ne 1 ]]; then
@@ -139,14 +137,12 @@ mkdir -p "${BUILD_DIR}"
 DISK_LAYOUT="${FLAGS_disk_layout:-base}"
 
 if [[ "${DEV_IMAGE}" -eq 1 ]]; then
-  create_base_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
-  install_dev_packages ${COREOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT}
+  create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
   upload_image "${BUILD_DIR}/${COREOS_DEVELOPER_IMAGE_NAME}"
 fi
 
 if [[ "${PROD_IMAGE}" -eq 1 ]]; then
-  create_base_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
-  setup_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT}
+  create_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
   upload_image "${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"
   if [[ ${FLAGS_generate_update} -eq ${FLAGS_TRUE} ]]; then
     generate_update "${COREOS_PRODUCTION_IMAGE_NAME}" ${DISK_LAYOUT}
