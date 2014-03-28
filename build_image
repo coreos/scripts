@@ -87,7 +87,6 @@ check_gsutil_opts
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
-. "${BUILD_LIBRARY_DIR}/base_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/prod_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/dev_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
