@@ -104,28 +104,6 @@ emerge_to_image() {
   sudo -E ROOT="${root_fs_dir}" env-update
 }
 
-# The GCC package includes both its libraries and the compiler.
-# In prod images we only need the shared libraries.
-emerge_prod_gcc() {
-    local root_fs_dir="$1"; shift
-    local mask="${INSTALL_MASK:-$(portageq-$BOARD envvar PROD_INSTALL_MASK)}"
-    test -n "$mask" || die "PROD_INSTALL_MASK not defined"
-
-    mask="${mask}
-        /usr/bin
-        /usr/*/gcc-bin
-        /usr/lib/gcc/*/*/*.o
-        /usr/lib/gcc/*/*/include
-        /usr/lib/gcc/*/*/include-fixed
-        /usr/lib/gcc/*/*/plugin
-        /usr/libexec
-        /usr/share/gcc-data/*/*/c89
-        /usr/share/gcc-data/*/*/c99
-        /usr/share/gcc-data/*/*/python"
-
-    INSTALL_MASK="${mask}" emerge_to_image "${root_fs_dir}" --nodeps sys-devel/gcc "$@"
-}
-
 start_image() {
   local image_name="$1"
   local disk_layout="$2"
