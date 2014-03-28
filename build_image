@@ -103,10 +103,6 @@ done
 
 eclean-$BOARD -d packages
 
-if [[ ${skip_blacklist_check} -ne 1 ]]; then
-  check_blacklist
-fi
-
 # Check that the build root is sane.
 if [[ ${skip_test_build_root} -ne 1 ]]; then
   info "Checking build root"
