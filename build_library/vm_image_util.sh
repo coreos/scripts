@@ -118,6 +118,7 @@ IMG_pxe_PARTITIONED_IMG=0
 IMG_pxe_CONF_FORMAT=pxe
 
 ## gce, image tarball
+IMG_gce_DISK_LAYOUT=vm
 IMG_gce_CONF_FORMAT=gce
 IMG_gce_OEM_PACKAGE=oem-gce
 
