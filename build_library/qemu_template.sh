@@ -7,6 +7,7 @@ VM_IMAGE=
 VM_KERNEL=
 VM_INITRD=
 VM_MEMORY=
+VM_CDROM=
 VM_NCPUS="`grep -c ^processor /proc/cpuinfo`"
 SSH_PORT=2222
 SSH_KEYS=""
@@ -100,6 +101,10 @@ fi
 
 if [ -n "${VM_UUID}" ]; then
     set -- -uuid "$VM_UUID" "$@"
+fi
+
+if [ -n "${VM_CDROM}" ]; then
+    set -- -cdrom "$VM_CDROM" "$@"
 fi
 
 # Default to KVM, fall back on full emulation
