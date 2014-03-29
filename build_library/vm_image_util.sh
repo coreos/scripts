@@ -227,20 +227,35 @@ setup_disk_image() {
     if [[ $(_get_vm_opt BOOT_KERNEL) -eq 0 ]]; then
         sudo mv "${SYSLINUX_DIR}/default.cfg.A" "${SYSLINUX_DIR}/default.cfg"
     fi
+
+    # The only filesystem after this point that may be modified is OEM
+    # Note: it would be more logical for disk_util to mount things read-only
+    # to begin with but I'm having trouble making that work reliably.
+    # When mounting w/ ro the automatically allocated loop device will
+    # also be configured as read-only. blockdev --setrw will change that
+    # but io will start throwing errors so that clearly isn't sufficient.
+    local mnt
+    for mnt in $(findmnt -nrR -o target -T "${VM_TMP_ROOT}"); do
+        if [[ "${mnt}" != */usr/share/oem ]]; then
+            sudo mount -o remount,ro "${mnt}"
+        fi
+    done
 }
 
 # If the current type defines a oem package install it to the given fs image.
 install_oem_package() {
     local oem_pkg=$(_get_vm_opt OEM_PACKAGE)
-    local oem_mnt="${VM_TMP_ROOT}/usr/share/oem"
+    local oem_tmp="${VM_TMP_DIR}/oem"
 
     if [[ -z "${oem_pkg}" ]]; then
         return 0
     fi
 
     info "Installing ${oem_pkg} to OEM partition"
-    emerge-${BOARD} --root="${oem_mnt}" --root-deps=rdeps "${oem_pkg}"
-    sudo rm -rf "${oem_mnt}/var"  # clean out /var/pkg/db and friends
+    emerge-${BOARD} --root="${oem_tmp}" \
+        --root-deps=rdeps --usepkg --quiet "${oem_pkg}"
+    sudo rsync -a "${oem_tmp}/usr/share/oem/" "${VM_TMP_ROOT}/usr/share/oem/"
+    sudo rm -rf "${oem_tmp}"
 }
 
 # Write the vm disk image to the target directory in the proper format
