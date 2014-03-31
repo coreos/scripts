@@ -298,9 +298,7 @@ _write_vmdk_scsi_disk() {
     qemu-img convert -f raw "$1" -O vmdk -o adapter_type=lsilogic "$2"
 }
 
-# The cpio "disk" is a bit special,
-# consists of a kernel+initrd not a block device
-_write_cpio_disk() {
+_write_cpio_common() {
     local cpio_target="${VM_TMP_DIR}/rootcpio"
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
@@ -356,32 +354,38 @@ EOF
     find . | cpio -o -H newc | gzip > "$2"
     popd >/dev/null
 
+}
+
+# The cpio "disk" is a bit special,
+# consists of a kernel+initrd not a block device
+_write_cpio_disk() {
+    local base_dir="${VM_TMP_ROOT}/usr"
+    local dst_dir=$(_dst_dir)
+    local vmlinuz_name="$(_dst_name ".vmlinuz")"
+    _write_cpio_common $@
     # Pull the kernel out of the filesystem
     cp "${base_dir}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
     VM_GENERATED_FILES+=( "${dst_dir}/${vmlinuz_name}" )
 }
 
 _write_iso_disk() {
+    local base_dir="${VM_TMP_ROOT}/usr"
     local iso_target="${VM_TMP_DIR}/rootiso"
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
-    _write_cpio_disk $@
-    VM_GENERATED_FILES=
 
-    mkdir ${iso_target}
+    mkdir "${iso_target}"
     pushd "${iso_target}" >/dev/null
     mkdir isolinux syslinux coreos
-    mv $2 coreos/cpio.gz
-    mv "${dst_dir}/${vmlinuz_name}" coreos/vmlinuz
-    #for file in chain.c32 libcom32.c32 libutil.c32 memdisk; do
-    #for file in isolinux.bin ldlinux.c32; do
+    _write_cpio_common "$1" "${iso_target}/coreos/cpio.gz"
+    cp "${base_dir}"/boot/vmlinuz "${iso_target}/coreos/vmlinuz"
     cp -R /usr/share/syslinux/* isolinux/
     cat<<EOF > isolinux/isolinux.cfg
 INCLUDE /syslinux/syslinux.cfg
 EOF
     cat<<EOF > syslinux/syslinux.cfg
 default coreos
-prompt 0
+prompt 1
 timeout 15
 
 label coreos
