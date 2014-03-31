@@ -25,7 +25,7 @@ DEFINE_string user "" \
     "User for roller."
 DEFINE_string api_key "" \
     "API key for roller."
-DEFINE_string endpoint "http://public.roller.core-os.net" \
+DEFINE_string endpoint "https://public.update.core-os.net" \
     "Roller endpoint to update."
 
 DEFINE_boolean update_storage ${FLAGS_FALSE} \
