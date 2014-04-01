@@ -8,6 +8,7 @@
 VALID_IMG_TYPES=(
     ami
     pxe
+    iso
     openstack
     qemu
     qemu_no_kexec
@@ -116,6 +117,11 @@ IMG_openstack_OEM_PACKAGE=oem-ami
 IMG_pxe_DISK_FORMAT=cpio
 IMG_pxe_PARTITIONED_IMG=0
 IMG_pxe_CONF_FORMAT=pxe
+
+## pxe, which is an cpio image
+IMG_iso_DISK_FORMAT=iso
+IMG_iso_PARTITIONED_IMG=0
+IMG_iso_CONF_FORMAT=iso
 
 ## gce, image tarball
 IMG_gce_DISK_LAYOUT=vm
@@ -292,9 +298,7 @@ _write_vmdk_scsi_disk() {
     qemu-img convert -f raw "$1" -O vmdk -o adapter_type=lsilogic "$2"
 }
 
-# The cpio "disk" is a bit special,
-# consists of a kernel+initrd not a block device
-_write_cpio_disk() {
+_write_cpio_common() {
     local cpio_target="${VM_TMP_DIR}/rootcpio"
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
@@ -350,9 +354,48 @@ EOF
     find . | cpio -o -H newc | gzip > "$2"
     popd >/dev/null
 
+}
+
+# The cpio "disk" is a bit special,
+# consists of a kernel+initrd not a block device
+_write_cpio_disk() {
+    local base_dir="${VM_TMP_ROOT}/usr"
+    local dst_dir=$(_dst_dir)
+    local vmlinuz_name="$(_dst_name ".vmlinuz")"
+    _write_cpio_common $@
     # Pull the kernel out of the filesystem
     cp "${base_dir}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
     VM_GENERATED_FILES+=( "${dst_dir}/${vmlinuz_name}" )
+}
+
+_write_iso_disk() {
+    local base_dir="${VM_TMP_ROOT}/usr"
+    local iso_target="${VM_TMP_DIR}/rootiso"
+    local dst_dir=$(_dst_dir)
+    local vmlinuz_name="$(_dst_name ".vmlinuz")"
+
+    mkdir "${iso_target}"
+    pushd "${iso_target}" >/dev/null
+    mkdir isolinux syslinux coreos
+    _write_cpio_common "$1" "${iso_target}/coreos/cpio.gz"
+    cp "${base_dir}"/boot/vmlinuz "${iso_target}/coreos/vmlinuz"
+    cp -R /usr/share/syslinux/* isolinux/
+    cat<<EOF > isolinux/isolinux.cfg
+INCLUDE /syslinux/syslinux.cfg
+EOF
+    cat<<EOF > syslinux/syslinux.cfg
+default coreos
+prompt 1
+timeout 15
+
+label coreos
+  menu default
+  kernel /coreos/vmlinuz
+  append initrd=/coreos/cpio.gz coreos.autologin
+EOF
+    mkisofs -v -l -r -J -o $2 -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table .
+    isohybrid $2
+    popd >/dev/null
 }
 
 # If a config format is defined write it!
@@ -418,6 +461,13 @@ You can pass extra kernel parameters with -append, for example:
 When using -nographic or -serial you must also enable the serial console:
   ./$(basename "${script}") -nographic -append 'console=ttyS0,115200n8'
 EOF
+}
+
+_write_iso_conf() {
+    local script="$(_dst_dir)/$(_dst_name ".sh")"
+    local dst_name=$(basename "$VM_DST_IMG")
+    _write_qemu_common "${script}"
+    sed -e "s%^VM_CDROM=.*%VM_CDROM='${dst_name}'%" -i "${script}"
 }
 
 # Generate the vmware config file
