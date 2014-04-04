@@ -11,6 +11,7 @@ VM_CDROM=
 VM_NCPUS="`grep -c ^processor /proc/cpuinfo`"
 SSH_PORT=2222
 SSH_KEYS=""
+SAFE_ARGS=0
 USAGE="Usage: $0 [-a authorized_keys] [--] [qemu options...]
 Options:
     -a FILE     SSH public keys for login access. [~/.ssh/id_{dsa,rsa}.pub]
@@ -29,23 +30,30 @@ Any arguments after -a and -p will be passed through to qemu, -- may be
 used as an explicit separator. See the qemu(1) man page for more details.
 "
 
-safe_args=0
-script_args=1
-while getopts ":a:p:svh" OPTION
-do
-    case $OPTION in
-        a) SSH_KEYS="$OPTARG" ;;
-        p) SSH_PORT="$OPTARG" ;;
-        s) safe_args=1 ;;
-        v) set -x ;;
-        h) echo "$USAGE"; exit ;;
-        ?) break ;;
+while [ $# -ge 1 ]; do
+    case "$1" in
+        -a|-authorized-keys)
+            SSH_KEYS="$2"
+            shift 2 ;;
+        -p|-ssh-port)
+            SSH_PORT="$2"
+            shift 2 ;;
+        -s|-safe)
+            SAFE_ARGS=1
+            shift ;;
+        -v|-verbose)
+            set -x
+            shift ;;
+        -h|-help|--help)
+            echo "$USAGE"
+            exit ;;
+        --)
+            shift
+            break ;;
+        *)
+            break ;;
     esac
-    script_args=$OPTIND
 done
-
-shift $((script_args - 1))
-[ "$1" = "--" ] && shift
 
 
 METADATA=$(mktemp -t -d coreos-meta-data.XXXXXXXXXX)
@@ -79,7 +87,7 @@ else
 fi
 
 # Start assembling our default command line arguments
-if [ "${safe_args}" -eq 1 ]; then
+if [ "${SAFE_ARGS}" -eq 1 ]; then
     disk_type="ide"
 else
     disk_type="virtio"
