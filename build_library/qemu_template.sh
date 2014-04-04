@@ -56,34 +56,49 @@ while [ $# -ge 1 ]; do
 done
 
 
-METADATA=$(mktemp -t -d coreos-meta-data.XXXXXXXXXX)
-if [ $? -ne 0 ] || [ ! -d "$METADATA" ]; then
-    echo "$0: mktemp -d failed!" >&2
-    exit 1
-fi
-trap "rm -rf '$METADATA'" EXIT
-
-
-# Do our best to create an authorized_keys file
-if [ -n "$SSH_KEYS" ]; then
-    if [ ! -f "$SSH_KEYS" ]; then
-        echo "$0: SSH keys file not found: $SSH_KEYS" >&2
-        exit 1
-    elif ! cp "$SSH_KEYS" "${METADATA}/authorized_keys"; then
-        echo "$0: Failed to copy SSH keys from $SSH_KEYS" >&2
-        exit 1
-    fi
-else
-    # Nothing provided, try fetching from ssh-agent and the local fs
+find_ssh_keys() {
     if [ -S "$SSH_AUTH_SOCK" ]; then
-        ssh-add -L >> "${METADATA}/authorized_keys"
+        ssh-add -L
     fi
     for default_key in ~/.ssh/id_*.pub; do
         if [ ! -f "$default_key" ]; then
             continue
         fi
-        cat "$default_key" >> "${METADATA}/authorized_keys"
+        cat "$default_key"
     done
+}
+
+write_ssh_keys() {
+    echo "#cloud-config"
+    echo "ssh_authorized_keys:"
+    sed -e 's/^/ - /'
+}
+
+
+CONFIG_DRIVE=$(mktemp -t -d coreos-configdrive.XXXXXXXXXX)
+if [ $? -ne 0 ] || [ ! -d "$CONFIG_DRIVE" ]; then
+    echo "$0: mktemp -d failed!" >&2
+    exit 1
+fi
+trap "rm -rf '$CONFIG_DRIVE'" EXIT
+mkdir -p "${CONFIG_DRIVE}/openstack/latest"
+
+
+if [ -n "$SSH_KEYS" ]; then
+    if [ ! -f "$SSH_KEYS" ]; then
+        echo "$0: SSH keys file not found: $SSH_KEYS" >&2
+        exit 1
+    fi
+    SSH_KEYS_TEXT=$(cat "$SSH_KEYS")
+    if [ $? -ne 0 ] || [ -z "$SSH_KEYS_TEXT" ]; then
+        echo "$0: Failed to read SSH keys from $SSH_KEYS" >&2
+        exit 1
+    fi
+    echo "$SSH_KEYS_TEXT" | write_ssh_keys > \
+        "${CONFIG_DRIVE}/openstack/latest/user_data"
+else
+    find_ssh_keys | write_ssh_keys > \
+        "${CONFIG_DRIVE}/openstack/latest/user_data"
 fi
 
 # Start assembling our default command line arguments
@@ -116,20 +131,20 @@ if [ -n "${VM_CDROM}" ]; then
 fi
 
 # Default to KVM, fall back on full emulation
-# ${METADATA} will be mounted in CoreOS as /media/metadata
+# ${CONFIG_DRIVE} will be mounted in CoreOS as /media/configdrive
 qemu-system-x86_64 \
     -name "$VM_NAME" \
     -m ${VM_MEMORY} \
     -machine accel=kvm:tcg \
     -net nic,vlan=0,model=virtio \
     -net user,vlan=0,hostfwd=tcp::"${SSH_PORT}"-:22 \
-    -fsdev local,id=metadata,security_model=none,readonly,path="${METADATA}" \
-    -device virtio-9p-pci,fsdev=metadata,mount_tag=metadata \
+    -fsdev local,id=conf,security_model=none,readonly,path="${CONFIG_DRIVE}" \
+    -device virtio-9p-pci,fsdev=conf,mount_tag=config-2 \
     "$@"
 RET=$?
 
 
 # Cleanup!
-rm -rf "${METADATA}"
+rm -rf "${CONFIG_DRIVE}"
 trap - EXIT
 exit ${RET}
