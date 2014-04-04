@@ -1,13 +1,15 @@
 #!/bin/bash
 
 VERSION_ID=alpha
-SSH_KEY=""
+SSH_KEYS=""
+CORE_UID=500
+CORE_GID=500
 
-USAGE="Usage: $0 [-V version] [-d /target/path] [-k /path/id_rsa.pub]
+USAGE="Usage: $0 [-V version] [-d /target/path] [-a authorized_keys]
 Options:
     -d DEST     Create CoreOS VDI image to the given path.
     -V VERSION  Version to install (e.g. alpha) [default: ${VERSION_ID}]
-    -k SSH_KEY  SSH public key file to be added to authorized_keys.
+    -a FILE     SSH public keys for login access. [~/.ssh/id_{dsa,rsa}.pub]
     -h          This help
 
 This tool creates a CoreOS VDI image to be used with VirtualBox.
@@ -92,12 +94,12 @@ BeiJ6tEeDHDzdA==
 -----END PGP PUBLIC KEY BLOCK-----
 "
 
-while getopts "V:d:k:h" OPTION
+while getopts "V:d:a:h" OPTION
 do
     case $OPTION in
         V) VERSION_ID="$OPTARG" ;;
         d) DEST="$OPTARG" ;;
-        k) SSH_KEY="$OPTARG" ;;
+        a) SSH_KEYS="$OPTARG" ;;
         h) echo "$USAGE"; exit;;
         *) exit 1;;
     esac
@@ -109,16 +111,25 @@ if [ $(id -u) -ne 0 ]; then
     exit 1
 fi
 
-# SSH key is required
-if [[ -z "${SSH_KEY}" ]]; then
-    echo "$0: No SSH key provided." >&2
+# VirtualBox tools required
+which VBoxManage &>/dev/null
+if [ $? -ne 0 ]; then
+    echo "$0: VBoxManage tool is required to convert image." >&2
     exit 1
 fi
 
-if [[ ! -f "${SSH_KEY}" ]]; then
-    echo "$0: SSH key file (${SSH_KEY}) do not exists." >&2
-    exit 1
+# Verify provided keys file
+if [[ -n "${SSH_KEYS}" ]]; then
+    if [[ ! -f "${SSH_KEYS}" ]]; then
+        echo "$0: SSH keys file not found: ${SSH_KEYS}." >&2
+        exit 1
+    fi
+else
+    # SSH keys file was not provided, setting to default
+    SSH_KEYS=~/.ssh/id_*.pub
 fi
+
+
 
 if [[ ! -d "${DEST}" ]]; then
     echo "$0: Target path (${DEST}) do not exists." >&2
@@ -187,15 +198,22 @@ if [[ -z "${PART_OFFSET}" ]]; then
 fi
 
 MOUNT_DEST="${WORKDIR}/rootfs"
-AUTHORIZED_KEYS="${MOUNT_DEST}/home/core/.ssh/authorized_keys"
+CORE_SSH_DIR="${MOUNT_DEST}/home/core/.ssh"
+AUTHORIZED_KEYS="${CORE_SSH_DIR}/authorized_keys"
 
 echo "Adding SSH key to authorized keys file..."
 mkdir -p "${MOUNT_DEST}"
 mount -t btrfs -o loop,offset=${PART_OFFSET},subvol=root "${DOWN_IMAGE}" "${MOUNT_DEST}"
 trap "umount '${MOUNT_DEST}' && rm -rf '${WORKDIR}'" EXIT
 
-cat "${SSH_KEY}" > ${AUTHORIZED_KEYS}
+if [ ! -d "${CORE_SSH_DIR}" ]; then
+    mkdir -p ${CORE_SSH_DIR}
+    chmod 0600 ${CORE_SSH_DIR}
+fi
+
+cat ${SSH_KEYS} > ${AUTHORIZED_KEYS}
 chmod 0600 ${AUTHORIZED_KEYS}
+chown -R $CORE_UID:$CORE_GID "${CORE_SSH_DIR}"
 
 umount "${MOUNT_DEST}"
 
