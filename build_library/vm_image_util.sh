@@ -316,22 +316,9 @@ _write_cpio_common() {
         # packed into the squashfs image. Just ROOT.
         sudo umount --all-targets "${VM_TMP_ROOT}/media/state"
 
-        # Set squashfs as the default root filesystem
-        sudo_clobber "${cpio_target}/etc/fstab" <<EOF
-${squashfs} /sysroot squashfs x-initrd.mount 0 0
-tmpfs /sysroot/usr/share/oem tmpfs size=0,mode=755,x-initrd.mount 0 0
-EOF
-
         # Inject /usr/.noupdate into squashfs to disable update_engine
         echo "/usr/.noupdate f 444 root root echo -n" >"${VM_TMP_DIR}/extra"
     else
-        # Set tmpfs as default root, squashfs as default /usr
-        sudo_clobber "${cpio_target}/etc/fstab" <<EOF
-tmpfs /sysroot tmpfs mode=755,x-initrd.mount 0 0
-${squashfs} /sysroot/usr squashfs x-initrd.mount 0 0
-tmpfs /sysroot/usr/share/oem tmpfs size=0,mode=755,x-initrd.mount 0 0
-EOF
-
         # Use OEM cloud-config to setup the core user's password
         if [[ -s /etc/shared_user_passwd.txt ]]; then
             sudo mkdir -p "${cpio_target}/usr/share/oem"
