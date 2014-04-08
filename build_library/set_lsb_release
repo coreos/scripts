@@ -34,7 +34,7 @@ COREOS_VERSION_NAME="CoreOS"
 COREOS_VERSION_AUSERVER=""
 if [[ -n "${FLAGS_group}" ]]; then
   if [[ "${FLAGS_board}" == "amd64-usr" ]]; then
-    COREOS_VERSION_AUSERVER="http://public.roller.core-os.net/v1/update/"
+    COREOS_VERSION_AUSERVER="https://public.update.core-os.net/v1/update/"
   elif [[ "${FLAGS_board}" == "amd64-generic" ]]; then
     COREOS_VERSION_AUSERVER="https://api.core-os.net/v1/update/"
   fi
