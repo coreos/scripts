@@ -218,7 +218,7 @@ chown -R $CORE_UID:$CORE_GID "${CORE_SSH_DIR}"
 umount "${MOUNT_DEST}"
 
 echo "Converting ${RAW_IMAGE_NAME} to VirtualBox format..."
-VBoxManage convertdd ${DOWN_IMAGE} ${VDI_IMAGE_NAME} --format VDI
+VBoxManage convertdd ${DOWN_IMAGE} ${VDI_IMAGE} --format VDI
 
 rm -rf "${WORKDIR}"
 trap - EXIT
