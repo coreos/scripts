@@ -59,6 +59,40 @@ switch_to_strict_mode
 #    overlay, the file may need to be regenerated.
 create_host_setup
 
+PORTAGE_STABLE_OVERLAY="/usr/local/portage/stable"
+CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
+CHROOT_OVERLAY="/usr/local/portage/coreos"
+
+# Create repos.conf configs.
+info "Setting up repos.conf..."
+sudo mkdir -p "/etc/portage/repos.conf/"
+sudo tee "/etc/portage/repos.conf/coreos.conf" > /dev/null <<EOF
+[DEFAULT]
+main-repo = portage-stable
+
+[gentoo]
+disabled = true
+
+[coreos]
+location = ${CHROOT_OVERLAY}
+
+[portage-stable]
+location = ${PORTAGE_STABLE_OVERLAY}
+EOF
+
+# Create crossdev repo_name and metadata
+info "Setting up crossdev..."
+sudo mkdir -p "${FLAGS_chroot}/${CROSSDEV_OVERLAY}/profiles"
+echo "x-crossdev" | \
+    sudo tee "/${CROSSDEV_OVERLAY}/profiles/repo_name" > /dev/null
+
+sudo mkdir -p "/${CROSSDEV_OVERLAY}/metadata"
+sudo tee "/${CROSSDEV_OVERLAY}/metadata/layout.conf" > /dev/null <<EOF
+masters = portage-stable coreos
+use-manifests = true
+thin-manifests = true
+EOF
+
 # Run version hooks as pre-update
 if [[ -f /etc/os-release ]]; then
   OLDVER=$(grep "^VERSION=" /etc/os-release | cut -d = -f 2-)
