@@ -10,11 +10,6 @@
 SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
-PRODUCTION_DEFAULT=
-if [[ "${COREOS_OFFICIAL:-0}" -eq 1 ]]; then
-  PRODUCTION_DEFAULT="alpha"
-fi
-
 # Flags
 DEFINE_string board "" "The board to build an image for."
 DEFINE_string root "" "The root file system to write /etc/lsb-release to."

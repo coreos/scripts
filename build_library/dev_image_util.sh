@@ -84,7 +84,6 @@ install_dev_packages() {
   sudo mkdir -p "${root_fs_dir}/etc/coreos"
   sudo_clobber "${root_fs_dir}/etc/coreos/update.conf" <<EOF
 SERVER=${auserver}
-GROUP=developer-build
 
 # For gmerge
 DEVSERVER=${devserver}

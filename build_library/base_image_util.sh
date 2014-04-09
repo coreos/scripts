@@ -5,6 +5,7 @@
 create_base_image() {
   local image_name=$1
   local disk_layout=$2
+  local update_group="$3"
 
   local disk_img="${BUILD_DIR}/${image_name}"
   local root_fs_dir="${BUILD_DIR}/rootfs"
@@ -51,8 +52,9 @@ create_base_image() {
 
   # Set /etc/lsb-release on the image.
   "${BUILD_LIBRARY_DIR}/set_lsb_release" \
-  --root="${root_fs_dir}" \
-  --board="${BOARD}"
+    --root="${root_fs_dir}" \
+    --group="${update_group}" \
+    --board="${BOARD}"
 
   local boot_dir="/boot"
   if [[ "${disk_layout}" == *-usr ]]; then
