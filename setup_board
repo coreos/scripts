@@ -231,8 +231,7 @@ cmds+=(
     '${BOARD_ETC}/make.conf'"
   "ln -sf '${COREOS_CONFIG}/make.conf.common-target' \
     '${BOARD_ETC}/make.conf.common'"
-  "touch /etc/portage/make.conf.user"
-  "ln -sf /etc/portage/make.conf.user '${BOARD_ROOT}/etc/make.conf.user'"
+  "touch '${BOARD_ROOT}/etc/make.conf.user'"
 )
 for d in "${SCRIPTS_DIR}"/hooks/*; do
   cmds+=( "ln -sfT '${d}' '${BOARD_ROOT}/etc/portage/hooks/${d##*/}'" )
