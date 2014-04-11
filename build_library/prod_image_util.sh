@@ -6,8 +6,7 @@
 setup_prod_image() {
   local image_name="$1"
   local disk_layout="$2"
-  local update_group="$3"
-  local au_key="$4"
+  local au_key="$3"
 
   info "Configuring production image ${image_name}"
   local root_fs_dir="${BUILD_DIR}/rootfs"
@@ -19,12 +18,6 @@ setup_prod_image() {
   "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
       mount "${BUILD_DIR}/${image_name}" "${root_fs_dir}"
   trap "cleanup_mounts '${root_fs_dir}' && delete_prompt" EXIT
-
-  # Replace /etc/lsb-release on the image.
-  "${BUILD_LIBRARY_DIR}/set_lsb_release" \
-    --group="${update_group}" \
-    --root="${root_fs_dir}" \
-    --board="${BOARD}"
 
   # Install an auto update key on the root before sealing it off
   local key_location=${root_fs_dir}"/usr/share/update_engine/"

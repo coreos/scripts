@@ -17,6 +17,11 @@ restart_in_chroot_if_needed "$@"
 
 assert_not_root_user
 
+DEFAULT_GROUP=developer
+if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
+  DEFAULT_GROUP=alpha
+fi
+
 # Developer-visible flags.
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
@@ -28,8 +33,8 @@ DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
 DEFINE_string disk_layout "base" \
   "The disk layout type to use for this image."
-DEFINE_string prod_group "" \
-  "The update group for production images."
+DEFINE_string group "${DEFAULT_GROUP}" \
+  "The update group."
 
 # include upload options
 . "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
@@ -129,16 +134,13 @@ mkdir -p "${BUILD_DIR}"
 DISK_LAYOUT_SUFFIX=$(portageq-$BOARD envvar COREOS_DISK_LAYOUT_SUFFIX)
 DISK_LAYOUT="${FLAGS_disk_layout:-base}${DISK_LAYOUT_SUFFIX}"
 
-if [[ -z "${FLAGS_prod_group}" ]]; then
-  if [[ "$BOARD" == "amd64-generic" ]]; then
-    FLAGS_prod_group="dev-channel"
-  else
-    FLAGS_prod_group="alpha"
-  fi
+# Temporary hack until generic images are completely deleted
+if [[ "${FLAGS_group}" == "alpha" && "$BOARD" == "amd64-generic" ]]; then
+    FLAGS_group="dev-channel"
 fi
 
 # Create the base image.
-create_base_image ${PRISTINE_IMAGE_NAME} ${DISK_LAYOUT}
+create_base_image "${PRISTINE_IMAGE_NAME}" "${DISK_LAYOUT}" "${FLAGS_group}"
 if should_build_image ${PRISTINE_IMAGE_NAME}; then
   upload_image "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
 fi
@@ -164,7 +166,6 @@ if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
   copy_image ${CHROMEOS_BASE_IMAGE_NAME} ${COREOS_PRODUCTION_IMAGE_NAME}
 
   setup_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT} \
-    "${FLAGS_prod_group}" \
     ${SRC_ROOT}/third_party/coreos-overlay/coreos-base/coreos-au-key/files/update-payload-key.pub.pem
 
   upload_image "${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"
