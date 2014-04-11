@@ -125,7 +125,7 @@ upload_image() {
         fi
 
         # Compress disk images
-        if [[ "${filename}" =~ \.(img|bin|vdi|vmdk)$ ]]; then
+        if [[ "${filename}" =~ \.(img|bin|vdi|vhd|vmdk)$ ]]; then
             info "Compressing ${filename##*/}"
             $IMAGE_ZIPPER -f "${filename}"
             uploads+=( "${filename}${IMAGE_ZIPEXT}" )
