@@ -56,7 +56,8 @@ VERSION_ID=$COREOS_VERSION_ID
 BUILD_ID=$COREOS_BUILD_ID
 PRETTY_NAME="$COREOS_VERSION_NAME $COREOS_VERSION_STRING"
 ANSI_COLOR="1;32"
-HOME_URL="http://www.coreos.com/"
+HOME_URL="https://coreos.com/"
+BUG_REPORT_URL="https://github.com/coreos/bugs/issues"
 EOF
 sudo ln -sf "../usr/share/coreos/os-release" "${ROOT_FS_DIR}/etc/os-release"
 
