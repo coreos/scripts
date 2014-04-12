@@ -21,6 +21,7 @@ VALID_IMG_TYPES=(
     vmware_insecure
     xen
     gce
+    brightbox
 )
 
 # Set at runtime to one of the above types
@@ -47,6 +48,9 @@ IMG_DEFAULT_BOOT_KERNEL=1
 
 # If set install the given package name to the OEM partition
 IMG_DEFAULT_OEM_PACKAGE=
+
+# USE flags for the OEM package
+IMG_DEFAULT_OEM_USE=
 
 # Name of the target image format.
 # May be raw, qcow2 (qemu), or vmdk (vmware, virtualbox)
@@ -106,12 +110,20 @@ IMG_vmware_insecure_OEM_PACKAGE=oem-vagrant
 
 ## ami
 IMG_ami_BOOT_KERNEL=0
-IMG_ami_OEM_PACKAGE=oem-ami
+IMG_ami_OEM_PACKAGE=oem-ec2-compat
+IMG_ami_OEM_USE=ec2
 
-## openstack, supports ec2's metadata format so use oem-ami
+## openstack, supports ec2's metadata format so use oem-ec2-compat
 IMG_openstack_DISK_FORMAT=qcow2
 IMG_openstack_DISK_LAYOUT=vm
-IMG_openstack_OEM_PACKAGE=oem-ami
+IMG_openstack_OEM_PACKAGE=oem-ec2-compat
+IMG_openstack_OEM_USE=openstack
+
+## brightbox, supports ec2's metadata format so use oem-ec2-compat
+IMG_brightbox_DISK_FORMAT=qcow2
+IMG_brightbox_DISK_LAYOUT=vm
+IMG_brightbox_OEM_PACKAGE=oem-ec2-compat
+IMG_brightbox_OEM_USE=brightbox
 
 ## pxe, which is an cpio image
 IMG_pxe_DISK_FORMAT=cpio
@@ -252,6 +264,7 @@ setup_disk_image() {
 # If the current type defines a oem package install it to the given fs image.
 install_oem_package() {
     local oem_pkg=$(_get_vm_opt OEM_PACKAGE)
+    local oem_use=$(_get_vm_opt OEM_USE)
     local oem_tmp="${VM_TMP_DIR}/oem"
 
     if [[ -z "${oem_pkg}" ]]; then
@@ -259,7 +272,7 @@ install_oem_package() {
     fi
 
     info "Installing ${oem_pkg} to OEM partition"
-    emerge-${BOARD} --root="${oem_tmp}" \
+    USE="${oem_use}" emerge-${BOARD} --root="${oem_tmp}" \
         --root-deps=rdeps --usepkg --quiet "${oem_pkg}"
     sudo rsync -a "${oem_tmp}/usr/share/oem/" "${VM_TMP_ROOT}/usr/share/oem/"
     sudo rm -rf "${oem_tmp}"
