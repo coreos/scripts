@@ -130,7 +130,7 @@ IMG_pxe_DISK_FORMAT=cpio
 IMG_pxe_PARTITIONED_IMG=0
 IMG_pxe_CONF_FORMAT=pxe
 
-## pxe, which is an cpio image
+## iso, which is an cpio image
 IMG_iso_DISK_FORMAT=iso
 IMG_iso_PARTITIONED_IMG=0
 IMG_iso_CONF_FORMAT=iso
