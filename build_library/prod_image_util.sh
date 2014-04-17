@@ -33,6 +33,18 @@ setup_prod_image() {
   sudo rm ${root_fs_dir}/etc/locale.gen
   sudo rm -rf ${root_fs_dir}/etc/lvm/
 
+  # Move the ld.so configs into /usr so they can be symlinked from /
+  sudo mv ${root_fs_dir}/etc/ld.so.conf ${root_fs_dir}/usr/lib
+  sudo mv ${root_fs_dir}/etc/ld.so.conf.d ${root_fs_dir}/usr/lib
+
+  sudo ln --symbolic ../usr/lib/ld.so.conf ${root_fs_dir}/etc/ld.so.conf
+
+  # Add a tmpfiles rule that symlink ld.so.conf from /usr into /
+  sudo tee "${root_fs_dir}/usr/lib64/tmpfiles.d/baselayout-ldso.conf" \
+      > /dev/null <<EOF
+L   /etc/ld.so.conf     -   -   -   -   ../usr/lib/ld.so.conf
+EOF
+
   # clear them out explicitly, so this fails if something else gets dropped
   # into xinetd.d
   sudo rm ${root_fs_dir}/etc/xinetd.d/rsyncd
