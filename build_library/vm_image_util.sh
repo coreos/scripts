@@ -764,7 +764,7 @@ vm_upload() {
     fi
 
     # If upload_images compressed $legacy_uploaded be sure to add .bz2
-    if [[ "${legacy_uploaded}" =~ \.(img|bin|vdi|vmdk)$ ]]; then
+    if [[ "${legacy_uploaded}" =~ \.(img|bin|vdi|vhd|vmdk)$ ]]; then
         legacy_uploaded+="${IMAGE_ZIPEXT}"
     fi
 
