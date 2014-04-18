@@ -21,6 +21,8 @@ DEFINE_string upload_root "${COREOS_UPLOAD_ROOT}" \
   "Upload prefix, board/version/etc will be appended. Must be a gs:// URL."
 DEFINE_string upload_path "" \
   "Full upload path, overrides --upload_root. Must be a full gs:// URL."
+DEFINE_string sign "" \
+  "Sign all files to be uploaded with the given GPG key."
 DEFINE_string sign_digests "" \
   "Sign image DIGESTS files with the given GPG key."
 
@@ -150,6 +152,23 @@ upload_image() {
           --clearsign "${digests}" || die "gpg failed"
       uploads+=( "${digests}.asc" )
     fi
+
+    # Create simple GPG detached signature for all uploads.
+    local sigs=()
+    if [[ -n "${FLAGS_sign}" ]]; then
+        local file
+        for file in "${uploads[@]}"; do
+            if [[ "${file}" =~ \.(asc|gpg|sig)$ ]]; then
+                continue
+            fi
+
+            rm -f "${file}.sig"
+            gpg --batch --local-user "${FLAGS_sign}" \
+                --detach-sign "${file}" || die "gpg failed"
+            sigs+=( "${file}.sig" )
+        done
+    fi
+    uploads+=( "${sigs[@]}" )
 
     local log_msg=$(basename "$digests" .DIGESTS)
     local def_upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
