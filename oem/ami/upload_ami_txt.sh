@@ -18,8 +18,8 @@ AKI["sa-east-1"]=aki-c88f51d5
 
 USAGE="Usage: $0 -V 100.0.0
     -V VERSION  Find AMI by CoreOS version. (required)
-    -b BOARD    Set to the board name, amd64-usr or amd64-generic
-    -g GROUP    Set the update group, default is based on BOARD
+    -b BOARD    Set to the board name, default is amd64-usr
+    -g GROUP    Set the update group, default is alpha
     -K KEY      Path to Amazon API private key.
     -C CERT     Path to Amazon API key certificate.
     -h          this ;-)
@@ -32,8 +32,8 @@ IMAGE="coreos_production_ami"
 URL_FMT="gs://storage.core-os.net/coreos/%s/%s/${IMAGE}_%s.txt"
 AMI=
 VER=
-BOARD="amd64-generic"
-GROUP=""
+BOARD="amd64-usr"
+GROUP="alpha"
 
 while getopts "V:b:g:K:C:hv" OPTION
 do
@@ -58,16 +58,6 @@ if [[ ! -n "$VER" ]]; then
     echo "$0: AMI version required via -V" >&2
     echo "$USAGE" >&2
     exit 1
-fi
-
-if [[ -z "$GROUP" ]]; then
-    if [[ "$BOARD" == "amd64-generic" ]]; then
-        GROUP="dev-channel"
-    elif [[ "$BOARD" == "amd64-usr" ]]; then
-        GROUP="alpha"
-    else
-        GROUP="$BOARD"
-    fi
 fi
 
 declare -A AMIS

@@ -25,8 +25,8 @@ AKI["sa-east-1"]=aki-c88f51d5
 
 readonly COREOS_EPOCH=1372636800
 VERSION="master"
-BOARD="amd64-generic"
-GROUP=""
+BOARD="amd64-usr"
+GROUP="alpha"
 IMAGE="coreos_production_ami_image.bin.bz2"
 URL_FMT="http://storage.core-os.net/coreos/%s/%s/$IMAGE"
 IMG_URL=""
@@ -35,8 +35,8 @@ IMG_PATH=""
 USAGE="Usage: $0 [-V 1.2.3] [-p path/image.bz2 | -u http://foo/image.bz2]
 Options:
     -V VERSION  Set the version of this AMI, default is 'master'
-    -b BOARD    Set to the board name, amd64-usr or amd64-generic
-    -g GROUP    Set the update group, default is based on BOARD
+    -b BOARD    Set to the board name, default is amd64-usr
+    -g GROUP    Set the update group, default is alpha or master
     -p PATH     Path to compressed disk image, overrides -u
     -u URL      URL to compressed disk image, derived from -V if unset.
     -K KEY      Path to Amazon API private key.
@@ -90,16 +90,6 @@ if [[ "$VERSION" == "master" ]]; then
     TODAYS_VERSION=$(( (`date +%s` - ${COREOS_EPOCH}) / 86400 ))
     VERSION="${TODAYS_VERSION}-$(date +%H-%M)"
     GROUP="master"
-fi
-
-if [[ -z "$GROUP" ]]; then
-    if [[ "$BOARD" == "amd64-generic" ]]; then
-        GROUP="dev-channel"
-    elif [[ "$BOARD" == "amd64-usr" ]]; then
-        GROUP="alpha"
-    else
-        GROUP="$BOARD"
-    fi
 fi
 
 # Size of AMI file system

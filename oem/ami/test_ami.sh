@@ -14,8 +14,8 @@ set -e -o pipefail
 USAGE="Usage: $0 -a ami-id
     -a ami-id   ID of the AMI to be tests
     -V VERSION  Find AMI by CoreOS version.
-    -b BOARD    Set to the board name, amd64-usr or amd64-generic
-    -g GROUP    Set the update group, default is based on BOARD
+    -b BOARD    Set to the board name, default is amd64-usr
+    -g GROUP    Set the update group, default is alpha
     -K KEY      Path to Amazon API private key.
     -C CERT     Path to Amazon API key certificate.
     -h          this ;-)
@@ -27,8 +27,8 @@ This script must be run from an ec2 host with the ec2 tools installed.
 
 AMI=
 VER=
-BOARD="amd64-generic"
-GROUP=""
+BOARD="amd64-usr"
+GROUP="alpha"
 
 while getopts "a:V:b:g:K:C:hv" OPTION
 do
@@ -48,16 +48,6 @@ done
 if [[ $(id -u) -eq 0 ]]; then
     echo "$0: This command should not be ran run as root!" >&2
     exit 1
-fi
-
-if [[ -z "$GROUP" ]]; then
-    if [[ "$BOARD" == "amd64-generic" ]]; then
-        GROUP="dev-channel"
-    elif [[ "$BOARD" == "amd64-usr" ]]; then
-        GROUP="alpha"
-    else
-        GROUP="$BOARD"
-    fi
 fi
 
 if [[ -z "$AMI" && -n "$VER" ]]; then
@@ -96,13 +86,8 @@ echo "OK ($key_name)"
 zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
 zone=$(curl --fail -s $zoneurl)
 region=$(echo $zone | sed 's/.$//')
-
-token=$(uuidgen)
-if [[ "$BOARD" == "amd64-generic" ]]; then
-    userdata="$token"
-else
-    discovery=$(curl --fail -s https://discovery.etcd.io/new)
-    userdata="#cloud-config
+discovery=$(curl --fail -s https://discovery.etcd.io/new)
+userdata="#cloud-config
 
 coreos:
     etcd:
@@ -115,7 +100,6 @@ coreos:
       - name: fleet.service
         command: start
 "
-fi
 
 echo -n "Booting instances... "
 instances=$(ec2-run-instances \
@@ -157,6 +141,7 @@ echo "OK"
 
 echo -n "Testing etcd... "
 test_key="v1/keys/test"
+token=$(uuidgen)
 # XXX: the sleep *should never* be required, this is a bug in etcd
 sleep 5
 curl --fail -s -L "${ips[0]}:4001/$test_key" -d value="$token" > /dev/null
