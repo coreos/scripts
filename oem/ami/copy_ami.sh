@@ -135,10 +135,7 @@ for r in "${!AKI[@]}"
 do
     [ "${r}" == "${region}" ] && continue
     echo "Starting copy of $AMI from $region to $r"
-    do_copy "$r" &
-    sleep 15
+    do_copy "$r"
 done
-
-wait
 
 echo "Done"
