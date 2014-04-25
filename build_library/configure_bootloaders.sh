@@ -93,8 +93,11 @@ configure_syslinux() {
 
   sudo_clobber "${SYSLINUX_DIR}/syslinux.cfg" <<EOF
 SERIAL 0 115200
-PROMPT 0
-TIMEOUT 0
+PROMPT 1
+# display boot: prompt for a half second
+TIMEOUT 5
+# never sit at the prompt longer than a minute
+TOTALTIMEOUT 600
 
 # controls which kernel is the default
 include /syslinux/default.cfg
