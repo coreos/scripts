@@ -15,8 +15,8 @@ import uuid
 # First sector we can use.
 GPT_RESERVED_SECTORS = 34
 
-# Default MBR boot code for hybrid MBRs
-DEFAULT_MBR_BOOT_CODE = '/usr/share/syslinux/mbr.bin'
+# Default MBR boot code for GPT
+DEFAULT_MBR_BOOT_CODE = '/usr/share/syslinux/gptmbr.bin'
 
 
 class ConfigNotFound(Exception):
