@@ -55,11 +55,7 @@ EOF
 
   # Make the filesystem un-mountable as read-write.
   if [ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]; then
-    local ro_label="ROOT-A"
-    if [[ "${disk_layout}" == *-usr ]]; then
-      ro_label="USR-A"
-    fi
     "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
-      tune --disable2fs_rw "${BUILD_DIR}/${image_name}" "${ro_label}"
+      tune --disable2fs_rw "${BUILD_DIR}/${image_name}" "USR-A"
   fi
 }

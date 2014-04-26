@@ -44,11 +44,9 @@ create_base_image() {
   sudo "${BUILD_LIBRARY_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
       --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image_var.conf" \
       ${tmp_ignore} "${root_fs_dir}/var"
-  if [[ "${disk_layout}" == *-usr ]]; then
-      sudo "${BUILD_LIBRARY_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
-          --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image_etc.conf" \
-          ${tmp_ignore} "${root_fs_dir}/etc"
-  fi
+  sudo "${BUILD_LIBRARY_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
+      --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image_etc.conf" \
+      ${tmp_ignore} "${root_fs_dir}/etc"
 
   # Set /etc/lsb-release on the image.
   "${BUILD_LIBRARY_DIR}/set_lsb_release" \
@@ -56,26 +54,17 @@ create_base_image() {
     --group="${update_group}" \
     --board="${BOARD}"
 
-  local boot_dir="/boot"
-  if [[ "${disk_layout}" == *-usr ]]; then
-    boot_dir="/usr/boot"
-  fi
-
   ${BUILD_LIBRARY_DIR}/configure_bootloaders.sh \
     --arch=${ARCH} \
     --disk_layout="${disk_layout}" \
-    --boot_dir="${root_fs_dir}${boot_dir}" \
+    --boot_dir="${root_fs_dir}"/usr/boot \
     --esp_dir="${root_fs_dir}"/boot/efi \
     --boot_args="${FLAGS_boot_args}"
 
   # Zero all fs free space to make it more compressible so auto-update
   # payloads become smaller, not fatal since it won't work on linux < 3.2
   sudo fstrim "${root_fs_dir}" || true
-  if [[ "${disk_layout}" == *-usr ]]; then
-    sudo fstrim "${root_fs_dir}/usr" || true
-  else
-    sudo fstrim "${root_fs_dir}/media/state" || true
-  fi
+  sudo fstrim "${root_fs_dir}/usr" || true
 
   cleanup_mounts "${root_fs_dir}"
   trap - EXIT
