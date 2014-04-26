@@ -362,7 +362,7 @@ def FormatExt(part, device):
 
   tune_cmd = ['tune2fs', '-L', part['label'], '-e', 'remount-ro']
 
-  if part['type'] in ('coreos-rootfs', 'coreos-usr'):
+  if part['type'] == 'coreos-usr':
     tune_cmd += ['-U', 'clear',
                  '-T', '20091119110000',
                  '-c', '0', '-i', '0', # Disable auto fsck

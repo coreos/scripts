@@ -131,8 +131,7 @@ fi
 # Create the output directory and temporary mount points.
 mkdir -p "${BUILD_DIR}"
 
-DISK_LAYOUT_SUFFIX=$(portageq-$BOARD envvar COREOS_DISK_LAYOUT_SUFFIX)
-DISK_LAYOUT="${FLAGS_disk_layout:-base}${DISK_LAYOUT_SUFFIX}"
+DISK_LAYOUT="${FLAGS_disk_layout:-base}"
 
 # Create the base image.
 create_base_image "${PRISTINE_IMAGE_NAME}" "${DISK_LAYOUT}" "${FLAGS_group}"

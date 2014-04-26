@@ -100,19 +100,11 @@ EOF
   # The remount services are provided by coreos-base/coreos-init
   local fs_wants="${root_fs_dir}/usr/lib/systemd/system/local-fs.target.wants"
   sudo mkdir -p "${fs_wants}"
-  if [[ "${disk_layout}" == *-usr ]]; then
-    sudo ln -s ../remount-usr.service "${fs_wants}"
-  else
-    sudo ln -s ../remount-root.service "${fs_wants}"
-  fi
+  sudo ln -s ../remount-usr.service "${fs_wants}"
 
   # Zero all fs free space, not fatal since it won't work on linux < 3.2
   sudo fstrim "${root_fs_dir}" || true
-  if [[ "${disk_layout}" == *-usr ]]; then
-    sudo fstrim "${root_fs_dir}/usr" || true
-  else
-    sudo fstrim "${root_fs_dir}/media/state" || true
-  fi
+  sudo fstrim "${root_fs_dir}/usr" || true
 
   info "Developer image built and stored at ${image_name}"
 
