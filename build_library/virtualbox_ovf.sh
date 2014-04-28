@@ -51,18 +51,8 @@ datez() {
 
 if [[ -n "${FLAGS_output_vagrant}" ]]; then
     cat >"${FLAGS_output_vagrant}" <<EOF
-if Vagrant::VERSION < "1.2.3"
-  raise "Need at least vagrant version 1.2.3, please update"
-end
-
 Vagrant.configure("2") do |config|
   config.vm.base_mac = "${PRIMARY_MAC}"
-
-  # SSH in as the default 'core' user, it has the vagrant ssh key.
-  config.ssh.username = "core"
-
-  # Disable the base shared folder, guest additions are unavailable.
-  config.vm.synced_folder ".", "/vagrant", disabled: true
 end
 EOF
 fi
