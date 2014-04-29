@@ -717,10 +717,27 @@ write_vm_bundle() {
 
 _write_box_bundle() {
     local box=$(_dst_path ".box")
+    local json=$(_dst_path ".json")
 
     mv "${VM_DST_IMG}" "${VM_TMP_DIR}/box"
     tar -czf "${box}" -C "${VM_TMP_DIR}/box" .
-    VM_GENERATED_FILES+=( "${box}" )
+
+    cat >"${json}" <<EOF
+{
+  "name": "coreos-alpha",
+  "description": "CoreOS alpha",
+  "versions": [{
+    "version": "${COREOS_VERSION_ID}",
+    "providers": [{
+      "name": "virtualbox",
+      "url": "$(download_image_url "$(_dst_name ".box")")",
+      "checksum_type": "sha256",
+      "checksum": "$(sha256sum "${box}" | awk '{print $1}')"
+    }]
+  }]
+}
+EOF
+    VM_GENERATED_FILES+=( "${box}" "${json}" )
 }
 
 vm_cleanup() {
