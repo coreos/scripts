@@ -7,16 +7,17 @@
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
-DEFAULT_BUILD=${TODAYS_VERSION}
-DEFAULT_BRANCH=0
+DEFAULT_MAJOR=${TODAYS_VERSION}
+DEFAULT_MINOR=0
 
-# Increment $BRANCH if we already are on a version from today
-if [[ ${DEFAULT_BUILD} -eq ${COREOS_BUILD} ]]; then
-    DEFAULT_BRANCH=$((COREOS_BRANCH + 1))
+# Increment $MINOR if we already are on a version from today
+CURRENT_VERSION=( ${COREOS_VERSION_ID//./ } )
+if [[ ${DEFAULT_MAJOR} -eq ${CURRENT_VERSION[0]} ]]; then
+    DEFAULT_MINOR=$((${CURRENT_VERSION[1]} + 1))
 fi
 
-DEFINE_integer build ${DEFAULT_BUILD} "Branch major version (aka 'build')"
-DEFINE_integer branch ${DEFAULT_BRANCH} "Branch revision or minor version"
+DEFINE_integer major ${DEFAULT_MAJOR} "Branch major version (aka 'build')"
+DEFINE_integer branch ${DEFAULT_MINOR} "Branch revision or minor version"
 DEFINE_integer patch 0 "Branch patch id, normally 0"
 DEFINE_string track "dev-channel" "Set the given track to this new branch"
 DEFINE_string sdk_version "${COREOS_VERSION_ID}" \
@@ -60,6 +61,9 @@ tee version.txt <<EOF
 COREOS_BUILD=${FLAGS_build}
 COREOS_BRANCH=${FLAGS_branch}
 COREOS_PATCH=${FLAGS_patch}
+COREOS_VERSION=${BRANCH_VERSION}
+COREOS_VERSION_ID=${BRANCH_VERSION}
+COREOS_BUILD_ID=
 COREOS_SDK_VERSION=${FLAGS_sdk_version}
 EOF
 ln -sf "${BRANCH_NAME}.xml" release.xml
