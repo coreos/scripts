@@ -535,7 +535,10 @@ usb.generic.autoconnect = "FALSE"
 usb.present = "TRUE"
 rtc.diffFromUTC = 0
 EOF
-    VM_GENERATED_FILES+=( "${vmx_path}" )
+    # Only upload the vmx if it won't be bundled
+    if [[ -z "$(_get_vm_opt BUNDLE_FORMAT)" ]]; then
+        VM_GENERATED_FILES+=( "${vmx_path}" )
+    fi
 }
 
 _write_vmware_zip_conf() {
@@ -722,6 +725,11 @@ _write_box_bundle() {
     mv "${VM_DST_IMG}" "${VM_TMP_DIR}/box"
     tar -czf "${box}" -C "${VM_TMP_DIR}/box" .
 
+    local provider="virtualbox"
+    if [[ "${VM_IMG_TYPE}" == vagrant_vmware_fusion ]]; then
+        provider="vmware_fusion"
+    fi
+
     cat >"${json}" <<EOF
 {
   "name": "coreos-alpha",
@@ -729,7 +737,7 @@ _write_box_bundle() {
   "versions": [{
     "version": "${COREOS_VERSION_ID}",
     "providers": [{
-      "name": "virtualbox",
+      "name": "${provider}",
       "url": "$(download_image_url "$(_dst_name ".box")")",
       "checksum_type": "sha256",
       "checksum": "$(sha256sum "${box}" | awk '{print $1}')"
