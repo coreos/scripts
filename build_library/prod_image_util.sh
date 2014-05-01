@@ -6,25 +6,13 @@
 setup_prod_image() {
   local image_name="$1"
   local disk_layout="$2"
-  local au_key="$3"
 
   info "Configuring production image ${image_name}"
   local root_fs_dir="${BUILD_DIR}/rootfs"
-  local enable_rootfs_verification_flag=--noenable_rootfs_verification
-  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
-    enable_rootfs_verification_flag=--enable_rootfs_verification
-  fi
 
   "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
       mount "${BUILD_DIR}/${image_name}" "${root_fs_dir}"
   trap "cleanup_mounts '${root_fs_dir}' && delete_prompt" EXIT
-
-  # Install an auto update key on the root before sealing it off
-  local key_location=${root_fs_dir}"/usr/share/update_engine/"
-  sudo mkdir -p "${key_location}"
-  sudo cp "${au_key}" "$key_location/update-payload-key.pub.pem"
-  sudo chown root:root "$key_location/update-payload-key.pub.pem"
-  sudo chmod 644 "$key_location/update-payload-key.pub.pem"
 
   # clean-ups of things we do not need
   sudo rm ${root_fs_dir}/etc/csh.env

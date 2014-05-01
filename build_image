@@ -158,10 +158,7 @@ fi
 
 if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
   copy_image ${CHROMEOS_BASE_IMAGE_NAME} ${COREOS_PRODUCTION_IMAGE_NAME}
-
-  setup_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT} \
-    ${SRC_ROOT}/third_party/coreos-overlay/coreos-base/coreos-au-key/files/update-payload-key.pub.pem
-
+  setup_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT}
   upload_image "${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"
 fi
 
