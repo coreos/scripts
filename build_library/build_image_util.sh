@@ -135,14 +135,28 @@ delete_prompt() {
   fi
 }
 
-generate_au_zip () {
-  local lgenerateauzip="${BUILD_LIBRARY_DIR}/generate_au_zip.py"
-  local largs="-o ${BUILD_DIR}"
-  test ! -d "${BUILD_DIR}" && mkdir -p "${BUILD_DIR}"
-  info "Running ${lgenerateauzip} ${largs} for generating AU updater zip file"
+generate_update() {
+  local image_name="$1"
+  local disk_layout="$2"
+  local update_prefix="${image_name%_image.bin}_update"
+  local update="${BUILD_DIR}/${update_prefix}"
+  local devkey="/usr/share/update_engine/update-payload-key.key.pem"
+
+  echo "Generating update payload, signed with a dev key"
+  "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
+    extract "${BUILD_DIR}/${image_name}" "USR-A" "${update}.bin"
+  delta_generator -private_key "${devkey}" \
+    -new_image "${update}.bin" -out_file "${update}.gz"
+  delta_generator -private_key "${devkey}" \
+    -in_file "${update}.gz" -out_metadata "${update}.meta"
+
+  info "Generating update tools zip"
   # Make sure some vars this script needs are exported
   export REPO_MANIFESTS_DIR SCRIPTS_DIR
-  $lgenerateauzip $largs
+  "${BUILD_LIBRARY_DIR}/generate_au_zip.py" \
+    --output-dir "${BUILD_DIR}" --zip-name "${update_prefix}.zip"
+
+  upload_image -d "${update}.DIGESTS" "${update}".{bin,gz,meta,zip}
 }
 
 # Basic command to emerge binary packages into the target image.
