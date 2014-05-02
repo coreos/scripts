@@ -106,7 +106,7 @@ IMG_vmware_CONF_FORMAT=vmx
 IMG_vmware_insecure_DISK_FORMAT=vmdk_scsi
 IMG_vmware_insecure_DISK_LAYOUT=vm
 IMG_vmware_insecure_CONF_FORMAT=vmware_zip
-IMG_vmware_insecure_OEM_PACKAGE=oem-vagrant
+IMG_vmware_insecure_OEM_PACKAGE=oem-vagrant-key
 
 ## ami
 IMG_ami_BOOT_KERNEL=0
