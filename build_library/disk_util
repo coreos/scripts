@@ -648,7 +648,7 @@ def Tune(options):
   part = GetPartition(partitions, options.partition)
 
   if not part['image_compat']:
-    raise InvalidLayout("Disk layout is incompatible existing image")
+    raise InvalidLayout("Disk layout is incompatible with existing image")
 
   if options.disable2fs_rw is not None:
     if part.get('fs_type', None) not in ('ext2', 'ext4'):
@@ -656,6 +656,31 @@ def Tune(options):
     Tune2fsReadWrite(options, part)
   else:
     raise Exception("No options specified!")
+
+
+def Extract(options):
+  """Write a single partition out to its own image file.
+
+  Args:
+    options: Flags passed to the script
+  """
+
+  config, partitions = LoadPartitionConfig(options)
+  GetPartitionTableFromImage(options, config, partitions)
+  part = GetPartition(partitions, options.partition)
+
+  if not part['image_compat']:
+    raise InvalidLayout("Disk layout is incompatible with existing image")
+
+  subprocess.check_call(['dd',
+                         'bs=10MB',
+                         'iflag=count_bytes,skip_bytes',
+                         'conv=sparse',
+                         'status=none',
+                         'if=%s' % options.disk_image,
+                         'of=%s' % options.output,
+                         'skip=%s' % part['image_first_byte'],
+                         'count=%s' % part['image_bytes']])
 
 
 def GetPartitionByNumber(partitions, num):
@@ -900,6 +925,12 @@ def main(argv):
   a.add_argument('disk_image', help='path to disk image file')
   a.add_argument('partition', help='number or label of partition to edit')
   a.set_defaults(func=Tune)
+
+  a = actions.add_parser('extract', help='extract a single partition')
+  a.add_argument('disk_image', help='path to disk image file')
+  a.add_argument('partition', help='number or label of partition to edit')
+  a.add_argument('output', help='path to write the partition image to')
+  a.set_defaults(func=Extract)
 
   a = actions.add_parser('readblocksize', help='get device block size')
   a.set_defaults(func=GetBlockSize)

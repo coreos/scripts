@@ -35,6 +35,8 @@ DEFINE_string disk_layout "base" \
   "The disk layout type to use for this image."
 DEFINE_string group "${DEFAULT_GROUP}" \
   "The update group."
+DEFINE_boolean generate_update "${FLAGS_FALSE}" \
+  "Generate update payload. (prod only)"
 
 # include upload options
 . "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
@@ -158,19 +160,16 @@ fi
 
 if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
   copy_image ${CHROMEOS_BASE_IMAGE_NAME} ${COREOS_PRODUCTION_IMAGE_NAME}
-
-  setup_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT} \
-    ${SRC_ROOT}/third_party/coreos-overlay/coreos-base/coreos-au-key/files/update-payload-key.pub.pem
-
+  setup_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT}
   upload_image "${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"
+  if [[ ${FLAGS_generate_update} -eq ${FLAGS_TRUE} ]]; then
+    generate_update "${COREOS_PRODUCTION_IMAGE_NAME}" ${DISK_LAYOUT}
+  fi
 fi
 
 if ! should_build_image ${PRISTINE_IMAGE_NAME}; then
   rm -f "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
 fi
-
-# Generating AU generator zip file to run outside chroot
-generate_au_zip || echo "Failed generating AU zip file - ignoring Error..."
 
 # Write out a version.txt file, this will be used by image_to_vm.sh
 tee "${BUILD_DIR}/version.txt" <<EOF
@@ -180,8 +179,7 @@ COREOS_PATCH=${COREOS_PATCH}
 COREOS_SDK_VERSION=${COREOS_SDK_VERSION}
 EOF
 
-upload_image -d "${BUILD_DIR}/au-generator.zip.DIGESTS" \
-    "${BUILD_DIR}/au-generator.zip" "${BUILD_DIR}/version.txt"
+upload_image "${BUILD_DIR}/version.txt"
 
 # Create a named symlink.
 LINK_NAME="${FLAGS_output_root}/${BOARD}/${FLAGS_symlink}"
