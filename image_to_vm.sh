@@ -84,7 +84,7 @@ FLAGS_to=`eval readlink -f $FLAGS_to`
 # If source includes version.txt switch to its version information
 if [ -f "${FLAGS_from}/version.txt" ]; then
     source "${FLAGS_from}/version.txt"
-    COREOS_VERSION_STRING="${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}"
+    COREOS_VERSION_STRING="${COREOS_VERSION}"
 fi
 
 if [ ${FLAGS_prod_image} -eq ${FLAGS_TRUE} ]; then
@@ -102,10 +102,12 @@ setup_disk_image "${FLAGS_disk_layout}"
 
 # Optionally install any OEM packages
 install_oem_package
+run_fs_hook
 
 # Changes done, glue it together
 write_vm_disk
 write_vm_conf "${FLAGS_mem}"
+write_vm_bundle
 
 vm_cleanup
 trap - EXIT

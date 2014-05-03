@@ -67,6 +67,3 @@ sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/update.conf" <<EOF
 SERVER=$COREOS_VERSION_AUSERVER
 GROUP=$FLAGS_group
 EOF
-
-# For old versions of vagrant
-sudo_clobber "${ROOT_FS_DIR}/etc/gentoo-release" <<<"$COREOS_VERSION_NAME"

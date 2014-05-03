@@ -52,6 +52,9 @@ IMG_DEFAULT_OEM_PACKAGE=
 # USE flags for the OEM package
 IMG_DEFAULT_OEM_USE=
 
+# Hook to do any final tweaks or grab data while fs is mounted.
+IMG_DEFAULT_FS_HOOK=
+
 # Name of the target image format.
 # May be raw, qcow2 (qemu), or vmdk (vmware, virtualbox)
 IMG_DEFAULT_DISK_FORMAT=raw
@@ -61,6 +64,9 @@ IMG_DEFAULT_DISK_LAYOUT=base
 
 # Name of the target config format, default is no config
 IMG_DEFAULT_CONF_FORMAT=
+
+# Bundle configs and disk image into some archive
+IMG_DEFAULT_BUNDLE_FORMAT=
 
 # Memory size to use in any config files
 IMG_DEFAULT_MEM=1024
@@ -86,12 +92,16 @@ IMG_virtualbox_DISK_LAYOUT=vm
 IMG_virtualbox_CONF_FORMAT=ovf
 
 ## vagrant
+IMG_vagrant_FS_HOOK=box
+IMG_vagrant_BUNDLE_FORMAT=box
 IMG_vagrant_DISK_FORMAT=vmdk_ide
 IMG_vagrant_DISK_LAYOUT=vagrant
 IMG_vagrant_CONF_FORMAT=vagrant
 IMG_vagrant_OEM_PACKAGE=oem-vagrant
 
 ## vagrant_vmware
+IMG_vagrant_vmware_fusion_FS_HOOK=box
+IMG_vagrant_vmware_fusion_BUNDLE_FORMAT=box
 IMG_vagrant_vmware_fusion_DISK_FORMAT=vmdk_scsi
 IMG_vagrant_vmware_fusion_DISK_LAYOUT=vagrant
 IMG_vagrant_vmware_fusion_CONF_FORMAT=vagrant_vmware_fusion
@@ -209,6 +219,10 @@ _dst_dir() {
     echo $(dirname "$VM_DST_IMG")
 }
 
+# Combine dst name and dir
+_dst_path() {
+    echo "$(_dst_dir)/$(_dst_name "$@")"
+}
 
 # Get the proper disk format extension.
 _disk_ext() {
@@ -277,6 +291,21 @@ install_oem_package() {
     sudo rm -rf "${oem_tmp}"
 }
 
+# Any other tweaks required?
+run_fs_hook() {
+    local fs_hook=$(_get_vm_opt FS_HOOK)
+    if [[ -n "${fs_hook}" ]]; then
+        info "Running ${fs_hook} fs hook"
+        _run_${fs_hook}_fs_hook "$@"
+    fi
+}
+
+_run_box_fs_hook() {
+    # Copy basic Vagrant configs from OEM
+    mkdir -p "${VM_TMP_DIR}/box"
+    cp -R "${VM_TMP_ROOT}/usr/share/oem/box/." "${VM_TMP_DIR}/box"
+}
+
 # Write the vm disk image to the target directory in the proper format
 write_vm_disk() {
     if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
@@ -287,7 +316,11 @@ write_vm_disk() {
     local disk_format=$(_get_vm_opt DISK_FORMAT)
     info "Writing $disk_format image $(basename "${VM_DST_IMG}")"
     _write_${disk_format}_disk "${VM_TMP_IMG}" "${VM_DST_IMG}"
-    VM_GENERATED_FILES+=( "${VM_DST_IMG}" )
+
+    # Add disk image to final file list if it isn't going to be bundled
+    if [[ -z "$(_get_vm_opt BUNDLE_FORMAT)" ]]; then
+        VM_GENERATED_FILES+=( "${VM_DST_IMG}" )
+    fi
 }
 
 _write_raw_disk() {
@@ -502,7 +535,10 @@ usb.generic.autoconnect = "FALSE"
 usb.present = "TRUE"
 rtc.diffFromUTC = 0
 EOF
-    VM_GENERATED_FILES+=( "${vmx_path}" )
+    # Only upload the vmx if it won't be bundled
+    if [[ -z "$(_get_vm_opt BUNDLE_FORMAT)" ]]; then
+        VM_GENERATED_FILES+=( "${vmx_path}" )
+    fi
 }
 
 _write_vmware_zip_conf() {
@@ -635,86 +671,32 @@ EOF
 
 _write_vagrant_conf() {
     local vm_mem="${1:-$(_get_vm_opt MEM)}"
-    local src_name=$(basename "$VM_SRC_IMG")
-    local dst_name=$(basename "$VM_DST_IMG")
-    local dst_dir=$(dirname "$VM_DST_IMG")
-    local ovf="${VM_TMP_DIR}/box.ovf"
-    local vfile="${VM_TMP_DIR}/Vagrantfile"
-    local box="${dst_dir}/$(_src_to_dst_name "${src_name}" ".box")"
-
-    # Move the disk image to tmp, it won't be a final output file
-    mv "${VM_DST_IMG}" "${VM_TMP_DIR}/${dst_name}"
+    local ovf="${VM_TMP_DIR}/box/box.ovf"
+    local mac="${VM_TMP_DIR}/box/base_mac.rb"
 
     "${BUILD_LIBRARY_DIR}/virtualbox_ovf.sh" \
             --vm_name "$VM_NAME" \
-            --disk_vmdk "${VM_TMP_DIR}/${dst_name}" \
+            --disk_vmdk "${VM_DST_IMG}" \
             --memory_size "$vm_mem" \
             --output_ovf "$ovf" \
-            --output_vagrant "$vfile"
+            --output_vagrant "$mac"
 
-    cat > "${VM_TMP_DIR}"/metadata.json <<EOF
+    cat > "${VM_TMP_DIR}"/box/metadata.json <<EOF
 {"provider": "virtualbox"}
 EOF
-
-    tar -czf "${box}" -C "${VM_TMP_DIR}" "box.ovf" "Vagrantfile" "${dst_name}" "metadata.json"
-
-    cat > "${VM_README}" <<EOF
-Vagrant >= 1.2.3 is required. Use something like the following to get started:
-vagrant box add coreos path/to/$(basename "${box}")
-vagrant init coreos
-vagrant up
-vagrant ssh
-
-You will get a warning about "No guest additions were detected...",
-this is expected and should be ignored. SSH should work just dandy.
-EOF
-
-    # Replace list, not append, since we packaged up the disk image.
-    VM_GENERATED_FILES=( "${box}" "${VM_README}" )
 }
 
 _write_vagrant_vmware_fusion_conf() {
     local vm_mem="${1:-$(_get_vm_opt MEM)}"
-    local src_name=$(basename "$VM_SRC_IMG")
-    local dst_name=$(basename "$VM_DST_IMG")
-    local dst_dir=$(dirname "$VM_DST_IMG")
-    local vmx_path="${dst_dir}/$(_src_to_dst_name "${src_name}" ".vmx")"
-    local vmx_file=$(basename "${vmx_path}")
-    local vfile="${VM_TMP_DIR}/Vagrantfile"
-    local box="${dst_dir}/$(_src_to_dst_name "${src_name}" ".box")"
+    local vmx=$(_dst_path ".vmx")
 
-    # Move the disk image to tmp, it won't be a final output file
-    mv "${VM_DST_IMG}" "${VM_TMP_DIR}/${dst_name}"
-
+    mkdir -p "${VM_TMP_DIR}/box"
     _write_vmx_conf ${vm_mem}
-    "${BUILD_LIBRARY_DIR}/virtualbox_ovf.sh" \
-            --vm_name "$VM_NAME" \
-            --disk_vmdk "${VM_TMP_DIR}/${dst_name}" \
-            --memory_size "$vm_mem" \
-            --output_vagrant "$vfile"
+    mv "${vmx}" "${VM_TMP_DIR}/box"
 
-    cat > "${VM_TMP_DIR}"/metadata.json <<EOF
+    cat > "${VM_TMP_DIR}"/box/metadata.json <<EOF
 {"provider": "vmware_fusion"}
 EOF
-
-    mv "${vmx_path}" "${VM_TMP_DIR}/"
-
-    tar -czf "${box}" -C "${VM_TMP_DIR}" "Vagrantfile" "${dst_name}" \
-        "${vmx_file}" "metadata.json"
-
-    cat > "${VM_README}" <<EOF
-Vagrant master (unreleased) currently has full CoreOS support. In the meantime, you may encounter an error about networking that can be ignored
-vagrant box add coreos path/to/$(basename "${box}")
-vagrant init coreos
-vagrant up
-vagrant ssh
-
-You will get a warning about "No guest additions were detected...",
-this is expected and should be ignored. SSH should work just dandy.
-EOF
-
-    # Replace list, not append, since we packaged up the disk image.
-    VM_GENERATED_FILES=( "${box}" "${VM_README}" )
 }
 
 _write_gce_conf() {
@@ -725,6 +707,45 @@ _write_gce_conf() {
     mv "${VM_DST_IMG}" "${VM_TMP_DIR}/disk.raw"
     tar -czf "${tar_path}" -C "${VM_TMP_DIR}" "disk.raw"
     VM_GENERATED_FILES=( "${tar_path}" )
+}
+
+# If this is a bundled format generate it!
+write_vm_bundle() {
+    local bundle_format=$(_get_vm_opt BUNDLE_FORMAT)
+    if [[ -n "${bundle_format}" ]]; then
+        info "Writing ${bundle_format} bundle"
+        _write_${bundle_format}_bundle "$@"
+    fi
+}
+
+_write_box_bundle() {
+    local box=$(_dst_path ".box")
+    local json=$(_dst_path ".json")
+
+    mv "${VM_DST_IMG}" "${VM_TMP_DIR}/box"
+    tar -czf "${box}" -C "${VM_TMP_DIR}/box" .
+
+    local provider="virtualbox"
+    if [[ "${VM_IMG_TYPE}" == vagrant_vmware_fusion ]]; then
+        provider="vmware_fusion"
+    fi
+
+    cat >"${json}" <<EOF
+{
+  "name": "coreos-alpha",
+  "description": "CoreOS alpha",
+  "versions": [{
+    "version": "${COREOS_VERSION_ID}",
+    "providers": [{
+      "name": "${provider}",
+      "url": "$(download_image_url "$(_dst_name ".box")")",
+      "checksum_type": "sha256",
+      "checksum": "$(sha256sum "${box}" | awk '{print $1}')"
+    }]
+  }]
+}
+EOF
+    VM_GENERATED_FILES+=( "${box}" "${json}" )
 }
 
 vm_cleanup() {

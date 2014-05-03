@@ -174,3 +174,17 @@ upload_image() {
     local def_upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
     upload_files "${log_msg}" "${def_upload_path}" "" "${uploads[@]}"
 }
+
+# Translate the configured upload URL to a download URL
+# Usage: download_image_url "path/suffix"
+download_image_url() {
+    if [[ ${FLAGS_upload} -ne ${FLAGS_TRUE} ]]; then
+        echo "$1"
+        return 0
+    fi
+    local upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
+    if [[ -n "${UPLOAD_PATH}" ]]; then
+        upload_path="${UPLOAD_PATH}"
+    fi
+    echo "http://${upload_path#gs://}/$1"
+}
