@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# Copyright (c) 2014 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+# We have to simple-mindedly set GCLIENT_ROOT in case we're running from
+# au-generator.zip because common.sh will fail while auto-detect it.
+export GCLIENT_ROOT=$(readlink -f "${SCRIPT_ROOT}/../../")
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+DEFINE_string board "amd64-usr" \
+    "Board type of the image"
+DEFINE_string version "${COREOS_VERSION_STRING}" \
+    "Version number to promote."
+DEFINE_string channel "alpha" \
+    "Roller channel to promote this version to."
+DEFINE_string app_id "e96281a6-d1af-4bde-9a0a-97b76e56dc57" \
+    "CoreOS AppId in roller."
+
+DEFINE_string user "" \
+    "User for roller."
+DEFINE_string api_key "" \
+    "API key for roller."
+DEFINE_string endpoint "https://public.update.core-os.net" \
+    "Roller endpoint to update."
+DEFINE_string build_storage "gs://storage.core-os.net/coreos" \
+    "GS bucket with official build artifacts."
+DEFINE_string release_storage "gs://storage.core-os.net/coreos" \
+    "GS bucket for release downloads."
+
+# Allow toggling the assorted actions.
+DEFINE_boolean do_roller ${FLAGS_TRUE} "Update the channel in roller"
+DEFINE_boolean do_gce ${FLAGS_TRUE} "Add image to coreos-cloud GCE project"
+DEFINE_boolean do_storage ${FLAGS_TRUE} "Copy images to public storage"
+
+FLAGS_HELPS="usage: $SCRIPTNAME [flags]
+
+Setting everything up for use\n
+
+1) Run 'gsutil config'
+2) Run 'gcutil config'
+3) Ensure rollerctl is installed in your path\n
+"
+
+# Parse flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+switch_to_strict_mode
+
+if [[ ${FLAGS_do_roller} -eq ${FLAGS_TRUE} ]]; then
+    [[ -z "${FLAGS_api_key}" ]] && die "--api_key is required"
+    [[ -z "${FLAGS_user}" ]] && die "--user is required"
+fi
+
+# Ensure GS URL doesn't have a trailing /
+FLAGS_build_storage="${FLAGS_build_storage%%/}"
+FLAGS_release_storage="${FLAGS_release_storage%%/}"
+
+# The channel name in roller is capitalized, everywhere else is lower case.
+roller_channel="${FLAGS_channel^}"
+lower_channel="${FLAGS_channel,,}"
+
+gs_build_path="${FLAGS_build_storage}/${FLAGS_board}/${FLAGS_version}"
+# TODO(marineam): once build_storage and release_storage are different
+# this will become two paths, one for version and the other for channel.
+gs_release_path="${FLAGS_release_storage}/${FLAGS_board}/${lower_channel}"
+
+if [[ ${FLAGS_do_roller} -eq ${FLAGS_TRUE} ]]; then
+    rollerctl \
+        -s ${FLAGS_endpoint} \
+        -u ${FLAGS_user} \
+        -k ${FLAGS_api_key} \
+        update-channel \
+        "${FLAGS_app_id}" \
+        "${roller_channel}" \
+        "${FLAGS_version}"
+fi
+
+if [[ ${FLAGS_do_gce} -eq ${FLAGS_TRUE} ]]; then
+    gce_name="coreos-${lower_channel}-${FLAGS_version//./-}-v$(date -u +%Y%m%d)"
+    gce_desc="CoreOS ${lower_channel} ${FLAGS_version}"
+    gcutil \
+        --project coreos-cloud \
+        addimage \
+        --description="${gce_desc}" \
+        "${gce_name}" \
+        "${gs_build_path}/coreos_production_gce.tar.gz"
+    gce_path="projects/coreos-cloud/global/images/${gce_name}"
+    gce_temp=$(mktemp --suffix=.txt)
+    trap "rm -f '${gce_temp}'" EXIT
+    echo "${gce_path}" > "${gce_temp}"
+    gsutil cp "${gce_temp}" "${gs_build_path}/coreos_production_gce.txt"
+    rm -f "${gce_temp}"
+    trap - EXIT
+fi
+
+if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]]; then
+    gsutil -m cp \
+        "${gs_build_path}/coreos_production*" \
+        "${gs_build_path}/version.*" \
+        "${gs_release_path}/"
+fi
