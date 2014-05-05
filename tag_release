@@ -17,7 +17,7 @@ if [[ ${DEFAULT_MAJOR} -eq ${CURRENT_VERSION[0]} ]]; then
 fi
 
 DEFINE_integer major ${DEFAULT_MAJOR} "Branch major version (aka 'build')"
-DEFINE_integer branch ${DEFAULT_MINOR} "Branch revision or minor version"
+DEFINE_integer minor ${DEFAULT_MINOR} "Branch revision or minor version"
 DEFINE_integer patch 0 "Branch patch id, normally 0"
 DEFINE_string track "dev-channel" "Set the given track to this new branch"
 DEFINE_string sdk_version "${COREOS_VERSION_ID}" \
@@ -30,8 +30,8 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 switch_to_strict_mode
 
-BRANCH_NAME="build-${FLAGS_build}"
-BRANCH_VERSION="${FLAGS_build}.${FLAGS_branch}.${FLAGS_patch}"
+BRANCH_NAME="build-${FLAGS_major}"
+BRANCH_VERSION="${FLAGS_major}.${FLAGS_minor}.${FLAGS_patch}"
 TAG_NAME="v${BRANCH_VERSION}"
 
 if [[ "${FLAGS_sdk_version}" == keep || "${FLAGS_sdk_version}" == current ]]
@@ -58,8 +58,8 @@ fi
 
 repo manifest -o "${BRANCH_NAME}.xml" -r
 tee version.txt <<EOF
-COREOS_BUILD=${FLAGS_build}
-COREOS_BRANCH=${FLAGS_branch}
+COREOS_BUILD=${FLAGS_major}
+COREOS_BRANCH=${FLAGS_minor}
 COREOS_PATCH=${FLAGS_patch}
 COREOS_VERSION=${BRANCH_VERSION}
 COREOS_VERSION_ID=${BRANCH_VERSION}
