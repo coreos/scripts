@@ -81,8 +81,7 @@ install_dev_packages() {
   # Setup portage for emerge and gmerge
   configure_dev_portage "${root_fs_dir}" "${devserver}"
 
-  sudo mkdir -p "${root_fs_dir}/etc/coreos"
-  sudo_clobber "${root_fs_dir}/etc/coreos/update.conf" <<EOF
+  sudo_append "${root_fs_dir}/etc/coreos/update.conf" <<EOF
 SERVER=${auserver}
 
 # For gmerge

@@ -26,13 +26,9 @@ ROOT_FS_DIR="$FLAGS_root"
 [ -d "$ROOT_FS_DIR" ] || die "Root FS does not exist? ($ROOT_FS_DIR)"
 
 COREOS_VERSION_NAME="CoreOS"
-COREOS_VERSION_AUSERVER=""
-if [[ -n "${FLAGS_group}" ]]; then
-    COREOS_VERSION_AUSERVER="https://public.update.core-os.net/v1/update/"
-fi
 
 # DISTRIB_* are the standard lsb-release names
-sudo mkdir -p "${ROOT_FS_DIR}/usr/share/coreos" "${ROOT_FS_DIR}/etc"
+sudo mkdir -p "${ROOT_FS_DIR}/usr/share/coreos" "${ROOT_FS_DIR}/etc/coreos"
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/lsb-release" <<EOF
 DISTRIB_ID=$COREOS_VERSION_NAME
 DISTRIB_RELEASE=$COREOS_VERSION_STRING
@@ -63,7 +59,12 @@ COREOS_RELEASE_VERSION=$COREOS_VERSION_STRING
 COREOS_RELEASE_BOARD=$FLAGS_board
 EOF
 
+# TODO: update to beta, and then stable once those actually exist
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/update.conf" <<EOF
-SERVER=$COREOS_VERSION_AUSERVER
+SERVER=https://public.update.core-os.net/v1/update/
+GROUP=alpha
+EOF
+
+sudo_clobber "${ROOT_FS_DIR}/etc/coreos/update.conf" <<EOF
 GROUP=$FLAGS_group
 EOF
