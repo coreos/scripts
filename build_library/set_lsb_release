@@ -59,10 +59,9 @@ COREOS_RELEASE_VERSION=$COREOS_VERSION_STRING
 COREOS_RELEASE_BOARD=$FLAGS_board
 EOF
 
-# TODO: update to beta, and then stable once those actually exist
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/update.conf" <<EOF
 SERVER=https://public.update.core-os.net/v1/update/
-GROUP=alpha
+GROUP=$FLAGS_group
 EOF
 
 sudo_clobber "${ROOT_FS_DIR}/etc/coreos/update.conf" <<EOF
