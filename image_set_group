@@ -1,0 +1,129 @@
+#!/bin/bash
+
+# Copyright (c) 2014 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname "$(readlink -f "$0")")
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+# Script must run inside the chroot
+restart_in_chroot_if_needed "$@"
+
+assert_not_root_user
+
+# Flags
+DEFINE_string group "" \
+  "The update group, required."
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "Board for which the image was built"
+DEFINE_string disk_layout "base" \
+  "The disk layout type to use for this image."
+DEFINE_string from "" \
+  "Directory containing ${COREOS_PRODUCTION_IMAGE_NAME}"
+DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
+  "Directory in which to place image result directories (named by version)"
+DEFINE_boolean replace ${FLAGS_FALSE} \
+  "Overwrite existing output, if any."
+
+# include upload options
+. "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
+
+show_help_if_requested "$@"
+
+# Usually unneded, so just leave this option hidden.
+DEFINE_integer build_attempt 1 \
+  "The build attempt for this image build."
+
+# Parse command line
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Die on any errors.
+switch_to_strict_mode
+
+check_gsutil_opts
+
+if [[ -z "${FLAGS_board}" ]] ; then
+  die_notrace "--board is required."
+fi
+
+if [[ -z "${FLAGS_group}" ]] ; then
+  die_notrace "--group is required."
+fi
+
+# Default to the most recent image
+if [[ -z "${FLAGS_from}" ]] ; then
+  FLAGS_from="$(${SCRIPT_ROOT}/get_latest_image.sh --board=${FLAGS_board})"
+else
+  FLAGS_from="$(readlink -f "${FLAGS_from}")"
+fi
+
+SRC_IMAGE="${FLAGS_from}/${COREOS_PRODUCTION_IMAGE_NAME}"
+if [[ ! -f "${SRC_IMAGE}" ]]; then
+  die_notrace "Source image does not exist: ${SRC_IMAGE}"
+fi
+
+# Source should include version.txt, switch to its version information
+if [[ ! -f "${FLAGS_from}/version.txt" ]]; then
+  die_notrace "Source version info does not exist: ${SRC_IMAGE}"
+fi
+source "${FLAGS_from}/version.txt"
+COREOS_VERSION_STRING="${COREOS_VERSION}"
+
+# Load after version.txt to set the correct output paths
+. "${BUILD_LIBRARY_DIR}/toolchain_util.sh"
+. "${BUILD_LIBRARY_DIR}/board_options.sh"
+. "${BUILD_LIBRARY_DIR}/build_image_util.sh"
+
+# Handle existing directory.
+if [[ -e "${BUILD_DIR}" ]]; then
+  if [[ ${FLAGS_replace} -eq ${FLAGS_TRUE} ]]; then
+    sudo rm -rf "${BUILD_DIR}"
+  else
+    error "Directory ${BUILD_DIR} already exists."
+    error "Use --build_attempt option to specify an unused attempt."
+    error "Or use --replace if you want to overwrite this directory."
+    die "Unwilling to overwrite ${BUILD_DIR}."
+  fi
+fi
+
+# Create the output directory and temporary mount points.
+DST_IMAGE="${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"
+ROOT_FS_DIR="${BUILD_DIR}/rootfs"
+mkdir -p "${ROOT_FS_DIR}"
+
+info "Copying from ${FLAGS_from}"
+cp "${SRC_IMAGE}" "${DST_IMAGE}"
+cp "${FLAGS_from}/version.txt" "${BUILD_DIR}/version.txt"
+UPDATE_PREFIX="${COREOS_PRODUCTION_IMAGE_NAME%_image.bin}_update"
+if [[ -e "${FLAGS_from}/${UPDATE_PREFIX}"* ]]; then
+    cp "${FLAGS_from}/${UPDATE_PREFIX}"* "${BUILD_DIR}/"
+fi
+
+"${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${FLAGS_disk_layout}" \
+      mount "${DST_IMAGE}" "${ROOT_FS_DIR}"
+trap "cleanup_mounts '${ROOT_FS_DIR}'" EXIT
+
+info "Replacing /etc/coreos/update.conf"
+sudo mkdir -p "${ROOT_FS_DIR}/etc/coreos"
+sudo_clobber "${ROOT_FS_DIR}/etc/coreos/update.conf" <<EOF
+GROUP=${FLAGS_group}
+EOF
+
+cleanup_mounts "${ROOT_FS_DIR}"
+trap - EXIT
+
+# TODO: Upload here
+
+set_build_symlinks "${FLAGS_group}-latest"
+
+info "Done. Updated image is in ${BUILD_DIR}"
+cat << EOF
+To convert it to a virtual machine image, use:
+  ./image_to_vm.sh --from=${OUTSIDE_OUTPUT_DIR} --board=${BOARD} --prod_image
+
+The default type is qemu, see ./image_to_vm.sh --help for other options.
+EOF
+
+command_completed
