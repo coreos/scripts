@@ -20,6 +20,15 @@ BUILD_DIR="${FLAGS_output_root}/${BOARD}/${IMAGE_SUBDIR}"
 OUTSIDE_OUTPUT_DIR="../build/images/${BOARD}/${IMAGE_SUBDIR}"
 IMAGES_TO_BUILD=
 
+set_build_symlinks() {
+    local build=$(basename ${BUILD_DIR})
+    local link
+    for link in "$@"; do
+        local path="${FLAGS_output_root}/${BOARD}/${link}"
+        ln -sfT "${build}" "${path}"
+    done
+}
+
 # Populates list of IMAGES_TO_BUILD from args passed in.
 # Arguments should be the shortnames of images we want to build.
 get_images_to_build() {

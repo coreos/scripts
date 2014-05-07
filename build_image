@@ -68,8 +68,6 @@ DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean replace ${FLAGS_FALSE} \
   "Overwrite existing output, if any."
-DEFINE_string symlink "latest" \
-  "Symlink name to use for this image."
 DEFINE_string version "" \
   "Overrides version number in name to this version."
 
@@ -186,8 +184,7 @@ EOF
 upload_image "${BUILD_DIR}/version.txt"
 
 # Create a named symlink.
-LINK_NAME="${FLAGS_output_root}/${BOARD}/${FLAGS_symlink}"
-ln -sfT $(basename ${BUILD_DIR}) ${LINK_NAME}
+set_build_symlinks latest "${FLAGS_group}-latest"
 
 echo "Done. Image(s) created in ${BUILD_DIR}"
 
