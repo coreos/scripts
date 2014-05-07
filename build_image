@@ -19,6 +19,7 @@ assert_not_root_user
 
 DEFAULT_GROUP=developer
 if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
+  # TODO: update to beta, and then stable once those actually exist
   DEFAULT_GROUP=alpha
 fi
 
