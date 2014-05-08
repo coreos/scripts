@@ -28,8 +28,6 @@ USAGE="Usage: $0 -a ami-id
     -V VERSION  Find AMI by CoreOS version.
     -b BOARD    Set to the board name, default is amd64-usr
     -g GROUP    Set the update group, default is alpha
-    -K KEY      Path to Amazon API private key.
-    -C CERT     Path to Amazon API key certificate.
     -h          this ;-)
     -v          Verbose, see all the things!
 
@@ -41,15 +39,13 @@ VER=
 BOARD="amd64-usr"
 GROUP="alpha"
 
-while getopts "a:V:b:g:K:C:hv" OPTION
+while getopts "a:V:b:g:hv" OPTION
 do
     case $OPTION in
         a) AMI="$OPTARG";;
         V) VER="$OPTARG";;
         b) BOARD="$OPTARG";;
         g) GROUP="$OPTARG";;
-        K) export EC2_PRIVATE_KEY="$OPTARG";;
-        C) export EC2_CERT="$OPTARG";;
         h) echo "$USAGE"; exit;;
         v) set -x;;
         *) exit 1;;
@@ -89,13 +85,9 @@ zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
 zone=$(curl --fail -s $zoneurl)
 region=$(echo $zone | sed 's/.$//')
 
-# hack job to copy AMIs
-export EC2_HOME=/home/ubuntu/ec2/ec2-api-tools-1.6.10.0
-export JAVA_HOME=/usr
-
 do_copy() {
     local r="$1"
-    local r_amiid=$($EC2_HOME/bin/ec2-copy-image \
+    local r_amiid=$(ec2-copy-image \
         --source-region "$region"            \
         --source-ami-id "$AMI"               \
         --name "$name"                       \
@@ -112,7 +104,7 @@ do_copy() {
     echo "AMI copy to $r as $r_amiid in complete"
 
     local r_snapshotid=$(echo "$r_amidesc" | \
-        grep '^BLOCKDEVICEMAPPING./dev/sda' | cut -f4)
+        grep '^BLOCKDEVICEMAPPING.*/dev/sda' | cut -f5)
     echo "Sharing snapshot $r_snapshotid in $r with Amazon"
     ec2-modify-snapshot-attribute "$r_snapshotid" \
         -c --add 679593333241 --region "$r"
@@ -125,7 +117,9 @@ for r in "${!AKI[@]}"
 do
     [ "${r}" == "${region}" ] && continue
     echo "Starting copy of $AMI from $region to $r"
-    do_copy "$r"
+    do_copy "$r" &
 done
+
+wait
 
 echo "Done"

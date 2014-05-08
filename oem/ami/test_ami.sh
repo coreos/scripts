@@ -16,8 +16,6 @@ USAGE="Usage: $0 -a ami-id
     -V VERSION  Find AMI by CoreOS version.
     -b BOARD    Set to the board name, default is amd64-usr
     -g GROUP    Set the update group, default is alpha
-    -K KEY      Path to Amazon API private key.
-    -C CERT     Path to Amazon API key certificate.
     -h          this ;-)
     -v          Verbose, see all the things!
 
@@ -30,15 +28,13 @@ VER=
 BOARD="amd64-usr"
 GROUP="alpha"
 
-while getopts "a:V:b:g:K:C:hv" OPTION
+while getopts "a:V:b:g:hv" OPTION
 do
     case $OPTION in
         a) AMI="$OPTARG";;
         V) VER="$OPTARG";;
         b) BOARD="$OPTARG";;
         g) GROUP="$OPTARG";;
-        K) export EC2_PRIVATE_KEY="$OPTARG";;
-        C) export EC2_CERT="$OPTARG";;
         h) echo "$USAGE"; exit;;
         v) set -x;;
         *) exit 1;;
