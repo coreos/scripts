@@ -35,6 +35,7 @@ VM_TMP_ROOT=
 VM_DST_IMG=
 VM_README=
 VM_NAME=
+VM_GROUP=
 
 # Contains a list of all generated files
 VM_GENERATED_FILES=()
@@ -272,6 +273,14 @@ setup_disk_image() {
             sudo mount -o remount,ro "${mnt}"
         fi
     done
+
+    VM_GROUP=$(grep --no-messages --no-filename ^GROUP= \
+        "${VM_TMP_ROOT}/usr/share/coreos/update.conf" \
+        "${VM_TMP_ROOT}/etc/coreos/update.conf" | \
+        tail -n 1 | sed -e 's/^GROUP=//')
+    if [[ -z "${VM_GROUP}" ]]; then
+        die "Unable to determine update group for this image."
+    fi
 }
 
 # If the current type defines a oem package install it to the given fs image.
@@ -732,8 +741,8 @@ _write_box_bundle() {
 
     cat >"${json}" <<EOF
 {
-  "name": "coreos-alpha",
-  "description": "CoreOS alpha",
+  "name": "coreos-${VM_GROUP}",
+  "description": "CoreOS ${VM_GROUP}",
   "versions": [{
     "version": "${COREOS_VERSION_ID}",
     "providers": [{
