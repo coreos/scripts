@@ -44,8 +44,6 @@ DEFINE_boolean fast "${DEFAULT_FAST}" \
   "Use the parallel_emerge wrapper script."
 DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
-DEFINE_string stage3_date "20130130" \
-  "Use the stage3 with the given date."
 DEFINE_string stage3_path "" \
   "Use the stage3 located on this path."
 DEFINE_string cache_dir "" "Directory to store caches within."
@@ -71,30 +69,9 @@ switch_to_strict_mode
   [[ -z "${FLAGS_cache_dir}" ]] && \
   die "--cache_dir is required"
 
-. "${SCRIPT_ROOT}"/sdk_lib/make_conf_util.sh
-
-USEPKG=""
-if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
-  # Use binary packages. Include all build-time dependencies,
-  # so as to avoid unnecessary differences between source
-  # and binary builds.
-  USEPKG="--usepkg --with-bdeps y"
-  if [[ $FLAGS_getbinpkg -eq $FLAGS_TRUE ]]; then
-    USEPKG="$USEPKG --getbinpkg"
-  fi
-fi
-
-# Support faster build if necessary.
-EMERGE_CMD="emerge"
-if [ "$FLAGS_fast" -eq "${FLAGS_TRUE}" ]; then
-  CHROOT_CHROMITE_DIR="${CHROOT_TRUNK_DIR}/chromite"
-  EMERGE_CMD="${CHROOT_CHROMITE_DIR}/bin/parallel_emerge"
-fi
-
 ENTER_CHROOT_ARGS=(
   CROS_WORKON_SRCROOT="$CHROOT_TRUNK"
   PORTAGE_USERNAME="${SUDO_USER}"
-  IGNORE_PREFLIGHT_BINHOST="$IGNORE_PREFLIGHT_BINHOST"
 )
 
 # Invoke enter_chroot.  This can only be used after sudo has been installed.
@@ -373,22 +350,11 @@ for type in http ftp all; do
    fi
 done
 
-# Create the base Gentoo stage3 based on last version put in chroot.
-STAGE3="${OVERLAY}/coreos/stage3/stage3-amd64-${FLAGS_stage3_date}.tar.bz2"
-if [ -f $CHROOT_STATE ] && \
-  ! egrep -q "^STAGE3=$STAGE3" $CHROOT_STATE >/dev/null 2>&1
-then
-  info "STAGE3 version has changed."
-  delete_existing
+if [ ! -f "${FLAGS_stage3_path}" ]; then
+  error "Invalid stage3!"
+  exit 1;
 fi
-
-if [ -n "${FLAGS_stage3_path}" ]; then
-  if [ ! -f "${FLAGS_stage3_path}" ]; then
-    error "Invalid stage3!"
-    exit 1;
-  fi
-  STAGE3="${FLAGS_stage3_path}"
-fi
+STAGE3="${FLAGS_stage3_path}"
 
 # Create the destination directory.
 mkdir -p "$FLAGS_chroot"
@@ -407,39 +373,21 @@ else
   ${DECOMPRESS} -dc "${STAGE3}" | \
     tar -xp -C "${FLAGS_chroot}"
   rm -f "$FLAGS_chroot/etc/"make.{globals,conf.user}
-fi
 
-# Set up users, if needed, before mkdir/mounts below.
-[ -f $CHROOT_STATE ] || init_users
+  # Set up users, if needed, before mkdir/mounts below.
+  init_users
 
-# Reset internal vars to force them to the 'inside the chroot' value;
-# since user directories now exist, this can do the upgrade in place.
-set_chroot_trunk_dir "${FLAGS_chroot}" poppycock
+  # Reset internal vars to force them to the 'inside the chroot' value;
+  # since user directories now exist, this can do the upgrade in place.
+  set_chroot_trunk_dir "${FLAGS_chroot}" poppycock
+  mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK_DIR}" \
+      "${FLAGS_chroot}/${DEPOT_TOOLS_DIR}" "${FLAGS_chroot}/run"
 
-echo
-info "Setting up mounts..."
-# Set up necessary mounts and make sure we clean them up on exit.
-mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK_DIR}" \
-    "${FLAGS_chroot}/${DEPOT_TOOLS_DIR}" "${FLAGS_chroot}/run"
-
-# Create a special /etc/make.conf.host_setup that we use to bootstrap
-# the chroot.  The regular content for the file will be generated the
-# first time we invoke update_chroot (further down in this script).
-create_bootstrap_host_setup "${FLAGS_chroot}"
-
-if ! [ -f "$CHROOT_STATE" ];then
-  INITIALIZE_CHROOT=1
-fi
-
-if [ -z "${INITIALIZE_CHROOT}" ];then
-  info "chroot already initialized.  Skipping..."
-else
   # Run all the init stuff to setup the env.
   init_setup
 fi
 
 # Add file to indicate that it is a chroot.
-# Add version of $STAGE3 for update checks.
 echo STAGE3=$STAGE3 > $CHROOT_STATE
 
 # Update chroot.
