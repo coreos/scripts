@@ -37,8 +37,6 @@ DEFINE_string getbinpkgver "" \
   "Use binary packages from a specific version."
 DEFINE_boolean toolchainpkgonly $FLAGS_FALSE \
   "Use binary packages only for the board toolchain."
-DEFINE_string accept_licenses "" \
-  "Licenses to append to the accept list."
 DEFINE_boolean fast "${DEFAULT_FAST}" \
   "Use the parallel_emerge wrapper script."
 DEFINE_integer jobs "${NUM_JOBS}" \
@@ -238,11 +236,6 @@ for d in "${SCRIPTS_DIR}"/hooks/*; do
 done
 sudo_multi "${cmds[@]}"
 
-ACCEPT_LICENSE=
-if [[ -n ${FLAGS_accept_licenses} ]]; then
-  ACCEPT_LICENSE="ACCEPT_LICENSE='${FLAGS_accept_licenses}'"
-fi
-
 sudo_clobber "${BOARD_SETUP}" <<EOF
 # Created by setup_board
 CHOST="${BOARD_CHOST}"
@@ -251,7 +244,6 @@ MAKEOPTS="--jobs=${NUM_JOBS} --load-average=$((NUM_JOBS * 2))"
 PKG_CONFIG="pkg-config-${BOARD_VARIANT}"
 BOARD_USE="${BOARD_VARIANT}"
 PORTAGE_BINHOST="${BOARD_BINHOST}"
-${ACCEPT_LICENSE}
 EOF
 
 generate_all_wrappers
