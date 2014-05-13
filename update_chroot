@@ -46,27 +46,19 @@ eval set -- "${FLAGS_ARGV}"
 switch_to_strict_mode
 
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh"
-. "${SCRIPTS_DIR}/sdk_lib/make_conf_util.sh"
-
-# Create /etc/make.conf.host_setup.  The file content is regenerated
-# from scratch every update.  There are various reasons to do this:
-#  + It's cheap, so this is an easy way to guarantee correct content
-#    after an upgrade.
-#  + Inside make_chroot.sh, we use a temporary version of the file
-#    which must be updated before the script completes; that final
-#    update happens here.
-#  + If the repositories change to add or remove the private
-#    overlay, the file may need to be regenerated.
-create_host_setup
 
 PORTAGE_STABLE_OVERLAY="/usr/local/portage/stable"
 CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
 CHROOT_OVERLAY="/usr/local/portage/coreos"
 
-# Create repos.conf configs.
-info "Setting up repos.conf..."
+info "Setting up portage..."
 sudo mkdir -p "/etc/portage/repos.conf/"
-sudo tee "/etc/portage/repos.conf/coreos.conf" > /dev/null <<EOF
+sudo_clobber "/etc/portage/make.conf.host_setup" <<EOF
+# Created by update_chroot
+MAKEOPTS="--jobs=${NUM_JOBS} --load-average=$((NUM_JOBS * 2))"
+EOF
+
+sudo_clobber "/etc/portage/repos.conf/coreos.conf" <<EOF
 [DEFAULT]
 main-repo = portage-stable
 
