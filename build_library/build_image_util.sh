@@ -18,7 +18,6 @@ else
 fi
 BUILD_DIR="${FLAGS_output_root}/${BOARD}/${IMAGE_SUBDIR}"
 OUTSIDE_OUTPUT_DIR="../build/images/${BOARD}/${IMAGE_SUBDIR}"
-IMAGES_TO_BUILD=
 
 set_build_symlinks() {
     local build=$(basename ${BUILD_DIR})
@@ -27,95 +26,6 @@ set_build_symlinks() {
         local path="${FLAGS_output_root}/${BOARD}/${link}"
         ln -sfT "${build}" "${path}"
     done
-}
-
-# Populates list of IMAGES_TO_BUILD from args passed in.
-# Arguments should be the shortnames of images we want to build.
-get_images_to_build() {
-  local image_to_build
-  for image_to_build in $*; do
-    # Shflags leaves "'"s around ARGV.
-    case ${image_to_build} in
-      \'prod\' )
-        IMAGES_TO_BUILD="${IMAGES_TO_BUILD} ${COREOS_PRODUCTION_IMAGE_NAME}"
-        ;;
-      \'base\' )
-        IMAGES_TO_BUILD="${IMAGES_TO_BUILD} ${CHROMEOS_BASE_IMAGE_NAME}"
-        ;;
-      \'dev\' )
-        IMAGES_TO_BUILD="${IMAGES_TO_BUILD} ${CHROMEOS_DEVELOPER_IMAGE_NAME}"
-        ;;
-      * )
-        die "${image_to_build} is not an image specification."
-        ;;
-    esac
-  done
-
-  # Set default if none specified.
-  if [ -z "${IMAGES_TO_BUILD}" ]; then
-    IMAGES_TO_BUILD=${CHROMEOS_DEVELOPER_IMAGE_NAME}
-  fi
-
-  info "The following images will be built ${IMAGES_TO_BUILD}."
-}
-
-# Look at flags to determine which image types we should build.
-parse_build_image_args() {
-  get_images_to_build ${FLAGS_ARGV}
-}
-
-should_build_image() {
-  # Fast pass back if we should build all incremental images.
-  local image_name
-  local image_to_build
-
-  for image_name in "$@"; do
-    for image_to_build in ${IMAGES_TO_BUILD}; do
-      [ "${image_to_build}" = "${image_name}" ] && return 0
-    done
-  done
-
-  return 1
-}
-
-# Utility function for creating a copy of an image prior to
-# modification from the BUILD_DIR:
-#  $1: source filename
-#  $2: destination filename
-copy_image() {
-  local src="${BUILD_DIR}/$1"
-  local dst="${BUILD_DIR}/$2"
-  if should_build_image $1; then
-    echo "Creating $2 from $1..."
-    cp --sparse=always "${src}" "${dst}" || die "Cannot copy $1 to $2"
-  else
-    mv "${src}" "${dst}" || die "Cannot move $1 to $2"
-  fi
-}
-
-check_blacklist() {
-  info "Verifying that the base image does not contain a blacklisted package."
-  info "Generating list of packages for ${BASE_PACKAGE}."
-  local package_blacklist_file="${BUILD_LIBRARY_DIR}/chromeos_blacklist"
-  if [ ! -e "${package_blacklist_file}" ]; then
-    warn "Missing blacklist file."
-    return
-  fi
-  local blacklisted_packages=$(${SCRIPTS_DIR}/get_package_list \
-      --board="${BOARD}" "${BASE_PACKAGE}" \
-      | grep -x -f "${package_blacklist_file}")
-  if [ -n "${blacklisted_packages}" ]; then
-    die "Blacklisted packages found: ${blacklisted_packages}."
-  fi
-  info "No blacklisted packages found."
-}
-
-make_salt() {
-  # It is not important that the salt be cryptographically strong; it just needs
-  # to be different for each release. The purpose of the salt is just to ensure
-  # that if someone collides a block in one release, they can't reuse it in
-  # future releases.
-  xxd -l 32 -p -c 32 /dev/urandom
 }
 
 cleanup_mounts() {
@@ -172,6 +82,7 @@ generate_update() {
 # Arguments to this command are passed as addition options/arguments
 # to the basic emerge command.
 emerge_to_image() {
+  local root_fs_dir="$1"; shift
   local mask="${INSTALL_MASK:-$(portageq-$BOARD envvar PROD_INSTALL_MASK)}"
   test -n "$mask" || die "PROD_INSTALL_MASK not defined"
 
@@ -187,26 +98,71 @@ emerge_to_image() {
     emerge_cmd+=" --jobs=$FLAGS_jobs"
   fi
 
-  sudo -E INSTALL_MASK="$mask" ${emerge_cmd} "$@"
+  sudo -E INSTALL_MASK="$mask" ${emerge_cmd} --root="${root_fs_dir}" "$@"
+
+  # Make sure profile.env and ld.so.cache has been generated
+  sudo -E ROOT="${root_fs_dir}" env-update
 }
 
-# The GCC package includes both its libraries and the compiler.
-# In prod images we only need the shared libraries.
-emerge_prod_gcc() {
-    local mask="${INSTALL_MASK:-$(portageq-$BOARD envvar PROD_INSTALL_MASK)}"
-    test -n "$mask" || die "PROD_INSTALL_MASK not defined"
+start_image() {
+  local image_name="$1"
+  local disk_layout="$2"
+  local root_fs_dir="$3"
 
-    mask="${mask}
-        /usr/bin
-        /usr/*/gcc-bin
-        /usr/lib/gcc/*/*/*.o
-        /usr/lib/gcc/*/*/include
-        /usr/lib/gcc/*/*/include-fixed
-        /usr/lib/gcc/*/*/plugin
-        /usr/libexec
-        /usr/share/gcc-data/*/*/c89
-        /usr/share/gcc-data/*/*/c99
-        /usr/share/gcc-data/*/*/python"
+  local disk_img="${BUILD_DIR}/${image_name}"
 
-    INSTALL_MASK="${mask}" emerge_to_image --nodeps sys-devel/gcc "$@"
+  info "Using image type ${disk_layout}"
+  "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
+      format "${disk_img}"
+
+  "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
+      mount "${disk_img}" "${root_fs_dir}"
+  trap "cleanup_mounts '${root_fs_dir}' && delete_prompt" EXIT
+
+  # First thing first, install baselayout with USE=build to create a
+  # working directory tree. Don't use binpkgs due to the use flag change.
+  sudo -E USE=build "emerge-${BOARD}" --root="${root_fs_dir}" \
+      --usepkg=n --buildpkg=n --oneshot --quiet --nodeps sys-apps/baselayout
+
+  # FIXME(marineam): Work around glibc setting EROOT=$ROOT
+  # https://bugs.gentoo.org/show_bug.cgi?id=473728#c12
+  sudo mkdir -p "${root_fs_dir}/etc/ld.so.conf.d"
+}
+
+finish_image() {
+  local disk_layout="$1"
+  local root_fs_dir="$2"
+  local update_group="$3"
+
+  # Record directories installed to the state partition.
+  # Explicitly ignore entries covered by existing configs.
+  local tmp_ignore=$(awk '/^[dDfFL]/ {print "--ignore=" $2}' \
+      "${root_fs_dir}"/usr/lib/tmpfiles.d/*.conf)
+  sudo "${BUILD_LIBRARY_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
+      --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image_var.conf" \
+      ${tmp_ignore} "${root_fs_dir}/var"
+  sudo "${BUILD_LIBRARY_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
+      --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image_etc.conf" \
+      ${tmp_ignore} "${root_fs_dir}/etc"
+
+  # Set /etc/lsb-release on the image.
+  "${BUILD_LIBRARY_DIR}/set_lsb_release" \
+    --root="${root_fs_dir}" \
+    --group="${update_group}" \
+    --board="${BOARD}"
+
+  ${BUILD_LIBRARY_DIR}/configure_bootloaders.sh \
+    --arch=${ARCH} \
+    --disk_layout="${disk_layout}" \
+    --boot_dir="${root_fs_dir}"/usr/boot \
+    --esp_dir="${root_fs_dir}"/boot/efi \
+    --boot_args="${FLAGS_boot_args}"
+
+  # Zero all fs free space to make it more compressible so auto-update
+  # payloads become smaller, not fatal since it won't work on linux < 3.2
+  sudo fstrim "${root_fs_dir}" || true
+  sudo fstrim "${root_fs_dir}/usr" || true
+
+  cleanup_mounts "${root_fs_dir}"
+  trap - EXIT
 }

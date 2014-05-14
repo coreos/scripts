@@ -74,7 +74,7 @@ DEFINE_string version "" \
 # Parse command line.
 FLAGS "$@" || exit 1
 
-eval set -- "${FLAGS_ARGV}"
+eval set -- "${FLAGS_ARGV:-dev}"
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
 # so will die prematurely if 'switch_to_strict_mode' is specified before now.
@@ -87,24 +87,21 @@ check_gsutil_opts
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
-. "${BUILD_LIBRARY_DIR}/base_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/prod_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/dev_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
 
-parse_build_image_args
-
-BASE_PACKAGE="coreos-base/coreos"
-
-PRISTINE_IMAGE_NAME=${CHROMEOS_BASE_IMAGE_NAME}
-
-DEVKEYSDIR="/usr/share/vboot/devkeys"
+PROD_IMAGE=0
+DEV_IMAGE=0
+for arg in "$@"; do
+  case "${arg}" in
+    prod) PROD_IMAGE=1 ;;
+    dev)  DEV_IMAGE=1 ;;
+    *)    die_notrace "Unknown image type ${arg}" ;;
+  esac
+done
 
 eclean-$BOARD -d packages
-
-if [[ ${skip_blacklist_check} -ne 1 ]]; then
-  check_blacklist
-fi
 
 # Check that the build root is sane.
 if [[ ${skip_test_build_root} -ne 1 ]]; then
@@ -134,40 +131,17 @@ mkdir -p "${BUILD_DIR}"
 
 DISK_LAYOUT="${FLAGS_disk_layout:-base}"
 
-# Create the base image.
-create_base_image "${PRISTINE_IMAGE_NAME}" "${DISK_LAYOUT}" "${FLAGS_group}"
-if should_build_image ${PRISTINE_IMAGE_NAME}; then
-  upload_image "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
+if [[ "${DEV_IMAGE}" -eq 1 ]]; then
+  create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
+  upload_image "${BUILD_DIR}/${COREOS_DEVELOPER_IMAGE_NAME}"
 fi
 
-# Running board-specific setup if any exists.
-if type board_setup &>/dev/null; then
-  board_setup "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
-fi
-
-# Create a developer image if an image that is based on it is requested.
-if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME}; then
-  if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
-    cp "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}" \
-        "${BUILD_DIR}/${CHROMEOS_DEVELOPER_IMAGE_NAME}"
-  else
-    copy_image ${PRISTINE_IMAGE_NAME} ${CHROMEOS_DEVELOPER_IMAGE_NAME}
-  fi
-  install_dev_packages ${CHROMEOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT}
-  upload_image "${BUILD_DIR}/${CHROMEOS_DEVELOPER_IMAGE_NAME}"
-fi
-
-if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
-  copy_image ${CHROMEOS_BASE_IMAGE_NAME} ${COREOS_PRODUCTION_IMAGE_NAME}
-  setup_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT}
+if [[ "${PROD_IMAGE}" -eq 1 ]]; then
+  create_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
   upload_image "${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"
   if [[ ${FLAGS_generate_update} -eq ${FLAGS_TRUE} ]]; then
     generate_update "${COREOS_PRODUCTION_IMAGE_NAME}" ${DISK_LAYOUT}
   fi
-fi
-
-if ! should_build_image ${PRISTINE_IMAGE_NAME}; then
-  rm -f "${BUILD_DIR}/${PRISTINE_IMAGE_NAME}"
 fi
 
 # Write out a version.txt file, this will be used by image_to_vm.sh
@@ -203,15 +177,12 @@ EOF
 }
 
 # Print out the images we generated.
-if should_build_image ${COREOS_PRODUCTION_IMAGE_NAME}; then
+if [[ "${PROD_IMAGE}" -eq 1 ]]; then
   echo "CoreOS Production image created as ${COREOS_PRODUCTION_IMAGE_NAME}"
   print_image_to_vm "prod"
 fi
-if should_build_image ${CHROMEOS_BASE_IMAGE_NAME}; then
-  echo "Non-developer CoreOS image created as ${PRISTINE_IMAGE_NAME}"
-fi
-if should_build_image ${CHROMEOS_DEVELOPER_IMAGE_NAME}; then
-  echo "Developer image created as ${CHROMEOS_DEVELOPER_IMAGE_NAME}"
+if [[ "${DEV_IMAGE}" -eq 1 ]]; then
+  echo "Developer image created as ${COREOS_DEVELOPER_IMAGE_NAME}"
   print_image_to_vm
 fi
 

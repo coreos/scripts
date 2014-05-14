@@ -91,7 +91,7 @@ if [ ${FLAGS_prod_image} -eq ${FLAGS_TRUE} ]; then
   set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${COREOS_PRODUCTION_IMAGE_NAME}"
 else
   # Use the standard image
-  set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${CHROMEOS_IMAGE_NAME}"
+  set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${COREOS_DEVELOPER_IMAGE_NAME}"
 fi
 
 # Make sure things are cleaned up on failure

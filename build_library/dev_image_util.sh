@@ -50,11 +50,10 @@ detect_dev_url() {
     fi
 }
 
-# Modifies an existing image to add development packages.
-# Takes as an arg the name of the image to be created.
-install_dev_packages() {
+create_dev_image() {
   local image_name=$1
   local disk_layout=$2
+  local update_group=$3
   local devserver=$(detect_dev_url)
   local auserver=""
 
@@ -65,18 +64,16 @@ install_dev_packages() {
     info "Unable do detect local dev server address."
   fi
 
-  info "Adding developer packages to ${image_name}"
+  info "Building developer image ${image_name}"
   local root_fs_dir="${BUILD_DIR}/rootfs"
 
-  "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
-      mount "${BUILD_DIR}/${image_name}" "${root_fs_dir}"
-  trap "cleanup_mounts '${root_fs_dir}' && delete_prompt" EXIT
+  start_image "${image_name}" "${disk_layout}" "${root_fs_dir}"
 
-  # Install developer packages described in coreos-dev.
-  emerge_to_image --root="${root_fs_dir}" coreos-base/coreos-dev
+  emerge_to_image "${root_fs_dir}" coreos-base/coreos-dev
 
-  # Make sure profile.env and ld.so.cache has been generated
-  sudo ROOT="${root_fs_dir}" env-update
+  "${BUILD_LIBRARY_DIR}/set_lsb_release" \
+    --root="${root_fs_dir}" \
+    --board="${BOARD}"
 
   # Setup portage for emerge and gmerge
   configure_dev_portage "${root_fs_dir}" "${devserver}"
@@ -101,12 +98,5 @@ EOF
   sudo mkdir -p "${fs_wants}"
   sudo ln -s ../remount-usr.service "${fs_wants}"
 
-  # Zero all fs free space, not fatal since it won't work on linux < 3.2
-  sudo fstrim "${root_fs_dir}" || true
-  sudo fstrim "${root_fs_dir}/usr" || true
-
-  info "Developer image built and stored at ${image_name}"
-
-  cleanup_mounts "${root_fs_dir}"
-  trap - EXIT
+  finish_image "${disk_layout}" "${root_fs_dir}" "${update_group}"
 }
