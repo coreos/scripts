@@ -149,8 +149,6 @@ init_setup () {
    mkdir -p -m 755 "${FLAGS_chroot}/usr" \
      "${FLAGS_chroot}/usr/local/portage" \
      "${FLAGS_chroot}"/"${CROSSDEV_OVERLAY}"
-   ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage" \
-     "${FLAGS_chroot}/usr/portage"
    ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/coreos-overlay" \
      "${FLAGS_chroot}"/"${CHROOT_OVERLAY}"
    ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage-stable" \
@@ -197,19 +195,6 @@ EOF
    cp /etc/{hosts,resolv.conf} "$FLAGS_chroot/etc/"
    chmod 0644 "$FLAGS_chroot"/etc/{hosts,resolv.conf}
 
-   # Setup host make.conf. This includes any overlay that we may be using
-   # and a pointer to pre-built packages.
-   # TODO: This should really be part of a profile in the portage.
-   info "Setting up /etc/make.*..."
-   ln -sf "${CHROOT_CONFIG}/make.conf.amd64-host" \
-     "${FLAGS_chroot}/etc/portage/make.conf"
-   ln -sf "${CHROOT_OVERLAY}/profiles/default/linux/amd64/10.0" \
-     "${FLAGS_chroot}/etc/portage/make.profile"
-
-   # Create make.conf.user .
-   touch "${FLAGS_chroot}"/etc/portage/make.conf.user
-   chmod 0644 "${FLAGS_chroot}"/etc/portage/make.conf.user
-
    # Create directories referred to by our conf files.
    mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/pkgs" \
      "${FLAGS_chroot}/var/cache/"chromeos-{cache,chrome} \
@@ -242,25 +227,13 @@ PATH=${CHROOT_TRUNK_DIR}/chromite/bin:${DEPOT_TOOLS_DIR}
 CROS_WORKON_SRCROOT="${CHROOT_TRUNK_DIR}"
 PORTAGE_USERNAME=${SUDO_USER}
 EOF
+   early_enter_chroot env-update
 
    # Add chromite into python path.
    for python_path in "${FLAGS_chroot}/usr/lib/"python2.*; do
      sudo mkdir -p "${python_path}"
      sudo ln -s "${CHROOT_TRUNK_DIR}"/chromite "${python_path}"
    done
-
-   # TODO(zbehan): Configure stuff that is usually configured in postinst's,
-   # but wasn't. Fix the postinst's.
-   info "Running post-inst configuration hacks"
-   early_enter_chroot env-update
-
-
-   # This is basically a sanity check of our chroot.  If any of these
-   # don't exist, then either bind mounts have failed, an invocation
-   # from above is broke, or some assumption about the stage3 is no longer
-   # true.
-   early_enter_chroot ls -l /etc/portage/make.{conf,profile} \
-     /usr/local/portage/coreos/profiles/default/linux/amd64/10.0
 
    target="${FLAGS_chroot}/etc/profile.d"
    mkdir -p "${target}"
@@ -333,10 +306,6 @@ if [[ $FLAGS_delete  -eq $FLAGS_TRUE || \
 fi
 
 CHROOT_TRUNK="${CHROOT_TRUNK_DIR}"
-PORTAGE="${SRC_ROOT}/third_party/portage"
-OVERLAY="${SRC_ROOT}/third_party/coreos-overlay"
-CONFIG_DIR="${OVERLAY}/coreos/config"
-CHROOT_CONFIG="${CHROOT_TRUNK_DIR}/src/third_party/coreos-overlay/coreos/config"
 PORTAGE_STABLE_OVERLAY="/usr/local/portage/stable"
 CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
 CHROOT_OVERLAY="/usr/local/portage/coreos"

@@ -49,13 +49,27 @@ switch_to_strict_mode
 
 PORTAGE_STABLE_OVERLAY="/usr/local/portage/stable"
 CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
-CHROOT_OVERLAY="/usr/local/portage/coreos"
+COREOS_OVERLAY="/usr/local/portage/coreos"
+COREOS_CONFIG="${COREOS_OVERLAY}/coreos/config"
 
 info "Setting up portage..."
 sudo mkdir -p "/etc/portage/repos.conf/"
+sudo ln -sf "${COREOS_CONFIG}/make.conf.amd64-host" "/etc/portage/make.conf"
+sudo touch "/etc/portage/make.conf.user"
+
 sudo_clobber "/etc/portage/make.conf.host_setup" <<EOF
 # Created by update_chroot
+PORTDIR="${PORTAGE_STABLE_OVERLAY}"
+PORTDIR_OVERLAY="${CROSSDEV_OVERLAY} ${COREOS_OVERLAY}"
+DISTDIR="/var/lib/portage/distfiles"
+PKGDIR="/var/lib/portage/pkgs"
+PORT_LOGDIR="/var/log/portage"
+PORTAGE_BINHOST="$(get_sdk_binhost)"
 MAKEOPTS="--jobs=${NUM_JOBS} --load-average=$((NUM_JOBS * 2))"
+
+# Generally there isn't any need to add packages to @world by default.
+# You can use --select to override this.
+EMERGE_DEFAULT_OPTS="--oneshot"
 EOF
 
 sudo_clobber "/etc/portage/repos.conf/coreos.conf" <<EOF
@@ -66,11 +80,13 @@ main-repo = portage-stable
 disabled = true
 
 [coreos]
-location = ${CHROOT_OVERLAY}
+location = ${COREOS_OVERLAY}
 
 [portage-stable]
 location = ${PORTAGE_STABLE_OVERLAY}
 EOF
+
+sudo eselect profile set --force "$(get_sdk_profile)"
 
 # Create crossdev repo_name and metadata
 info "Setting up crossdev..."
