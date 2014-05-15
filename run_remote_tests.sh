@@ -1,1 +1,0 @@
-../platform/crostestutils/run_remote_tests.sh

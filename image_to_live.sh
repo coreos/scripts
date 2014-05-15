@@ -1,1 +1,0 @@
-../platform/dev/host/image_to_live.sh
