@@ -28,7 +28,7 @@ VERSION="master"
 BOARD="amd64-usr"
 GROUP="alpha"
 IMAGE="coreos_production_ami_image.bin.bz2"
-URL_FMT="http://storage.core-os.net/coreos/%s/%s/$IMAGE"
+GS_URL="gs://storage.core-os.net/coreos"
 IMG_URL=""
 IMG_PATH=""
 
@@ -39,15 +39,14 @@ Options:
     -g GROUP    Set the update group, default is alpha or master
     -p PATH     Path to compressed disk image, overrides -u
     -u URL      URL to compressed disk image, derived from -V if unset.
-    -K KEY      Path to Amazon API private key.
-    -C CERT     Path to Amazon API key certificate.
+    -s STORAGE  GS URL for Google storage (used to generate URL)
     -h          this ;-)
     -v          Verbose, see all the things!
 
 This script must be run from an ec2 host with the ec2 tools installed.
 "
 
-while getopts "V:b:g:p:u:K:C:hv" OPTION
+while getopts "V:b:g:p:u:s:hv" OPTION
 do
     case $OPTION in
         V) VERSION="$OPTARG";;
@@ -55,8 +54,7 @@ do
         g) GROUP="$OPTARG";;
         p) IMG_PATH="$OPTARG";;
         u) IMG_URL="$OPTARG";;
-        K) export EC2_PRIVATE_KEY="$OPTARG";;
-        C) export EC2_CERT="$OPTARG";;
+        s) GS_URL="$OPTARG";;
         h) echo "$USAGE"; exit;;
         v) set -x;;
         *) exit 1;;
@@ -77,7 +75,7 @@ if [[ -n "$IMG_PATH" ]]; then
     IMG_URL=$(basename "$IMG_PATH")
 else
     if [[ -z "$IMG_URL" ]]; then
-        IMG_URL=$(printf "$URL_FMT" "$BOARD" "$VERSION")
+        IMG_URL="http://${GS_URL#gs://}/$BOARD/$VERSION/$IMAGE"
     fi
     if ! curl --fail -s --head "$IMG_URL" >/dev/null; then
         echo "$0: Image URL unavailable: $IMG_URL" >&2

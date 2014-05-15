@@ -20,8 +20,7 @@ USAGE="Usage: $0 -V 100.0.0
     -V VERSION  Find AMI by CoreOS version. (required)
     -b BOARD    Set to the board name, default is amd64-usr
     -g GROUP    Set the update group, default is alpha
-    -K KEY      Path to Amazon API private key.
-    -C CERT     Path to Amazon API key certificate.
+    -s STORAGE  GS URL for Google storage to upload to.
     -h          this ;-)
     -v          Verbose, see all the things!
 
@@ -29,20 +28,19 @@ This script must be run from an ec2 host with the ec2 tools installed.
 "
 
 IMAGE="coreos_production_ami"
-URL_FMT="gs://storage.core-os.net/coreos/%s/%s/${IMAGE}_%s.txt"
+GS_URL="gs://storage.core-os.net/coreos"
 AMI=
 VER=
 BOARD="amd64-usr"
 GROUP="alpha"
 
-while getopts "V:b:g:K:C:hv" OPTION
+while getopts "V:b:g:s:hv" OPTION
 do
     case $OPTION in
         V) VER="$OPTARG";;
         b) BOARD="$OPTARG";;
         g) GROUP="$OPTARG";;
-        K) export EC2_PRIVATE_KEY="$OPTARG";;
-        C) export EC2_CERT="$OPTARG";;
+        s) GS_URL="$OPTARG";;
         h) echo "$USAGE"; exit;;
         v) set -x;;
         *) exit 1;;
@@ -74,7 +72,7 @@ done
 
 OUT=
 for r in "${!AMIS[@]}"; do
-    url=$(printf "$URL_FMT" "$BOARD" "$VER" "$r")
+    url="$GS_URL/$BOARD/$VER/${IMAGE}_${r}.txt"
     tmp=$(mktemp --suffix=.txt)
     trap "rm -f '$tmp'" EXIT
     echo "${AMIS[$r]}" > "$tmp"
@@ -86,7 +84,7 @@ for r in "${!AMIS[@]}"; do
         OUT="${OUT}|${r}=${AMIS[$r]}"
     fi
 done
-url=$(printf "$URL_FMT" "$BOARD" "$VER" "all")
+url="$GS_URL/$BOARD/$VER/${IMAGE}_all.txt"
 tmp=$(mktemp --suffix=.txt)
 trap "rm -f '$tmp'" EXIT
 echo "$OUT" > "$tmp"
