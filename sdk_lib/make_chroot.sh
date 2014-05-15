@@ -44,8 +44,6 @@ DEFINE_boolean fast "${DEFAULT_FAST}" \
   "Use the parallel_emerge wrapper script."
 DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
-DEFINE_string stage3_date "20130130" \
-  "Use the stage3 with the given date."
 DEFINE_string stage3_path "" \
   "Use the stage3 located on this path."
 DEFINE_string cache_dir "" "Directory to store caches within."
@@ -71,30 +69,9 @@ switch_to_strict_mode
   [[ -z "${FLAGS_cache_dir}" ]] && \
   die "--cache_dir is required"
 
-. "${SCRIPT_ROOT}"/sdk_lib/make_conf_util.sh
-
-USEPKG=""
-if [[ $FLAGS_usepkg -eq $FLAGS_TRUE ]]; then
-  # Use binary packages. Include all build-time dependencies,
-  # so as to avoid unnecessary differences between source
-  # and binary builds.
-  USEPKG="--usepkg --with-bdeps y"
-  if [[ $FLAGS_getbinpkg -eq $FLAGS_TRUE ]]; then
-    USEPKG="$USEPKG --getbinpkg"
-  fi
-fi
-
-# Support faster build if necessary.
-EMERGE_CMD="emerge"
-if [ "$FLAGS_fast" -eq "${FLAGS_TRUE}" ]; then
-  CHROOT_CHROMITE_DIR="${CHROOT_TRUNK_DIR}/chromite"
-  EMERGE_CMD="${CHROOT_CHROMITE_DIR}/bin/parallel_emerge"
-fi
-
 ENTER_CHROOT_ARGS=(
   CROS_WORKON_SRCROOT="$CHROOT_TRUNK"
   PORTAGE_USERNAME="${SUDO_USER}"
-  IGNORE_PREFLIGHT_BINHOST="$IGNORE_PREFLIGHT_BINHOST"
 )
 
 # Invoke enter_chroot.  This can only be used after sudo has been installed.
@@ -172,8 +149,6 @@ init_setup () {
    mkdir -p -m 755 "${FLAGS_chroot}/usr" \
      "${FLAGS_chroot}/usr/local/portage" \
      "${FLAGS_chroot}"/"${CROSSDEV_OVERLAY}"
-   ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage" \
-     "${FLAGS_chroot}/usr/portage"
    ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/coreos-overlay" \
      "${FLAGS_chroot}"/"${CHROOT_OVERLAY}"
    ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage-stable" \
@@ -220,19 +195,6 @@ EOF
    cp /etc/{hosts,resolv.conf} "$FLAGS_chroot/etc/"
    chmod 0644 "$FLAGS_chroot"/etc/{hosts,resolv.conf}
 
-   # Setup host make.conf. This includes any overlay that we may be using
-   # and a pointer to pre-built packages.
-   # TODO: This should really be part of a profile in the portage.
-   info "Setting up /etc/make.*..."
-   ln -sf "${CHROOT_CONFIG}/make.conf.amd64-host" \
-     "${FLAGS_chroot}/etc/portage/make.conf"
-   ln -sf "${CHROOT_OVERLAY}/profiles/default/linux/amd64/10.0" \
-     "${FLAGS_chroot}/etc/portage/make.profile"
-
-   # Create make.conf.user .
-   touch "${FLAGS_chroot}"/etc/portage/make.conf.user
-   chmod 0644 "${FLAGS_chroot}"/etc/portage/make.conf.user
-
    # Create directories referred to by our conf files.
    mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/pkgs" \
      "${FLAGS_chroot}/var/cache/"chromeos-{cache,chrome} \
@@ -265,25 +227,13 @@ PATH=${CHROOT_TRUNK_DIR}/chromite/bin:${DEPOT_TOOLS_DIR}
 CROS_WORKON_SRCROOT="${CHROOT_TRUNK_DIR}"
 PORTAGE_USERNAME=${SUDO_USER}
 EOF
+   early_enter_chroot env-update
 
    # Add chromite into python path.
    for python_path in "${FLAGS_chroot}/usr/lib/"python2.*; do
      sudo mkdir -p "${python_path}"
      sudo ln -s "${CHROOT_TRUNK_DIR}"/chromite "${python_path}"
    done
-
-   # TODO(zbehan): Configure stuff that is usually configured in postinst's,
-   # but wasn't. Fix the postinst's.
-   info "Running post-inst configuration hacks"
-   early_enter_chroot env-update
-
-
-   # This is basically a sanity check of our chroot.  If any of these
-   # don't exist, then either bind mounts have failed, an invocation
-   # from above is broke, or some assumption about the stage3 is no longer
-   # true.
-   early_enter_chroot ls -l /etc/portage/make.{conf,profile} \
-     /usr/local/portage/coreos/profiles/default/linux/amd64/10.0
 
    target="${FLAGS_chroot}/etc/profile.d"
    mkdir -p "${target}"
@@ -356,10 +306,6 @@ if [[ $FLAGS_delete  -eq $FLAGS_TRUE || \
 fi
 
 CHROOT_TRUNK="${CHROOT_TRUNK_DIR}"
-PORTAGE="${SRC_ROOT}/third_party/portage"
-OVERLAY="${SRC_ROOT}/third_party/coreos-overlay"
-CONFIG_DIR="${OVERLAY}/coreos/config"
-CHROOT_CONFIG="${CHROOT_TRUNK_DIR}/src/third_party/coreos-overlay/coreos/config"
 PORTAGE_STABLE_OVERLAY="/usr/local/portage/stable"
 CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
 CHROOT_OVERLAY="/usr/local/portage/coreos"
@@ -373,22 +319,11 @@ for type in http ftp all; do
    fi
 done
 
-# Create the base Gentoo stage3 based on last version put in chroot.
-STAGE3="${OVERLAY}/coreos/stage3/stage3-amd64-${FLAGS_stage3_date}.tar.bz2"
-if [ -f $CHROOT_STATE ] && \
-  ! egrep -q "^STAGE3=$STAGE3" $CHROOT_STATE >/dev/null 2>&1
-then
-  info "STAGE3 version has changed."
-  delete_existing
+if [ ! -f "${FLAGS_stage3_path}" ]; then
+  error "Invalid stage3!"
+  exit 1;
 fi
-
-if [ -n "${FLAGS_stage3_path}" ]; then
-  if [ ! -f "${FLAGS_stage3_path}" ]; then
-    error "Invalid stage3!"
-    exit 1;
-  fi
-  STAGE3="${FLAGS_stage3_path}"
-fi
+STAGE3="${FLAGS_stage3_path}"
 
 # Create the destination directory.
 mkdir -p "$FLAGS_chroot"
@@ -407,39 +342,21 @@ else
   ${DECOMPRESS} -dc "${STAGE3}" | \
     tar -xp -C "${FLAGS_chroot}"
   rm -f "$FLAGS_chroot/etc/"make.{globals,conf.user}
-fi
 
-# Set up users, if needed, before mkdir/mounts below.
-[ -f $CHROOT_STATE ] || init_users
+  # Set up users, if needed, before mkdir/mounts below.
+  init_users
 
-# Reset internal vars to force them to the 'inside the chroot' value;
-# since user directories now exist, this can do the upgrade in place.
-set_chroot_trunk_dir "${FLAGS_chroot}" poppycock
+  # Reset internal vars to force them to the 'inside the chroot' value;
+  # since user directories now exist, this can do the upgrade in place.
+  set_chroot_trunk_dir "${FLAGS_chroot}" poppycock
+  mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK_DIR}" \
+      "${FLAGS_chroot}/${DEPOT_TOOLS_DIR}" "${FLAGS_chroot}/run"
 
-echo
-info "Setting up mounts..."
-# Set up necessary mounts and make sure we clean them up on exit.
-mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK_DIR}" \
-    "${FLAGS_chroot}/${DEPOT_TOOLS_DIR}" "${FLAGS_chroot}/run"
-
-# Create a special /etc/make.conf.host_setup that we use to bootstrap
-# the chroot.  The regular content for the file will be generated the
-# first time we invoke update_chroot (further down in this script).
-create_bootstrap_host_setup "${FLAGS_chroot}"
-
-if ! [ -f "$CHROOT_STATE" ];then
-  INITIALIZE_CHROOT=1
-fi
-
-if [ -z "${INITIALIZE_CHROOT}" ];then
-  info "chroot already initialized.  Skipping..."
-else
   # Run all the init stuff to setup the env.
   init_setup
 fi
 
 # Add file to indicate that it is a chroot.
-# Add version of $STAGE3 for update checks.
 echo STAGE3=$STAGE3 > $CHROOT_STATE
 
 # Update chroot.

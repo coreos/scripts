@@ -127,6 +127,28 @@ get_board_binhost() {
     done
 }
 
+get_sdk_arch() {
+    get_portage_arch $(uname -m)
+}
+
+get_sdk_profile() {
+    echo "coreos:coreos/$(get_sdk_arch)/sdk"
+}
+
+# Usage: get_sdk_binhost [version...]
+# If no versions are specified the current and SDK versions are used.
+get_sdk_binhost() {
+    local arch=$(get_sdk_arch) ver
+    if [[ $# -eq 0 ]]; then
+        set -- "${COREOS_SDK_VERSION}" "${COREOS_VERSION_ID}"
+    fi
+
+    for ver in "$@"; do
+        echo "${COREOS_DOWNLOAD_ROOT}/sdk/${arch}/${ver}/pkgs/"
+        echo "${COREOS_DOWNLOAD_ROOT}/sdk/${arch}/${ver}/toolchain/"
+    done
+}
+
 # Usage: get_cross_pkgs chost [chost2...]
 get_cross_pkgs() {
     local cross_chost native_pkg
