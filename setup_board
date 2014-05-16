@@ -216,7 +216,7 @@ fi
 
 info "Configuring portage in ${BOARD_ROOT}"
 cmds=(
-  "mkdir -p '${BOARD_ROOT}' '${BOARD_PROFILE}' '${BOARD_ETC}/portage/hooks'"
+  "mkdir -p '${BOARD_ROOT}' '${BOARD_PROFILE}'"
   "ROOT='${BOARD_ROOT}' eselect profile set --force '${PORTAGE_PROFILE}'"
 )
 
@@ -231,9 +231,6 @@ cmds+=(
     '${BOARD_ETC}/make.conf.common'"
   "touch '${BOARD_ROOT}/etc/make.conf.user'"
 )
-for d in "${SCRIPTS_DIR}"/hooks/*; do
-  cmds+=( "ln -sfT '${d}' '${BOARD_ROOT}/etc/portage/hooks/${d##*/}'" )
-done
 sudo_multi "${cmds[@]}"
 
 sudo_clobber "${BOARD_SETUP}" <<EOF
