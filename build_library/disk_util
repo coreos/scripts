@@ -7,6 +7,7 @@ import argparse
 import contextlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -320,6 +321,18 @@ def Sudo(cmd, stdout_null=False):
       null.close()
 
 
+def BtrfsSubvolId(path):
+  """Get the subvolume id from a given path."""
+
+  out = subprocess.check_output(
+          ['sudo', 'btrfs', 'subvolume', 'show', path])
+  m = re.search(r'^\s*Object ID:\s*(\d+)$', out, re.MULTILINE)
+  if not m:
+    raise Exception('Failed to parse btrfs output: %r', out)
+
+  return int(m.group(1))
+
+
 def FormatBtrfs(part, device):
   """Format an ext2 or ext4 filesystem.
 
@@ -342,6 +355,8 @@ def FormatBtrfs(part, device):
     Sudo(['mount', '-t', 'btrfs', device, btrfs_mount])
     try:
       Sudo(['btrfs', 'subvolume', 'create', subvol_path])
+      subvol_id = BtrfsSubvolId(subvol_path)
+      Sudo(['btrfs', 'subvolume', 'set-default', subvol_id, btrfs_mount])
     finally:
       Sudo(['umount', btrfs_mount])
       os.rmdir(btrfs_mount)
