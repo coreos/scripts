@@ -104,6 +104,19 @@ emerge_to_image() {
   sudo -E ROOT="${root_fs_dir}" env-update
 }
 
+# Usage: systemd_enable /root default.target something.service
+# Or: systemd_enable /root default.target some@.service some@thing.service
+systemd_enable() {
+  local root_fs_dir="$1"
+  local target="$2"
+  local unit_file="$3"
+  local unit_alias="${4:-$3}"
+  local wants_dir="${root_fs_dir}/usr/lib/systemd/system/${target}.wants"
+
+  sudo mkdir -p "${wants_dir}"
+  sudo ln -sf "../${unit_file}" "${wants_dir}/${unit_alias}"
+}
+
 start_image() {
   local image_name="$1"
   local disk_layout="$2"

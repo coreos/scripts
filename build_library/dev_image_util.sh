@@ -94,9 +94,7 @@ EOF
 
   # Remount the system partition read-write by default.
   # The remount services are provided by coreos-base/coreos-init
-  local fs_wants="${root_fs_dir}/usr/lib/systemd/system/local-fs.target.wants"
-  sudo mkdir -p "${fs_wants}"
-  sudo ln -s ../remount-usr.service "${fs_wants}"
+  systemd_enable "${root_fs_dir}" "local-fs.target" "remount-usr.service"
 
   finish_image "${disk_layout}" "${root_fs_dir}" "${update_group}"
 }
