@@ -32,7 +32,7 @@ DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
-DEFINE_string disk_layout "base" \
+DEFINE_string disk_layout "" \
   "The disk layout type to use for this image."
 DEFINE_string group "${DEFAULT_GROUP}" \
   "The update group."
@@ -46,9 +46,9 @@ FLAGS_HELP="USAGE: build_image [flags] [list of images to build].
 This script is used to build a CoreOS image. CoreOS comes in many
 different forms.  This scripts can be used to build the following:
 
-base - Pristine CoreOS image for generating update payloads or a dev/prod image.
 prod - Production image for CoreOS. This image is for booting.
 dev - Developer image. Like base but with additional developer packages.
+container - Developer image with single filesystem, bootable by nspawn.
 
 Examples:
 
@@ -93,10 +93,12 @@ check_gsutil_opts
 
 PROD_IMAGE=0
 DEV_IMAGE=0
+CONTAINER=0
 for arg in "$@"; do
   case "${arg}" in
     prod) PROD_IMAGE=1 ;;
     dev)  DEV_IMAGE=1 ;;
+    container) CONTAINER=1 ;;
     *)    die_notrace "Unknown image type ${arg}" ;;
   esac
 done
@@ -130,10 +132,16 @@ fi
 mkdir -p "${BUILD_DIR}"
 
 DISK_LAYOUT="${FLAGS_disk_layout:-base}"
+CONTAINER_LAYOUT="${FLAGS_disk_layout:-container}"
 
 if [[ "${DEV_IMAGE}" -eq 1 ]]; then
   create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
   upload_image "${BUILD_DIR}/${COREOS_DEVELOPER_IMAGE_NAME}"
+fi
+
+if [[ "${CONTAINER}" -eq 1 ]]; then
+  create_dev_image "${COREOS_DEVELOPER_CONTAINER_NAME}" "${CONTAINER_LAYOUT}" "${FLAGS_group}"
+  upload_image "${BUILD_DIR}/${OREOS_DEVELOPER_CONTAINER_NAME}"
 fi
 
 if [[ "${PROD_IMAGE}" -eq 1 ]]; then
