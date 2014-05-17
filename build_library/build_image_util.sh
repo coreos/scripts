@@ -151,17 +151,22 @@ finish_image() {
     --group="${update_group}" \
     --board="${BOARD}"
 
-  ${BUILD_LIBRARY_DIR}/configure_bootloaders.sh \
-    --arch=${ARCH} \
-    --disk_layout="${disk_layout}" \
-    --boot_dir="${root_fs_dir}"/usr/boot \
-    --esp_dir="${root_fs_dir}"/boot/efi \
-    --boot_args="${FLAGS_boot_args}"
+  # Only configure bootloaders if there is a boot partition
+  if mountpoint -q "${root_fs_dir}"/boot/efi; then
+    ${BUILD_LIBRARY_DIR}/configure_bootloaders.sh \
+      --arch=${ARCH} \
+      --disk_layout="${disk_layout}" \
+      --boot_dir="${root_fs_dir}"/usr/boot \
+      --esp_dir="${root_fs_dir}"/boot/efi \
+      --boot_args="${FLAGS_boot_args}"
+  fi
 
   # Zero all fs free space to make it more compressible so auto-update
   # payloads become smaller, not fatal since it won't work on linux < 3.2
   sudo fstrim "${root_fs_dir}" || true
-  sudo fstrim "${root_fs_dir}/usr" || true
+  if mountpoint -q "${root_fs_dir}/usr"; then
+    sudo fstrim "${root_fs_dir}/usr" || true
+  fi
 
   cleanup_mounts "${root_fs_dir}"
   trap - EXIT

@@ -63,10 +63,16 @@ EOF
   sudo rm ${root_fs_dir}/etc/xinetd.d/rsyncd
   sudo rmdir ${root_fs_dir}/etc/xinetd.d
 
+  # Only try to disable rw on /usr if there is a /usr partition 
+  local disable_read_write=${FLAGS_enable_rootfs_verification}
+  if ! mountpoint -q "${root_fs_dir}/usr"; then
+    disable_read_write=${FLAGS_FALSE}
+  fi
+
   finish_image "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
   # Make the filesystem un-mountable as read-write.
-  if [ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]; then
+  if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
     "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
       tune --disable2fs_rw "${BUILD_DIR}/${image_name}" "USR-A"
   fi
