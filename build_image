@@ -38,6 +38,8 @@ DEFINE_string group "${DEFAULT_GROUP}" \
   "The update group."
 DEFINE_boolean generate_update "${FLAGS_FALSE}" \
   "Generate update payload. (prod only)"
+DEFINE_string developer_data "" \
+  "Insert a custom cloudinit file into the image."
 
 # include upload options
 . "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
@@ -130,6 +132,23 @@ fi
 mkdir -p "${BUILD_DIR}"
 
 DISK_LAYOUT="${FLAGS_disk_layout:-base}"
+
+if [[ -n "${FLAGS_developer_data}" ]]; then
+  if [[ ! -f "${FLAGS_developer_data}" ]]; then
+    die_notrace "Developer data is not a file: ${FLAGS_developer_data}"
+  fi
+  info "Using developer cloudinit data: ${FLAGS_developer_data}"
+elif [[ -s /etc/shared_user_passwd.txt ]]; then
+  FLAGS_developer_data="${BUILD_DIR}/developer_data"
+  info "Generating developer cloudinit with shared user password."
+  cat >"${FLAGS_developer_data}" <<EOF
+#cloud-config
+
+users:
+  - name: core
+    passwd: $(</etc/shared_user_passwd.txt)
+EOF
+fi
 
 if [[ "${DEV_IMAGE}" -eq 1 ]]; then
   create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}

@@ -171,6 +171,14 @@ finish_image() {
     --esp_dir="${root_fs_dir}"/boot/efi \
     --boot_args="${FLAGS_boot_args}"
 
+  if [[ -n "${FLAGS_developer_data}" ]]; then
+    local data_path="/usr/share/coreos/developer_data"
+    local unit_path="usr-share-coreos-developer_data"
+    sudo cp "${FLAGS_developer_data}" "${root_fs_dir}/${data_path}"
+    systemd_enable "${root_fs_dir}" user-config.target \
+        "user-cloudinit@.path" "user-cloudinit@${unit_path}.path"
+  fi
+
   # Zero all fs free space to make it more compressible so auto-update
   # payloads become smaller, not fatal since it won't work on linux < 3.2
   sudo fstrim "${root_fs_dir}" || true
