@@ -432,7 +432,7 @@ def Format(options):
   WritePartitionTable(options, config, partitions)
 
   for part in partitions.itervalues():
-    if 'fs_type' not in part:
+    if part['type'] == 'blank' or 'fs_type' not in part:
       continue
 
     print "Formatting partition %s (%s) as %s" % (
