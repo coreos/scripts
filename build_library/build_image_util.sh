@@ -104,6 +104,19 @@ emerge_to_image() {
   sudo -E ROOT="${root_fs_dir}" env-update
 }
 
+# Usage: systemd_enable /root default.target something.service
+# Or: systemd_enable /root default.target some@.service some@thing.service
+systemd_enable() {
+  local root_fs_dir="$1"
+  local target="$2"
+  local unit_file="$3"
+  local unit_alias="${4:-$3}"
+  local wants_dir="${root_fs_dir}/usr/lib/systemd/system/${target}.wants"
+
+  sudo mkdir -p "${wants_dir}"
+  sudo ln -sf "../${unit_file}" "${wants_dir}/${unit_alias}"
+}
+
 start_image() {
   local image_name="$1"
   local disk_layout="$2"
@@ -159,6 +172,14 @@ finish_image() {
       --boot_dir="${root_fs_dir}"/usr/boot \
       --esp_dir="${root_fs_dir}"/boot/efi \
       --boot_args="${FLAGS_boot_args}"
+  fi
+
+  if [[ -n "${FLAGS_developer_data}" ]]; then
+    local data_path="/usr/share/coreos/developer_data"
+    local unit_path="usr-share-coreos-developer_data"
+    sudo cp "${FLAGS_developer_data}" "${root_fs_dir}/${data_path}"
+    systemd_enable "${root_fs_dir}" user-config.target \
+        "user-cloudinit@.path" "user-cloudinit@${unit_path}.path"
   fi
 
   # Zero all fs free space to make it more compressible so auto-update

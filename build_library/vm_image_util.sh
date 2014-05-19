@@ -373,18 +373,6 @@ _write_cpio_common() {
         # Inject /usr/.noupdate into squashfs to disable update_engine
         echo "/usr/.noupdate f 444 root root echo -n" >"${VM_TMP_DIR}/extra"
     else
-        # Use OEM cloud-config to setup the core user's password
-        if [[ -s /etc/shared_user_passwd.txt ]]; then
-            sudo mkdir -p "${cpio_target}/usr/share/oem"
-            sudo_clobber "${cpio_target}/usr/share/oem/cloud-config.yml" <<EOF
-#cloud-config
-
-users:
-  - name: core
-    passwd: $(</etc/shared_user_passwd.txt)
-EOF
-        fi
-
         # Inject /usr/.noupdate into squashfs to disable update_engine
         echo "/.noupdate f 444 root root echo -n" >"${VM_TMP_DIR}/extra"
     fi
