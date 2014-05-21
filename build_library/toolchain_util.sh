@@ -121,9 +121,9 @@ get_board_binhost() {
 
     for ver in "$@"; do
         if [[ $toolchain_only -eq 0 ]]; then
-            echo "${COREOS_DOWNLOAD_ROOT}/${board}/${ver}/pkgs/"
+            echo "${COREOS_DEV_BUILDS}/boards/${board}/${ver}/pkgs/"
         fi
-        echo "${COREOS_DOWNLOAD_ROOT}/${board}/${ver}/toolchain/"
+        echo "${COREOS_DEV_BUILDS}/boards/${board}/${ver}/toolchain/"
     done
 }
 
@@ -144,8 +144,8 @@ get_sdk_binhost() {
     fi
 
     for ver in "$@"; do
-        echo "${COREOS_DOWNLOAD_ROOT}/sdk/${arch}/${ver}/pkgs/"
-        echo "${COREOS_DOWNLOAD_ROOT}/sdk/${arch}/${ver}/toolchain/"
+        echo "${COREOS_DEV_BUILDS}/sdk/${arch}/${ver}/pkgs/"
+        echo "${COREOS_DEV_BUILDS}/sdk/${arch}/${ver}/toolchain/"
     done
 }
 

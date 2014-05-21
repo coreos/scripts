@@ -6,9 +6,12 @@ GSUTIL_OPTS=
 UPLOAD_ROOT=
 UPLOAD_PATH=
 UPLOAD_DEFAULT=${FLAGS_FALSE}
-if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
-  UPLOAD_DEFAULT=${FLAGS_TRUE}
-fi
+
+# Default upload root can be overridden from the environment.
+_user="${USER}"
+[[ ${USER} == "root" ]] && _user="${SUDO_USER}"
+: ${COREOS_UPLOAD_ROOT:=gs://users.developer.core-os.net/${_user}}
+unset _user
 
 IMAGE_ZIPPER="lbzip2 --compress --keep"
 IMAGE_ZIPEXT=".bz2"

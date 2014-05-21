@@ -28,7 +28,7 @@ This script must be run from an ec2 host with the ec2 tools installed.
 "
 
 IMAGE="coreos_production_ami"
-GS_URL="gs://storage.core-os.net/coreos"
+GS_URL="gs://builds.release.core-os.net"
 AMI=
 VER=
 BOARD="amd64-usr"
@@ -72,7 +72,7 @@ done
 
 OUT=
 for r in "${!AMIS[@]}"; do
-    url="$GS_URL/$BOARD/$VER/${IMAGE}_${r}.txt"
+    url="$GS_URL/$GROUP/$BOARD/$VER/${IMAGE}_${r}.txt"
     tmp=$(mktemp --suffix=.txt)
     trap "rm -f '$tmp'" EXIT
     echo "${AMIS[$r]}" > "$tmp"
@@ -84,7 +84,7 @@ for r in "${!AMIS[@]}"; do
         OUT="${OUT}|${r}=${AMIS[$r]}"
     fi
 done
-url="$GS_URL/$BOARD/$VER/${IMAGE}_all.txt"
+url="$GS_URL/$GROUP/$BOARD/$VER/${IMAGE}_all.txt"
 tmp=$(mktemp --suffix=.txt)
 trap "rm -f '$tmp'" EXIT
 echo "$OUT" > "$tmp"
