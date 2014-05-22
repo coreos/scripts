@@ -25,9 +25,9 @@ DEFINE_string api_key "" \
     "API key for roller."
 DEFINE_string endpoint "https://public.update.core-os.net" \
     "Roller endpoint to update."
-DEFINE_string build_storage "gs://storage.core-os.net/coreos" \
+DEFINE_string build_storage "gs://builds.release.core-os.net" \
     "GS bucket with official build artifacts."
-DEFINE_string release_storage "gs://storage.core-os.net/coreos" \
+DEFINE_string release_storage "" \
     "GS bucket for release downloads."
 
 # Allow toggling the assorted actions.
@@ -62,10 +62,15 @@ FLAGS_release_storage="${FLAGS_release_storage%%/}"
 roller_channel="${FLAGS_channel^}"
 lower_channel="${FLAGS_channel,,}"
 
-gs_build_path="${FLAGS_build_storage}/${FLAGS_board}/${FLAGS_version}"
-# TODO(marineam): once build_storage and release_storage are different
-# this will become two paths, one for version and the other for channel.
-gs_release_path="${FLAGS_release_storage}/${FLAGS_board}/${lower_channel}"
+# Full GS URL of the original build
+gs_build="${FLAGS_build_storage}/${lower_channel}/${FLAGS_board}/${FLAGS_version}"
+
+if [[ -z "${FLAGS_release_storage}" ]]; then
+    FLAGS_release_storage="gs://${lower_channel}.release.core-os.net"
+fi
+# Full GS URL of the public release locations
+gs_release="${FLAGS_release_storage}/${FLAGS_board}/${FLAGS_version}"
+gs_current="${FLAGS_release_storage}/${FLAGS_board}/current"
 
 if [[ ${FLAGS_do_roller} -eq ${FLAGS_TRUE} ]]; then
     rollerctl \
@@ -78,6 +83,10 @@ if [[ ${FLAGS_do_roller} -eq ${FLAGS_TRUE} ]]; then
         "${FLAGS_version}"
 fi
 
+if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]]; then
+    gsutil -m cp "${gs_build}/*" "${gs_release}/"
+fi
+
 if [[ ${FLAGS_do_gce} -eq ${FLAGS_TRUE} ]]; then
     gce_name="coreos-${lower_channel}-${FLAGS_version//./-}-v$(date -u +%Y%m%d)"
     gce_desc="CoreOS ${lower_channel} ${FLAGS_version}"
@@ -86,19 +95,16 @@ if [[ ${FLAGS_do_gce} -eq ${FLAGS_TRUE} ]]; then
         addimage \
         --description="${gce_desc}" \
         "${gce_name}" \
-        "${gs_build_path}/coreos_production_gce.tar.gz"
+        "${gs_build}/coreos_production_gce.tar.gz"
     gce_path="projects/coreos-cloud/global/images/${gce_name}"
     gce_temp=$(mktemp --suffix=.txt)
     trap "rm -f '${gce_temp}'" EXIT
     echo "${gce_path}" > "${gce_temp}"
-    gsutil cp "${gce_temp}" "${gs_build_path}/coreos_production_gce.txt"
+    gsutil cp "${gce_temp}" "${gs_release}/coreos_production_gce.txt"
     rm -f "${gce_temp}"
     trap - EXIT
 fi
 
 if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]]; then
-    gsutil -m cp \
-        "${gs_build_path}/coreos_production*" \
-        "${gs_build_path}/version.*" \
-        "${gs_release_path}/"
+    gsutil -m cp "${gs_release}/*" "${gs_current}/"
 fi

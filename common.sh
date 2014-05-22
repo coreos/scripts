@@ -335,12 +335,8 @@ COREOS_VERSION_STRING="${COREOS_VERSION}"
 readonly COREOS_EPOCH=1372636800
 TODAYS_VERSION=$(( (`date +%s` - ${COREOS_EPOCH}) / 86400 ))
 
-# Builds are uploaded to our Google Cloud Storage space,
-# can be overridden from the environment.
-: ${COREOS_UPLOAD_ROOT:=gs://storage.core-os.net/coreos}
-
-# And the corresponding http download url
-: ${COREOS_DOWNLOAD_ROOT:=http://storage.core-os.net/coreos}
+# Download URL prefix for SDK and board binary packages
+: ${COREOS_DEV_BUILDS:=http://builds.developer.core-os.net}
 
 # Load developer's custom settings.  Default location is in scripts dir,
 # since that's available both inside and outside the chroot.  By convention,

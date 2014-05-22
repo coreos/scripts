@@ -6,9 +6,12 @@ GSUTIL_OPTS=
 UPLOAD_ROOT=
 UPLOAD_PATH=
 UPLOAD_DEFAULT=${FLAGS_FALSE}
-if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
-  UPLOAD_DEFAULT=${FLAGS_TRUE}
-fi
+
+# Default upload root can be overridden from the environment.
+_user="${USER}"
+[[ ${USER} == "root" ]] && _user="${SUDO_USER}"
+: ${COREOS_UPLOAD_ROOT:=gs://users.developer.core-os.net/${_user}}
+unset _user
 
 IMAGE_ZIPPER="lbzip2 --compress --keep"
 IMAGE_ZIPEXT=".bz2"
@@ -21,6 +24,10 @@ DEFINE_string upload_root "${COREOS_UPLOAD_ROOT}" \
   "Upload prefix, board/version/etc will be appended. Must be a gs:// URL."
 DEFINE_string upload_path "" \
   "Full upload path, overrides --upload_root. Must be a full gs:// URL."
+DEFINE_string download_root "" \
+  "HTTP download prefix, board/version/etc will be appended."
+DEFINE_string download_path "" \
+  "HTTP download path, overrides --download_root."
 DEFINE_string sign "" \
   "Sign all files to be uploaded with the given GPG key."
 DEFINE_string sign_digests "" \
@@ -182,9 +189,12 @@ download_image_url() {
         echo "$1"
         return 0
     fi
-    local upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
-    if [[ -n "${UPLOAD_PATH}" ]]; then
-        upload_path="${UPLOAD_PATH}"
+
+    local download_root="${FLAGS_download_root:-${UPLOAD_ROOT}}"
+    local download_path="${download_root%%/}/${BOARD}/${COREOS_VERSION_STRING}"
+    if [[ -n "${FLAGS_download_path}" ]]; then
+        download_path="${FLAGS_download_path%%/}"
     fi
-    echo "http://${upload_path#gs://}/$1"
+
+    echo "http://${download_path#gs://}/$1"
 }

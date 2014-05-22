@@ -28,7 +28,7 @@ VERSION="master"
 BOARD="amd64-usr"
 GROUP="alpha"
 IMAGE="coreos_production_ami_image.bin.bz2"
-GS_URL="gs://storage.core-os.net/coreos"
+GS_URL="gs://builds.release.core-os.net"
 IMG_URL=""
 IMG_PATH=""
 
@@ -75,11 +75,18 @@ if [[ -n "$IMG_PATH" ]]; then
     IMG_URL=$(basename "$IMG_PATH")
 else
     if [[ -z "$IMG_URL" ]]; then
-        IMG_URL="http://${GS_URL#gs://}/$BOARD/$VERSION/$IMAGE"
+        IMG_URL="$GS_URL/$GROUP/$BOARD/$VERSION/$IMAGE"
     fi
-    if ! curl --fail -s --head "$IMG_URL" >/dev/null; then
-        echo "$0: Image URL unavailable: $IMG_URL" >&2
-        exit 1
+    if [[ "$IMG_URL" == gs://* ]]; then
+        if ! gsutil -q stat "$IMG_URL"; then
+            echo "$0: Image URL unavailable: $IMG_URL" >&2
+            exit 1
+        fi
+    else
+        if ! curl --fail -s --head "$IMG_URL" >/dev/null; then
+            echo "$0: Image URL unavailable: $IMG_URL" >&2
+            exit 1
+        fi
     fi
 fi
 
@@ -146,12 +153,14 @@ echo "Writing image from $IMG_URL to $dev"
 # if it is on the local fs, just use it, otherwise try to download it
 if [[ -n "$IMG_PATH" ]]; then
     if [[ "$IMG_PATH" =~ \.bz2$ ]]; then
-        bunzip2 -c "$IMG_PATH" | dd of=$dev bs=1M
+        bunzip2 -c "$IMG_PATH" > $dev
     else
         dd if="$IMG_PATH" of=$dev bs=1M
     fi
+elif [[ "$IMG_URL" == gs://* ]]; then
+    gsutil cat "$IMG_URL" | bunzip2 > $dev
 else
-    curl --fail "$IMG_URL" | bunzip2 | dd of=$dev bs=1M
+    curl --fail "$IMG_URL" | bunzip2 > $dev
 fi
 
 echo "Detaching $volumeid and creating snapshot"
