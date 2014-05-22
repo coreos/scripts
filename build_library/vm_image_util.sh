@@ -22,6 +22,8 @@ VALID_IMG_TYPES=(
     xen
     gce
     brightbox
+    cloudstack
+    cloudstack_vhd
 )
 
 # Set at runtime to one of the above types
@@ -157,6 +159,13 @@ IMG_rackspace_OEM_PACKAGE=oem-rackspace
 IMG_rackspace_vhd_BOOT_KERNEL=0
 IMG_rackspace_vhd_DISK_FORMAT=vhd
 IMG_rackspace_vhd_OEM_PACKAGE=oem-rackspace
+
+## cloudstack
+IMG_cloudspace_BOOT_KERNEL=0
+IMG_cloudstack_OEM_PACKAGE=oem-cloudstack
+IMG_cloudspace_vhd_BOOT_KERNEL=0
+IMG_cloudstack_vhd_DISK_FORMAT=vhd
+IMG_cloudstack_vhd_OEM_PACKAGE=oem-cloudstack
 
 ###########################################################
 
