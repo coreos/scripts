@@ -45,7 +45,7 @@ upload_files "cross toolchain packages" "${def_upload_path}" \
 
 for board in $(get_board_list); do
     board_packages="${BINPKGS}/target/${board}"
-    def_upload_path="${UPLOAD_ROOT}/${board}/${FLAGS_version}"
+    def_upload_path="${UPLOAD_ROOT}/boards/${board}/${FLAGS_version}"
     upload_files "board toolchain packages" "${def_upload_path}" \
         "toolchain/" "${board_packages}"/*
 done
