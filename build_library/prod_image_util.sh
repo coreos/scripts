@@ -33,7 +33,7 @@ create_prod_image() {
   info "Building production image ${image_name}"
   local root_fs_dir="${BUILD_DIR}/rootfs"
 
-  start_image "${image_name}" "${disk_layout}" "${root_fs_dir}"
+  start_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
   # Install minimal GCC (libs only) and then everything else
   emerge_prod_gcc "${root_fs_dir}"
@@ -69,7 +69,7 @@ EOF
     disable_read_write=${FLAGS_FALSE}
   fi
 
-  finish_image "${disk_layout}" "${root_fs_dir}" "${update_group}"
+  finish_image "${disk_layout}" "${root_fs_dir}"
 
   # Make the filesystem un-mountable as read-write.
   if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
