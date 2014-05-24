@@ -62,7 +62,7 @@
       "9":{
         "label":"ROOT",
         "type":"coreos-resize",
-        "blocks":"1048576",
+        "blocks":"4194304",
         "fs_type":"btrfs",
         "fs_subvolume":"root",
         "mount":"/"
@@ -71,7 +71,7 @@
     "vm":{
       "9":{
         "label":"ROOT",
-        "blocks":"6291456"
+        "blocks":"12582912"
       }
     },
     "vagrant":{
