@@ -67,13 +67,9 @@ create_dev_image() {
   info "Building developer image ${image_name}"
   local root_fs_dir="${BUILD_DIR}/rootfs"
 
-  start_image "${image_name}" "${disk_layout}" "${root_fs_dir}"
+  start_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
   emerge_to_image "${root_fs_dir}" coreos-base/coreos-dev
-
-  "${BUILD_LIBRARY_DIR}/set_lsb_release" \
-    --root="${root_fs_dir}" \
-    --board="${BOARD}"
 
   # Setup portage for emerge and gmerge
   configure_dev_portage "${root_fs_dir}" "${devserver}"
@@ -96,5 +92,5 @@ EOF
   # The remount services are provided by coreos-base/coreos-init
   systemd_enable "${root_fs_dir}" "local-fs.target" "remount-usr.service"
 
-  finish_image "${disk_layout}" "${root_fs_dir}" "${update_group}"
+  finish_image "${disk_layout}" "${root_fs_dir}"
 }

@@ -121,6 +121,7 @@ start_image() {
   local image_name="$1"
   local disk_layout="$2"
   local root_fs_dir="$3"
+  local update_group="$4"
 
   local disk_img="${BUILD_DIR}/${image_name}"
 
@@ -140,12 +141,17 @@ start_image() {
   # FIXME(marineam): Work around glibc setting EROOT=$ROOT
   # https://bugs.gentoo.org/show_bug.cgi?id=473728#c12
   sudo mkdir -p "${root_fs_dir}/etc/ld.so.conf.d"
+
+  # Set /etc/lsb-release on the image.
+  "${BUILD_LIBRARY_DIR}/set_lsb_release" \
+    --root="${root_fs_dir}" \
+    --group="${update_group}" \
+    --board="${BOARD}"
 }
 
 finish_image() {
   local disk_layout="$1"
   local root_fs_dir="$2"
-  local update_group="$3"
 
   # Record directories installed to the state partition.
   # Explicitly ignore entries covered by existing configs.
@@ -157,12 +163,6 @@ finish_image() {
   sudo "${BUILD_LIBRARY_DIR}/gen_tmpfiles.py" --root="${root_fs_dir}" \
       --output="${root_fs_dir}/usr/lib/tmpfiles.d/base_image_etc.conf" \
       ${tmp_ignore} "${root_fs_dir}/etc"
-
-  # Set /etc/lsb-release on the image.
-  "${BUILD_LIBRARY_DIR}/set_lsb_release" \
-    --root="${root_fs_dir}" \
-    --group="${update_group}" \
-    --board="${BOARD}"
 
   # Only configure bootloaders if there is a boot partition
   if mountpoint -q "${root_fs_dir}"/boot/efi; then
