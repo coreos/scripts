@@ -236,9 +236,13 @@ setup_env() {
     # Make the lockfile writable for backwards compatibility.
     chown ${SUDO_UID}:${SUDO_GID} "${LOCKFILE}"
 
-    # Refresh /etc/resolv.conf and /etc/hosts in the chroot.
-    install -C -m644 /etc/resolv.conf ${FLAGS_chroot}/etc/resolv.conf
-    install -C -m644 /etc/hosts ${FLAGS_chroot}/etc/hosts
+    # Refresh system config files in the chroot.
+    for copy_file in /etc/{hosts,localtime,resolv.conf}; do
+      if [ -f "${copy_file}" ] ; then
+        rm -f "${FLAGS_chroot}${copy_file}"
+        install -C -m644 "${copy_file}" "${FLAGS_chroot}${copy_file}"
+      fi
+    done
 
     debug "Mounting chroot environment."
     MOUNT_CACHE=$(echo $(awk '{print $2}' /proc/mounts))
