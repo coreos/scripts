@@ -342,11 +342,6 @@ def FormatBtrfs(part, device):
   """
   Sudo(['mkfs.btrfs', '--byte-count', part['fs_bytes'],
                       '--label', part['label'],
-                      # must use mixed chunks at this point because
-                      # the filesystem size is too small.
-                      '--data', 'single',
-                      '--metadata', 'single',
-                      '--mixed',
                       device])
 
   if part.get('fs_subvolume', None):
