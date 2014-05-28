@@ -63,7 +63,7 @@ roller_channel="${FLAGS_channel^}"
 lower_channel="${FLAGS_channel,,}"
 
 # Full GS URL of the original build
-gs_build="${FLAGS_build_storage}/${lower_channel}/${FLAGS_board}/${FLAGS_version}"
+gs_build="${FLAGS_build_storage}/${lower_channel}/boards/${FLAGS_board}/${FLAGS_version}"
 
 if [[ -z "${FLAGS_release_storage}" ]]; then
     FLAGS_release_storage="gs://${lower_channel}.release.core-os.net"

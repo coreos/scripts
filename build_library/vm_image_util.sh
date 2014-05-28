@@ -795,7 +795,7 @@ vm_upload() {
         cp "${digests}.asc" "${legacy_digests}.asc"
     fi
 
-    local def_upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
+    local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION_STRING}"
     upload_files "$(_dst_name)" "${def_upload_path}" "" "${legacy_uploads[@]}"
 }
 

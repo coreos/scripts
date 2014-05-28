@@ -103,7 +103,7 @@ upload_packages() {
     [[ -n "${BOARD}" ]] || die "board_options.sh must be sourced first"
 
     local board_packages="${1:-"${BOARD_ROOT}/packages"}"
-    local def_upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
+    local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION_STRING}"
     upload_files packages ${def_upload_path} "pkgs/" "${board_packages}"/*
 }
 
@@ -178,7 +178,7 @@ upload_image() {
     uploads+=( "${sigs[@]}" )
 
     local log_msg=$(basename "$digests" .DIGESTS)
-    local def_upload_path="${UPLOAD_ROOT}/${BOARD}/${COREOS_VERSION_STRING}"
+    local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION_STRING}"
     upload_files "${log_msg}" "${def_upload_path}" "" "${uploads[@]}"
 }
 
@@ -191,7 +191,7 @@ download_image_url() {
     fi
 
     local download_root="${FLAGS_download_root:-${UPLOAD_ROOT}}"
-    local download_path="${download_root%%/}/${BOARD}/${COREOS_VERSION_STRING}"
+    local download_path="${download_root%%/}/boards/${BOARD}/${COREOS_VERSION_STRING}"
     if [[ -n "${FLAGS_download_path}" ]]; then
         download_path="${FLAGS_download_path%%/}"
     fi
