@@ -223,12 +223,12 @@ setup_env() {
     setup_mount none "-t sysfs" /sys
     setup_mount /dev "--bind" /dev
     setup_mount /dev/pts "--bind" /dev/pts
-    if [[ -d /run ]]; then
-      setup_mount /run "--bind" /run
-      if [[ -d /run/shm && ! -L /run/shm ]]; then
-        setup_mount /run/shm "--bind" /run/shm
-      fi
+    setup_mount tmpfs "-t tmpfs -o nosuid,nodev,mode=755" /run
+    if [[ -d /run/shm && ! -L /run/shm ]]; then
+      setup_mount /run/shm "--bind" /run/shm
     fi
+    mkdir -p /run/user/${SUDO_UID}
+    chown ${SUDO_UID}:${SUDO_GID} /run/user/${SUDO_UID}
 
     # Do this early as it's slow and only needs basic mounts (above).
     generate_locales &
