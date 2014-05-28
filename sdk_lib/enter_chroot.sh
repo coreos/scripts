@@ -85,6 +85,8 @@ FILES_TO_COPY_TO_CHROOT=(
   .netrc                      # May contain required source fetching credentials
   .boto                       # Auth information for gsutil
   .boto-key.p12               # Service account key for gsutil
+  .ssh/config                 # User may need this for fetching git over ssh
+  .ssh/known_hosts            # Reuse existing known hosts
 )
 
 INNER_CHROME_ROOT=$FLAGS_chrome_root_mount  # inside chroot
@@ -126,41 +128,6 @@ setup_mount() {
     fi
     ;;
   esac
-}
-
-copy_ssh_config() {
-  # Copy user .ssh/config into the chroot filtering out strings not supported
-  # by the chroot ssh. The chroot .ssh directory is passed in as the first
-  # parameter.
-
-  # ssh options to filter out. The entire strings containing these substrings
-  # will be deleted before copying.
-  local bad_options=(
-    'UseProxyIf'
-    'GSSAPIAuthentication'
-    'GSSAPIKeyExchange'
-    'ProxyUseFdpass'
-  )
-  local sshc="${SUDO_HOME}/.ssh/config"
-  local chroot_ssh_dir="${1}"
-  local filter
-  local option
-
-  if ! user_cp "${sshc}" "${chroot_ssh_dir}/config.orig" 2>/dev/null; then
-    return # Nothing to copy.
-  fi
-
-  for option in "${bad_options[@]}"
-  do
-    if [ -z "${filter}" ]; then
-      filter="${option}"
-    else
-      filter+="\\|${option}"
-    fi
-  done
-
-  sed "/^.*\(${filter}\).*$/d" "${chroot_ssh_dir}/config.orig" | \
-    user_clobber "${chroot_ssh_dir}/config"
 }
 
 copy_into_chroot_if_exists() {
@@ -334,25 +301,12 @@ setup_env() {
       chmod 0644 "${p}"
     fi
 
+    user_mkdir "${FLAGS_chroot}/home/${SUDO_USER}/.ssh"
     if [ $FLAGS_ssh_agent -eq $FLAGS_TRUE ]; then
       # Clean up previous ssh agents.
       rmdir "${FLAGS_chroot}"/tmp/ssh-* 2>/dev/null
 
       if [ -n "${SSH_AUTH_SOCK}" -a -d "${SUDO_HOME}/.ssh" ]; then
-        TARGET_DIR="${FLAGS_chroot}/home/${SUDO_USER}/.ssh"
-        user_mkdir "${TARGET_DIR}"
-        (
-          # Only copy ~/.ssh/{known_hosts,*.pub} if they exist. Since we set
-          # nullglob, this needs to happen within a subshell.
-          shopt -s nullglob
-          files=("${SUDO_HOME}"/.ssh/{known_hosts,*.pub})
-          if [[ ${#files[@]} -gt 0 ]]; then
-            user_cp "${files[@]}" "${TARGET_DIR}/"
-          fi
-        )
-        copy_ssh_config "${TARGET_DIR}"
-        chown -R ${SUDO_UID}:${SUDO_GID} "${TARGET_DIR}"
-
         # Don't try to bind mount the ssh agent dir if it has gone stale.
         ASOCK=${SSH_AUTH_SOCK%/*}
         if [ -d "${ASOCK}" ]; then
