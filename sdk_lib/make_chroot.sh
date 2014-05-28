@@ -218,12 +218,12 @@ EOF
    ln -s ../../cache/chromeos-cache/distfiles/target \
      "${FLAGS_chroot}/var/lib/portage/distfiles-target"
 
-   # Add chromite/bin and depot_tools into the path globally; note that the
-   # chromite wrapper itself might also be found in depot_tools.
+   # Add chromite/bin into the path globally
    # We rely on 'env-update' getting called below.
    target="${FLAGS_chroot}/etc/env.d/99coreos"
    cat <<EOF > "${target}"
-PATH=${CHROOT_TRUNK_DIR}/chromite/bin:${DEPOT_TOOLS_DIR}
+PATH=${CHROOT_TRUNK_DIR}/chromite/bin
+ROOTPATH=${CHROOT_TRUNK_DIR}/chromite/bin
 CROS_WORKON_SRCROOT="${CHROOT_TRUNK_DIR}"
 PORTAGE_USERNAME=${SUDO_USER}
 EOF
@@ -349,8 +349,7 @@ else
   # Reset internal vars to force them to the 'inside the chroot' value;
   # since user directories now exist, this can do the upgrade in place.
   set_chroot_trunk_dir "${FLAGS_chroot}" poppycock
-  mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK_DIR}" \
-      "${FLAGS_chroot}/${DEPOT_TOOLS_DIR}" "${FLAGS_chroot}/run"
+  mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK_DIR}" "${FLAGS_chroot}/run"
 
   # Run all the init stuff to setup the env.
   init_setup

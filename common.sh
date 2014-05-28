@@ -178,7 +178,6 @@ cmp_ver() {
 _user="${USER}"
 [[ ${USER} == "root" ]] && _user="${SUDO_USER}"
 _CHROOT_TRUNK_DIRS=( "/home/${_user}/trunk" /mnt/host/source )
-_DEPOT_TOOLS_DIRS=( "/home/${_user}/depot_tools" /mnt/host/depot_tools )
 unset _user
 
 _process_mount_pt() {
@@ -222,11 +221,9 @@ set_chroot_trunk_dir() {
   if [[ ${INSIDE_CHROOT} -eq 0 ]] && [[ -z ${1-} ]]; then
     # Can't do the upgrade, thus skip trying to do so.
     CHROOT_TRUNK_DIR="${_CHROOT_TRUNK_DIRS[1]}"
-    DEPOT_TOOLS_DIR="${_DEPOT_TOOLS_DIRS[1]}"
     return
   fi
   _process_mount_pt "$1" CHROOT_TRUNK_DIR "${_CHROOT_TRUNK_DIRS[@]}" ${2:+true}
-  _process_mount_pt "$1" DEPOT_TOOLS_DIR "${_DEPOT_TOOLS_DIRS[@]}" ${2:+true}
 }
 
 set_chroot_trunk_dir

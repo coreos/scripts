@@ -372,12 +372,6 @@ setup_env() {
       done
     fi
 
-    # A reference to the DEPOT_TOOLS path may be passed in by cros_sdk.
-    if [ -n "${DEPOT_TOOLS}" ]; then
-      debug "Mounting depot_tools"
-      setup_mount "${DEPOT_TOOLS}" --bind "${DEPOT_TOOLS_DIR}"
-    fi
-
     # Mount GnuPG's data directory for signing uploads
     if [[ -d "$SUDO_HOME/.gnupg" ]]; then
       debug "Mounting GnuPG"
