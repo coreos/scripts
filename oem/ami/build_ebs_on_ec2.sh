@@ -75,7 +75,7 @@ if [[ -n "$IMG_PATH" ]]; then
     IMG_URL=$(basename "$IMG_PATH")
 else
     if [[ -z "$IMG_URL" ]]; then
-        IMG_URL="$GS_URL/$GROUP/$BOARD/$VERSION/$IMAGE"
+        IMG_URL="$GS_URL/$GROUP/boards/$BOARD/$VERSION/$IMAGE"
     fi
     if [[ "$IMG_URL" == gs://* ]]; then
         if ! gsutil -q stat "$IMG_URL"; then

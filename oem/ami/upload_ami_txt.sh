@@ -72,7 +72,7 @@ done
 
 OUT=
 for r in "${!AMIS[@]}"; do
-    url="$GS_URL/$GROUP/$BOARD/$VER/${IMAGE}_${r}.txt"
+    url="$GS_URL/$GROUP/boards/$BOARD/$VER/${IMAGE}_${r}.txt"
     tmp=$(mktemp --suffix=.txt)
     trap "rm -f '$tmp'" EXIT
     echo "${AMIS[$r]}" > "$tmp"
