@@ -182,19 +182,6 @@ EOF
    # Fix bad group for some.
    chown -R root:root "${FLAGS_chroot}/etc/"sudoers*
 
-   info "Setting timezone..."
-   rm -f "${FLAGS_chroot}/etc/localtime"
-   if [ -f /etc/localtime ] ; then
-     cp /etc/localtime "${FLAGS_chroot}/etc"
-   else
-     ln -sf /usr/share/zoneinfo/UTC "${FLAGS_chroot}/etc/localtime"
-   fi
-
-   info "Setting up hosts/resolv..."
-   # Copy config from outside chroot into chroot.
-   cp /etc/{hosts,resolv.conf} "$FLAGS_chroot/etc/"
-   chmod 0644 "$FLAGS_chroot"/etc/{hosts,resolv.conf}
-
    # Create directories referred to by our conf files.
    mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/pkgs" \
      "${FLAGS_chroot}/var/cache/"chromeos-{cache,chrome} \
