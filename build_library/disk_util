@@ -229,6 +229,16 @@ def GetPartitionTableFromImage(options, config, partitions):
     else:
       part['image_compat'] = False
 
+  for part in partitions.itervalues():
+    if not part.get('fs_type', None):
+      continue
+    with PartitionLoop(options, part) as loop_dev:
+      try:
+        part['image_fs_type'] = subprocess.check_output(
+          ['sudo', 'blkid', '-o', 'value', '-s', 'TYPE', loop_dev]).strip()
+      except subprocess.CalledProcessError:
+        part['image_fs_type'] = None
+
   # Set compat flags for any partition not in the image
   for part in partitions.itervalues():
     part.setdefault('image_exists', False)
@@ -334,7 +344,7 @@ def BtrfsSubvolId(path):
 
 
 def FormatBtrfs(part, device):
-  """Format an ext2 or ext4 filesystem.
+  """Format a btrfs filesystem.
 
   Args:
     part: dict defining the partition
@@ -432,6 +442,21 @@ def PartitionLoop(options, partition):
     Sudo(['losetup', '--detach', loop_dev])
 
 
+def FormatPartition(options, part):
+  print "Formatting partition %s (%s) as %s" % (
+          part['num'], part['label'], part['fs_type'])
+
+  with PartitionLoop(options, part) as loop_dev:
+    if part['fs_type'] in ('ext2', 'ext4'):
+      FormatExt(part, loop_dev)
+    elif part['fs_type'] == 'btrfs':
+      FormatBtrfs(part, loop_dev)
+    elif part['fs_type'] == 'vfat':
+      FormatFat(part, loop_dev)
+    else:
+      raise Exception("Unhandled fs type %s" % part['fs_type'])
+
+
 def Format(options):
   """Writes the given partition table and initialize fresh filesystems.
 
@@ -450,18 +475,7 @@ def Format(options):
     if part['type'] == 'blank' or 'fs_type' not in part:
       continue
 
-    print "Formatting partition %s (%s) as %s" % (
-            part['num'], part['label'], part['fs_type'])
-
-    with PartitionLoop(options, part) as loop_dev:
-      if part['fs_type'] in ('ext2', 'ext4'):
-        FormatExt(part, loop_dev)
-      elif part['fs_type'] == 'btrfs':
-        FormatBtrfs(part, loop_dev)
-      elif part['fs_type'] == 'vfat':
-        FormatFat(part, loop_dev)
-      else:
-        raise Exception("Unhandled fs type %s" % part['fs_type'])
+    FormatPartition(options, part)
 
 
 def ResizeExt(part, device):
@@ -491,8 +505,9 @@ def ResizeBtrfs(part, device):
     os.rmdir(btrfs_mount)
 
 
-def Resize(options):
-  """Writes the given partition table and resize ext[234] filesystems.
+def Update(options):
+  """Writes the given partition table, resize filesystems, and
+     format free partitions.
 
   Args:
     options: Flags passed to the script
@@ -500,6 +515,12 @@ def Resize(options):
 
   config, partitions = LoadPartitionConfig(options)
   WritePartitionTable(options, config, partitions)
+
+  for part in partitions.itervalues():
+    if not part.get('fs_type', None):
+      continue
+    elif not part['image_fs_type']:
+      FormatPartition(options, part)
 
   for part in partitions.itervalues():
     resize_func = None
@@ -915,11 +936,12 @@ def main(argv):
   a.add_argument('disk_image', help='path to disk image file')
   a.set_defaults(func=Format, create=True)
 
-  a = actions.add_parser('resize', help='write gpt and resize filesystems')
+  a = actions.add_parser('update',
+          help='write gpt, resize filesystems, and format free partitions')
   a.add_argument('--mbr_boot_code', default=DEFAULT_MBR_BOOT_CODE,
           help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
-  a.set_defaults(func=Resize, create=False)
+  a.set_defaults(func=Update, create=False)
 
   a = actions.add_parser('mount', help='mount filesystems in image')
   a.add_argument('--read_only', '-r', action='store_true',

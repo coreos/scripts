@@ -249,7 +249,7 @@ setup_disk_image() {
 
     if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
       "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
-          resize "${VM_TMP_IMG}"
+          update "${VM_TMP_IMG}"
     fi
 
     info "Mounting image to $(relpath "${VM_TMP_ROOT}")"
