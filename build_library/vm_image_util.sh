@@ -14,6 +14,7 @@ VALID_IMG_TYPES=(
     qemu_no_kexec
     rackspace
     rackspace_vhd
+    teeth
     vagrant
     vagrant_vmware_fusion
     virtualbox
@@ -158,6 +159,11 @@ IMG_rackspace_vhd_BOOT_KERNEL=0
 IMG_rackspace_vhd_DISK_FORMAT=vhd
 IMG_rackspace_vhd_OEM_PACKAGE=oem-rackspace
 
+## teeth
+IMG_teeth_DISK_FORMAT=qcow2
+IMG_teeth_DISK_LAYOUT=teeth
+IMG_teeth_OEM_PACKAGE=oem-rackspace-teeth
+
 ###########################################################
 
 # Validate and set the vm type to use for the rest of the functions
@@ -249,7 +255,7 @@ setup_disk_image() {
 
     if [[ $(_get_vm_opt PARTITIONED_IMG) -eq 1 ]]; then
       "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
-          resize "${VM_TMP_IMG}"
+          update "${VM_TMP_IMG}"
     fi
 
     info "Mounting image to $(relpath "${VM_TMP_ROOT}")"

@@ -50,9 +50,9 @@
         "mount":"/usr/share/oem"
       },
       "7":{
-        "type":"blank",
-        "label":"coreos-reserved",
-        "blocks":"0"
+        "label":"OEM-CONFIG",
+        "type":"coreos-reserved",
+        "blocks":"131072"
       },
       "8":{
         "type":"blank",
@@ -78,6 +78,13 @@
       "9":{
         "label":"ROOT",
         "blocks":"33587200"
+      }
+    },
+    "teeth":{
+      "7":{
+        "label":"config-2",
+        "type":"data",
+        "fs_type":"ext2"
       }
     },
     "container":{
