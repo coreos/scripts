@@ -191,10 +191,21 @@ download_image_url() {
     fi
 
     local download_root="${FLAGS_download_root:-${UPLOAD_ROOT}}"
-    local download_path="${download_root%%/}/boards/${BOARD}/${COREOS_VERSION_STRING}"
+
+    local download_path
     if [[ -n "${FLAGS_download_path}" ]]; then
         download_path="${FLAGS_download_path%%/}"
+    elif [[ "${download_root}" = *release.core-os.net* ]]; then
+        # Official release download paths don't include the boards directory
+        download_path="${download_root%%/}/${BOARD}/${COREOS_VERSION_STRING}"
+    else
+        download_path="${download_root%%/}/boards/${BOARD}/${COREOS_VERSION_STRING}"
     fi
 
-    echo "http://${download_path#gs://}/$1"
+    # Just in case download_root was set from UPLOAD_ROOT
+    if [[ "${download_path}" == gs://* ]]; then
+        download_path="http://${download_path#gs://}"
+    fi
+
+    echo "${download_path}/$1"
 }
