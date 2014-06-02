@@ -84,7 +84,7 @@ for r in "${!AMIS[@]}"; do
         OUT="${OUT}|${r}=${AMIS[$r]}"
     fi
 done
-url="$GS_URL/$GROUP/$BOARD/$VER/${IMAGE}_all.txt"
+url="$GS_URL/$GROUP/boards/$BOARD/$VER/${IMAGE}_all.txt"
 tmp=$(mktemp --suffix=.txt)
 trap "rm -f '$tmp'" EXIT
 echo "$OUT" > "$tmp"
