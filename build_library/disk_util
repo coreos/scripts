@@ -230,6 +230,10 @@ def GetPartitionTableFromImage(options, config, partitions):
       part['image_compat'] = False
 
   for part in partitions.itervalues():
+    if part.get('type', 'blank') == 'blank':
+      continue
+    if not part.get('image_exists', False):
+      continue
     if not part.get('fs_type', None):
       continue
     with PartitionLoop(options, part) as loop_dev:
