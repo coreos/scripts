@@ -93,4 +93,6 @@ EOF
   systemd_enable "${root_fs_dir}" "local-fs.target" "remount-usr.service"
 
   finish_image "${disk_layout}" "${root_fs_dir}"
+  upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \
+      "${BUILD_DIR}/${image_name}"
 }

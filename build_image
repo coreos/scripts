@@ -151,17 +151,14 @@ fi
 
 if [[ "${DEV_IMAGE}" -eq 1 ]]; then
   create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
-  upload_image "${BUILD_DIR}/${COREOS_DEVELOPER_IMAGE_NAME}"
 fi
 
 if [[ "${CONTAINER}" -eq 1 ]]; then
   create_dev_image "${COREOS_DEVELOPER_CONTAINER_NAME}" "${CONTAINER_LAYOUT}" "${FLAGS_group}"
-  upload_image "${BUILD_DIR}/${OREOS_DEVELOPER_CONTAINER_NAME}"
 fi
 
 if [[ "${PROD_IMAGE}" -eq 1 ]]; then
   create_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
-  upload_image "${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"
   if [[ ${FLAGS_generate_update} -eq ${FLAGS_TRUE} ]]; then
     generate_update "${COREOS_PRODUCTION_IMAGE_NAME}" ${DISK_LAYOUT}
   fi

@@ -76,4 +76,7 @@ EOF
     "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
       tune --disable2fs_rw "${BUILD_DIR}/${image_name}" "USR-A"
   fi
+
+  upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \
+      "${BUILD_DIR}/${image_name}"
 }
