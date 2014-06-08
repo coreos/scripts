@@ -117,6 +117,26 @@ systemd_enable() {
   sudo ln -sf "../${unit_file}" "${wants_dir}/${unit_alias}"
 }
 
+# Generate a ls-like listing of a directory tree.
+# The ugly printf is used to predictable time format and size in bytes.
+write_contents() {
+    info "Writing ${2##*/}"
+    pushd "$1" >/dev/null
+    sudo TZ=UTC find -printf \
+        '%M %2n %-7u %-7g %7s %TY-%Tm-%Td %TH:%TM ./%P -> %l\n' \
+        | sed -e 's/ -> $//' > "$2"
+    popd >/dev/null
+}
+
+# Generate a list of installed packages in the format:
+#   sys-apps/systemd-212-r8::coreos
+write_packages() {
+    info "Writing ${2##*/}"
+    ROOT="$1" equery-$BOARD --no-color \
+        list '*' --format '$cpv::$repo' \
+        > "$2"
+}
+
 start_image() {
   local image_name="$1"
   local disk_layout="$2"
@@ -152,6 +172,7 @@ start_image() {
 finish_image() {
   local disk_layout="$1"
   local root_fs_dir="$2"
+  local image_contents="$3"
 
   # Record directories installed to the state partition.
   # Explicitly ignore entries covered by existing configs.
@@ -181,6 +202,8 @@ finish_image() {
     systemd_enable "${root_fs_dir}" user-config.target \
         "user-cloudinit@.path" "user-cloudinit@${unit_path}.path"
   fi
+
+  write_contents "${root_fs_dir}" "${BUILD_DIR}/${image_contents}"
 
   # Zero all fs free space to make it more compressible so auto-update
   # payloads become smaller, not fatal since it won't work on linux < 3.2
