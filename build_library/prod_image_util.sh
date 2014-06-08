@@ -32,12 +32,15 @@ create_prod_image() {
 
   info "Building production image ${image_name}"
   local root_fs_dir="${BUILD_DIR}/rootfs"
+  local image_contents="${image_name%.bin}_contents.txt"
+  local image_packages="${image_name%.bin}_packages.txt"
 
   start_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
   # Install minimal GCC (libs only) and then everything else
   emerge_prod_gcc "${root_fs_dir}"
   emerge_to_image "${root_fs_dir}" coreos-base/coreos
+  write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
 
   # clean-ups of things we do not need
   sudo rm ${root_fs_dir}/etc/csh.env
@@ -69,7 +72,7 @@ EOF
     disable_read_write=${FLAGS_FALSE}
   fi
 
-  finish_image "${disk_layout}" "${root_fs_dir}"
+  finish_image "${disk_layout}" "${root_fs_dir}" "${image_contents}"
 
   # Make the filesystem un-mountable as read-write.
   if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
@@ -78,5 +81,7 @@ EOF
   fi
 
   upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \
+      "${BUILD_DIR}/${image_contents}" \
+      "${BUILD_DIR}/${image_packages}" \
       "${BUILD_DIR}/${image_name}"
 }
