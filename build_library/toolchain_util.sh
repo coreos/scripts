@@ -21,7 +21,7 @@ CROSS_PROFILES["x86_64-cros-linux-gnu"]="coreos:coreos/amd64/generic"
 # guesses or hard-code these. All that should migrate to this list.
 declare -A BOARD_CHOSTS BOARD_PROFILES
 BOARD_CHOSTS["amd64-usr"]="x86_64-cros-linux-gnu"
-BOARD_PROFILES["amd64-usr"]="coreos:coreos/amd64/usr"
+BOARD_PROFILES["amd64-usr"]="coreos:coreos/amd64/generic"
 BOARD_NAMES=( "${!BOARD_CHOSTS[@]}" )
 
 # Declare the above globals as read-only to avoid accidental conflicts.
