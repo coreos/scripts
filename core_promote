@@ -29,6 +29,8 @@ DEFINE_string build_storage "gs://builds.release.core-os.net" \
     "GS bucket with official build artifacts."
 DEFINE_string release_storage "" \
     "GS bucket for release downloads."
+DEFINE_string legacy_storage "gs://storage.core-os.net/coreos" \
+    "Legacy 'storage' GS bucket."
 
 # Allow toggling the assorted actions.
 DEFINE_boolean do_roller ${FLAGS_TRUE} "Update the channel in roller"
@@ -107,4 +109,18 @@ fi
 
 if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]]; then
     gsutil -m cp "${gs_release}/*" "${gs_current}/"
+fi
+
+if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]] && \
+   [[-n "${FLAGS_legacy_storage}" ]]
+then
+    if [[ "${lower_channel}" == alpha ]]; then
+        gsutil -m cp "${gs_release}/*" \
+            "${FLAGS_legacy_storage}/${FLAGS_board}/${FLAGS_version}/"
+        gsutil -m cp "${gs_current}/*" \
+            "${FLAGS_legacy_storage}/${FLAGS_board}/alpha/"
+    elif [[ "${lower_channel}" == beta ]]; then
+        gsutil -m cp "${gs_current}/*" \
+            "${FLAGS_legacy_storage}/${FLAGS_board}/beta/"
+    fi
 fi
