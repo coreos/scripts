@@ -5,14 +5,15 @@
 
 # common.sh should be sourced first
 [[ -n "${DEFAULT_BUILD_ROOT}" ]] || exit 1
-. "${SCRIPTS_DIR}/sdk_lib/sdk_util.sh"
+. "${SCRIPTS_DIR}/sdk_lib/sdk_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
 
 # Default option values, may be provided before including this file
 : ${TYPE:="coreos-sdk"}
-: ${ARCH:=$(portageq envvar ARCH)}
+: ${ARCH:=$(get_sdk_arch)}
 : ${DEFAULT_CATALYST_ROOT:="${DEFAULT_BUILD_ROOT}/catalyst"}
 : ${DEFAULT_SEED:=${COREOS_SDK_TARBALL_PATH}}
-: ${DEFAULT_PROFILE:="coreos:default/linux/${ARCH}/10.0"}
+: ${DEFAULT_PROFILE:=$(get_sdk_profile)}
 # Set to something like "stage4" to restrict what to build
 # FORCE_STAGES=
 
