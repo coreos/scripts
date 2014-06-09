@@ -112,7 +112,7 @@ if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]]; then
 fi
 
 if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]] && \
-   [[-n "${FLAGS_legacy_storage}" ]]
+   [[ -n "${FLAGS_legacy_storage}" ]]
 then
     if [[ "${lower_channel}" == alpha ]]; then
         gsutil -m cp "${gs_release}/*" \
