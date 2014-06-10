@@ -267,14 +267,6 @@ EOF
 generate_all_wrappers
 
 if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
-  info "Installing baselayout"
-
-  # First thing first, install baselayout with USE=build to create a
-  # working directory tree. Don't use binpkgs due to the use flag change.
-  sudo -E USE=build "${EMERGE_WRAPPER}" --usepkg=n --buildpkg=n \
-      --oneshot --quiet --nodeps sys-apps/baselayout
-
-  # Now time for tool chain happy fun time
   EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
   if [[ "${FLAGS_jobs}" -ne -1 ]]; then
     EMERGE_FLAGS+=" --jobs=${FLAGS_jobs}"
@@ -283,7 +275,8 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
   if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}"  && \
         "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]
   then
-    EMERGE_FLAGS+=" --usepkgonly --getbinpkg"
+    EMERGE_FLAGS+=" --usepkg --getbinpkg"
+    EMERGE_TOOLCHAIN_FLAGS="${EMERGE_FLAGS} --usepkgonly"
   else
     # When binary packages are disabled we need to make sure the cross
     # sysroot includes any build dependencies for the toolchain.
@@ -291,9 +284,12 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
     install_cross_libs "${BOARD_CHOST}" ${EMERGE_FLAGS} --buildpkg=n
   fi
 
+  info "Installing baselayout"
+  "${EMERGE_WRAPPER}" ${EMERGE_FLAGS} --nodeps sys-apps/baselayout
+
   info "Installing toolchain"
   SYSROOT="/usr/${BOARD_CHOST}" "${EMERGE_WRAPPER}" \
-      ${EMERGE_FLAGS} "${TOOLCHAIN_PKGS[@]}"
+      ${EMERGE_TOOLCHAIN_FLAGS} "${TOOLCHAIN_PKGS[@]}"
 fi
 
 if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then
