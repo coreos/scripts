@@ -38,14 +38,24 @@ AMI=
 VER=
 BOARD="amd64-usr"
 GROUP="alpha"
+REGIONS=()
 
-while getopts "a:V:b:g:hv" OPTION
+add_region() {
+    if [[ -z "${AKI[$1]}" ]]; then
+        echo "Invalid region '$1'" >&2;
+        exit 1
+    fi
+    REGIONS+=( "$1" )
+}
+
+while getopts "a:V:b:g:r:hv" OPTION
 do
     case $OPTION in
         a) AMI="$OPTARG";;
         V) VER="$OPTARG";;
         b) BOARD="$OPTARG";;
         g) GROUP="$OPTARG";;
+        r) add_region "$OPTARG";;
         h) echo "$USAGE"; exit;;
         v) set -x;;
         *) exit 1;;
@@ -75,6 +85,10 @@ else
         echo "$0: Unknown image: $AMI" >&2
         exit 1
     fi
+fi
+
+if [[ ${#REGIONS[@]} -eq 0 ]]; then
+    REGIONS=( "${!AKI[@]}" )
 fi
 
 # The name has a limited set of allowed characterrs
@@ -113,7 +127,7 @@ do_copy() {
     ec2-modify-image-attribute --region "$r" "$r_amiid" --launch-permission -a all
 }
 
-for r in "${!AKI[@]}"
+for r in "${REGIONS[@]}"
 do
     [ "${r}" == "${region}" ] && continue
     echo "Starting copy of $AMI from $region to $r"
