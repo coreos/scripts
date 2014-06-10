@@ -153,10 +153,9 @@ start_image() {
       mount "${disk_img}" "${root_fs_dir}"
   trap "cleanup_mounts '${root_fs_dir}' && delete_prompt" EXIT
 
-  # First thing first, install baselayout with USE=build to create a
-  # working directory tree. Don't use binpkgs due to the use flag change.
-  sudo -E USE=build "emerge-${BOARD}" --root="${root_fs_dir}" \
-      --usepkg=n --buildpkg=n --oneshot --quiet --nodeps sys-apps/baselayout
+  # First thing first, install baselayout to create a working filesystem.
+  emerge-${BOARD} --root="${root_fs_dir}" \
+      --usepkgonly --oneshot --quiet --nodeps sys-apps/baselayout
 
   # FIXME(marineam): Work around glibc setting EROOT=$ROOT
   # https://bugs.gentoo.org/show_bug.cgi?id=473728#c12

@@ -214,6 +214,23 @@ else
   FLAGS_regen_configs=${FLAGS_FALSE}
 fi
 
+# Migrate board roots that were created before the package location
+# was standardized to /var/lib/portage/pkgs, build_image will fail if we
+# simply forget about the old location and start writing to the new.
+# Keep /packages as a compatibility symlink until everyone is updated.
+if [[ ! -L "${BOARD_ROOT}/packages" ]]; then
+  if [[ ! -d "${BOARD_ROOT}/var/lib/portage/pkgs" ]]; then
+    if [[ -d "${BOARD_ROOT}/packages" ]]; then
+      warn "Moving board package directory to ${BOARD_ROOT}/var/lib/portage/pkgs"
+      sudo mkdir -p "${BOARD_ROOT}/var/lib/portage"
+      sudo mv "${BOARD_ROOT}/packages" "${BOARD_ROOT}/var/lib/portage/pkgs"
+    fi
+  else
+    sudo mkdir -p "${BOARD_ROOT}/var/lib/portage/pkgs"
+  fi
+  sudo ln -sfT "var/lib/portage/pkgs" "${BOARD_ROOT}/packages"
+fi
+
 info "Configuring portage in ${BOARD_ROOT}"
 cmds=(
   "mkdir -p '${BOARD_ROOT}' '${BOARD_PROFILE}'"
@@ -235,25 +252,38 @@ sudo_multi "${cmds[@]}"
 
 sudo_clobber "${BOARD_SETUP}" <<EOF
 # Created by setup_board
+
+# Settings derived from the host environment
+CBUILD="$(portageq envvar CHOST)"
+HOSTCC="$(portageq envvar CHOST)-gcc"
+PORTDIR="$(portageq envvar PORTDIR)"
+PORTDIR_OVERLAY="$(portageq envvar PORTDIR_OVERLAY)"
+DISTDIR="$(portageq envvar DISTDIR)"
+MAKEOPTS="$(portageq envvar MAKEOPTS)"
+
+# Board specific settings
 CHOST="${BOARD_CHOST}"
 ROOT="${BOARD_ROOT}/"
-MAKEOPTS="--jobs=${NUM_JOBS} --load-average=$((NUM_JOBS * 2))"
-PKG_CONFIG="pkg-config-${BOARD_VARIANT}"
 BOARD_USE="${BOARD_VARIANT}"
+PKGDIR="${BOARD_ROOT}/var/lib/portage/pkgs"
+PORT_LOGDIR="${BOARD_ROOT}/var/log/portage"
+PORTAGE_TMPDIR="${BOARD_ROOT}/var/tmp"
 PORTAGE_BINHOST="${BOARD_BINHOST}"
+
+# TODO(marineam): Unsure if we need to specify both the pkg-config
+# env variables and a pkg-config wrapper that does the same thing...
+PKG_CONFIG="pkg-config-${BOARD_VARIANT}"
+PKG_CONFIG_PATH="${BOARD_ROOT}/usr/lib/pkgconfig:${BOARD_ROOT}/usr/share/pkgconfig"
+PKG_CONFIG_SYSROOT_DIR="${BOARD_ROOT}"
+
+# Generally there isn't any need to add packages to @world by default.
+# You can use --select to override this.
+EMERGE_DEFAULT_OPTS="--oneshot"
 EOF
 
 generate_all_wrappers
 
 if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
-  info "Installing baselayout"
-
-  # First thing first, install baselayout with USE=build to create a
-  # working directory tree. Don't use binpkgs due to the use flag change.
-  sudo -E USE=build "${EMERGE_WRAPPER}" --usepkg=n --buildpkg=n \
-      --oneshot --quiet --nodeps sys-apps/baselayout
-
-  # Now time for tool chain happy fun time
   EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
   if [[ "${FLAGS_jobs}" -ne -1 ]]; then
     EMERGE_FLAGS+=" --jobs=${FLAGS_jobs}"
@@ -262,7 +292,8 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
   if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}"  && \
         "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]
   then
-    EMERGE_FLAGS+=" --usepkgonly --getbinpkg"
+    EMERGE_FLAGS+=" --usepkg --getbinpkg"
+    EMERGE_TOOLCHAIN_FLAGS="${EMERGE_FLAGS} --usepkgonly"
   else
     # When binary packages are disabled we need to make sure the cross
     # sysroot includes any build dependencies for the toolchain.
@@ -270,9 +301,12 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
     install_cross_libs "${BOARD_CHOST}" ${EMERGE_FLAGS} --buildpkg=n
   fi
 
+  info "Installing baselayout"
+  "${EMERGE_WRAPPER}" ${EMERGE_FLAGS} --nodeps sys-apps/baselayout
+
   info "Installing toolchain"
   SYSROOT="/usr/${BOARD_CHOST}" "${EMERGE_WRAPPER}" \
-      ${EMERGE_FLAGS} "${TOOLCHAIN_PKGS[@]}"
+      ${EMERGE_TOOLCHAIN_FLAGS} "${TOOLCHAIN_PKGS[@]}"
 fi
 
 if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then
