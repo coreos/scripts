@@ -224,9 +224,9 @@ if [[ ! -L "${BOARD_ROOT}/packages" ]]; then
       warn "Moving board package directory to ${BOARD_ROOT}/var/lib/portage/pkgs"
       sudo mkdir -p "${BOARD_ROOT}/var/lib/portage"
       sudo mv "${BOARD_ROOT}/packages" "${BOARD_ROOT}/var/lib/portage/pkgs"
+    else
+      sudo mkdir -p "${BOARD_ROOT}/var/lib/portage/pkgs"
     fi
-  else
-    sudo mkdir -p "${BOARD_ROOT}/var/lib/portage/pkgs"
   fi
   sudo ln -sfT "var/lib/portage/pkgs" "${BOARD_ROOT}/packages"
 fi
