@@ -214,6 +214,23 @@ else
   FLAGS_regen_configs=${FLAGS_FALSE}
 fi
 
+# Migrate board roots that were created before the package location
+# was standardized to /var/lib/portage/pkgs, build_image will fail if we
+# simply forget about the old location and start writing to the new.
+# Keep /packages as a compatibility symlink until everyone is updated.
+if [[ ! -L "${BOARD_ROOT}/packages" ]]; then
+  if [[ ! -d "${BOARD_ROOT}/var/lib/portage/pkgs" ]]; then
+    if [[ -d "${BOARD_ROOT}/packages" ]]; then
+      warn "Moving board package directory to ${BOARD_ROOT}/var/lib/portage/pkgs"
+      sudo mkdir -p "${BOARD_ROOT}/var/lib/portage"
+      sudo mv "${BOARD_ROOT}/packages" "${BOARD_ROOT}/var/lib/portage/pkgs"
+    fi
+  else
+    sudo mkdir -p "${BOARD_ROOT}/var/lib/portage/pkgs"
+  fi
+  sudo ln -sfT "var/lib/portage/pkgs" "${BOARD_ROOT}/packages"
+fi
+
 info "Configuring portage in ${BOARD_ROOT}"
 cmds=(
   "mkdir -p '${BOARD_ROOT}' '${BOARD_PROFILE}'"
