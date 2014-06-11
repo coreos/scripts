@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# Copyright (c) 2014 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+# We have to simple-mindedly set GCLIENT_ROOT in case we're running from
+# au-generator.zip because common.sh will fail while auto-detect it.
+export GCLIENT_ROOT=$(readlink -f "${SCRIPT_ROOT}/../../")
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+DEFINE_string board "amd64-usr" \
+    "Board type of the image"
+DEFINE_string version "${COREOS_VERSION_STRING}" \
+    "Version number to promote."
+
+DEFINE_string build_storage "gs://builds.release.core-os.net" \
+    "GS bucket with official build artifacts."
+DEFINE_string release_storage "gs://alpha.release.core-os.net" \
+    "GS bucket for release downloads."
+DEFINE_string legacy_storage "gs://storage.core-os.net/coreos" \
+    "Legacy 'storage' GS bucket."
+
+# Parse flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+switch_to_strict_mode
+
+# Ensure GS URL doesn't have a trailing /
+FLAGS_build_storage="${FLAGS_build_storage%%/}"
+FLAGS_release_storage="${FLAGS_release_storage%%/}"
+FLAGS_legacy_storage="${FLAGS_legacy_storage%%/}"
+
+# Full GS URLs
+gs_build="${FLAGS_build_storage}/alpha/boards/${FLAGS_board}/${FLAGS_version}"
+gs_release="${FLAGS_release_storage}/${FLAGS_board}/${FLAGS_version}"
+gs_legacy="${FLAGS_legacy_storage}/${FLAGS_board}/${FLAGS_version}"
+
+gsutil -m cp "${gs_build}/*" "${gs_release}/"
+gsutil -m cp "${gs_release}/*" "${gs_legacy}/"

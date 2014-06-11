@@ -59,6 +59,7 @@ fi
 # Ensure GS URL doesn't have a trailing /
 FLAGS_build_storage="${FLAGS_build_storage%%/}"
 FLAGS_release_storage="${FLAGS_release_storage%%/}"
+FLAGS_legacy_storage="${FLAGS_legacy_storage%%/}"
 
 # The channel name in roller is capitalized, everywhere else is lower case.
 roller_channel="${FLAGS_channel^}"
