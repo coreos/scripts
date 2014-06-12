@@ -187,7 +187,6 @@ esac
 COREOS_CONFIG="/usr/local/portage/coreos/coreos/config"
 BOARD_ROOT="/build/${BOARD_VARIANT}"
 BOARD_ETC="${BOARD_ROOT}/etc"
-BOARD_SETUP="${BOARD_ETC}/make.conf.board_setup"
 BOARD_PROFILE="${BOARD_ETC}/portage/profile"
 BOARD_ARCH=$(get_board_arch "$BOARD")
 BOARD_CHOST=$(get_board_chost ${BOARD})
@@ -232,25 +231,19 @@ if [[ ! -L "${BOARD_ROOT}/packages" ]]; then
 fi
 
 info "Configuring portage in ${BOARD_ROOT}"
-cmds=(
-  "mkdir -p '${BOARD_ROOT}' '${BOARD_PROFILE}'"
-  "ROOT='${BOARD_ROOT}' eselect profile set --force '${PORTAGE_PROFILE}'"
-)
+sudo mkdir -p "${BOARD_PROFILE}"
+sudo ROOT="${BOARD_ROOT}" eselect profile set --force "${PORTAGE_PROFILE}"
 
-# Setup the make.confs. We use the following:
-#    make.conf             <- Overall target make.conf [arm, x86, etc. version]
-#    make.conf.board_setup <- Declares CHOST, ROOT, etc.
-#    make.conf.common      <- Common settings across all targets
-cmds+=(
-  "ln -sf '${COREOS_CONFIG}/make.conf.${BOARD_ARCH}-target' \
-    '${BOARD_ETC}/make.conf'"
-  "ln -sf '${COREOS_CONFIG}/make.conf.common-target' \
-    '${BOARD_ETC}/make.conf.common'"
-  "touch '${BOARD_ROOT}/etc/make.conf.user'"
-)
-sudo_multi "${cmds[@]}"
+# Cleanup/migrate from older make.conf files
+sudo rm -f "${BOARD_ETC}/make.conf" "${BOARD_ETC}/make.conf.common"
+if [[ -f "${BOARD_ETC}/make.conf.user" ]]; then
+    sudo mv "${BOARD_ETC}/make.conf.user" \
+        "${BOARD_ETC}/portage/make.conf.user"
+else
+    sudo touch "${BOARD_ETC}/portage/make.conf.user"
+fi
 
-sudo_clobber "${BOARD_SETUP}" <<EOF
+sudo_clobber "${BOARD_ETC}/portage/make.conf" <<EOF
 # Created by setup_board
 
 # Settings derived from the host environment
@@ -279,6 +272,9 @@ PKG_CONFIG_SYSROOT_DIR="${BOARD_ROOT}"
 # Generally there isn't any need to add packages to @world by default.
 # You can use --select to override this.
 EMERGE_DEFAULT_OPTS="--oneshot"
+
+# Allow the user to override or define additional settings.
+source "${BOARD_ETC}/portage/make.conf.user"
 EOF
 
 generate_all_wrappers

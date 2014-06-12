@@ -12,4 +12,4 @@ BOARD_ROOT="/build/${BOARD}"
 ARCH=$(get_board_arch ${BOARD})
 
 # What cross-build are we targeting?
-. "${BOARD_ROOT}/etc/make.conf.board_setup"
+. "${BOARD_ROOT}/etc/portage/make.conf"
