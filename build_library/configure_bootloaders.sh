@@ -83,7 +83,7 @@ configure_syslinux() {
 
   # Add ttyS0 as a secondary console, useful for qemu -nographic
   # This leaves /dev/console mapped to tty0 (vga) which is reasonable default.
-  syslinux_args="console=ttyS0,115200n8 ${common_args}"
+  syslinux_args="${common_args} console=ttyS0,115200n8"
 
   sudo_clobber "${SYSLINUX_DIR}/syslinux.cfg" <<EOF
 SERIAL 0 115200
