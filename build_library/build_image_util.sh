@@ -198,8 +198,8 @@ finish_image() {
     local data_path="/usr/share/coreos/developer_data"
     local unit_path="usr-share-coreos-developer_data"
     sudo cp "${FLAGS_developer_data}" "${root_fs_dir}/${data_path}"
-    systemd_enable "${root_fs_dir}" user-config.target \
-        "user-cloudinit@.path" "user-cloudinit@${unit_path}.path"
+    systemd_enable "${root_fs_dir}" system-config.target \
+        "system-cloudinit@.service" "system-cloudinit@${unit_path}.service"
   fi
 
   write_contents "${root_fs_dir}" "${BUILD_DIR}/${image_contents}"
