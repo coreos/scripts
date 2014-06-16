@@ -106,6 +106,19 @@ if [[ ${FLAGS_do_gce} -eq ${FLAGS_TRUE} ]]; then
     gsutil cp "${gce_temp}" "${gs_release}/coreos_production_gce.txt"
     rm -f "${gce_temp}"
     trap - EXIT
+
+    # Set the DEPRECATED on all old images in this channel.
+    for old_name in $(gcutil --project coreos-cloud \
+        listimages --nostandard_images --format=names \
+        --filter="name eq '^coreos-${lower_channel}-.*'")
+    do
+        if [[ "${old_name}" == "${gce_name}" ]]; then
+            continue
+        fi
+        gcutil --project coreos-cloud \
+            deprecateimage --state=DEPRECATED \
+            --replacement="${gce_name}" "${old_name}"
+    done
 fi
 
 if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]]; then
