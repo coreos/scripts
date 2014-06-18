@@ -412,16 +412,21 @@ def FormatFat(part, device):
                      stdout_null=True)
 
   if 'syslinux' in part.get('features', []):
-    # The syslinux directory must exist before installing ldlinux.sys to it.
+    # Install using extlinux so we can operate on the mounted filesystem and
+    # avoid possible issues with mtools. Also hpa told me to. :)
+    # cgpt uses 255 heads and 63 sectors when generating the hybrid MBR which
+    # doesn't actually have to match what we use here but doesn't hurt either.
     vfat_mount = tempfile.mkdtemp()
+    syslinux_dir = os.path.join(vfat_mount, 'syslinux')
     Sudo(['mount', '-t', 'vfat', device, vfat_mount])
     try:
-      Sudo(['mkdir', os.path.join(vfat_mount, 'syslinux')])
+      Sudo(['mkdir', syslinux_dir])
+      Sudo(['extlinux', '--heads=255', '--sectors=63',
+                        '--install', syslinux_dir])
     finally:
       Sudo(['umount', vfat_mount])
       os.rmdir(vfat_mount)
 
-    Sudo(['syslinux', '-d', '/syslinux', device])
     print "Installed SYSLINUX to %s" % part['label']
 
 
