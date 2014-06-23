@@ -50,7 +50,7 @@ switch_to_strict_mode
 FLAGS_storage="${FLAGS_storage%%/}"
 
 GS_URL="${FLAGS_storage}/${FLAGS_board}/${FLAGS_version}/update.gz"
-HTTP_URL="http://${GS_URL#gs://}"
+HTTP_URL="https://commondatastorage.googleapis.com/${GS_URL#gs://}"
 gsutil cp "${FLAGS_payload}" "${GS_URL}"
 
 rollerctl \
