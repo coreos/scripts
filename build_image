@@ -34,6 +34,8 @@ DEFINE_string group "${DEFAULT_GROUP}" \
   "The update group."
 DEFINE_boolean generate_update "${FLAGS_FALSE}" \
   "Generate update payload. (prod only)"
+DEFINE_boolean extract_update "${FLAGS_TRUE}" \
+  "Extract the /usr partition for generating updates."
 DEFINE_string developer_data "" \
   "Insert a custom cloudinit file into the image."
 
@@ -151,6 +153,9 @@ fi
 
 if [[ "${DEV_IMAGE}" -eq 1 ]]; then
   create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
+  if [[ ${FLAGS_extract_update} -eq ${FLAGS_TRUE} ]]; then
+    extract_update "${COREOS_DEVELOPER_IMAGE_NAME}" "${DISK_LAYOUT}"
+  fi
 fi
 
 if [[ "${CONTAINER}" -eq 1 ]]; then
@@ -161,6 +166,8 @@ if [[ "${PROD_IMAGE}" -eq 1 ]]; then
   create_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
   if [[ ${FLAGS_generate_update} -eq ${FLAGS_TRUE} ]]; then
     generate_update "${COREOS_PRODUCTION_IMAGE_NAME}" ${DISK_LAYOUT}
+  elif [[ ${FLAGS_extract_update} -eq ${FLAGS_TRUE} ]]; then
+    extract_update "${COREOS_PRODUCTION_IMAGE_NAME}" "${DISK_LAYOUT}"
   fi
 fi
 
