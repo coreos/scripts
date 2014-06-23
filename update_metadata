@@ -29,6 +29,12 @@ update_overlay() {
 
     pushd "${repo_path}" >/dev/null
     git add -A metadata/md5-cache
+
+    if git diff --quiet --cached; then
+        info "Nothing to update in ${repo_name}"
+        return 0
+    fi
+
     if [[ ${FLAGS_commit} -eq ${FLAGS_TRUE} ]]; then
         git commit -m "chore(metadata): Regenerate cache" metadata/md5-cache
     else
