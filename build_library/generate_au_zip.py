@@ -20,12 +20,12 @@ REPO_MANIFESTS_DIR = os.environ['REPO_MANIFESTS_DIR']
 SCRIPTS_DIR = os.environ['SCRIPTS_DIR']
 
 # GLOBALS
-STATIC_FILES = ['/usr/bin/old_bins/cgpt',
-                '/usr/bin/cros_generate_update_payload',
-                '%s/version.txt' % REPO_MANIFESTS_DIR,
-                '%s/chromeos-common.sh' % SCRIPTS_DIR,
+STATIC_FILES = ['%s/version.txt' % REPO_MANIFESTS_DIR,
                 '%s/common.sh' % SCRIPTS_DIR,
+                '%s/core_pre_alpha' % SCRIPTS_DIR,
+                '%s/core_promote' % SCRIPTS_DIR,
                 '%s/core_roller_upload' % SCRIPTS_DIR,
+                '%s/core_sign_update' % SCRIPTS_DIR,
                 ]
 
 DYNAMIC_EXECUTABLES = ['/usr/bin/delta_generator',
