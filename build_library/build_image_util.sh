@@ -64,6 +64,19 @@ extract_update() {
   upload_image "${update_path}"
 }
 
+zip_update_tools() {
+  # There isn't a 'dev' variant of this zip, so always call it production.
+  local update_zip="coreos_production_update.zip"
+
+  info "Generating update tools zip"
+  # Make sure some vars this script needs are exported
+  export REPO_MANIFESTS_DIR SCRIPTS_DIR
+  "${BUILD_LIBRARY_DIR}/generate_au_zip.py" \
+    --output-dir "${BUILD_DIR}" --zip-name "${update_zip}"
+
+  upload_image "${BUILD_DIR}/${update_zip}"
+}
+
 generate_update() {
   local image_name="$1"
   local disk_layout="$2"
@@ -78,12 +91,6 @@ generate_update() {
     -new_image "${update}.bin" -out_file "${update}.gz"
   delta_generator -private_key "${devkey}" \
     -in_file "${update}.gz" -out_metadata "${update}.meta"
-
-  info "Generating update tools zip"
-  # Make sure some vars this script needs are exported
-  export REPO_MANIFESTS_DIR SCRIPTS_DIR
-  "${BUILD_LIBRARY_DIR}/generate_au_zip.py" \
-    --output-dir "${BUILD_DIR}" --zip-name "${update_prefix}.zip"
 
   upload_image -d "${update}.DIGESTS" "${update}".{bin,gz,meta,zip}
 }
