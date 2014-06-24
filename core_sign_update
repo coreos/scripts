@@ -1,0 +1,115 @@
+#!/bin/bash
+
+# Copyright (c) 2014 CoreOS, Inc. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# usage: ./core_generate_update_payload  --image coreos_production_update.bin \
+# 		--output update.gz \
+#		--private_keys update.key.pem:update2.key.pem
+#		--public_keys update.pub.pem:update2.pub.pem
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+DEFINE_string image "" "The image that should be sent to clients."
+DEFINE_string output "" "Output file"
+DEFINE_string private_keys "" "Path to private key in .pem format."
+DEFINE_string public_keys "" "Path to public key in .pem format."
+
+# Parse command line
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+set -e
+
+cleanup() {
+	rm -f padding
+	rm -f update
+	rm -f update.hash
+	rm -f update.padhash
+	rm -f update.signed
+	rm -f update.sig.*
+}
+
+trap cleanup INT TERM EXIT
+
+delta_generator \
+    -new_image "$FLAGS_image" \
+    -out_file update
+
+IFS=: read -a private_keys <<< "$FLAGS_private_keys"
+IFS=: read -a public_keys <<< "$FLAGS_public_keys"
+
+if [ ${#private_keys} -ne ${#public_keys} ]; then
+	echo "mismatch in count of private keys and public keys"
+	exit 1
+fi
+
+i=0
+signature_sizes=""
+for key in "${private_keys[@]}"; do
+	signature_sizes=${signature_sizes}:256
+	let "i += 1"
+done
+signature_sizes="${signature_sizes:1:${#signature_sizes}}"
+
+delta_generator \
+	--signature_size ${signature_sizes} \
+	--in_file update \
+	--out_hash_file update.hash
+
+# The following is a standard PKCS1-v1_5 padding for SHA256 signatures, as
+# defined in RFC3447. It is prepended to the actual signature (32 bytes) to
+# form a sequence of 256 bytes (2048 bits) that is amenable to RSA signing. The
+# padded hash will look as follows:
+#
+#    0x00 0x01 0xff ... 0xff 0x00  ASN1HEADER  SHA256HASH
+#   |--------------205-----------||----19----||----32----|
+#
+# where ASN1HEADER is the ASN.1 description of the signed data. The complete 51
+# bytes of actual data (i.e. the ASN.1 header complete with the hash) are
+# packed as follows:
+#
+#  SEQUENCE(2+49) {
+#   SEQUENCE(2+13) {
+#    OBJECT(2+9) id-sha256
+#    NULL(2+0)
+#   }
+#   OCTET STRING(2+32) <actual signature bytes...>
+#  }
+echo "AAH/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////ADAxMA0GCWCGSAFlAwQCAQUABCA=" | base64 -d > padding
+cat padding update.hash > update.padhash
+
+i=1
+signature_sizes=""
+for key in "${private_keys[@]}"; do
+	openssl rsautl -raw -sign -inkey ${key} -in update.padhash -out update.sig.${i}
+	let "i += 1"
+done
+
+files=""
+for i in update.sig.*; do
+	files=${files}:${i}
+done
+files="${files:1:${#files}}"
+echo ${files}
+
+delta_generator --signature_file ${files} --in_file update --out_file update.signed
+
+i=1
+for key in "${public_keys[@]}"; do
+	delta_generator \
+		--public_key_version "${i}" \
+		--public_key "${key}" \
+		--in_file update.signed
+
+	let "i += 1"
+done
+
+mv update.signed ${FLAGS_output}
+
+trap - INT TERM EXIT
+cleanup noexit
+
+echo "Done generating full update."
