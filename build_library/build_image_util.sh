@@ -54,6 +54,16 @@ delete_prompt() {
   fi
 }
 
+extract_update() {
+  local image_name="$1"
+  local disk_layout="$2"
+  local update_path="${BUILD_DIR}/${image_name%_image.bin}_update.bin"
+
+  "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
+    extract "${BUILD_DIR}/${image_name}" "USR-A" "${update_path}"
+  upload_image "${update_path}"
+}
+
 generate_update() {
   local image_name="$1"
   local disk_layout="$2"

@@ -42,6 +42,14 @@ create_prod_image() {
   emerge_to_image "${root_fs_dir}" coreos-base/coreos
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
 
+  # Assert that if this is supposed to be an official build that the
+  # official update keys have been used.
+  if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
+      grep -q official \
+          "${root_fs_dir}"/var/db/pkg/coreos-base/coreos-au-key-*/USE \
+          || die_notrace "coreos-au-key is missing the 'official' use flag"
+  fi
+
   # clean-ups of things we do not need
   sudo rm ${root_fs_dir}/etc/csh.env
   sudo rm -rf ${root_fs_dir}/var/db/pkg
