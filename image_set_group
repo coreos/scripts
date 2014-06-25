@@ -95,11 +95,20 @@ mkdir -p "${ROOT_FS_DIR}"
 
 info "Copying from ${FLAGS_from}"
 cp "${SRC_IMAGE}" "${DST_IMAGE}"
-cp "${FLAGS_from}/version.txt" "${BUILD_DIR}/version.txt"
+
+# Copy all extra useful things, these do not need to be modified.
 UPDATE_PREFIX="${COREOS_PRODUCTION_IMAGE_NAME%_image.bin}_update"
-if [[ -e "${FLAGS_from}/${UPDATE_PREFIX}.bin" ]]; then
-  cp "${FLAGS_from}/${UPDATE_PREFIX}".{bin,gz,meta,zip} "${BUILD_DIR}/"
-fi
+EXTRA_FILES=(
+    "version.txt"
+    "${UPDATE_PREFIX}.bin"
+    "${UPDATE_PREFIX}.zip"
+    "${COREOS_DEVELOPER_CONTAINER_NAME}"
+    )
+for filename in "${EXTRA_FILES[@]}"; do
+    if [[ -e "${FLAGS_from}/${filename}" ]]; then
+        cp "${FLAGS_from}/${filename}" "${BUILD_DIR}/${filename}"
+    fi
+done
 
 "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${FLAGS_disk_layout}" \
       mount "${DST_IMAGE}" "${ROOT_FS_DIR}"
@@ -115,11 +124,11 @@ cleanup_mounts "${ROOT_FS_DIR}"
 trap - EXIT
 
 upload_image "${DST_IMAGE}"
-upload_image "${BUILD_DIR}/version.txt"
-if [[ -e "${BUILD_DIR}/${UPDATE_PREFIX}.bin" ]]; then
-  upload_image -d "${BUILD_DIR}/${UPDATE_PREFIX}.DIGESTS" \
-      "${BUILD_DIR}/${UPDATE_PREFIX}".{bin,gz,meta,zip}
-fi
+for filename in "${EXTRA_FILES[@]}"; do
+    if [[ -e "${BUILD_DIR}/${filename}" ]]; then
+        upload_image "${BUILD_DIR}/${filename}"
+    fi
+done
 
 set_build_symlinks "${FLAGS_group}-latest"
 
