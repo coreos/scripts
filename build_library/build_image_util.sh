@@ -89,10 +89,8 @@ generate_update() {
     extract "${BUILD_DIR}/${image_name}" "USR-A" "${update}.bin"
   delta_generator -private_key "${devkey}" \
     -new_image "${update}.bin" -out_file "${update}.gz"
-  delta_generator -private_key "${devkey}" \
-    -in_file "${update}.gz" -out_metadata "${update}.meta"
 
-  upload_image -d "${update}.DIGESTS" "${update}".{bin,gz,meta,zip}
+  upload_image -d "${update}.DIGESTS" "${update}".{bin,gz,zip}
 }
 
 # Basic command to emerge binary packages into the target image.
