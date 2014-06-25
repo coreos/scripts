@@ -171,6 +171,12 @@ if [[ "${PROD_IMAGE}" -eq 1 ]]; then
   fi
 fi
 
+if [[ ${FLAGS_generate_update} -eq ${FLAGS_TRUE} ]] || \
+   [[ ${FLAGS_extract_update} -eq ${FLAGS_TRUE} ]]
+then
+  zip_update_tools
+fi
+
 # Write out a version.txt file, this will be used by image_to_vm.sh
 tee "${BUILD_DIR}/version.txt" <<EOF
 COREOS_BUILD=${COREOS_BUILD}
