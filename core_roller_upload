@@ -14,8 +14,6 @@ DEFINE_string board "amd64-usr" \
     "Board type of the image"
 DEFINE_string payload "coreos_production_update.gz" \
     "Path to the update payload"
-DEFINE_string metadata "coreos_production_update.meta" \
-    "Path to the update metadata"
 DEFINE_string version "${COREOS_VERSION_STRING}" \
     "Version number of this build."
 DEFINE_string app_id "e96281a6-d1af-4bde-9a0a-97b76e56dc57" \
@@ -53,13 +51,12 @@ GS_URL="${FLAGS_storage}/${FLAGS_board}/${FLAGS_version}/update.gz"
 HTTP_URL="https://commondatastorage.googleapis.com/${GS_URL#gs://}"
 gsutil cp "${FLAGS_payload}" "${GS_URL}"
 
-rollerctl \
-	-s ${FLAGS_endpoint} \
-	-u ${FLAGS_user} \
-	-k ${FLAGS_api_key} \
-	new-package \
-	--url "${HTTP_URL}" \
-	--file "${FLAGS_payload}" \
-	--meta "${FLAGS_metadata}" \
-	--version "${FLAGS_version}" \
-	"${FLAGS_app_id}"
+updatectl \
+        --server="${FLAGS_endpoint}" \
+        --user="${FLAGS_user}" \
+        --key="${FLAGS_api_key}" \
+        package create \
+        --app-id="${FLAGS_app_id}" \
+        --file="${FLAGS_payload}" \
+        --url="${HTTP_URL}" \
+	--version="${FLAGS_version}"
