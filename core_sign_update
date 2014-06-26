@@ -10,6 +10,9 @@
 #		--public_keys update.pub.pem:update2.pub.pem
 
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+# We have to simple-mindedly set GCLIENT_ROOT in case we're running from
+# au-generator.zip because common.sh will fail while auto-detect it.
+export GCLIENT_ROOT=$(readlink -f "${SCRIPT_ROOT}/../../")
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
 DEFINE_string image "" "The image that should be sent to clients."
