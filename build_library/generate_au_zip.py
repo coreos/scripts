@@ -29,6 +29,7 @@ STATIC_FILES = ['%s/version.txt' % REPO_MANIFESTS_DIR,
                 ]
 
 DYNAMIC_EXECUTABLES = ['/usr/bin/delta_generator',
+                       '/usr/bin/updatectl',
                        '/usr/bin/bsdiff',
                        '/usr/bin/bspatch']
 
