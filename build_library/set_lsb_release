@@ -32,7 +32,7 @@ sudo mkdir -p "${ROOT_FS_DIR}/usr/share/coreos" "${ROOT_FS_DIR}/etc/coreos"
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/lsb-release" <<EOF
 DISTRIB_ID=$COREOS_VERSION_NAME
 DISTRIB_RELEASE=$COREOS_VERSION_STRING
-DISTRIB_CODENAME="Let the tiger loose!"
+DISTRIB_CODENAME="Red Dog"
 DISTRIB_DESCRIPTION="$COREOS_VERSION_NAME $COREOS_VERSION_STRING"
 EOF
 sudo ln -sf "../usr/share/coreos/lsb-release" "${ROOT_FS_DIR}/etc/lsb-release"
