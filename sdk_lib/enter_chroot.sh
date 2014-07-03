@@ -191,7 +191,8 @@ generate_locales() {
     # with long multibyte strings.  Newer setups have this fixed,
     # but locale-gen doesn't need to be run in any locale in the
     # first place, so just go with C to keep it fast.
-    chroot "${FLAGS_chroot}" env LC_ALL=C locale-gen -q -u \
+    PATH="/usr/sbin:/usr/bin:/sbin:/bin" LC_ALL=C \
+      chroot "${FLAGS_chroot}" locale-gen -q -u \
       -G "$(printf '%s\n' "${gen_locales[@]}")"
   fi
 }
