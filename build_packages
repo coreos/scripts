@@ -194,6 +194,46 @@ if [[ ${#CROS_WORKON_PKGS[@]} -gt 0 ]]; then
   )
 fi
 
+# Goo to attempt to resolve dependency loops on individual packages.
+# If this becomes insufficient we will need to move to a full multi-stage
+# bootstrap process like we do with the SDK via catalyst.
+break_dep_loop() {
+  local pkg="$1"
+  local flag="$2"
+  local flag_file="${BOARD_ROOT}/etc/portage/package.use/break_dep_loop"
+
+  # Be sure to clean up use flag hackery from previous failed runs
+  sudo rm -f "${flag_file}"
+
+  # If the package is already installed we have nothing to do
+  if portageq-"${BOARD}" has_version "${BOARD_ROOT}" "${pkg}"; then
+    return 0
+  fi
+
+  # Likewise, nothing to do if the flag isn't actually enabled.
+  if equery-"${BOARD}" -q uses "${pkg}" | grep -q "^-${flag}"; then
+    return 0
+  fi
+
+  # Temporarily compile/install package with flag disabled. If a binary
+  # package is available use it regardless of its version or use flags.
+  info "Merging ${pkg} wtih USE=-${flag}"
+  sudo mkdir -p "${flag_file%/*}"
+  sudo_clobber "${flag_file}" <<<"${pkg} -${flag}"
+  # rebuild-if-unbuilt is disabled to prevent portage from needlessly
+  # rebuilding zlib for some unknown reason, in turn triggering more rebuilds.
+  sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" \
+      --rebuild-if-unbuilt=n \
+      --binpkg-respect-use=n \
+      --buildpkg-exclude="${pkg}" \
+      --useoldpkg-atoms="${pkg}" \
+      "${pkg}"
+  sudo rm -f "${flag_file}"
+}
+
+# systemd[cryptsetup] -> cryptsetup -> lvm2 -> virtual/udev -> systemd
+break_dep_loop sys-apps/systemd cryptsetup
+
 info "Merging board packages now"
 sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" coreos-devel/board-packages
 
