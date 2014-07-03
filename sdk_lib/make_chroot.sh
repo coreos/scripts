@@ -9,6 +9,8 @@
 # setup for development. Once created, the password is set to PASSWORD (below).
 # One can enter the chrooted environment for work by running enter_chroot.sh.
 
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
