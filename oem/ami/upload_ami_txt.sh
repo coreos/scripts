@@ -58,7 +58,7 @@ if [[ ! -n "$VER" ]]; then
     exit 1
 fi
 
-declare -A AMIS
+declare -A AMIS HVM_AMIS
 for r in "${!AKI[@]}"; do
     AMI=$(ec2-describe-images --region=${r} -F name="CoreOS-$GROUP-$VER" \
         | grep -m1 ^IMAGE \
@@ -68,25 +68,38 @@ for r in "${!AKI[@]}"; do
         continue
     fi
     AMIS[${r}]=$AMI
+    HVM=$(ec2-describe-images --region=${r} -F name="CoreOS-$GROUP-$VER-hvm" \
+        | grep -m1 ^IMAGE | cut -f2) || true
+    if [[ -z "$HVM" ]]; then
+        echo "$0: Cannot find ${r} AMI for CoreOS $GROUP $VER (HVM)" >&2
+        exit 1
+    fi
+    HVM_AMIS[${r}]=$HVM
 done
 
-OUT=
+upload_file() {
+    local name="$1"
+    local content="$2"
+    url="$GS_URL/$GROUP/boards/$BOARD/$VER/${IMAGE}_${name}.txt"
+    gsutil cp - "$url" <<<"$content"
+    echo "OK, ${url}=${content}"
+}
+
 for r in "${!AMIS[@]}"; do
-    url="$GS_URL/$GROUP/boards/$BOARD/$VER/${IMAGE}_${r}.txt"
-    tmp=$(mktemp --suffix=.txt)
-    trap "rm -f '$tmp'" EXIT
-    echo "${AMIS[$r]}" > "$tmp"
-    gsutil cp "$tmp" "$url"
-    echo "OK, $r ${AMIS[$r]}, $url"
-    if [[ -z "$OUT" ]]; then
-        OUT="${r}=${AMIS[$r]}"
-    else
-        OUT="${OUT}|${r}=${AMIS[$r]}"
-    fi
+    upload_file "$r" "${AMIS[$r]}"
+    upload_file "pv_$r" "${AMIS[$r]}"
 done
-url="$GS_URL/$GROUP/boards/$BOARD/$VER/${IMAGE}_all.txt"
-tmp=$(mktemp --suffix=.txt)
-trap "rm -f '$tmp'" EXIT
-echo "$OUT" > "$tmp"
-gsutil cp "$tmp" "$url"
-echo "OK, all, $url"
+for r in "${!HVM_AMIS[@]}"; do
+    upload_file "hvm_$r" "${HVM_AMIS[$r]}"
+done
+
+ofs="$IFS"
+IFS="|$IFS"
+PV_ALL="${AMIS[*]}"
+HVM_ALL="${HVM_AMIS[*]}"
+IFS="$ofs"
+
+upload_file "all" "${PV_ALL}"
+upload_file "pv" "${PV_ALL}"
+upload_file "hvm" "${HVM_ALL}"
+echo "Done"
