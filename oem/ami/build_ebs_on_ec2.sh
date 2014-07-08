@@ -102,7 +102,6 @@ fi
 size=8 # GB
 arch=x86_64
 arch2=amd64
-ephemeraldev=/dev/sdb
 # The name has a limited set of allowed characterrs
 name=$(sed -e "s%[^A-Za-z0-9()\\./_-]%_%g" <<< "CoreOS-$GROUP-$VERSION")
 description="CoreOS $GROUP $VERSION"
@@ -115,19 +114,6 @@ akiid=${AKI[$region]}
 if [ -z "$akiid" ]; then
    echo "$0: Can't identify AKI, using region: $region" >&2
    exit 1
-fi
-
-# TODO: Once we sort out a long-term scheme for generating AMIs this likely
-# will go away. What if we want to generate AMIs from CoreOS?!?!?
-if [ -z "$(which ec2-attach-volume)" ]; then
-	# Update and install Ubuntu packages
-	export DEBIAN_FRONTEND=noninteractive
-	sudo perl -pi -e 's/^# *(deb .*multiverse)$/$1/' /etc/apt/sources.list
-	sudo apt-get update
-	sudo -E apt-get upgrade -y
-	sudo -E apt-get install -y \
-	  ec2-api-tools            \
-	  ec2-ami-tools 
 fi
 
 export EC2_URL="http://ec2.${region}.amazonaws.com"
@@ -171,27 +157,42 @@ snapshotid=$(ec2-create-snapshot --description "$name" "$volumeid" | cut -f2)
 while ec2-describe-snapshots "$snapshotid" | grep -q pending
   do sleep 30; done
 
+echo "Created snapshot $snapshotid, deleting $volumeid"
+ec2-delete-volume "$volumeid"
+
 echo "Sharing snapshot with Amazon"
 ec2-modify-snapshot-attribute "$snapshotid" -c --add 679593333241
 
-echo "Created snapshot $snapshotid, registering as a new AMI"
+echo "Registering hvm AMI"
+hvm_amiid=$(ec2-register                              \
+  --name "${name}-hvm"                                \
+  --description "$description (HVM)"                  \
+  --architecture "$arch"                              \
+  --virtualization-type hvm                           \
+  --root-device-name /dev/xvda                        \
+  --block-device-mapping /dev/xvda=$snapshotid::true  \
+  --block-device-mapping /dev/xvdb=ephemeral0         |
+  cut -f2)
+
+echo "Making $hvm_amiid public"
+ec2-modify-image-attribute "$hvm_amiid" --launch-permission -a all
+
+echo "Registering paravirtual AMI"
 amiid=$(ec2-register                                  \
   --name "$name"                                      \
-  --description "$description"                        \
+  --description "$description (PV)"                   \
   --architecture "$arch"                              \
+  --virtualization-type paravirtual                   \
   --kernel "$akiid"                                   \
-  --block-device-mapping /dev/sda=$snapshotid::true   \
-  --block-device-mapping $ephemeraldev=ephemeral0     |
+  --root-device-name /dev/xvda                        \
+  --block-device-mapping /dev/xvda=$snapshotid::true  \
+  --block-device-mapping /dev/xvdb=ephemeral0         |
   cut -f2)
 
 echo "Making $amiid public"
 ec2-modify-image-attribute "$amiid" --launch-permission -a all
 
-ec2-delete-volume "$volumeid"
-
 cat <<EOF
-AMI: $amiid $region $arch2
-
 $description
 architecture: $arch ($arch2)
 region:       $region ($zone)
@@ -200,15 +201,6 @@ name:         $name
 description:  $description
 EBS volume:   $volumeid (deleted)
 EBS snapshot: $snapshotid
-AMI id:       $amiid
-bin url:      $IMG_URL
-
-Test the new AMI using something like:
-
-  export EC2_URL=http://ec2.${region}.amazonaws.com
-  ec2-run-instances \\
-    --key \$USER \\
-    --instance-type t1.micro \\
-    $amiid
-
+PV AMI id:    $amiid
+HVM AMI id:   $hvm_amiid
 EOF

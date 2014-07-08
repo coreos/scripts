@@ -24,6 +24,7 @@ This script must be run from an ec2 host with the ec2 tools installed.
 "
 
 AMI=
+HVM=
 VER=
 BOARD="amd64-usr"
 GROUP="alpha"
@@ -46,11 +47,22 @@ if [[ $(id -u) -eq 0 ]]; then
     exit 1
 fi
 
+zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
+zone=$(curl --fail -s $zoneurl)
+region=$(echo $zone | sed 's/.$//')
+export EC2_URL="http://ec2.${region}.amazonaws.com"
+
 if [[ -z "$AMI" && -n "$VER" ]]; then
     AMI=$(ec2-describe-images -F name="CoreOS-$GROUP-$VER" | grep -m1 ^IMAGE \
         | cut -f2) || true # Don't die silently, error messages are good
     if [[ -z "$AMI" ]]; then
         echo "$0: Cannot find an AMI for CoreOS $GROUP $VER" >&2
+        exit 1
+    fi
+    HVM=$(ec2-describe-images -F name="CoreOS-$GROUP-$VER-hvm" \
+        | grep -m1 ^IMAGE | cut -f2) || true
+    if [[ -z "$HVM" ]]; then
+        echo "$0: Cannot find an AMI for CoreOS $GROUP $VER (HVM)" >&2
         exit 1
     fi
 elif [[ -n "$AMI" ]]; then
@@ -78,10 +90,6 @@ ec2-authorize "$sg_name" -P tcp -p 7001 > /dev/null
 ec2-authorize "$sg_name" -P tcp -p 22 > /dev/null
 echo "OK ($key_name)"
 
-# might be needed later for multi-zone tests
-zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
-zone=$(curl --fail -s $zoneurl)
-region=$(echo $zone | sed 's/.$//')
 discovery=$(curl --fail -s https://discovery.etcd.io/new)
 userdata="#cloud-config
 
@@ -98,13 +106,32 @@ coreos:
 "
 
 echo -n "Booting instances... "
-instances=$(ec2-run-instances \
+# Add in 1 HVM instance if available.
+if [[ -z "$HVM" ]]; then
+  instances=$(ec2-run-instances \
     --user-data "$userdata" \
     --instance-type "t1.micro" \
     --instance-count 3 \
     --group "$sg_name" \
     --key "$key_name" $AMI | \
        grep INSTANCE | cut -f2)
+else
+  instances=$(ec2-run-instances \
+    --user-data "$userdata" \
+    --instance-type "t1.micro" \
+    --instance-count 2 \
+    --group "$sg_name" \
+    --key "$key_name" $AMI | \
+       grep INSTANCE | cut -f2)
+  instances+=" "
+  instances+=$(ec2-run-instances \
+    --user-data "$userdata" \
+    --instance-type "m3.medium" \
+    --instance-count 1 \
+    --group "$sg_name" \
+    --key "$key_name" $HVM | \
+       grep INSTANCE | cut -f2)
+fi
 # little hack to create a describe instances command that only 
 # pulls data for these instances
 ec2_cmd=$(echo $instances | sed 's/ / --filter instance-id=/g')
@@ -155,8 +182,9 @@ ec2-terminate-instances $instances > /dev/null
 while ! $ec2_cmd | grep INSTANCE | grep -q terminated
   do sleep 10; done
 
-sleep 10
-ec2-delete-group $sg_name > /dev/null
+# The security group may take a little longer to free up
+while ! ec2-delete-group $sg_name > /dev/null
+  do sleep 10; done
 ec2-delete-keypair $key_name > /dev/null
 rm $key_file
 echo "OK"
