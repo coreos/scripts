@@ -171,9 +171,15 @@ if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   EMERGE_FLAGS+=( --jobs=${FLAGS_jobs} )
 fi
 
-if [[ "${FLAGS_norebuild}" -eq "${FLAGS_FALSE}" ]]; then
+# Usually err on the cautious side and rebuild when dependencies change.
+# Disable this behavior on the initial install because currently it is
+# triggering lots of needless rebuilds when binary packages would be fine.
+if [[ "${FLAGS_norebuild}" -eq "${FLAGS_FALSE}" ]] && \
+  portageq-"${BOARD}" has_version "${BOARD_ROOT}" coreos-devel/board-packages
+then
   EMERGE_FLAGS+=( --rebuild-if-unbuilt )
 fi
+
 if [[ "${FLAGS_showoutput}" -eq "${FLAGS_TRUE}" && \
       "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
   # Only parallel_emerge supports --show-output.
@@ -220,10 +226,7 @@ break_dep_loop() {
   info "Merging ${pkg} wtih USE=-${flag}"
   sudo mkdir -p "${flag_file%/*}"
   sudo_clobber "${flag_file}" <<<"${pkg} -${flag}"
-  # rebuild-if-unbuilt is disabled to prevent portage from needlessly
-  # rebuilding zlib for some unknown reason, in turn triggering more rebuilds.
   sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" \
-      --rebuild-if-unbuilt=n \
       --binpkg-respect-use=n \
       --buildpkg-exclude="${pkg}" \
       --useoldpkg-atoms="${pkg}" \
