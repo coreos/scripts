@@ -72,11 +72,22 @@ if [[ -z "$VER" ]]; then
     exit 1
 fi
 
+zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
+zone=$(curl --fail -s $zoneurl)
+region=$(echo $zone | sed 's/.$//')
+export EC2_URL="http://ec2.${region}.amazonaws.com"
+
 if [[ -z "$AMI" ]]; then
     AMI=$(ec2-describe-images -F name="CoreOS-$GROUP-$VER" | grep -m1 ^IMAGE \
         | cut -f2) || true # Don't die silently, error messages are good
     if [[ -z "$AMI" ]]; then
         echo "$0: Cannot find an AMI for CoreOS $GROUP $VER" >&2
+        exit 1
+    fi
+    HVM=$(ec2-describe-images -F name="CoreOS-$GROUP-$VER-hvm" \
+        | grep -m1 ^IMAGE | cut -f2) || true
+    if [[ -z "$HVM" ]]; then
+        echo "$0: Cannot find an AMI for CoreOS $GROUP $VER (HVM)" >&2
         exit 1
     fi
 else
@@ -95,19 +106,27 @@ fi
 name=$(sed -e "s%[^A-Za-z0-9()\\./_-]%_%g" <<< "CoreOS-$GROUP-$VER")
 description="CoreOS $GROUP $VER"
 
-zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
-zone=$(curl --fail -s $zoneurl)
-region=$(echo $zone | sed 's/.$//')
-
 do_copy() {
     local r="$1"
-    local r_amiid=$(ec2-copy-image \
-        --source-region "$region"            \
-        --source-ami-id "$AMI"               \
-        --name "$name"                       \
-        --description "$description"         \
-        --region "$r"                        |
+    local virt_type="$2"
+    local r_amiid
+    if [[ "$virt_type" == "hvm" ]]; then
+        r_amiid=$(ec2-copy-image                 \
+            --source-region "$region"            \
+            --source-ami-id "$HVM"               \
+            --name "${name}-hvm"                 \
+            --description "$description (HVM)"   \
+            --region "$r"                        |
+            cut -f2)
+    else
+        r_amiid=$(ec2-copy-image                 \
+            --source-region "$region"            \
+            --source-ami-id "$AMI"               \
+            --name "$name"                       \
+            --description "$description (PV)"    \
+            --region "$r"                        |
         cut -f2)
+    fi
     echo "AMI copy to $r as $r_amiid in progress"
 
     local r_amidesc=$(ec2-describe-images "$r_amiid" --region="$r")
@@ -115,10 +134,10 @@ do_copy() {
         sleep 30
         r_amidesc=$(ec2-describe-images "$r_amiid" --region="$r")
     done
-    echo "AMI copy to $r as $r_amiid in complete"
+    echo "AMI $virt_type copy to $r as $r_amiid in complete"
 
     local r_snapshotid=$(echo "$r_amidesc" | \
-        grep '^BLOCKDEVICEMAPPING.*/dev/sda' | cut -f5)
+        grep '^BLOCKDEVICEMAPPING.*/dev/xvda' | cut -f5)
     echo "Sharing snapshot $r_snapshotid in $r with Amazon"
     ec2-modify-snapshot-attribute "$r_snapshotid" \
         -c --add 679593333241 --region "$r"
@@ -130,8 +149,12 @@ do_copy() {
 for r in "${REGIONS[@]}"
 do
     [ "${r}" == "${region}" ] && continue
-    echo "Starting copy of $AMI from $region to $r"
-    do_copy "$r" &
+    echo "Starting copy of pv $AMI from $region to $r"
+    do_copy "$r" pv &
+    if [[ -n "$HVM" ]]; then
+        echo "Starting copy of hvm $AMI from $region to $r"
+        do_copy "$r" hvm &
+    fi
 done
 
 wait
