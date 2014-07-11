@@ -76,14 +76,15 @@ gs_release="${FLAGS_release_storage}/${FLAGS_board}/${FLAGS_version}"
 gs_current="${FLAGS_release_storage}/${FLAGS_board}/current"
 
 if [[ ${FLAGS_do_roller} -eq ${FLAGS_TRUE} ]]; then
-    rollerctl \
-        -s ${FLAGS_endpoint} \
-        -u ${FLAGS_user} \
-        -k ${FLAGS_api_key} \
-        update-channel \
-        "${FLAGS_app_id}" \
-        "${roller_channel}" \
-        "${FLAGS_version}"
+    updatectl \
+        --server="${FLAGS_endpoint}" \
+        --user="${FLAGS_user}" \
+        --key="${FLAGS_api_key}" \
+        channel update \
+        --app-id="${FLAGS_app_id}" \
+        --channel="${roller_channel}" \
+        --version="${FLAGS_version}" \
+        --publish=true
 fi
 
 if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]]; then
