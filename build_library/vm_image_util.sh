@@ -85,7 +85,6 @@ IMG_qemu_no_kexec_CONF_FORMAT=qemu
 
 ## xen
 IMG_xen_BOOT_KERNEL=0
-IMG_xen_DISK_FORMAT=vhd
 IMG_xen_CONF_FORMAT=xl
 
 ## virtualbox
