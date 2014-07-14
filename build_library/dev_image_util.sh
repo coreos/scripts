@@ -93,7 +93,7 @@ EOF
 
   # Remount the system partition read-write by default.
   # The remount services are provided by coreos-base/coreos-init
-  systemd_enable "${root_fs_dir}" "local-fs.target" "remount-usr.service"
+  systemd_enable "${root_fs_dir}" "multi-user.target" "remount-usr.service"
 
   finish_image "${disk_layout}" "${root_fs_dir}" "${image_contents}"
   upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \
