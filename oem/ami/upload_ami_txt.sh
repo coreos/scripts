@@ -85,19 +85,20 @@ upload_file() {
     echo "OK, ${url}=${content}"
 }
 
+PV_ALL=""
 for r in "${!AMIS[@]}"; do
     upload_file "$r" "${AMIS[$r]}"
     upload_file "pv_$r" "${AMIS[$r]}"
+    PV_ALL+="|${r}=${AMIS[$r]}"
 done
+PV_ALL="${PV_ALL#|}"
+
+HVM_ALL=""
 for r in "${!HVM_AMIS[@]}"; do
     upload_file "hvm_$r" "${HVM_AMIS[$r]}"
+    HVM_ALL+="|${r}=${HVM_AMIS[$r]}"
 done
-
-ofs="$IFS"
-IFS="|$IFS"
-PV_ALL="${AMIS[*]}"
-HVM_ALL="${HVM_AMIS[*]}"
-IFS="$ofs"
+HVM_ALL="${HVM_ALL#|}"
 
 upload_file "all" "${PV_ALL}"
 upload_file "pv" "${PV_ALL}"

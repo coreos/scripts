@@ -3,7 +3,7 @@
 BOARD="amd64-usr"
 GROUP="$1"
 VER="$2"
-DIR=/home/ubuntu/official
+DIR=/home/ec2-user/scripts
 
 if [ -z "$GROUP" -o -z "$VER" ]; then
   echo "Usage: $0 alpha 1.2.3" >&2
