@@ -96,8 +96,8 @@ userdata="#cloud-config
 coreos:
     etcd:
         discovery: $discovery
-        addr: \$private_ipv4:4001
-        peer-addr: \$private_ipv4:7001
+        addr: \$public_ipv4:4001
+        peer-addr: \$public_ipv4:7001
     units:
       - name: etcd.service
         command: start
