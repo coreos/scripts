@@ -135,6 +135,11 @@ get_sdk_profile() {
     echo "coreos:coreos/$(get_sdk_arch)/sdk"
 }
 
+get_sdk_libdir() {
+    # Looking for LIBDIR_amd64 or similar
+    portageq envvar "LIBDIR_$(get_sdk_arch)"
+}
+
 # Usage: get_sdk_binhost [version...]
 # If no versions are specified the current and SDK versions are used.
 get_sdk_binhost() {
