@@ -102,11 +102,7 @@ emerge_to_image() {
   test -n "$mask" || die "PROD_INSTALL_MASK not defined"
 
   local emerge_cmd
-  if [[ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
-    emerge_cmd="$GCLIENT_ROOT/chromite/bin/parallel_emerge --board=$BOARD"
-  else
-    emerge_cmd="emerge-$BOARD"
-  fi
+  emerge_cmd="emerge-$BOARD"
   emerge_cmd+=" --root-deps=rdeps --usepkgonly -v"
 
   if [[ $FLAGS_jobs -ne -1 ]]; then

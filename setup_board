@@ -37,8 +37,6 @@ DEFINE_string getbinpkgver "" \
   "Use binary packages from a specific version."
 DEFINE_boolean toolchainpkgonly $FLAGS_FALSE \
   "Use binary packages only for the board toolchain."
-DEFINE_boolean fast "${DEFAULT_FAST}" \
-  "Use the parallel_emerge wrapper script."
 DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean latest_toolchain $FLAGS_FALSE \
@@ -140,11 +138,6 @@ get_board_and_variant $FLAGS_board $FLAGS_variant
 
 # Before we can run any tools, we need to update chroot
 UPDATE_ARGS="--toolchain_boards=${BOARD}"
-if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
-  UPDATE_ARGS+=" --fast"
-else
-  UPDATE_ARGS+=" --nofast"
-fi
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=" --usepkg"
   if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then

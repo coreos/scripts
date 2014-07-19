@@ -20,10 +20,6 @@ DEFINE_boolean getbinpkg "${FLAGS_TRUE}" \
   "Download binary packages from remote repository."
 DEFINE_boolean noworkon "${FLAGS_FALSE}" \
   "Don't force-build workon packages."
-DEFINE_boolean showoutput "${FLAGS_FALSE}" \
-  "Show all output from parallel_emerge."
-DEFINE_boolean withautotest "${FLAGS_TRUE}" \
-  "Build autotest client code."
 DEFINE_boolean fetchonly "${FLAGS_FALSE}" \
   "Don't build anything, instead only fetch what is needed."
 
@@ -39,8 +35,6 @@ up by the build_image script to put together a bootable Chrome OS image.
 
 If [packages] are specified, only build those specific packages (and any
 dependencies they might need).
-
-For the fastest builds, use --nowithautotest --noworkon.
 "
 show_help_if_requested "$@"
 
@@ -53,8 +47,6 @@ DEFINE_boolean toolchainpkgonly $FLAGS_FALSE \
   "Use binary packages only for the board toolchain."
 DEFINE_string accept_licenses "" \
   "Licenses to append to the accept list."
-DEFINE_boolean fast "${DEFAULT_FAST}" \
-  "Use the parallel_emerge wrapper script."
 DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean norebuild "${FLAGS_FALSE}" \
@@ -92,11 +84,6 @@ CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
 UPDATE_ARGS=( --regen_configs )
 if [[ -n ${FLAGS_accept_licenses} ]]; then
   UPDATE_ARGS+=( --accept_licenses "${FLAGS_accept_licenses}" )
-fi
-if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
-  UPDATE_ARGS+=( --fast )
-else
-  UPDATE_ARGS+=( --nofast )
 fi
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=( --usepkg )
@@ -138,15 +125,7 @@ fi
 
 # Setup all the emerge command/flags.
 EMERGE_FLAGS=( -uDNv --backtrack=30 --select )
-
-if [[ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
-  EMERGE_CMD=(
-    "${CHROMITE_BIN}/parallel_emerge"
-    --board=${FLAGS_board}
-  )
-else
-  EMERGE_CMD=( "emerge-${FLAGS_board}" )
-fi
+EMERGE_CMD=( "emerge-${FLAGS_board}" )
 if [[ "${FLAGS_fetchonly}" -eq "${FLAGS_TRUE}" ]]; then
   EMERGE_CMD+=( --fetchonly )
 fi
@@ -173,11 +152,6 @@ fi
 
 if [[ "${FLAGS_norebuild}" -eq "${FLAGS_FALSE}" ]]; then
   EMERGE_FLAGS+=( --rebuild-if-unbuilt )
-fi
-if [[ "${FLAGS_showoutput}" -eq "${FLAGS_TRUE}" && \
-      "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
-  # Only parallel_emerge supports --show-output.
-  EMERGE_FLAGS+=( --show-output )
 fi
 
 # Build cros_workon packages when they are changed.

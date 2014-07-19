@@ -28,8 +28,6 @@ show_help_if_requested "$@"
 # The following options are advanced options, only available to those willing
 # to read the source code. They are not shown in help output, since they are
 # not needed for the typical developer workflow.
-DEFINE_boolean fast ${DEFAULT_FAST} \
-  "Use the parallel_emerge wrapper script."
 DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
@@ -148,10 +146,6 @@ fi
 
 # Perform an update of coreos-devel/sdk-depends and world in the chroot.
 EMERGE_CMD="emerge"
-CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
-if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
-  EMERGE_CMD="${CHROMITE_BIN}/parallel_emerge"
-fi
 
 # In first pass, update portage and toolchains. Lagged updates of both
 # can cause serious issues later.
@@ -175,6 +169,7 @@ if [[ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" && \
 fi
 
 # Build cros_workon packages when they are changed.
+CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
 for pkg in $("${CHROMITE_BIN}/cros_list_modified_packages" --host); do
   EMERGE_FLAGS+=" --reinstall-atoms=${pkg} --usepkg-exclude=${pkg}"
 done
