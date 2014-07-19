@@ -231,6 +231,9 @@ break_dep_loop() {
   sudo rm -f "${flag_file}"
 }
 
+# util-linux[udev] -> virtual->udev -> systemd -> util-linux
+break_dep_loop sys-apps/util-linux udev
+
 # systemd[cryptsetup] -> cryptsetup -> lvm2 -> virtual/udev -> systemd
 break_dep_loop sys-apps/systemd cryptsetup
 
