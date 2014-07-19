@@ -174,7 +174,6 @@ esac
 COREOS_CONFIG="/usr/local/portage/coreos/coreos/config"
 BOARD_ROOT="/build/${BOARD_VARIANT}"
 BOARD_ETC="${BOARD_ROOT}/etc"
-BOARD_PROFILE="${BOARD_ETC}/portage/profile"
 BOARD_ARCH=$(get_board_arch "$BOARD")
 BOARD_CHOST=$(get_board_chost ${BOARD})
 PORTAGE_PROFILE=$(get_board_profile "$BOARD")
@@ -218,7 +217,7 @@ if [[ ! -L "${BOARD_ROOT}/packages" ]]; then
 fi
 
 info "Configuring portage in ${BOARD_ROOT}"
-sudo mkdir -p "${BOARD_PROFILE}"
+sudo mkdir -p "${BOARD_ETC}/portage/"{profile,repos.conf}
 sudo ROOT="${BOARD_ROOT}" eselect profile set --force "${PORTAGE_PROFILE}"
 
 # Cleanup/migrate from older make.conf files
@@ -257,6 +256,8 @@ EMERGE_DEFAULT_OPTS="--oneshot"
 # Allow the user to override or define additional settings.
 source "${BOARD_ETC}/portage/make.conf.user"
 EOF
+
+sudo cp /etc/portage/repos.conf/* "${BOARD_ETC}"/portage/repos.conf/
 
 generate_all_wrappers
 
