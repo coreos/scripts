@@ -93,19 +93,6 @@ generate_all_wrappers() {
 
   info "Generating wrapper scripts"
 
-  wrapper="/usr/local/bin/pkg-config-${BOARD_VARIANT}"
-  sudo_clobber "${wrapper}" <<EOF
-#!/bin/bash
-
-PKG_CONFIG_LIBDIR=\$(printf '%s:' "${BOARD_ROOT}"/usr/*/pkgconfig)
-export PKG_CONFIG_LIBDIR
-
-export PKG_CONFIG_SYSROOT_DIR="${BOARD_ROOT}"
-
-exec pkg-config "\$@"
-EOF
-  wrappers+=( "${wrapper}" )
-
   for wrapper in 'emerge --root-deps' ebuild eclean equery portageq \
                  qcheck qfile qlist; do
     _generate_wrapper ${wrapper}
@@ -262,12 +249,6 @@ PKGDIR="${BOARD_ROOT}/var/lib/portage/pkgs"
 PORT_LOGDIR="${BOARD_ROOT}/var/log/portage"
 PORTAGE_TMPDIR="${BOARD_ROOT}/var/tmp"
 PORTAGE_BINHOST="${BOARD_BINHOST}"
-
-# TODO(marineam): Unsure if we need to specify both the pkg-config
-# env variables and a pkg-config wrapper that does the same thing...
-PKG_CONFIG="pkg-config-${BOARD_VARIANT}"
-PKG_CONFIG_PATH="${BOARD_ROOT}/usr/lib/pkgconfig:${BOARD_ROOT}/usr/share/pkgconfig"
-PKG_CONFIG_SYSROOT_DIR="${BOARD_ROOT}"
 
 # Generally there isn't any need to add packages to @world by default.
 # You can use --select to override this.
