@@ -71,6 +71,7 @@ create_dev_image() {
 
   start_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
+  set_image_profile dev
   emerge_to_image "${root_fs_dir}" coreos-base/coreos-dev
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
 

@@ -7,8 +7,8 @@
 # In prod images we only need the shared libraries.
 emerge_prod_gcc() {
     local root_fs_dir="$1"; shift
-    local mask="${INSTALL_MASK:-$(portageq-$BOARD envvar PROD_INSTALL_MASK)}"
-    test -n "$mask" || die "PROD_INSTALL_MASK not defined"
+    local mask="${INSTALL_MASK:-$(portageq-$BOARD envvar INSTALL_MASK)}"
+    test -n "$mask" || die "INSTALL_MASK not defined"
 
     mask="${mask}
         /usr/bin
@@ -38,6 +38,7 @@ create_prod_image() {
   start_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
   # Install minimal GCC (libs only) and then everything else
+  set_image_profile prod
   emerge_prod_gcc "${root_fs_dir}"
   emerge_to_image "${root_fs_dir}" coreos-base/coreos
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
