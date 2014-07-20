@@ -37,8 +37,6 @@ DEFINE_string getbinpkgver "" \
   "Use binary packages from a specific version."
 DEFINE_boolean toolchainpkgonly $FLAGS_FALSE \
   "Use binary packages only for the board toolchain."
-DEFINE_boolean fast "${DEFAULT_FAST}" \
-  "Use the parallel_emerge wrapper script."
 DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean latest_toolchain $FLAGS_FALSE \
@@ -140,11 +138,6 @@ get_board_and_variant $FLAGS_board $FLAGS_variant
 
 # Before we can run any tools, we need to update chroot
 UPDATE_ARGS="--toolchain_boards=${BOARD}"
-if [ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]; then
-  UPDATE_ARGS+=" --fast"
-else
-  UPDATE_ARGS+=" --nofast"
-fi
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=" --usepkg"
   if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
@@ -174,7 +167,6 @@ esac
 COREOS_CONFIG="/usr/local/portage/coreos/coreos/config"
 BOARD_ROOT="/build/${BOARD_VARIANT}"
 BOARD_ETC="${BOARD_ROOT}/etc"
-BOARD_PROFILE="${BOARD_ETC}/portage/profile"
 BOARD_ARCH=$(get_board_arch "$BOARD")
 BOARD_CHOST=$(get_board_chost ${BOARD})
 PORTAGE_PROFILE=$(get_board_profile "$BOARD")
@@ -218,7 +210,7 @@ if [[ ! -L "${BOARD_ROOT}/packages" ]]; then
 fi
 
 info "Configuring portage in ${BOARD_ROOT}"
-sudo mkdir -p "${BOARD_PROFILE}"
+sudo mkdir -p "${BOARD_ETC}/portage/"{profile,repos.conf}
 sudo ROOT="${BOARD_ROOT}" eselect profile set --force "${PORTAGE_PROFILE}"
 
 # Cleanup/migrate from older make.conf files
@@ -257,6 +249,8 @@ EMERGE_DEFAULT_OPTS="--oneshot"
 # Allow the user to override or define additional settings.
 source "${BOARD_ETC}/portage/make.conf.user"
 EOF
+
+sudo cp /etc/portage/repos.conf/* "${BOARD_ETC}"/portage/repos.conf/
 
 generate_all_wrappers
 

@@ -40,8 +40,6 @@ DEFINE_boolean getbinpkg $FLAGS_TRUE \
   "Download binary packages from remote repository."
 DEFINE_boolean delete $FLAGS_FALSE "Delete an existing chroot."
 DEFINE_boolean replace $FLAGS_FALSE "Overwrite existing chroot, if any."
-DEFINE_boolean fast "${DEFAULT_FAST}" \
-  "Use the parallel_emerge wrapper script."
 DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
 DEFINE_string stage3_path "" \
@@ -357,11 +355,6 @@ if [[ ${FLAGS_usepkg} -eq ${FLAGS_TRUE} ]]; then
   fi
 else
   UPDATE_ARGS+=( --nousepkg )
-fi
-if [[ ${FLAGS_fast} -eq ${FLAGS_TRUE} ]]; then
-  UPDATE_ARGS+=( --fast )
-else
-  UPDATE_ARGS+=( --nofast )
 fi
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   UPDATE_ARGS+=( --jobs=${FLAGS_jobs} )

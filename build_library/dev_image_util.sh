@@ -2,10 +2,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Shell function library for functions specific to creating dev
-# images from base images.  The main function for export in this
-# library is 'install_dev_packages'.
-
 configure_dev_portage() {
     # Need profiles at the bare minimum
     local repo
@@ -17,7 +13,7 @@ configure_dev_portage() {
             "$1/var/lib/portage/${repo}"
     done
 
-    sudo mkdir -p "$1/etc/portage"
+    sudo mkdir -p "$1/etc/portage/repos.conf"
     sudo_clobber "$1/etc/portage/make.conf" <<EOF
 # make.conf for CoreOS dev images
 ARCH=$(get_board_arch $BOARD)
@@ -26,16 +22,36 @@ BOARD_USE="$BOARD"
 
 # Use /var/lib/portage instead of /usr/portage
 DISTDIR="/var/lib/portage/distfiles"
-PKGDIR="/var/lib/portage/packages"
+PKGDIR="/var/lib/portage/pkgs"
+PORT_LOGDIR="/var/log/portage"
 PORTDIR="/var/lib/portage/portage-stable"
 PORTDIR_OVERLAY="/var/lib/portage/coreos-overlay"
+PORTAGE_BINHOST="$(get_board_binhost $BOARD $COREOS_VERSION_ID)"
+EOF
+
+sudo_clobber "$1/etc/portage/repos.conf/coreos.conf" <<EOF
+[DEFAULT]
+main-repo = portage-stable
+
+[gentoo]
+disabled = true
+
+[coreos]
+location = /var/lib/portage/coreos-overlay
+sync-type = git
+sync-uri = https://github.com/coreos/coreos-overlay.git
+
+[portage-stable]
+location = /var/lib/portage/portage-stable
+sync-type = git
+sync-uri = https://github.com/coreos/portage-stable.git
 EOF
 
     # Now set the correct profile
     sudo PORTAGE_CONFIGROOT="$1" ROOT="$1" \
         PORTDIR="$1/var/lib/portage/portage-stable" \
         PORTDIR_OVERLAY="$1/var/lib/portage/coreos-overlay" \
-        eselect profile set --force $(get_board_profile $BOARD)
+        eselect profile set --force $(get_board_profile $BOARD)/dev
 }
 
 detect_dev_url() {
@@ -71,7 +87,8 @@ create_dev_image() {
 
   start_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
-  emerge_to_image "${root_fs_dir}" coreos-base/coreos-dev
+  set_image_profile dev
+  emerge_to_image "${root_fs_dir}" @system coreos-base/coreos-dev
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
 
   # Setup portage for emerge and gmerge

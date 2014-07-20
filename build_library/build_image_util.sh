@@ -98,25 +98,24 @@ generate_update() {
 # to the basic emerge command.
 emerge_to_image() {
   local root_fs_dir="$1"; shift
-  local mask="${INSTALL_MASK:-$(portageq-$BOARD envvar PROD_INSTALL_MASK)}"
-  test -n "$mask" || die "PROD_INSTALL_MASK not defined"
 
-  local emerge_cmd
-  if [[ "${FLAGS_fast}" -eq "${FLAGS_TRUE}" ]]; then
-    emerge_cmd="$GCLIENT_ROOT/chromite/bin/parallel_emerge --board=$BOARD"
-  else
-    emerge_cmd="emerge-$BOARD"
-  fi
-  emerge_cmd+=" --root-deps=rdeps --usepkgonly -v"
-
-  if [[ $FLAGS_jobs -ne -1 ]]; then
-    emerge_cmd+=" --jobs=$FLAGS_jobs"
-  fi
-
-  sudo -E INSTALL_MASK="$mask" ${emerge_cmd} --root="${root_fs_dir}" "$@"
+  sudo -E ROOT="${root_fs_dir}" \
+      PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
+      emerge --root-deps=rdeps --usepkgonly --jobs=$FLAGS_jobs -v "$@"
 
   # Make sure profile.env and ld.so.cache has been generated
   sudo -E ROOT="${root_fs_dir}" env-update
+}
+
+# Switch to the dev or prod sub-profile
+set_image_profile() {
+  local suffix="$1"
+  local profile="${BUILD_DIR}/configroot/etc/portage/make.profile"
+  if [[ ! -d "${profile}/${suffix}" ]]; then
+      die "Not a valid profile: ${profile}/${suffix}"
+  fi
+  local realpath=$(readlink -f "${profile}/${suffix}")
+  ln -snf "${realpath}" "${profile}"
 }
 
 # Usage: systemd_enable /root default.target something.service
@@ -160,6 +159,10 @@ start_image() {
 
   local disk_img="${BUILD_DIR}/${image_name}"
 
+  mkdir -p "${BUILD_DIR}"/configroot/etc/portage
+  ln -s "${BOARD_ROOT}"/etc/portage/* \
+      "${BUILD_DIR}"/configroot/etc/portage/
+
   info "Using image type ${disk_layout}"
   "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
       format "${disk_img}"
@@ -169,8 +172,7 @@ start_image() {
   trap "cleanup_mounts '${root_fs_dir}' && delete_prompt" EXIT
 
   # First thing first, install baselayout to create a working filesystem.
-  emerge-${BOARD} --root="${root_fs_dir}" \
-      --usepkgonly --oneshot --quiet --nodeps sys-apps/baselayout
+  emerge_to_image "${root_fs_dir}" --nodeps --oneshot sys-apps/baselayout
 
   # FIXME(marineam): Work around glibc setting EROOT=$ROOT
   # https://bugs.gentoo.org/show_bug.cgi?id=473728#c12
@@ -226,6 +228,7 @@ finish_image() {
     sudo fstrim "${root_fs_dir}/usr" || true
   fi
 
+  rm -rf "${BUILD_DIR}"/configroot
   cleanup_mounts "${root_fs_dir}"
   trap - EXIT
 }
