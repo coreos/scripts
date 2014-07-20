@@ -212,7 +212,8 @@ break_dep_loop sys-apps/util-linux udev
 break_dep_loop sys-apps/systemd cryptsetup
 
 info "Merging board packages now"
-sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" coreos-devel/board-packages
+sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" \
+    @system coreos-devel/board-packages
 
 info "Checking build root"
 test_image_content "${BOARD_ROOT}"
