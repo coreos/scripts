@@ -175,6 +175,6 @@ qemu-system-x86_64 \
     -m ${VM_MEMORY} \
     -machine accel=kvm:tcg \
     -net nic,vlan=0,model=virtio \
-    -net user,vlan=0,hostfwd=tcp::"${SSH_PORT}"-:22 \
+    -net user,vlan=0,hostfwd=tcp::"${SSH_PORT}"-:22,hostname="${VM_NAME}" \
     "$@"
 exit $?
