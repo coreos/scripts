@@ -13,8 +13,8 @@ VALID_IMG_TYPES=(
     qemu
     qemu_no_kexec
     rackspace
+    rackspace_onmetal
     rackspace_vhd
-    teeth
     vagrant
     vagrant_vmware_fusion
     virtualbox
@@ -158,10 +158,10 @@ IMG_rackspace_vhd_BOOT_KERNEL=0
 IMG_rackspace_vhd_DISK_FORMAT=vhd
 IMG_rackspace_vhd_OEM_PACKAGE=oem-rackspace
 
-## teeth
-IMG_teeth_DISK_FORMAT=qcow2
-IMG_teeth_DISK_LAYOUT=teeth
-IMG_teeth_OEM_PACKAGE=oem-rackspace-teeth
+## rackspace onmetal
+IMG_rackspace_onmetal_DISK_FORMAT=qcow2
+IMG_rackspace_onmetal_DISK_LAYOUT=onmetal
+IMG_rackspace_onmetal_OEM_PACKAGE=oem-rackspace-onmetal
 
 ###########################################################
 
