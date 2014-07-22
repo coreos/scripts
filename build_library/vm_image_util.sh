@@ -196,6 +196,10 @@ set_vm_paths() {
     VM_TMP_ROOT="${VM_TMP_DIR}/rootfs"
     VM_NAME="$(_src_to_dst_name "${src_name}" "")-${COREOS_VERSION_STRING}"
     VM_README="${dst_dir}/$(_src_to_dst_name "${src_name}" ".README")"
+
+    # Make VM_NAME safe for use as a hostname
+    VM_NAME="${VM_NAME//./-}"
+    VM_NAME="${VM_NAME//+/-}"
 }
 
 _get_vm_opt() {
