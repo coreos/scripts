@@ -290,6 +290,10 @@ install_cross_libs() {
         "$ROOT/etc/portage/cross-${cross_chost}-depends")
 
     # Add toolchain to packages.provided since they are on the host system
+    if [[ -f "${package_provided}" ]]; then
+        # emerge-wrapper is trying a similar trick but doesn't work
+        $sudo rm -f "${package_provided}"
+    fi
     $sudo mkdir -p "${package_provided}"
     local native_pkg cross_pkg cross_pkg_version
     for native_pkg in "${TOOLCHAIN_PKGS[@]}"; do
