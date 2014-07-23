@@ -174,6 +174,7 @@ fi
 break_dep_loop() {
   local pkg="$1"
   local flag="$2"
+  shift 2
   local flag_file="${BOARD_ROOT}/etc/portage/package.use/break_dep_loop"
 
   # Be sure to clean up use flag hackery from previous failed runs
@@ -194,6 +195,13 @@ break_dep_loop() {
   info "Merging ${pkg} wtih USE=-${flag}"
   sudo mkdir -p "${flag_file%/*}"
   sudo_clobber "${flag_file}" <<<"${pkg} -${flag}"
+  # Disable any other problematic flags
+  extra_args=""
+  while [[ $# -gt 0 ]]; do
+      sudo_append "${flag_file}" <<<"$1 -$2"
+      extra_args+=" --buildpkg-exclude=$1 --useoldpkg-atoms=$1"
+      shift 2
+  done
   # rebuild-if-unbuilt is disabled to prevent portage from needlessly
   # rebuilding zlib for some unknown reason, in turn triggering more rebuilds.
   sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" \
@@ -201,12 +209,12 @@ break_dep_loop() {
       --binpkg-respect-use=n \
       --buildpkg-exclude="${pkg}" \
       --useoldpkg-atoms="${pkg}" \
-      "${pkg}"
+      ${extra_args} "${pkg}"
   sudo rm -f "${flag_file}"
 }
 
 # util-linux[udev] -> virtual->udev -> systemd -> util-linux
-break_dep_loop sys-apps/util-linux udev
+break_dep_loop sys-apps/util-linux udev sys-apps/systemd cryptsetup
 
 # systemd[cryptsetup] -> cryptsetup -> lvm2 -> virtual/udev -> systemd
 break_dep_loop sys-apps/systemd cryptsetup
