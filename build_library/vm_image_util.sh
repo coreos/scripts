@@ -162,6 +162,7 @@ IMG_rackspace_vhd_OEM_PACKAGE=oem-rackspace
 IMG_rackspace_onmetal_DISK_FORMAT=qcow2
 IMG_rackspace_onmetal_DISK_LAYOUT=onmetal
 IMG_rackspace_onmetal_OEM_PACKAGE=oem-rackspace-onmetal
+IMG_rackspace_onmetal_FS_HOOK=onmetal
 
 ###########################################################
 
@@ -270,18 +271,14 @@ setup_disk_image() {
         sudo mv "${SYSLINUX_DIR}/default.cfg.A" "${SYSLINUX_DIR}/default.cfg"
     fi
 
-    # The only filesystem after this point that may be modified is OEM
+    # The only filesystems after this point that may be modified are OEM
+    # and on rare cases ESP.
     # Note: it would be more logical for disk_util to mount things read-only
     # to begin with but I'm having trouble making that work reliably.
     # When mounting w/ ro the automatically allocated loop device will
     # also be configured as read-only. blockdev --setrw will change that
     # but io will start throwing errors so that clearly isn't sufficient.
-    local mnt
-    for mnt in $(findmnt -nrR -o target -T "${VM_TMP_ROOT}"); do
-        if [[ "${mnt}" != */usr/share/oem ]]; then
-            sudo mount -o remount,ro "${mnt}"
-        fi
-    done
+    sudo mount -o remount,ro "${VM_TMP_ROOT}"
 
     VM_GROUP=$(grep --no-messages --no-filename ^GROUP= \
         "${VM_TMP_ROOT}/usr/share/coreos/update.conf" \
@@ -322,6 +319,13 @@ _run_box_fs_hook() {
     # Copy basic Vagrant configs from OEM
     mkdir -p "${VM_TMP_DIR}/box"
     cp -R "${VM_TMP_ROOT}/usr/share/oem/box/." "${VM_TMP_DIR}/box"
+}
+
+_run_onmetal_fs_hook() {
+    # HACKITY HACK until OEMs can customize bootloader configs
+    local arg='8250.nr_uarts=5 console=ttyS4,115200n8 modprobe.blacklist=mei_me'
+    sudo sed -i "${VM_TMP_ROOT}/boot/efi/syslinux/boot_kernel.cfg" \
+        -e 's/console=[^ ]*//g' -e "s/\\(append.*$\\)/\\1 ${arg}/"
 }
 
 # Write the vm disk image to the target directory in the proper format
