@@ -61,8 +61,8 @@ do
     esac
 done
 
-if [[ $(id -u) -ne 0 ]]; then
-    echo "$0: This command must be run as root!" >&2
+if [[ $(id -u) -eq 0 ]]; then
+    echo "$0: This command should not be ran run as root!" >&2
     exit 1
 fi
 
@@ -139,14 +139,14 @@ echo "Writing image from $IMG_URL to $dev"
 # if it is on the local fs, just use it, otherwise try to download it
 if [[ -n "$IMG_PATH" ]]; then
     if [[ "$IMG_PATH" =~ \.bz2$ ]]; then
-        bunzip2 -c "$IMG_PATH" > $dev
+        bunzip2 -c "$IMG_PATH" | sudo dd of=$dev bs=1M
     else
-        dd if="$IMG_PATH" of=$dev bs=1M
+        sudo dd if="$IMG_PATH" of=$dev bs=1M
     fi
 elif [[ "$IMG_URL" == gs://* ]]; then
-    gsutil cat "$IMG_URL" | bunzip2 > $dev
+    gsutil cat "$IMG_URL" | bunzip2 | sudo dd of=$dev bs=1M
 else
-    curl --fail "$IMG_URL" | bunzip2 > $dev
+    curl --fail "$IMG_URL" | bunzip2 | sudo dd of=$dev bs=1M
 fi
 
 echo "Detaching $volumeid and creating snapshot"
