@@ -16,4 +16,3 @@ sudo bash -c ". $DIR/marineam-auth.sh && $DIR/build_ebs_on_ec2.sh ${args}"
 source $DIR/marineam-auth.sh
 $DIR/test_ami.sh -v ${args}
 $DIR/copy_ami.sh ${args}
-$DIR/upload_ami_txt.sh ${args}

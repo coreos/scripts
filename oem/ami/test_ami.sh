@@ -29,6 +29,10 @@ VER=
 BOARD="amd64-usr"
 GROUP="alpha"
 
+clean_version() {
+    sed -e 's%[^A-Za-z0-9()\\./_-]%_%g' <<< "$1"
+}
+
 while getopts "a:V:b:g:hv" OPTION
 do
     case $OPTION in
@@ -53,16 +57,17 @@ region=$(echo $zone | sed 's/.$//')
 export EC2_URL="http://ec2.${region}.amazonaws.com"
 
 if [[ -z "$AMI" && -n "$VER" ]]; then
-    AMI=$(ec2-describe-images -F name="CoreOS-$GROUP-$VER" | grep -m1 ^IMAGE \
+    search_name=$(clean_version "CoreOS-$GROUP-$VER")
+    AMI=$(ec2-describe-images -F name="${search_name}" | grep -m1 ^IMAGE \
         | cut -f2) || true # Don't die silently, error messages are good
     if [[ -z "$AMI" ]]; then
-        echo "$0: Cannot find an AMI for CoreOS $GROUP $VER" >&2
+        echo "$0: Cannot find an AMI named $search_name" >&2
         exit 1
     fi
-    HVM=$(ec2-describe-images -F name="CoreOS-$GROUP-$VER-hvm" \
+    HVM=$(ec2-describe-images -F name="${search_name}-hvm" \
         | grep -m1 ^IMAGE | cut -f2) || true
     if [[ -z "$HVM" ]]; then
-        echo "$0: Cannot find an AMI for CoreOS $GROUP $VER (HVM)" >&2
+        echo "$0: Cannot find an AMI named ${search_name}-hvm" >&2
         exit 1
     fi
 elif [[ -n "$AMI" ]]; then

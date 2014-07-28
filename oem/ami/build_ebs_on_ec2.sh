@@ -160,9 +160,6 @@ while ec2-describe-snapshots "$snapshotid" | grep -q pending
 echo "Created snapshot $snapshotid, deleting $volumeid"
 ec2-delete-volume "$volumeid"
 
-echo "Sharing snapshot with Amazon"
-ec2-modify-snapshot-attribute "$snapshotid" -c --add 679593333241
-
 echo "Registering hvm AMI"
 hvm_amiid=$(ec2-register                              \
   --name "${name}-hvm"                                \
@@ -173,9 +170,6 @@ hvm_amiid=$(ec2-register                              \
   --block-device-mapping /dev/xvda=$snapshotid::true  \
   --block-device-mapping /dev/xvdb=ephemeral0         |
   cut -f2)
-
-echo "Making $hvm_amiid public"
-ec2-modify-image-attribute "$hvm_amiid" --launch-permission -a all
 
 echo "Registering paravirtual AMI"
 amiid=$(ec2-register                                  \
@@ -188,9 +182,6 @@ amiid=$(ec2-register                                  \
   --block-device-mapping /dev/xvda=$snapshotid::true  \
   --block-device-mapping /dev/xvdb=ephemeral0         |
   cut -f2)
-
-echo "Making $amiid public"
-ec2-modify-image-attribute "$amiid" --launch-permission -a all
 
 cat <<EOF
 $description

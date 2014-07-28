@@ -48,6 +48,10 @@ add_region() {
     REGIONS+=( "$1" )
 }
 
+clean_version() {
+    sed -e 's%[^A-Za-z0-9()\\./_-]%_%g' <<< "$1"
+}
+
 while getopts "a:V:b:g:r:hv" OPTION
 do
     case $OPTION in
@@ -78,16 +82,17 @@ region=$(echo $zone | sed 's/.$//')
 export EC2_URL="http://ec2.${region}.amazonaws.com"
 
 if [[ -z "$AMI" ]]; then
-    AMI=$(ec2-describe-images -F name="CoreOS-$GROUP-$VER" | grep -m1 ^IMAGE \
+    search_name=$(clean_version "CoreOS-$GROUP-$VER")
+    AMI=$(ec2-describe-images -F name="${search_name}" | grep -m1 ^IMAGE \
         | cut -f2) || true # Don't die silently, error messages are good
     if [[ -z "$AMI" ]]; then
-        echo "$0: Cannot find an AMI for CoreOS $GROUP $VER" >&2
+        echo "$0: Cannot find an AMI named $search_name" >&2
         exit 1
     fi
-    HVM=$(ec2-describe-images -F name="CoreOS-$GROUP-$VER-hvm" \
+    HVM=$(ec2-describe-images -F name="${search_name}-hvm" \
         | grep -m1 ^IMAGE | cut -f2) || true
     if [[ -z "$HVM" ]]; then
-        echo "$0: Cannot find an AMI for CoreOS $GROUP $VER (HVM)" >&2
+        echo "$0: Cannot find an AMI named ${search_name}-hvm" >&2
         exit 1
     fi
 else
@@ -103,60 +108,61 @@ if [[ ${#REGIONS[@]} -eq 0 ]]; then
 fi
 
 # The name has a limited set of allowed characterrs
-name=$(sed -e "s%[^A-Za-z0-9()\\./_-]%_%g" <<< "CoreOS-$GROUP-$VER")
+name=$(clean_version "CoreOS-$GROUP-$VER")
 description="CoreOS $GROUP $VER"
 
 do_copy() {
     local r="$1"
     local virt_type="$2"
-    local r_amiid
-    if [[ "$virt_type" == "hvm" ]]; then
-        r_amiid=$(ec2-copy-image                 \
-            --source-region "$region"            \
-            --source-ami-id "$HVM"               \
-            --name "${name}-hvm"                 \
-            --description "$description (HVM)"   \
-            --region "$r"                        |
-            cut -f2)
-    else
-        r_amiid=$(ec2-copy-image                 \
-            --source-region "$region"            \
-            --source-ami-id "$AMI"               \
-            --name "$name"                       \
-            --description "$description (PV)"    \
-            --region "$r"                        |
-        cut -f2)
-    fi
-    echo "AMI copy to $r as $r_amiid in progress"
+    local local_amiid="$3"
+    local r_amiid r_name r_desc
 
-    local r_amidesc=$(ec2-describe-images "$r_amiid" --region="$r")
-    while grep -q pending <<<"$r_amidesc"; do
+    # run in a subshell, the -e flag doesn't get inherited
+    set -e
+
+    echo "Starting copy of $virt_type $local_amiid from $region to $r"
+    if [[ "$virt_type" == "hvm" ]]; then
+        r_name="${name}-hvm"
+        r_desc="${description} (HVM)"
+    else
+        r_name="${name}"
+        r_desc="${description} (PV)"
+    fi
+    r_amiid=$(ec2-copy-image \
+        --source-region "$region" --source-ami-id "$local_amiid" \
+        --name "$r_name" --description "$r_desc" --region "$r" |
+        cut -f2)
+    echo "AMI $virt_type copy to $r as $r_amiid in progress"
+
+    while ec2-describe-images "$r_amiid" --region="$r" | grep -q pending; do
         sleep 30
-        r_amidesc=$(ec2-describe-images "$r_amiid" --region="$r")
     done
     echo "AMI $virt_type copy to $r as $r_amiid in complete"
-
-    local r_snapshotid=$(echo "$r_amidesc" | \
-        grep '^BLOCKDEVICEMAPPING.*/dev/xvda' | cut -f5)
-    echo "Sharing snapshot $r_snapshotid in $r with Amazon"
-    ec2-modify-snapshot-attribute "$r_snapshotid" \
-        -c --add 679593333241 --region "$r"
-
-    echo "Making $r_amiid in $r public"
-    ec2-modify-image-attribute --region "$r" "$r_amiid" --launch-permission -a all
 }
 
+WAIT_PIDS=()
 for r in "${REGIONS[@]}"
 do
     [ "${r}" == "${region}" ] && continue
-    echo "Starting copy of pv $AMI from $region to $r"
-    do_copy "$r" pv &
+    do_copy "$r" pv "$AMI" &
+    WAIT_PIDS+=( $! )
     if [[ -n "$HVM" ]]; then
-        echo "Starting copy of hvm $AMI from $region to $r"
-        do_copy "$r" hvm &
+        do_copy "$r" hvm "$HVM" &
+        WAIT_PIDS+=( $! )
     fi
 done
 
-wait
+# wait for each subshell individually to report errors
+WAIT_FAILED=0
+for wait_pid in "${WAIT_PIDS[@]}"; do
+    if ! wait ${wait_pid}; then
+        : $(( WAIT_FAILED++ ))
+    fi
+done
+
+if [[ ${WAIT_FAILED} -ne 0 ]]; then
+    echo "${WAIT_FAILED} jobs failed :(" >&2
+    exit ${WAIT_FAILED}
+fi
 
 echo "Done"
