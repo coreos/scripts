@@ -178,9 +178,9 @@ amiid=$(ec2-register                                  \
   --architecture "$arch"                              \
   --virtualization-type paravirtual                   \
   --kernel "$akiid"                                   \
-  --root-device-name /dev/xvda                        \
-  --block-device-mapping /dev/xvda=$snapshotid::true  \
-  --block-device-mapping /dev/xvdb=ephemeral0         |
+  --root-device-name /dev/sda                         \
+  --block-device-mapping /dev/sda=$snapshotid::true   \
+  --block-device-mapping /dev/sdb=ephemeral0          |
   cut -f2)
 
 cat <<EOF
