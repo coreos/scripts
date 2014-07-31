@@ -12,4 +12,4 @@ fi
 
 set -e
 source $DIR/marineam-auth.sh
-$DIR/publish_ami.sh -b $BOARD -g $GROUP -V $VER"
+$DIR/publish_ami.sh -b $BOARD -g $GROUP -V $VER
