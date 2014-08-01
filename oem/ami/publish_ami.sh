@@ -94,7 +94,7 @@ publish_ami() {
     local virt_type="$2"
     local r_amiid="$3"
     local r_snapshotid=$(ec2-describe-images --region="$r" "$r_amiid" \
-        | grep '^BLOCKDEVICEMAPPING.*/dev/xvda' | cut -f5) || true
+        | grep -E '^BLOCKDEVICEMAPPING.*/dev/(xv|s)da' | cut -f5) || true
 
     # run in a subshell, the -e flag doesn't get inherited
     set -e
