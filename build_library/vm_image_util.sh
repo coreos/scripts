@@ -333,8 +333,8 @@ _run_box_fs_hook() {
 _run_onmetal_fs_hook() {
     # HACKITY HACK until OEMs can customize bootloader configs
     local arg='8250.nr_uarts=5 console=ttyS4,115200n8 modprobe.blacklist=mei_me'
-    local timeout=150
-    local totaltimeout=1200
+    local timeout=150  # 15 seconds
+    local totaltimeout=3000  # 5 minutes
     sudo sed -i "${VM_TMP_ROOT}/boot/efi/syslinux/boot_kernel.cfg" \
         -e 's/console=[^ ]*//g' -e "s/\\(append.*$\\)/\\1 ${arg}/"
     sudo sed -i "${VM_TMP_ROOT}/boot/efi/syslinux/syslinux.cfg" \
