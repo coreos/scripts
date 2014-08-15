@@ -213,7 +213,7 @@ _crossdev_info() {
     local cross_chost="$1"; shift
     echo -n "# "; crossdev --version
     echo "# $@"
-    crossdev --show-target-cfg "${cross_chost}"
+    crossdev "$@" --show-target-cfg
 }
 
 # Build/install a toolchain w/ crossdev.
@@ -221,13 +221,17 @@ _crossdev_info() {
 install_cross_toolchain() {
     local cross_chost="$1"; shift
     local cross_pkgs=( $(get_cross_pkgs $cross_chost) )
+    # gdb doesn't respect the --stable flag, set it stable explicitly
+    local cross_flags=( --gdb '[stable]' --ex-gdb --stable --target "${cross_chost}" )
     local cross_cfg="/usr/${cross_chost}/etc/portage/${cross_chost}-crossdev"
-    local cross_cfg_data=$(_crossdev_info "${cross_chost}" stable)
+    local cross_cfg_data=$(_crossdev_info "${cross_flags[@]}")
+    local emerge_flags=( "$@" --binpkg-respect-use=y --update --newuse )
 
     # Forcing binary packages for toolchain packages breaks crossdev since it
     # prevents it from rebuilding with different use flags during bootstrap.
     local safe_flags=( "${@/#--useoldpkg-atoms=*/}" )
     safe_flags=( "${safe_flags[@]/#--rebuild-exclude=*/}" )
+    cross_flags+=( --portage "${safe_flags[*]}" )
 
     # may be called from either catalyst (root) or upgrade_chroot (user)
     local sudo=
@@ -238,30 +242,25 @@ install_cross_toolchain() {
     # Only call crossdev to regenerate configs if something has changed
     if ! cmp --quiet - "${cross_cfg}" <<<"${cross_cfg_data}"
     then
-        $sudo crossdev --stable --portage "${safe_flags[*]}" \
-            --init-target --target "${cross_chost}"
+        $sudo crossdev "${cross_flags[@]}" --init-target
         $sudo tee "${cross_cfg}" <<<"${cross_cfg_data}" >/dev/null
     fi
 
     # Check if any packages need to be built from source. If so do a full
     # bootstrap via crossdev, otherwise just install the binaries (if enabled).
-    if emerge "$@" --binpkg-respect-use=y --update --newuse \
+    # It is ok to build gdb from source outside of crossdev.
+    if emerge "${emerge_flags[@]}" \
         --pretend "${cross_pkgs[@]}" | grep -q '^\[ebuild'
     then
-        $sudo crossdev --stable --portage "${safe_flags[*]}" \
-            --stage4 --target "${cross_chost}"
+        $sudo crossdev "${cross_flags[@]}" --stage4
     else
-        $sudo emerge "$@" --binpkg-respect-use=y --update --newuse \
-            "${cross_pkgs[@]}"
+        $sudo emerge "${emerge_flags[@]}" \
+            "cross-${cross_chost}/gdb" "${cross_pkgs[@]}"
     fi
 
     # Setup wrappers for our shiny new toolchain
-    if [[ ! -e "/usr/lib/ccache/bin/${cross_chost}-gcc" ]]; then
-        $sudo ccache-config --install-links "${cross_chost}"
-    fi
-    if [[ ! -e "/usr/lib/sysroot-wrappers/bin/${cross_chost}-gcc" ]]; then
-        $sudo sysroot-config --install-links "${cross_chost}"
-    fi
+    $sudo CC_QUIET=1 ccache-config --install-links "${cross_chost}"
+    $sudo CC_QUIET=1 sysroot-config --install-links "${cross_chost}"
 }
 
 # Build/install toolchain dependencies into the cross sysroot for a
