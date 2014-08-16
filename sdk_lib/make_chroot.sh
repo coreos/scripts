@@ -361,9 +361,6 @@ if [[ "${FLAGS_jobs}" -ne -1 ]]; then
 fi
 enter_chroot "${CHROOT_TRUNK_DIR}/src/scripts/update_chroot" "${UPDATE_ARGS[@]}"
 
-# Enable git terminal prompt
-early_enter_chroot eselect bashcomp enable --global git-prompt
-
 CHROOT_EXAMPLE_OPT=""
 if [[ "$FLAGS_chroot" != "$DEFAULT_CHROOT_DIR" ]]; then
   CHROOT_EXAMPLE_OPT="--chroot=$FLAGS_chroot"
