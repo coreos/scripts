@@ -192,7 +192,7 @@ _configure_sysroot() {
     local profile="$1"
 
     # may be called from either catalyst (root) or setup_board (user)
-    local sudo=
+    local sudo="env"
     if [[ $(id -u) -ne 0 ]]; then
         sudo="sudo -E"
     fi
@@ -234,7 +234,7 @@ install_cross_toolchain() {
     cross_flags+=( --portage "${safe_flags[*]}" )
 
     # may be called from either catalyst (root) or upgrade_chroot (user)
-    local sudo=
+    local sudo="env"
     if [[ $(id -u) -ne 0 ]]; then
         sudo="sudo -E"
     fi
@@ -273,7 +273,7 @@ install_cross_libs() {
     local package_provided="$ROOT/etc/portage/profile/package.provided"
 
     # may be called from either catalyst (root) or setup_board (user)
-    local sudo=
+    local sudo="env"
     if [[ $(id -u) -ne 0 ]]; then
         sudo="sudo -E"
     fi
