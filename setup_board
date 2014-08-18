@@ -103,6 +103,13 @@ exec cros_workon --board ${BOARD_VARIANT} "\$@"
 EOF
   wrappers+=( "${wrapper}" )
 
+  wrapper="/usr/local/bin/gdb-${BOARD_VARIANT}"
+  sudo_clobber "${wrapper}" <<EOF
+#!/bin/bash
+exec ${BOARD_CHOST}-gdb -iex 'set sysroot ${BOARD_ROOT}' "\$@"
+EOF
+  wrappers+=( "${wrapper}" )
+
   cmds+=(
     "chmod a+rx ${wrappers[*]}"
     "chown root:root ${wrappers[*]}"
@@ -251,6 +258,10 @@ source "${BOARD_ETC}/portage/make.conf.user"
 EOF
 
 sudo cp /etc/portage/repos.conf/* "${BOARD_ETC}"/portage/repos.conf/
+
+# make it easy to find debug symbols
+sudo mkdir -p /usr/lib/debug/build
+sudo ln -sfT /build/amd64-usr/usr/lib/debug /usr/lib/debug/build/amd64-usr
 
 generate_all_wrappers
 
