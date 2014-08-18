@@ -192,4 +192,9 @@ if [ "$PERL_VERSIONS" -gt 1 ] ; then
   sudo perl-cleaner --all -- --quiet
 fi
 
+# Old $PS1 customization that doesn't work any more
+if [[ -e /etc/profile.d/coreos-niceties.sh ]]; then
+  sudo rm -f /etc/profile.d/coreos-niceties.sh
+fi
+
 command_completed
