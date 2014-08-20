@@ -98,11 +98,17 @@ cp "${SRC_IMAGE}" "${DST_IMAGE}"
 
 # Copy all extra useful things, these do not need to be modified.
 UPDATE_PREFIX="${COREOS_PRODUCTION_IMAGE_NAME%_image.bin}_update"
+PRODUCTION_PREFIX="${COREOS_PRODUCTION_IMAGE_NAME%.bin}"
+CONTAINER_PREFIX="${COREOS_DEVELOPER_CONTAINER_NAME%.bin}"
 EXTRA_FILES=(
     "version.txt"
     "${UPDATE_PREFIX}.bin"
     "${UPDATE_PREFIX}.zip"
+    "${PRODUCTION_PREFIX}_contents.txt"
+    "${PRODUCTION_PREFIX}_packages.txt"
     "${COREOS_DEVELOPER_CONTAINER_NAME}"
+    "${CONTAINER_PREFIX}_contents.txt"
+    "${CONTAINER_PREFIX}_packages.txt"
     )
 for filename in "${EXTRA_FILES[@]}"; do
     if [[ -e "${FLAGS_from}/${filename}" ]]; then
