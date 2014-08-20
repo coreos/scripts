@@ -51,7 +51,7 @@ GS_URL="${FLAGS_storage}/${FLAGS_board}/${FLAGS_version}/update.gz"
 HTTP_URL="https://commondatastorage.googleapis.com/${GS_URL#gs://}"
 gsutil cp "${FLAGS_payload}" "${GS_URL}"
 
-updatectl \
+updateservicectl \
         --server="${FLAGS_endpoint}" \
         --user="${FLAGS_user}" \
         --key="${FLAGS_api_key}" \

@@ -76,7 +76,7 @@ gs_release="${FLAGS_release_storage}/${FLAGS_board}/${FLAGS_version}"
 gs_current="${FLAGS_release_storage}/${FLAGS_board}/current"
 
 if [[ ${FLAGS_do_roller} -eq ${FLAGS_TRUE} ]]; then
-    updatectl \
+    updateservicectl \
         --server="${FLAGS_endpoint}" \
         --user="${FLAGS_user}" \
         --key="${FLAGS_api_key}" \
