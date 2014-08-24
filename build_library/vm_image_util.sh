@@ -152,6 +152,7 @@ IMG_iso_CONF_FORMAT=iso
 IMG_gce_DISK_LAYOUT=vm
 IMG_gce_CONF_FORMAT=gce
 IMG_gce_OEM_PACKAGE=oem-gce
+IMG_gce_FS_HOOK=gce
 
 ## rackspace
 IMG_rackspace_BOOT_KERNEL=0
@@ -340,6 +341,13 @@ _run_onmetal_fs_hook() {
     sudo sed -i "${VM_TMP_ROOT}/boot/efi/syslinux/syslinux.cfg" \
         -e "s/^TIMEOUT [0-9]*/TIMEOUT ${timeout}/g" \
         -e "s/^TOTALTIMEOUT [0-9]*/TOTALTIMEOUT ${totaltimeout}/g"
+}
+
+_run_gce_fs_hook() {
+    # HACKITY HACK until OEMs can customize bootloader configs
+    local arg='console=ttyS0,115200n8'
+    sudo sed -i "${VM_TMP_ROOT}/boot/efi/syslinux/boot_kernel.cfg" \
+        -e 's/console=[^ ]*//g' -e "s/\\(append.*$\\)/\\1 ${arg}/"
 }
 
 # Write the vm disk image to the target directory in the proper format
