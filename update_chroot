@@ -158,6 +158,8 @@ sudo -E ${EMERGE_CMD} --quiet ${EMERGE_FLAGS} \
     sys-libs/nss-usrfiles \
     "${TOOLCHAIN_PKGS[@]}"
 
+gcc_set_latest_profile "$(portageq envvar CHOST)"
+
 if [[ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" && \
       -n "${FLAGS_toolchain_boards}" ]]; then
   CROSS_CHOSTS=( $(get_board_chost ${FLAGS_toolchain_boards} | sort -u) )

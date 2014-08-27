@@ -258,7 +258,8 @@ install_cross_toolchain() {
             "cross-${cross_chost}/gdb" "${cross_pkgs[@]}"
     fi
 
-    # Setup wrappers for our shiny new toolchain
+    # Setup environment and wrappers for our shiny new toolchain
+    gcc_set_latest_profile "${cross_chost}"
     $sudo CC_QUIET=1 ccache-config --install-links "${cross_chost}"
     $sudo CC_QUIET=1 sysroot-config --install-links "${cross_chost}"
 }
@@ -303,4 +304,36 @@ install_cross_libs() {
 
     # OK, clear as mud? Install those dependencies now!
     PORTAGE_CONFIGROOT="$ROOT" ROOT="$ROOT" $sudo emerge "$@" -u $cross_deps
+}
+
+# Get the latest GCC profile for a given CHOST
+# The extra flag can be blank, hardenednopie, and so on. See gcc-config -l
+# Usage: gcc_get_latest_profile chost [extra]
+gcc_get_latest_profile() {
+    local prefix="${1}-"
+    local suffix="${2+-$2}"
+    gcc-config -l | cut -d' ' -f3 | grep "^${prefix}[0-9\\.]*${suffix}$" | tail -n1
+    # return 1 if anything in the above pipe failed
+    [[ -z ${PIPESTATUS[*]#0} ]] || return 1
+}
+
+# Update to the latest GCC profile for a given CHOST if required
+# The extra flag can be blank, hardenednopie, and so on. See gcc-config -l
+# Usage: gcc_set_latest_profile chost [extra]
+gcc_set_latest_profile() {
+    local latest=$(gcc_get_latest_profile "$@")
+    if [[ -z "${latest}" ]]; then
+        echo "Failed to detect latest gcc profile for $1" >&2
+        return 1
+    fi
+
+    # may be called from either catalyst (root) or upgrade_chroot (user)
+    local sudo="env"
+    if [[ $(id -u) -ne 0 ]]; then
+        sudo="sudo -E"
+    fi
+
+    if [[ "${latest}" != $(gcc-config -c "$1") ]]; then
+        $sudo gcc-config "${latest}"
+    fi
 }

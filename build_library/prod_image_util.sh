@@ -67,7 +67,7 @@ create_prod_image() {
   # Add a tmpfiles rule that symlink ld.so.conf from /usr into /
   sudo tee "${root_fs_dir}/usr/lib64/tmpfiles.d/baselayout-ldso.conf" \
       > /dev/null <<EOF
-L   /etc/ld.so.conf     -   -   -   -   ../usr/lib/ld.so.conf
+L+  /etc/ld.so.conf     -   -   -   -   ../usr/lib/ld.so.conf
 EOF
 
   # clear them out explicitly, so this fails if something else gets dropped
