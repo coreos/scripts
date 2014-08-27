@@ -12,7 +12,7 @@
         "type":"efi",
         "blocks":"262144",
         "fs_type":"vfat",
-        "mount":"/boot/efi",
+        "mount":"/boot",
         "features": ["syslinux"]
       },
       "2":{

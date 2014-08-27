@@ -276,7 +276,7 @@ setup_disk_image() {
     "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
         mount "${VM_TMP_IMG}" "${VM_TMP_ROOT}"
 
-    local SYSLINUX_DIR="${VM_TMP_ROOT}/boot/efi/syslinux"
+    local SYSLINUX_DIR="${VM_TMP_ROOT}/boot/syslinux"
     if [[ $(_get_vm_opt BOOT_KERNEL) -eq 0 ]]; then
         sudo mv "${SYSLINUX_DIR}/default.cfg.A" "${SYSLINUX_DIR}/default.cfg"
     fi
@@ -336,9 +336,9 @@ _run_onmetal_fs_hook() {
     local arg='8250.nr_uarts=5 console=ttyS4,115200n8 modprobe.blacklist=mei_me'
     local timeout=150  # 15 seconds
     local totaltimeout=3000  # 5 minutes
-    sudo sed -i "${VM_TMP_ROOT}/boot/efi/syslinux/boot_kernel.cfg" \
+    sudo sed -i "${VM_TMP_ROOT}/boot/syslinux/boot_kernel.cfg" \
         -e 's/console=[^ ]*//g' -e "s/\\(append.*$\\)/\\1 ${arg}/"
-    sudo sed -i "${VM_TMP_ROOT}/boot/efi/syslinux/syslinux.cfg" \
+    sudo sed -i "${VM_TMP_ROOT}/boot/syslinux/syslinux.cfg" \
         -e "s/^TIMEOUT [0-9]*/TIMEOUT ${timeout}/g" \
         -e "s/^TOTALTIMEOUT [0-9]*/TOTALTIMEOUT ${totaltimeout}/g"
 }
@@ -346,7 +346,7 @@ _run_onmetal_fs_hook() {
 _run_gce_fs_hook() {
     # HACKITY HACK until OEMs can customize bootloader configs
     local arg='console=ttyS0,115200n8'
-    sudo sed -i "${VM_TMP_ROOT}/boot/efi/syslinux/boot_kernel.cfg" \
+    sudo sed -i "${VM_TMP_ROOT}/boot/syslinux/boot_kernel.cfg" \
         -e 's/console=[^ ]*//g' -e "s/\\(append.*$\\)/\\1 ${arg}/"
 }
 

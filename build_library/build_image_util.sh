@@ -202,12 +202,12 @@ finish_image() {
       ${tmp_ignore} "${root_fs_dir}/etc"
 
   # Only configure bootloaders if there is a boot partition
-  if mountpoint -q "${root_fs_dir}"/boot/efi; then
+  if mountpoint -q "${root_fs_dir}"/boot; then
     ${BUILD_LIBRARY_DIR}/configure_bootloaders.sh \
       --arch=${ARCH} \
       --disk_layout="${disk_layout}" \
       --boot_dir="${root_fs_dir}"/usr/boot \
-      --esp_dir="${root_fs_dir}"/boot/efi \
+      --esp_dir="${root_fs_dir}"/boot \
       --boot_args="${FLAGS_boot_args}"
   fi
 
