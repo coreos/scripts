@@ -5,24 +5,24 @@
 
 # The GCC package includes both its libraries and the compiler.
 # In prod images we only need the shared libraries.
-emerge_prod_gcc() {
+extract_prod_gcc() {
     local root_fs_dir="$1"; shift
-    local mask="${INSTALL_MASK:-$(portageq-$BOARD envvar INSTALL_MASK)}"
-    test -n "$mask" || die "INSTALL_MASK not defined"
+    local gcc=$(portageq-${BOARD} best_version "${BOARD_ROOT}" sys-devel/gcc)
+    local pkg="$(portageq-${BOARD} pkgdir)/${gcc}.tbz2"
 
-    mask="${mask}
-        /usr/bin
-        /usr/*/gcc-bin
-        /usr/lib/gcc/*/*/*.o
-        /usr/lib/gcc/*/*/include
-        /usr/lib/gcc/*/*/include-fixed
-        /usr/lib/gcc/*/*/plugin
-        /usr/libexec
-        /usr/share/gcc-data/*/*/c89
-        /usr/share/gcc-data/*/*/c99
-        /usr/share/gcc-data/*/*/python"
+    if [[ ! -f "${pkg}" ]]; then
+        die "Binary package missing: $pkg"
+    fi
 
-    INSTALL_MASK="${mask}" emerge_to_image "${root_fs_dir}" --nodeps sys-devel/gcc "$@"
+    # Normally GCC's shared libraries are installed to:
+    #  /usr/lib/gcc/x86_64-cros-linux-gnu/$version/*
+    # Instead we extract them to plain old /usr/lib
+    qtbz2 -O -t "${pkg}" | \
+        sudo tar -C "${root_fs_dir}" -xj \
+        --transform 's#/usr/lib/.*/#/usr/lib/#' \
+        --wildcards './usr/lib/gcc/*.so*'
+
+    package_provided "${gcc}"
 }
 
 create_prod_image() {
@@ -39,7 +39,7 @@ create_prod_image() {
 
   # Install minimal GCC (libs only) and then everything else
   set_image_profile prod
-  emerge_prod_gcc "${root_fs_dir}"
+  extract_prod_gcc "${root_fs_dir}"
   emerge_to_image "${root_fs_dir}" coreos-base/coreos
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
 
