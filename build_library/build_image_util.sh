@@ -145,10 +145,23 @@ write_contents() {
 # Generate a list of installed packages in the format:
 #   sys-apps/systemd-212-r8::coreos
 write_packages() {
+    local profile="${BUILD_DIR}/configroot/etc/portage/profile"    
     info "Writing ${2##*/}"
     ROOT="$1" equery-$BOARD --no-color \
         list '*' --format '$cpv::$repo' \
         > "$2"
+    if [[ -f "${profile}/package.provided" ]]; then
+        cat "${profile}/package.provided" >> "$2"
+    fi
+}
+
+# Add an entry to the image's package.provided
+package_provided() {
+    local p profile="${BUILD_DIR}/configroot/etc/portage/profile"    
+    for p in "$@"; do
+        info "Writing $p to package.provided"
+        echo "$p" >> "${profile}/package.provided"
+    done
 }
 
 start_image() {
@@ -159,8 +172,10 @@ start_image() {
 
   local disk_img="${BUILD_DIR}/${image_name}"
 
-  mkdir -p "${BUILD_DIR}"/configroot/etc/portage
-  ln -s "${BOARD_ROOT}"/etc/portage/* \
+  mkdir -p "${BUILD_DIR}"/configroot/etc/portage/profile
+  ln -s "${BOARD_ROOT}"/etc/portage/make.* \
+      "${BOARD_ROOT}"/etc/portage/package.* \
+      "${BOARD_ROOT}"/etc/portage/repos.conf \
       "${BUILD_DIR}"/configroot/etc/portage/
 
   info "Using image type ${disk_layout}"
