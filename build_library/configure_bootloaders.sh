@@ -24,6 +24,7 @@ DEFINE_string boot_args "" \
   "Additional boot arguments to pass to the commandline (Default: '')"
 DEFINE_string disk_layout "base" \
   "The disk layout type to use for this image."
+DEFINE_string disk_image "" "The disk image."
 
 # Parse flags
 FLAGS "$@" || exit 1

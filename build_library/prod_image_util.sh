@@ -81,7 +81,7 @@ EOF
     disable_read_write=${FLAGS_FALSE}
   fi
 
-  finish_image "${disk_layout}" "${root_fs_dir}" "${image_contents}"
+  finish_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${image_contents}"
 
   # Make the filesystem un-mountable as read-write.
   if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
