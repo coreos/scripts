@@ -281,7 +281,8 @@ def WritePartitionTable(options, config=None, partitions=None):
       image_fd.truncate(config['metadata']['bytes'])
     Cgpt('repair', options.disk_image)
 
-  syslinux = None
+  syslinux = False
+  hybrid = None
   for partition in partitions.itervalues():
     if partition['type'] != 'blank':
       Cgpt('add', '-i', partition['num'],
@@ -293,13 +294,16 @@ def WritePartitionTable(options, config=None, partitions=None):
                   options.disk_image)
 
       features = partition.get('features', [])
-      if not syslinux and 'syslinux' in features:
-        syslinux = partition['num']
+      if not hybrid and ('syslinux' in features or 'hybrid' in features):
+        hybrid = partition['num']
+      if 'syslinux' in features:
+        syslinux = True
+
+  if hybrid:
+    # Enable legacy boot flag and generate a hybrid MBR partition table
+    Cgpt('add', '-i', hybrid, '-B1', options.disk_image)
 
   if syslinux and options.mbr_boot_code:
-    # Enable legacy boot flag and generate a hybrid MBR partition table
-    Cgpt('add', '-i', syslinux, '-B1', options.disk_image)
-
     try:
       with open(options.mbr_boot_code, 'r') as mbr_fd:
         mbr_code = mbr_fd.read()
