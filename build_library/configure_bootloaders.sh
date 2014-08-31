@@ -51,7 +51,7 @@ GRUB_DIR="${FLAGS_boot_dir}/grub"
 SYSLINUX_DIR="${FLAGS_boot_dir}/syslinux"
 
 # Build configuration files for pygrub/pvgrub
-configure_grub() {
+configure_pvgrub() {
   sudo mkdir -p "${GRUB_DIR}"
 
   # Add hvc0 for hypervisors
@@ -177,12 +177,28 @@ copy_to_esp() {
   done
 }
 
+# Install GRUB2 to the disk image
+install_grub() {
+  # Install under boot/coreos/grub instead of boot/grub to prevent
+  # more recent versions of pygrub that attempt to read grub2 configs
+  # from finding it, pygrub and pvgrub must stick with using menu.lst
+  sudo mkdir -p "${FLAGS_esp_dir}/coreos/grub"
+  sudo grub-install \
+      --target=i386-pc \
+      --modules=part_gpt \
+      --boot-directory="${FLAGS_esp_dir}/coreos" \
+      "${FLAGS_disk_image}"
+  sudo cp "${BUILD_LIBRARY_DIR}/grub.cfg" \
+      "${FLAGS_esp_dir}/coreos/grub/grub.cfg"
+}
+
+[[ -d "${FLAGS_esp_dir}" ]] || die_notrace "--esp_dir is required"
+[[ -f "${FLAGS_disk_image}" ]] || die_notrace "--disk_image is required"
+
 if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
-  configure_grub
+  configure_pvgrub
   configure_syslinux
-  if [[ -n "${FLAGS_esp_dir}" ]]; then
-    copy_to_esp
-  fi
+  copy_to_esp
 else
   error "No bootloader configuration for ${FLAGS_arch}"
 fi
