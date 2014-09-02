@@ -464,6 +464,17 @@ assert_root_user() {
   fi
 }
 
+# We depend on some relatively modern kernel features, in particular a
+# reasonably recent btrfs version is required to generate images.
+# Current requirement: 3.7 added btrfs' extref incompat feature
+assert_kernel_version() {
+  local req_kv="3.7"
+  local cur_kv=$(uname -r)
+  if ! cmp_ver ge "${cur_kv}" "${req_kv}"; then
+    die_notrace "Detected kernel ${cur_kv}, ${req_kv} or later is required"
+  fi
+}
+
 # Check that all arguments are flags; that is, there are no remaining arguments
 # after parsing from shflags.  Allow (with a warning) a single empty-string
 # argument.

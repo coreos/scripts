@@ -29,6 +29,7 @@ fi
 # Script must be run outside the chroot and as root.
 assert_outside_chroot
 assert_root_user
+assert_kernel_version
 
 # Define command line flags.
 # See http://code.google.com/p/shflags/wiki/Documentation10x
