@@ -25,6 +25,7 @@ VALID_IMG_TYPES=(
     brightbox
     cloudstack
     cloudstack_vhd
+    digitalocean
 )
 
 # Set at runtime to one of the above types
@@ -173,6 +174,9 @@ IMG_cloudstack_OEM_PACKAGE=oem-cloudstack
 IMG_cloudstack_vhd_BOOT_KERNEL=0
 IMG_cloudstack_vhd_DISK_FORMAT=vhd
 IMG_cloudstack_vhd_OEM_PACKAGE=oem-cloudstack
+
+## digitalocean
+IMG_digitalocean_OEM_PACKAGE=oem-digitalocean
 
 ###########################################################
 
