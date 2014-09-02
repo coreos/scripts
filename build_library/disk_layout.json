@@ -12,13 +12,13 @@
         "type":"efi",
         "blocks":"262144",
         "fs_type":"vfat",
-        "mount":"/boot/efi",
+        "mount":"/boot",
         "features": ["syslinux"]
       },
       "2":{
-        "label":"BOOT-B",
-        "type":"coreos-reserved",
-        "blocks":"131072"
+        "label":"BIOS-BOOT",
+        "type":"bios",
+        "blocks":"4096"
       },
       "3":{
         "label":"USR-A",

@@ -112,7 +112,7 @@ EOF
   # The remount services are provided by coreos-base/coreos-init
   systemd_enable "${root_fs_dir}" "multi-user.target" "remount-usr.service"
 
-  finish_image "${disk_layout}" "${root_fs_dir}" "${image_contents}"
+  finish_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${image_contents}"
   upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \
       "${BUILD_DIR}/${image_contents}" \
       "${BUILD_DIR}/${image_packages}" \

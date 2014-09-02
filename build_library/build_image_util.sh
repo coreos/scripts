@@ -201,9 +201,12 @@ start_image() {
 }
 
 finish_image() {
-  local disk_layout="$1"
-  local root_fs_dir="$2"
-  local image_contents="$3"
+  local image_name="$1"
+  local disk_layout="$2"
+  local root_fs_dir="$3"
+  local image_contents="$4"
+
+  local disk_img="${BUILD_DIR}/${image_name}"
 
   # Record directories installed to the state partition.
   # Explicitly ignore entries covered by existing configs.
@@ -217,12 +220,13 @@ finish_image() {
       ${tmp_ignore} "${root_fs_dir}/etc"
 
   # Only configure bootloaders if there is a boot partition
-  if mountpoint -q "${root_fs_dir}"/boot/efi; then
+  if mountpoint -q "${root_fs_dir}"/boot; then
     ${BUILD_LIBRARY_DIR}/configure_bootloaders.sh \
       --arch=${ARCH} \
       --disk_layout="${disk_layout}" \
+      --disk_image="${disk_img}" \
       --boot_dir="${root_fs_dir}"/usr/boot \
-      --esp_dir="${root_fs_dir}"/boot/efi \
+      --esp_dir="${root_fs_dir}"/boot \
       --boot_args="${FLAGS_boot_args}"
   fi
 

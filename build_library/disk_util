@@ -162,6 +162,7 @@ def LoadPartitionConfig(options):
     # metadata. Kinda odd but the best place I've got with this data structure.
     if layout_name == options.disk_layout:
       metadata['blocks'] = disk_block_count
+      metadata['bytes'] = disk_block_count * metadata['block_size']
 
 
   # Verify 'base' before other layouts because it is inherited by the others
@@ -267,15 +268,21 @@ def WritePartitionTable(options, config=None, partitions=None):
   if not (config and partitions):
     config, partitions = LoadPartitionConfig(options)
 
-  # If we are not creating a fresh image all partitions must be compatible.
-  if not options.create:
+  if options.create:
+    Cgpt('create', '-c', '-s', config['metadata']['blocks'], options.disk_image)
+  else:
+    # If we are not creating a fresh image all partitions must be compatible.
     GetPartitionTableFromImage(options, config, partitions)
     if not all(p['image_compat'] for p in partitions.itervalues()):
       raise InvalidLayout("New disk layout is incompatible existing image")
 
-  Cgpt('create', '-c', '-s', config['metadata']['blocks'], options.disk_image)
+    # Extend the disk image size as needed
+    with open(options.disk_image, 'r+') as image_fd:
+      image_fd.truncate(config['metadata']['bytes'])
+    Cgpt('repair', options.disk_image)
 
-  syslinux = None
+  syslinux = False
+  hybrid = None
   for partition in partitions.itervalues():
     if partition['type'] != 'blank':
       Cgpt('add', '-i', partition['num'],
@@ -287,13 +294,16 @@ def WritePartitionTable(options, config=None, partitions=None):
                   options.disk_image)
 
       features = partition.get('features', [])
-      if not syslinux and 'syslinux' in features:
-        syslinux = partition['num']
+      if not hybrid and ('syslinux' in features or 'hybrid' in features):
+        hybrid = partition['num']
+      if 'syslinux' in features:
+        syslinux = True
+
+  if hybrid:
+    # Enable legacy boot flag and generate a hybrid MBR partition table
+    Cgpt('add', '-i', hybrid, '-B1', options.disk_image)
 
   if syslinux and options.mbr_boot_code:
-    # Enable legacy boot flag and generate a hybrid MBR partition table
-    Cgpt('add', '-i', syslinux, '-B1', options.disk_image)
-
     try:
       with open(options.mbr_boot_code, 'r') as mbr_fd:
         mbr_code = mbr_fd.read()
