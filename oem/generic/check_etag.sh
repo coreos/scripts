@@ -10,7 +10,10 @@
 
 set -e -o pipefail
  
+# Set default release to alpha if not specified
 release=${1:-"alpha"}
+
+# If the argument is in the form http* allow for watching an arbitrary location
 if [[ $1 != http* ]]; then
   url="http://storage.core-os.net/coreos/amd64-usr/$release/version.txt"
 else
@@ -19,9 +22,16 @@ else
 fi
 tmplocation="/tmp/etagsync"
  
+# Create location for storage of CoreOS image state
 mkdir -p ${tmplocation}
 pushd ${tmplocation} > /dev/null 2>&1
- 
+
+# Create file for release if it does not exist
+if [ ! -f ${release}_etag ]; then
+  touch ${release}_etag
+fi
+
+# Retrieve the remote etag header
 remote_etag=$(curl -I ${url} -k -s  | \
   gawk '/ETag/ {print gensub("\"", "", "g", $2)}')
  
