@@ -147,9 +147,8 @@ write_contents() {
 write_packages() {
     local profile="${BUILD_DIR}/configroot/etc/portage/profile"    
     info "Writing ${2##*/}"
-    ROOT="$1" equery-$BOARD --no-color \
-        list '*' --format '$cpv::$repo' \
-        > "$2"
+    ROOT="$1" PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
+        equery --no-color list '*' --format '$cpv::$repo' > "$2"
     if [[ -f "${profile}/package.provided" ]]; then
         cat "${profile}/package.provided" >> "$2"
     fi
