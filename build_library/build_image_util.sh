@@ -204,6 +204,7 @@ finish_image() {
   local disk_layout="$2"
   local root_fs_dir="$3"
   local image_contents="$4"
+  local install_grub=0
 
   local disk_img="${BUILD_DIR}/${image_name}"
 
@@ -220,10 +221,10 @@ finish_image() {
 
   # Only configure bootloaders if there is a boot partition
   if mountpoint -q "${root_fs_dir}"/boot; then
+    install_grub=1
     ${BUILD_LIBRARY_DIR}/configure_bootloaders.sh \
       --arch=${ARCH} \
       --disk_layout="${disk_layout}" \
-      --disk_image="${disk_img}" \
       --boot_dir="${root_fs_dir}"/usr/boot \
       --esp_dir="${root_fs_dir}"/boot \
       --boot_args="${FLAGS_boot_args}"
@@ -249,4 +250,13 @@ finish_image() {
   rm -rf "${BUILD_DIR}"/configroot
   cleanup_mounts "${root_fs_dir}"
   trap - EXIT
+
+  # This script must mount the ESP partition differently, so run it after unmount
+  if [[ "${install_grub}" -eq 1 ]]; then
+    local target
+    for target in i386-pc x86_64-efi; do
+      ${BUILD_LIBRARY_DIR}/grub_install.sh \
+          --target="${target}" --disk_image="${disk_img}"
+    done
+  fi
 }
