@@ -13,7 +13,7 @@
         "blocks":"262144",
         "fs_type":"vfat",
         "mount":"/boot",
-        "features": ["syslinux"]
+        "features": ["hybrid"]
       },
       "2":{
         "label":"BIOS-BOOT",

@@ -24,7 +24,6 @@ DEFINE_string boot_args "" \
   "Additional boot arguments to pass to the commandline (Default: '')"
 DEFINE_string disk_layout "base" \
   "The disk layout type to use for this image."
-DEFINE_string disk_image "" "The disk image."
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -52,6 +51,7 @@ SYSLINUX_DIR="${FLAGS_boot_dir}/syslinux"
 
 # Build configuration files for pygrub/pvgrub
 configure_pvgrub() {
+  info "Installing legacy PV-GRUB configuration"
   sudo mkdir -p "${GRUB_DIR}"
 
   # Add hvc0 for hypervisors
@@ -68,18 +68,21 @@ title           CoreOS B Root
 root            (hd0,0)
 kernel          /syslinux/vmlinuz.B ${grub_args} ${slot_b_args}
 EOF
-  info "Emitted ${GRUB_DIR}/menu.lst.A"
 
   sudo_clobber "${GRUB_DIR}/menu.lst.B" <<EOF
 default         1
+$(< "${GRUB_DIR}/menu.lst.A")
 EOF
-  sudo_append "${GRUB_DIR}/menu.lst.B" <"${GRUB_DIR}/menu.lst.A"
-  info "Emitted ${GRUB_DIR}/menu.lst.B"
-  sudo cp ${GRUB_DIR}/menu.lst.A ${GRUB_DIR}/menu.lst
+  sudo cp "${GRUB_DIR}/menu.lst.A" "${GRUB_DIR}/menu.lst"
+
+  # menu.lst needs to go under boot/grub so pvgrub can find it reliably
+  sudo mkdir -p "${FLAGS_esp_dir}/boot/grub"
+  sudo cp "${GRUB_DIR}/menu.lst" "${FLAGS_esp_dir}/boot/grub"
 }
 
 # Build configuration files for syslinux
 configure_syslinux() {
+  info "Installing legacy SYSLINUX configuration"
   sudo mkdir -p "${SYSLINUX_DIR}"
 
   # Add ttyS0 as a secondary console, useful for qemu -nographic
@@ -91,7 +94,6 @@ configure_syslinux() {
   fi
 
   sudo_clobber "${SYSLINUX_DIR}/syslinux.cfg" <<EOF
-SERIAL 0 115200
 PROMPT 1
 # display boot: prompt for a half second
 TIMEOUT 5
@@ -109,22 +111,10 @@ include /syslinux/root.A.cfg
 # coreos.B
 include /syslinux/root.B.cfg
 EOF
-  info "Emitted ${SYSLINUX_DIR}/syslinux.cfg"
 
-  sudo_clobber "${SYSLINUX_DIR}/default.cfg" <<EOF
-DEFAULT boot_kernel
-EOF
-  info "Emitted ${SYSLINUX_DIR}/default.cfg"
-
-  sudo_clobber "${SYSLINUX_DIR}/default.cfg.A" <<EOF
-DEFAULT coreos.A
-EOF
-  info "Emitted ${SYSLINUX_DIR}/default.cfg.A"
-
-  sudo_clobber "${SYSLINUX_DIR}/default.cfg.B" <<EOF
-DEFAULT coreos.B
-EOF
-  info "Emitted ${SYSLINUX_DIR}/default.cfg.B"
+  sudo_clobber "${SYSLINUX_DIR}/default.cfg" <<<"DEFAULT boot_kernel"
+  sudo_clobber "${SYSLINUX_DIR}/default.cfg.A" <<<"DEFAULT coreos.A"
+  sudo_clobber "${SYSLINUX_DIR}/default.cfg.B" <<<"DEFAULT coreos.B"
 
   # Different files are used so that the updater can only touch the file it
   # needs to for a given change.  This will minimize any potential accidental
@@ -135,7 +125,6 @@ label boot_kernel
   kernel vmlinuz-boot_kernel
   append ${syslinux_args} ${gptprio_args}
 EOF
-  info "Emitted ${SYSLINUX_DIR}/boot_kernel.cfg"
 
   sudo_clobber "${SYSLINUX_DIR}/root.A.cfg" <<EOF
 label coreos.A
@@ -143,7 +132,6 @@ label coreos.A
   kernel vmlinuz.A
   append ${syslinux_args} ${slot_a_args}
 EOF
-  info "Emitted ${SYSLINUX_DIR}/root.A.cfg"
 
   sudo_clobber "${SYSLINUX_DIR}/root.B.cfg" <<EOF
 label coreos.B
@@ -151,24 +139,8 @@ label coreos.B
   kernel vmlinuz.B
   append ${syslinux_args} ${slot_b_args}
 EOF
-  info "Emitted ${SYSLINUX_DIR}/root.B.cfg"
-}
 
-# Copy configurations to the ESP, this is what is actually used to boot
-copy_to_esp() {
-  if ! mountpoint -q "${FLAGS_esp_dir}"; then
-    die "${FLAGS_esp_dir} is not a mount point."
-  fi
-
-  sudo mkdir -p "${FLAGS_esp_dir}"/{syslinux,boot/grub,EFI/boot}
-  sudo cp -r "${GRUB_DIR}/." "${FLAGS_esp_dir}/boot/grub"
   sudo cp -r "${SYSLINUX_DIR}/." "${FLAGS_esp_dir}/syslinux"
-
-  # Install UEFI bootloader
-  sudo cp /usr/share/syslinux/efi64/ldlinux.e64 \
-    "${FLAGS_esp_dir}/EFI/boot/ldlinux.e64"
-  sudo cp /usr/share/syslinux/efi64/syslinux.efi \
-    "${FLAGS_esp_dir}/EFI/boot/bootx64.efi"
 
   # Stage all kernels with the only one we built.
   for kernel in syslinux/{vmlinuz-boot_kernel,vmlinuz.A,vmlinuz.B}
@@ -177,28 +149,11 @@ copy_to_esp() {
   done
 }
 
-# Install GRUB2 to the disk image
-install_grub() {
-  # Install under boot/coreos/grub instead of boot/grub to prevent
-  # more recent versions of pygrub that attempt to read grub2 configs
-  # from finding it, pygrub and pvgrub must stick with using menu.lst
-  sudo mkdir -p "${FLAGS_esp_dir}/coreos/grub"
-  sudo grub-install \
-      --target=i386-pc \
-      --modules=part_gpt \
-      --boot-directory="${FLAGS_esp_dir}/coreos" \
-      "${FLAGS_disk_image}"
-  sudo cp "${BUILD_LIBRARY_DIR}/grub.cfg" \
-      "${FLAGS_esp_dir}/coreos/grub/grub.cfg"
-}
-
 [[ -d "${FLAGS_esp_dir}" ]] || die_notrace "--esp_dir is required"
-[[ -f "${FLAGS_disk_image}" ]] || die_notrace "--disk_image is required"
 
 if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
   configure_pvgrub
   configure_syslinux
-  copy_to_esp
 else
   error "No bootloader configuration for ${FLAGS_arch}"
 fi

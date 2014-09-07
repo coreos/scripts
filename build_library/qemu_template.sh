@@ -20,7 +20,7 @@ Options:
     -c FILE     Config drive as an iso or fat filesystem image.
     -a FILE     SSH public keys for login access. [~/.ssh/id_{dsa,rsa}.pub]
     -p PORT     The port on localhost to map to the VM's sshd. [2222]
-    -s          Safe settings: single simple cpu, ide disks.
+    -s          Safe settings: single simple cpu and no KVM.
     -h          this ;-)
 
 This script is a wrapper around qemu for starting CoreOS virtual machines.
@@ -131,11 +131,11 @@ fi
 
 # Start assembling our default command line arguments
 if [ "${SAFE_ARGS}" -eq 1 ]; then
-    disk_type="ide"
+    # Disable KVM, for testing things like UEFI which don't like it
+    set -- -machine accel=tcg "$@"
 else
-    disk_type="virtio"
     # Emulate the host CPU closely in both features and cores.
-    set -- -cpu host -smp "${VM_NCPUS}" "$@"
+    set -- -machine accel=kvm -cpu host -smp "${VM_NCPUS}" "$@"
 fi
 
 # ${CONFIG_DRIVE} or ${CONFIG_IMAGE} will be mounted in CoreOS as /media/configdrive
@@ -146,11 +146,11 @@ if [ -n "${CONFIG_DRIVE}" ]; then
 fi
 
 if [ -n "${CONFIG_IMAGE}" ]; then
-    set -- -drive if=${disk_type},file="${CONFIG_IMAGE}" "$@"
+    set -- -drive if=virtio,file="${CONFIG_IMAGE}" "$@"
 fi
 
 if [ -n "${VM_IMAGE}" ]; then
-    set -- -drive if=${disk_type},file="${SCRIPT_DIR}/${VM_IMAGE}" "$@"
+    set -- -drive if=virtio,file="${SCRIPT_DIR}/${VM_IMAGE}" "$@"
 fi
 
 if [ -n "${VM_KERNEL}" ]; then
@@ -173,7 +173,6 @@ fi
 qemu-system-x86_64 \
     -name "$VM_NAME" \
     -m ${VM_MEMORY} \
-    -machine accel=kvm:tcg \
     -net nic,vlan=0,model=virtio \
     -net user,vlan=0,hostfwd=tcp::"${SSH_PORT}"-:22,hostname="${VM_NAME}" \
     "$@"
