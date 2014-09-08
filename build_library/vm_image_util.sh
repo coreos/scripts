@@ -180,7 +180,6 @@ IMG_cloudstack_vhd_OEM_PACKAGE=oem-cloudstack
 IMG_digitalocean_OEM_PACKAGE=oem-digitalocean
 
 ## exoscale
-IMG_exoscale_BOOT_KERNEL=0
 IMG_exoscale_DISK_FORMAT=qcow2
 IMG_exoscale_OEM_PACKAGE=oem-exoscale
 ###########################################################
