@@ -26,6 +26,7 @@ VALID_IMG_TYPES=(
     cloudstack
     cloudstack_vhd
     digitalocean
+    exoscale
 )
 
 # Set at runtime to one of the above types
@@ -178,6 +179,9 @@ IMG_cloudstack_vhd_OEM_PACKAGE=oem-cloudstack
 ## digitalocean
 IMG_digitalocean_OEM_PACKAGE=oem-digitalocean
 
+## exoscale
+IMG_exoscale_DISK_FORMAT=qcow2
+IMG_exoscale_OEM_PACKAGE=oem-exoscale
 ###########################################################
 
 # Validate and set the vm type to use for the rest of the functions
