@@ -244,11 +244,6 @@ EOF
    echo ". ~/trunk/src/scripts/bash_completion" \
        | user_append "$FLAGS_chroot/home/${SUDO_USER}/.bashrc"
 
-   if [[ "${SUDO_USER}" = "chrome-bot" ]]; then
-     # Copy ssh keys, so chroot'd chrome-bot can scp files from chrome-web.
-     cp -rp ~/.ssh "$FLAGS_chroot/home/${SUDO_USER}/"
-   fi
-
    if [[ -f ${SUDO_HOME}/.gitconfig ]]; then
      # Copy .gitconfig into chroot so repo and git can be used from inside.
      # This is required for repo to work since it validates the email address.
