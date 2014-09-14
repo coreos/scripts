@@ -236,6 +236,9 @@ en_US.UTF-8 UTF-8
 EOF
    fi
 
+   # Create ~/trunk symlink, it must point to CHROOT_TRUNK_DIR
+   ln -sfT "${CHROOT_TRUNK_DIR}" "$FLAGS_chroot/home/${SUDO_USER}/trunk"
+
    # Automatically change to scripts directory.
    echo 'cd ${CHROOT_CWD:-~/trunk/src/scripts}' \
        | user_append "$FLAGS_chroot/home/${SUDO_USER}/.bash_profile"
@@ -316,11 +319,6 @@ else
 
   # Set up users, if needed, before mkdir/mounts below.
   init_users
-
-  # Reset internal vars to force them to the 'inside the chroot' value;
-  # since user directories now exist, this can do the upgrade in place.
-  set_chroot_trunk_dir "${FLAGS_chroot}" poppycock
-  mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK_DIR}" "${FLAGS_chroot}/run"
 
   # Run all the init stuff to setup the env.
   init_setup

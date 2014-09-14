@@ -99,10 +99,6 @@ FUSE_DEVICE="/dev/fuse"
 LOCKFILE="${FLAGS_chroot}/.enter_chroot.lock"
 MOUNTED_PATH=$(readlink -f "$FLAGS_chroot")
 
-# Reset the depot tools/internal trunk pathways to what they'll
-# be w/in the chroot.
-set_chroot_trunk_dir "${FLAGS_chroot}"
-
 
 setup_mount() {
   # If necessary, mount $source in the host FS at $target inside the
@@ -235,6 +231,7 @@ setup_env() {
     # Do this early as it's slow and only needs basic mounts (above).
     generate_locales &
 
+    mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK_DIR}"
     setup_mount "${FLAGS_trunk}" "--rbind" "${CHROOT_TRUNK_DIR}"
 
     debug "Setting up referenced repositories if required."
