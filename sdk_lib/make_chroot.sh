@@ -154,15 +154,9 @@ init_setup () {
    ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage-stable" \
      "${FLAGS_chroot}"/"${PORTAGE_STABLE_OVERLAY}"
 
-   # Some operations need an mtab.
-   ln -sfT /proc/mounts "${FLAGS_chroot}/etc/mtab"
-
    # Set up sudoers.  Inside the chroot, the user can sudo without a password.
    # (Safe enough, since the only way into the chroot is to 'sudo chroot', so
    # the user's already typed in one sudo password...)
-   # Make sure the sudoers.d subdir exists as older stage3 base images lack it.
-   mkdir -p "${FLAGS_chroot}/etc/sudoers.d"
-
    # Setup proxied vars.
    load_environment_whitelist
    local extended_whitelist=(
@@ -173,14 +167,10 @@ init_setup () {
 
    cat > "${FLAGS_chroot}/etc/sudoers.d/90_cros" <<EOF
 Defaults env_keep += "${extended_whitelist[*]}"
-%adm ALL=(ALL) ALL
-root ALL=(ALL) ALL
 ${SUDO_USER} ALL=NOPASSWD: ALL
 EOF
 
-   find "${FLAGS_chroot}/etc/"sudoers* -type f -exec chmod 0440 {} +
-   # Fix bad group for some.
-   chown -R root:root "${FLAGS_chroot}/etc/"sudoers*
+   chmod 0440 "${FLAGS_chroot}/etc/sudoers.d/90_cros"
 
    # Create directories referred to by our conf files.
    mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/pkgs" \
@@ -222,19 +212,8 @@ EOF
      sudo ln -s "${CHROOT_TRUNK_DIR}"/chromite "${python_path}"
    done
 
-   # Select a small set of locales for the user if they haven't done so
-   # already.  This makes glibc upgrades cheap by only generating a small
-   # set of locales.  The ones listed here are basically for the buildbots
-   # which always assume these are available.  This works in conjunction
-   # with `cros_sdk --enter`.
-   # http://crosbug.com/20378
-   local localegen="$FLAGS_chroot/etc/locale.gen"
-   if ! grep -q -v -e '^#' -e '^$' "${localegen}" ; then
-     cat <<EOF >> "${localegen}"
-en_US ISO-8859-1
-en_US.UTF-8 UTF-8
-EOF
-   fi
+   # Create ~/trunk symlink, it must point to CHROOT_TRUNK_DIR
+   ln -sfT "${CHROOT_TRUNK_DIR}" "$FLAGS_chroot/home/${SUDO_USER}/trunk"
 
    # Automatically change to scripts directory.
    echo 'cd ${CHROOT_CWD:-~/trunk/src/scripts}' \
@@ -243,11 +222,6 @@ EOF
    # Enable bash completion for build scripts.
    echo ". ~/trunk/src/scripts/bash_completion" \
        | user_append "$FLAGS_chroot/home/${SUDO_USER}/.bashrc"
-
-   if [[ "${SUDO_USER}" = "chrome-bot" ]]; then
-     # Copy ssh keys, so chroot'd chrome-bot can scp files from chrome-web.
-     cp -rp ~/.ssh "$FLAGS_chroot/home/${SUDO_USER}/"
-   fi
 
    if [[ -f ${SUDO_HOME}/.gitconfig ]]; then
      # Copy .gitconfig into chroot so repo and git can be used from inside.
@@ -321,11 +295,6 @@ else
 
   # Set up users, if needed, before mkdir/mounts below.
   init_users
-
-  # Reset internal vars to force them to the 'inside the chroot' value;
-  # since user directories now exist, this can do the upgrade in place.
-  set_chroot_trunk_dir "${FLAGS_chroot}" poppycock
-  mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK_DIR}" "${FLAGS_chroot}/run"
 
   # Run all the init stuff to setup the env.
   init_setup
