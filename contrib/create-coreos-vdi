@@ -1,15 +1,11 @@
 #!/bin/bash
 
 VERSION_ID=alpha
-SSH_KEYS=""
-CORE_UID=500
-CORE_GID=500
 
-USAGE="Usage: $0 [-V version] [-d /target/path] [-a authorized_keys]
+USAGE="Usage: $0 [-V version] [-d /target/path]
 Options:
     -d DEST     Create CoreOS VDI image to the given path.
     -V VERSION  Version to install (e.g. alpha) [default: ${VERSION_ID}]
-    -a FILE     SSH public keys for login access. [~/.ssh/id_{dsa,rsa}.pub]
     -h          This help
 
 This tool creates a CoreOS VDI image to be used with VirtualBox.
@@ -99,15 +95,14 @@ do
     case $OPTION in
         V) VERSION_ID="$OPTARG" ;;
         d) DEST="$OPTARG" ;;
-        a) SSH_KEYS="$OPTARG" ;;
         h) echo "$USAGE"; exit;;
         *) exit 1;;
     esac
 done
 
-# root user required
-if [ $(id -u) -ne 0 ]; then
-    echo "$0: You must be root to run this script." >&2
+# root user forbidden
+if [ $(id -u) -eq 0 ]; then
+    echo "$0: This script should not be run as root." >&2
     exit 1
 fi
 
@@ -118,18 +113,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Verify provided keys file
-if [[ -n "${SSH_KEYS}" ]]; then
-    if [[ ! -f "${SSH_KEYS}" ]]; then
-        echo "$0: SSH keys file not found: ${SSH_KEYS}." >&2
-        exit 1
-    fi
-else
-    # SSH keys file was not provided, setting to default
-    SSH_KEYS=~/.ssh/id_*.pub
+if [ -z "${DEST}" ]; then
+    DEST=$PWD
 fi
-
-
 
 if [[ ! -d "${DEST}" ]]; then
     echo "$0: Target path (${DEST}) do not exists." >&2
@@ -141,7 +127,6 @@ mkdir "$WORKDIR"
 trap "rm -rf '${WORKDIR}'" EXIT
 
 RAW_IMAGE_NAME="coreos_production_image.bin"
-VDI_IMAGE_NAME="coreos_production_${VERSION_ID}.vdi"
 IMAGE_NAME="${RAW_IMAGE_NAME}.bz2"
 DIGESTS_NAME="${IMAGE_NAME}.DIGESTS.asc"
 
@@ -149,7 +134,6 @@ BASE_URL="http://storage.core-os.net/coreos/amd64-usr/${VERSION_ID}"
 IMAGE_URL="${BASE_URL}/${IMAGE_NAME}"
 DIGESTS_URL="${BASE_URL}/${DIGESTS_NAME}"
 DOWN_IMAGE="${WORKDIR}/${RAW_IMAGE_NAME}"
-VDI_IMAGE="${DEST}/${VDI_IMAGE_NAME}"
 
 if ! wget --spider --quiet "${IMAGE_URL}"; then
     echo "$0: Image URL unavailable: $IMAGE_URL" >&2
@@ -160,6 +144,14 @@ if ! wget --spider --quiet "${DIGESTS_URL}"; then
     echo "$0: Image signature unavailable: $DIGESTS_URL" >&2
     exit 1
 fi
+
+# Gets CoreOS verion from version.txt file
+VERSION_NAME="version.txt"
+VERSION_URL="${BASE_URL}/${VERSION_NAME}"
+wget --no-verbose -O "${WORKDIR}/${VERSION_NAME}" "${VERSION_URL}"
+. "${WORKDIR}/${VERSION_NAME}"
+VDI_IMAGE_NAME="coreos_production_${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}.vdi"
+VDI_IMAGE="${DEST}/${VDI_IMAGE_NAME}"
 
 # Setup GnuPG for verifying the image signature
 export GNUPGHOME="${WORKDIR}/gnupg"
@@ -188,35 +180,6 @@ done
 echo "Writing ${IMAGE_NAME} to ${DOWN_IMAGE}..."
 bzcat -v --stdout "${WORKDIR}/${IMAGE_NAME}" >"${DOWN_IMAGE}"
 
-# The ROOT partition should be #9 but make no assumptions here!
-# Also don't mount by label directly in case other devices conflict.
-PART_OFFSET=$(parted ${DOWN_IMAGE} unit b print | grep "ROOT" | awk '{print $2}')
-PART_OFFSET=${PART_OFFSET//B/}
-if [[ -z "${PART_OFFSET}" ]]; then
-    echo "Unable to find new ROOT partition on ${DOWN_IMAGE}" >&2
-    exit 1
-fi
-
-MOUNT_DEST="${WORKDIR}/rootfs"
-CORE_SSH_DIR="${MOUNT_DEST}/home/core/.ssh"
-AUTHORIZED_KEYS="${CORE_SSH_DIR}/authorized_keys"
-
-echo "Adding SSH key to authorized keys file..."
-mkdir -p "${MOUNT_DEST}"
-mount -t btrfs -o loop,offset=${PART_OFFSET},subvol=root "${DOWN_IMAGE}" "${MOUNT_DEST}"
-trap "umount '${MOUNT_DEST}' && rm -rf '${WORKDIR}'" EXIT
-
-if [ ! -d "${CORE_SSH_DIR}" ]; then
-    mkdir -p ${CORE_SSH_DIR}
-    chmod 0600 ${CORE_SSH_DIR}
-fi
-
-cat ${SSH_KEYS} > ${AUTHORIZED_KEYS}
-chmod 0600 ${AUTHORIZED_KEYS}
-chown -R $CORE_UID:$CORE_GID "${CORE_SSH_DIR}"
-
-umount "${MOUNT_DEST}"
-
 echo "Converting ${RAW_IMAGE_NAME} to VirtualBox format..."
 VBoxManage convertdd ${DOWN_IMAGE} ${VDI_IMAGE} --format VDI
 
@@ -224,3 +187,5 @@ rm -rf "${WORKDIR}"
 trap - EXIT
 
 echo "Success! CoreOS ${VERSION_ID} VDI image was created on ${VDI_IMAGE_NAME}"
+
+# vim: ts=4 et
