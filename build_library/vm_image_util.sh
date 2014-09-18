@@ -27,6 +27,8 @@ VALID_IMG_TYPES=(
     cloudstack_vhd
     digitalocean
     exoscale
+    azure
+    hyperv
 )
 
 # Set at runtime to one of the above types
@@ -182,6 +184,16 @@ IMG_digitalocean_OEM_PACKAGE=oem-digitalocean
 ## exoscale
 IMG_exoscale_DISK_FORMAT=qcow2
 IMG_exoscale_OEM_PACKAGE=oem-exoscale
+
+## azure
+IMG_azure_BOOT_KERNEL=0
+IMG_azure_DISK_FORMAT=vhd
+IMG_azure_OEM_PACKAGE=python-oem
+
+## hyper-v
+IMG_hyperv_BOOT_KERNEL=0
+IMG_hyperv_DISK_FORMAT=vhd
+
 ###########################################################
 
 # Validate and set the vm type to use for the rest of the functions
