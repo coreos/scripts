@@ -40,6 +40,8 @@ DEFINE_boolean prod_image "${FLAGS_FALSE}" \
   "Use the production image instead of the default developer image."
 DEFINE_string to "" \
   "Destination folder for VM output file(s)"
+DEFINE_string oem_pkg "" \
+  "OEM package to install"
 
 # include upload options
 . "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
@@ -55,6 +57,10 @@ check_gsutil_opts
 
 if ! set_vm_type "${FLAGS_format}"; then
     die_notrace "Invalid format: ${FLAGS_format}"
+fi
+
+if [ ! -z "${FLAGS_oem_pkg}" ] && ! set_vm_oem_pkg "${FLAGS_oem_pkg}"; then
+  die_notrace "Invalid oem : ${FLAGS_oem_pkg}"
 fi
 
 if [ -z "${FLAGS_board}" ] ; then
