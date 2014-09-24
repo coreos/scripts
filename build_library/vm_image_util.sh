@@ -31,6 +31,21 @@ VALID_IMG_TYPES=(
     hyperv
 )
 
+#list of oem package names, minus the oem- prefix
+VALID_OEM_PACKAGES=(
+    azure
+    cloudstack
+    digitalocean
+    ec2-compat
+    exoscale
+    gce
+    hyperv
+    rackspace
+    rackspace-onmetal
+    vagrant
+    vagrant-key
+)
+
 # Set at runtime to one of the above types
 VM_IMG_TYPE=DEFAULT
 
@@ -57,8 +72,14 @@ IMG_DEFAULT_BOOT_KERNEL=1
 # If set install the given package name to the OEM partition
 IMG_DEFAULT_OEM_PACKAGE=
 
+# Forced OEM package name overriding what may be in the format
+IMG_FORCE_OEM_PACKAGE=
+
 # USE flags for the OEM package
 IMG_DEFAULT_OEM_USE=
+
+# Forced USE flags for the OEM package
+IMG_FORCE_OEM_USE=
 
 # Hook to do any final tweaks or grab data while fs is mounted.
 IMG_DEFAULT_FS_HOOK=
@@ -210,6 +231,20 @@ set_vm_type() {
     return 1
 }
 
+# Validate and set the oem package, colon delimited USE optional
+set_vm_oem_pkg() {
+    local oem_pkg="${1%:*}" oem_use="${1##*:}"
+    local valid_pkg
+    for valid_pkg in "${VALID_OEM_PACKAGES[@]}"; do
+        if [[ "${oem_pkg}" == "${valid_pkg}" ]]; then
+            IMG_FORCE_OEM_PACKAGE="oem-${oem_pkg}"
+            IMG_FORCE_OEM_USE="${oem_use}"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Validate and set source vm image path
 set_vm_paths() {
     local src_dir="$1"
@@ -238,7 +273,8 @@ _get_vm_opt() {
     local opt="$1"
     local type_opt="IMG_${VM_IMG_TYPE}_${opt}"
     local default_opt="IMG_DEFAULT_${opt}"
-    echo "${!type_opt:-${!default_opt}}"
+    local force_opt="IMG_FORCE_${opt}"
+    echo "${!force_opt:-${!type_opt:-${!default_opt}}}"
 }
 
 # Translate source image names to output names.
