@@ -53,10 +53,8 @@ create_prod_image() {
 
   # clean-ups of things we do not need
   sudo rm ${root_fs_dir}/etc/csh.env
+  sudo rm -rf ${root_fs_dir}/etc/env.d
   sudo rm -rf ${root_fs_dir}/var/db/pkg
-  sudo rm ${root_fs_dir}/var/db/Makefile
-  sudo rm ${root_fs_dir}/etc/locale.gen
-  sudo rm -rf ${root_fs_dir}/etc/lvm/
 
   # Move the ld.so configs into /usr so they can be symlinked from /
   sudo mv ${root_fs_dir}/etc/ld.so.conf ${root_fs_dir}/usr/lib
@@ -69,11 +67,6 @@ create_prod_image() {
       > /dev/null <<EOF
 L+  /etc/ld.so.conf     -   -   -   -   ../usr/lib/ld.so.conf
 EOF
-
-  # clear them out explicitly, so this fails if something else gets dropped
-  # into xinetd.d
-  sudo rm ${root_fs_dir}/etc/xinetd.d/rsyncd
-  sudo rmdir ${root_fs_dir}/etc/xinetd.d
 
   # Only try to disable rw on /usr if there is a /usr partition 
   local disable_read_write=${FLAGS_enable_rootfs_verification}
