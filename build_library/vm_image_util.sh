@@ -211,6 +211,7 @@ IMG_exoscale_OEM_PACKAGE=oem-exoscale
 ## azure
 IMG_azure_BOOT_KERNEL=0
 IMG_azure_DISK_FORMAT=vhd
+IMG_azure_DISK_LAYOUT=azure
 IMG_azure_OEM_PACKAGE=oem-azure
 
 ## hyper-v
