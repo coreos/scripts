@@ -331,6 +331,8 @@ setup_disk_image() {
           update "${VM_TMP_IMG}"
     fi
 
+    assert_image_size "${VM_TMP_IMG}" raw
+
     info "Mounting image to $(relpath "${VM_TMP_ROOT}")"
     "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
         mount "${VM_TMP_IMG}" "${VM_TMP_ROOT}"
@@ -432,18 +434,22 @@ _write_raw_disk() {
 
 _write_qcow2_disk() {
     qemu-img convert -f raw "$1" -O qcow2 "$2"
+    assert_image_size "$2" qcow2
 }
 
 _write_vhd_disk() {
     qemu-img convert -f raw "$1" -O vpc "$2"
+    assert_image_size "$2" vpc
 }
 
 _write_vmdk_ide_disk() {
     qemu-img convert -f raw "$1" -O vmdk -o adapter_type=ide "$2"
+    assert_image_size "$2" vmdk
 }
 
 _write_vmdk_scsi_disk() {
     qemu-img convert -f raw "$1" -O vmdk -o adapter_type=lsilogic "$2"
+    assert_image_size "$2" vmdk
 }
 
 _write_cpio_common() {

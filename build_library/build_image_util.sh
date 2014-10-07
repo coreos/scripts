@@ -163,6 +163,24 @@ package_provided() {
     done
 }
 
+assert_image_size() {
+  local disk_img="$1"
+  local disk_type="$2"
+
+  local size
+  size=$(qemu-img info -f "${disk_type}" --output json "${disk_img}" | \
+      gawk 'match($0, /"virtual-size": ([0-9]+),/, val) {print val[1]}' ; \
+      exit ${PIPESTATUS[0]})
+  if [[ $? -ne 0 ]]; then
+    die_notrace "assert failed: could not read image size"
+  fi
+
+  MiB=$((1024*1024))
+  if [[ $(($size % $MiB)) -ne 0 ]]; then
+    die_notrace "assert failed: image must be a multiple of 1 MiB ($size B)"
+  fi
+}
+
 start_image() {
   local image_name="$1"
   local disk_layout="$2"
@@ -180,6 +198,8 @@ start_image() {
   info "Using image type ${disk_layout}"
   "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
       format "${disk_img}"
+
+  assert_image_size "${disk_img}" raw
 
   "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
       mount "${disk_img}" "${root_fs_dir}"
