@@ -97,6 +97,25 @@ grub-mkimage \
 info "Installing GRUB ${FLAGS_target} to ${FLAGS_disk_image##*/}"
 LOOP_DEV=$(sudo losetup --find --show --partscan "${FLAGS_disk_image}")
 ESP_DIR=$(mktemp --directory)
+
+# work around slow/buggy udev, make sure the node is there before mounting
+if [[ ! -b "${LOOP_DEV}p1" ]]; then
+    # sleep a little just in case udev is ok but just not finished yet
+    warn "loopback device node ${LOOP_DEV}p1 missing, waiting on udev..."
+    sleep 0.5
+    for (( i=0; i<5; i++ )); do
+        if [[ -b "${LOOP_DEV}p1" ]]; then
+            break
+        fi
+        warn "looback device node still ${LOOP_DEV}p1 missing, reprobing..."
+        blockdev --rereadpt ${LOOP_DEV}
+        sleep 0.5
+    done
+    if [[ ! -b "${LOOP_DEV}p1" ]]; then
+        failboat "${LOOP_DEV}p1 where art thou? udev has forsaken us!"
+    fi
+fi
+
 sudo mount -t vfat "${LOOP_DEV}p1" "${ESP_DIR}"
 sudo cp -r "${STAGE_DIR}/." "${ESP_DIR}/."
 
