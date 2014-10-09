@@ -605,7 +605,7 @@ _write_vmx_conf() {
 #!/usr/bin/vmware
 .encoding = "UTF-8"
 config.version = "8"
-virtualHW.version = "4"
+virtualHW.version = "7"
 cleanShutdown = "TRUE"
 displayName = "${VM_NAME}"
 ethernet0.addressType = "generated"
