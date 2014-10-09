@@ -1,7 +1,9 @@
 {
   "_comment": "See http://www.chromium.org/chromium-os/building-chromium-os/disk-layout-format",
   "metadata":{
-    "alignment": 2048,
+    "_comment": "Partitions are aligned to 1MB (2048 blocks), disks sizes should align to *both* 1MB and a CHS cylender boundry for the common 16H 63S geometry (16*63 = 1008 blocks). The least common multiple of 2048 and 1008 is 129024 blocks.",
+    "part_alignment": 2048,
+    "disk_alignment": 129024,
     "block_size": 512,
     "fs_block_size": 4096
   },
@@ -62,7 +64,7 @@
       "9":{
         "label":"ROOT",
         "type":"coreos-resize",
-        "blocks":"4194304",
+        "blocks":"4302848",
         "fs_type":"btrfs",
         "fs_subvolume":"root",
         "mount":"/"
@@ -71,13 +73,13 @@
     "vm":{
       "9":{
         "label":"ROOT",
-        "blocks":"12582912"
+        "blocks":"12689408"
       }
     },
     "vagrant":{
       "9":{
         "label":"ROOT",
-        "blocks":"33587200"
+        "blocks":"33591296"
       }
     },
     "onmetal":{

@@ -44,6 +44,7 @@ VALID_OEM_PACKAGES=(
     rackspace-onmetal
     vagrant
     vagrant-key
+    vmware
 )
 
 # Set at runtime to one of the above types
@@ -139,6 +140,7 @@ IMG_vagrant_vmware_fusion_OEM_PACKAGE=oem-vagrant
 IMG_vmware_DISK_FORMAT=vmdk_scsi
 IMG_vmware_DISK_LAYOUT=vm
 IMG_vmware_CONF_FORMAT=vmx
+IMG_vmware_OEM_PACKAGE=oem-vmware
 
 ## vmware_insecure
 IMG_vmware_insecure_DISK_FORMAT=vmdk_scsi

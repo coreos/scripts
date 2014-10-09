@@ -44,10 +44,10 @@ def LoadPartitionConfig(options):
   valid_keys = set(('_comment', 'metadata', 'layouts'))
   valid_layout_keys = set((
       '_comment', 'type', 'num', 'label', 'blocks', 'block_size', 'fs_blocks',
-      'fs_block_size', 'fs_type', 'features', 'uuid', 'alignment', 'mount',
+      'fs_block_size', 'fs_type', 'features', 'uuid', 'part_alignment', 'mount',
       'binds', 'fs_subvolume'))
   integer_layout_keys = set((
-      'blocks', 'block_size', 'fs_blocks', 'fs_block_size', 'alignment'))
+      'blocks', 'block_size', 'fs_blocks', 'fs_block_size', 'part_alignment'))
   required_layout_keys = set(('type', 'num', 'label', 'blocks'))
 
   filename = options.disk_layout_file
@@ -63,16 +63,11 @@ def LoadPartitionConfig(options):
   try:
     metadata = config['metadata']
     base = config['layouts']['base']
-    for key in ('alignment', 'block_size', 'fs_block_size'):
+    for key in ('part_alignment', 'disk_alignment',
+		'block_size', 'fs_block_size'):
       metadata[key] = int(metadata[key])
   except KeyError as e:
     raise InvalidLayout('Metadata is missing required entries: %s' % e)
-
-  # Sometimes qemu-img expects disks sizes aligned to 64k
-  align_bytes = metadata['alignment'] * metadata['block_size']
-  if align_bytes < 65536 or align_bytes % 65536 != 0:
-    raise InvalidLayout('Invalid alignment, 64KB or better required')
-
 
   def VerifyLayout(layout_name, layout, base=None):
     for part_num, part in layout.iteritems():
@@ -136,7 +131,7 @@ def LoadPartitionConfig(options):
       if part['type'] == 'blank':
         continue
 
-      part.setdefault('alignment', metadata['alignment'])
+      part.setdefault('part_alignment', metadata['part_alignment'])
       part['bytes'] = part['blocks'] * metadata['block_size']
       part.setdefault('fs_block_size', metadata['fs_block_size'])
       part.setdefault('fs_blocks', part['bytes'] // part['fs_block_size'])
@@ -147,7 +142,7 @@ def LoadPartitionConfig(options):
             'Filesystem may not be larger than partition: %s %s: %d > %d' %
             (layout_name, part_num, part['fs_bytes'], part['bytes']))
 
-      disk_block_count = Align(disk_block_count, part['alignment'])
+      disk_block_count = Align(disk_block_count, part['part_alignment'])
       part['first_block'] = disk_block_count
       part['first_byte'] = disk_block_count * metadata['block_size']
       disk_block_count += part['blocks']
@@ -156,7 +151,7 @@ def LoadPartitionConfig(options):
 
     # Reserved size for second GPT plus align disk image size
     disk_block_count += GPT_RESERVED_SECTORS
-    disk_block_count = Align(disk_block_count, metadata['alignment'])
+    disk_block_count = Align(disk_block_count, metadata['disk_alignment'])
 
     # If this is the requested layout stash the disk size into the global
     # metadata. Kinda odd but the best place I've got with this data structure.
