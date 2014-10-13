@@ -76,6 +76,12 @@
         "blocks":"12689408"
       }
     },
+    "azure":{
+      "9":{
+        "label":"ROOT",
+        "blocks":"58752990"
+      }
+    },
     "vagrant":{
       "9":{
         "label":"ROOT",
