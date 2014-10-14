@@ -122,6 +122,8 @@ echo "Building AMI in zone $zone, region id $akiid"
 # Create and mount temporary EBS volume with file system to hold new AMI image
 volumeid=$(ec2-create-volume --size $size --availability-zone $zone |
   cut -f2)
+while ! ec2-describe-volumes "$volumeid" | grep -q available
+  do sleep 1; done
 instanceid=$(curl --fail -s http://instance-data/latest/meta-data/instance-id)
 echo "Attaching new volume $volumeid locally (instance $instanceid)"
 ec2-attach-volume --device /dev/sdi --instance "$instanceid" "$volumeid"
