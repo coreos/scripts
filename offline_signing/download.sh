@@ -2,7 +2,7 @@
 
 set -ex
 VERSION="$1"
-GS="gs://builds.release.core-os.net/alpha/boards/amd64-usr/$VERSION"
+GS="gs://builds.release.core-os.net/stable/boards/amd64-usr/$VERSION"
 
 cd "${2:-.}"
 
