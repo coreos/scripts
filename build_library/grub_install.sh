@@ -108,7 +108,7 @@ if [[ ! -b "${LOOP_DEV}p1" ]]; then
             break
         fi
         warn "looback device node still ${LOOP_DEV}p1 missing, reprobing..."
-        blockdev --rereadpt ${LOOP_DEV}
+        sudo blockdev --rereadpt ${LOOP_DEV}
         sleep 0.5
     done
     if [[ ! -b "${LOOP_DEV}p1" ]]; then
