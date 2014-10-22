@@ -169,8 +169,7 @@ assert_image_size() {
 
   local size
   size=$(qemu-img info -f "${disk_type}" --output json "${disk_img}" | \
-      gawk 'match($0, /"virtual-size": ([0-9]+),/, val) {print val[1]}' ; \
-      exit ${PIPESTATUS[0]})
+    jq --raw-output '.["virtual-size"]' ; exit ${PIPESTATUS[0]})
   if [[ $? -ne 0 ]]; then
     die_notrace "assert failed: could not read image size"
   fi
