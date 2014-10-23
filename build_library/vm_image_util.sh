@@ -632,6 +632,19 @@ sound.present = "FALSE"
 usb.generic.autoconnect = "FALSE"
 usb.present = "TRUE"
 rtc.diffFromUTC = 0
+pciBridge0.present = "TRUE"
+pciBridge4.present = "TRUE"
+pciBridge4.virtualDev = "pcieRootPort"
+pciBridge4.functions = "8"
+pciBridge5.present = "TRUE"
+pciBridge5.virtualDev = "pcieRootPort"
+pciBridge5.functions = "8"
+pciBridge6.present = "TRUE"
+pciBridge6.virtualDev = "pcieRootPort"
+pciBridge6.functions = "8"
+pciBridge7.present = "TRUE"
+pciBridge7.virtualDev = "pcieRootPort"
+pciBridge7.functions = "8"
 EOF
     # Only upload the vmx if it won't be bundled
     if [[ -z "$(_get_vm_opt BUNDLE_FORMAT)" ]]; then
