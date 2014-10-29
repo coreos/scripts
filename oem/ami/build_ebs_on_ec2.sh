@@ -17,6 +17,7 @@ AKI["us-east-1"]=aki-b4aa75dd
 AKI["us-west-1"]=aki-eb7e26ae
 AKI["us-west-2"]=aki-f837bac8 
 AKI["eu-west-1"]=aki-8b655dff
+AKI["eu-central-1"]=aki-184c7a05
 AKI["ap-southeast-1"]=aki-fa1354a8
 AKI["ap-southeast-2"]=aki-3d990e07
 AKI["ap-northeast-1"]=aki-40992841
