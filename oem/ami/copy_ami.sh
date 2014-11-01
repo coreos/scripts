@@ -12,17 +12,8 @@
 # Set pipefail along with -e in hopes that we catch more errors
 set -e -o pipefail
 
-declare -A AKI
-AKI["us-east-1"]=aki-b4aa75dd 
-AKI["us-west-1"]=aki-eb7e26ae
-AKI["us-west-2"]=aki-f837bac8 
-AKI["eu-west-1"]=aki-8b655dff
-AKI["eu-central-1"]=aki-184c7a05
-AKI["ap-southeast-1"]=aki-fa1354a8
-AKI["ap-southeast-2"]=aki-3d990e07
-AKI["ap-northeast-1"]=aki-40992841
-AKI["sa-east-1"]=aki-c88f51d5
-# AKI["gov-west-1"]=aki-75a4c056
+DIR=$(dirname $0)
+source $DIR/regions.sh
 
 USAGE="Usage: $0 -a ami-id
     -a ami-id   ID of the AMI to be coppied.
@@ -42,7 +33,7 @@ GROUP="alpha"
 REGIONS=()
 
 add_region() {
-    if [[ -z "${AKI[$1]}" ]]; then
+    if [[ -z "${ALL_REGIONS[$1]}" ]]; then
         echo "Invalid region '$1'" >&2;
         exit 1
     fi
@@ -105,7 +96,7 @@ else
 fi
 
 if [[ ${#REGIONS[@]} -eq 0 ]]; then
-    REGIONS=( "${!AKI[@]}" )
+    REGIONS=( "${ALL_REGIONS[@]}" )
 fi
 
 # The name has a limited set of allowed characterrs

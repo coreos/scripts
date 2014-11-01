@@ -5,24 +5,11 @@
 # mad props to Eric Hammond for the initial script
 #  https://github.com/alestic/alestic-hardy-ebs/blob/master/bin/alestic-hardy-ebs-build-ami
 
-# AKI ids from:
-#  http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/UserProvidedkernels.html
-# we need pv-grub-hd00 x86_64
-
 # Set pipefail along with -e in hopes that we catch more errors
 set -e -o pipefail
 
-declare -A AKI
-AKI["us-east-1"]=aki-b4aa75dd 
-AKI["us-west-1"]=aki-eb7e26ae
-AKI["us-west-2"]=aki-f837bac8 
-AKI["eu-west-1"]=aki-8b655dff
-AKI["eu-central-1"]=aki-184c7a05
-AKI["ap-southeast-1"]=aki-fa1354a8
-AKI["ap-southeast-2"]=aki-3d990e07
-AKI["ap-northeast-1"]=aki-40992841
-AKI["sa-east-1"]=aki-c88f51d5
-# AKI["gov-west-1"]=aki-75a4c056
+DIR=$(dirname $0)
+source $DIR/regions.sh
 
 readonly COREOS_EPOCH=1372636800
 VERSION="master"
@@ -110,7 +97,7 @@ description="CoreOS $GROUP $VERSION"
 zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
 zone=$(curl --fail -s $zoneurl)
 region=$(echo $zone | sed 's/.$//')
-akiid=${AKI[$region]}
+akiid=${ALL_AKIS[$region]}
 
 if [ -z "$akiid" ]; then
    echo "$0: Can't identify AKI, using region: $region" >&2

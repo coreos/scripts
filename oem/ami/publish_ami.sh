@@ -3,17 +3,8 @@
 # Set pipefail along with -e in hopes that we catch more errors
 set -e -o pipefail
 
-REGIONS=(
-    us-east-1
-    us-west-1
-    us-west-2
-    eu-west-1
-    eu-central-1
-    ap-southeast-1
-    ap-southeast-2
-    ap-northeast-1
-    sa-east-1
-)
+DIR=$(dirname $0)
+source $DIR/regions.sh
 
 USAGE="Usage: $0 -V 100.0.0
     -V VERSION  Find AMI by CoreOS version. (required)
@@ -63,7 +54,7 @@ fi
 
 search_name=$(clean_version "CoreOS-$GROUP-$VER")
 declare -A AMIS HVM_AMIS
-for r in "${REGIONS[@]}"; do
+for r in "${ALL_REGIONS[@]}"; do
     AMI=$(ec2-describe-images --region=${r} -F name="${search_name}" \
         | grep -m1 ^IMAGE | cut -f2) || true
     if [[ -z "$AMI" ]]; then
