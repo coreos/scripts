@@ -127,7 +127,7 @@ def LoadPartitionConfig(options):
         for base_key, base_value in base_part.iteritems():
           part.setdefault(base_key, base_value)
 
-    for part_num, part in layout.iteritems():
+    for part_num, part in sorted(layout.iteritems(), key=lambda t: int(t[0])):
       if part['type'] == 'blank':
         continue
 
