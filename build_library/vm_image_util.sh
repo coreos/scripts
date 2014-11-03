@@ -434,7 +434,7 @@ _write_raw_disk() {
 }
 
 _write_qcow2_disk() {
-    qemu-img convert -f raw "$1" -O qcow2 "$2"
+    qemu-img convert -f raw "$1" -O qcow2 -o compat=0.10 "$2"
     assert_image_size "$2" qcow2
 }
 
