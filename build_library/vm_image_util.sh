@@ -846,48 +846,23 @@ _write_niftycloud_conf() {
     local src_name=$(basename "$VM_SRC_IMG")
     local dst_name=$(basename "$VM_DST_IMG")
     local dst_dir=$(dirname "$VM_DST_IMG")
-    local vmx_path="${dst_dir}/$(_src_to_dst_name "${src_name}" ".vmx")"
-    cat >"${vmx_path}" <<EOF
-#!/usr/bin/vmware
-.encoding = "UTF-8"
-config.version = "8"
-virtualHW.version = "8"
-cleanShutdown = "TRUE"
-displayName = "${VM_NAME}"
-ethernet0.addressType = "generated"
-ethernet0.present = "TRUE"
-ethernet0.virtualDev = "vmxnet3"
-floppy0.present = "FALSE"
-guestOS = "other26xlinux-64"
-memsize = "${vm_mem}"
-powerType.powerOff = "soft"
-powerType.powerOn = "hard"
-powerType.reset = "hard"
-powerType.suspend = "hard"
-scsi0.present = "TRUE"
-scsi0.virtualDev = "pvscsi"
-scsi0:0.fileName = "${dst_name}"
-scsi0:0.present = "TRUE"
-sound.present = "FALSE"
-rtc.diffFromUTC = 0
-pciBridge0.present = "TRUE"
-pciBridge4.present = "TRUE"
-pciBridge4.virtualDev = "pcieRootPort"
-pciBridge4.functions = "8"
-pciBridge5.present = "TRUE"
-pciBridge5.virtualDev = "pcieRootPort"
-pciBridge5.functions = "8"
-pciBridge6.present = "TRUE"
-pciBridge6.virtualDev = "pcieRootPort"
-pciBridge6.functions = "8"
-pciBridge7.present = "TRUE"
-pciBridge7.virtualDev = "pcieRootPort"
-pciBridge7.functions = "8"
+    local ovf="${dst_dir}/$(_src_to_dst_name "${src_name}" ".ovf")"
+
+    vmdk-convert ${VM_DST_IMG} ${VM_TMP_DIR}/vm.vmdk
+    mv ${VM_TMP_DIR}/vm.vmdk ${VM_DST_IMG}
+
+    "${BUILD_LIBRARY_DIR}/niftycloud_ovf.sh" \
+            --vm_name "$VM_NAME" \
+            --disk_vmdk "$VM_DST_IMG" \
+            --memory_size "$vm_mem" \
+            --output_ovf "$ovf"
+
+    local ovf_name=$(basename "${ovf}")
+    cat > "${VM_README}" <<EOF
+Import ${ovf_name} and ${dst_name} to NIFTY Cloud.
 EOF
-    # Only upload the vmx if it won't be bundled
-    if [[ -z "$(_get_vm_opt BUNDLE_FORMAT)" ]]; then
-        VM_GENERATED_FILES+=( "${vmx_path}" )
-    fi
+
+    VM_GENERATED_FILES+=( "$ovf" )
 }
 
 # If this is a bundled format generate it!
