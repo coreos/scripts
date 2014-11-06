@@ -8,6 +8,8 @@ VM_KERNEL=
 VM_INITRD=
 VM_MEMORY=
 VM_CDROM=
+VM_PFLASH_RO=
+VM_PFLASH_RW=
 VM_NCPUS="`grep -c ^processor /proc/cpuinfo`"
 SSH_PORT=2222
 SSH_KEYS=""
@@ -167,6 +169,12 @@ fi
 
 if [ -n "${VM_CDROM}" ]; then
     set -- -cdrom "${SCRIPT_DIR}/${VM_CDROM}" "$@"
+fi
+
+if [ -n "${VM_PFLASH_RO}" ] && [ -n "${VM_PFLASH_RW}" ]; then
+    set -- \
+        -drive if=pflash,file="${SCRIPT_DIR}/${VM_PFLASH_RO}",format=raw,readonly \
+        -drive if=pflash,file="${SCRIPT_DIR}/${VM_PFLASH_RW}",format=raw "$@"
 fi
 
 # Default to KVM, fall back on full emulation

@@ -12,6 +12,7 @@ VALID_IMG_TYPES=(
     openstack
     qemu
     qemu_no_kexec
+    qemu_uefi
     rackspace
     rackspace_onmetal
     rackspace_vhd
@@ -110,6 +111,11 @@ IMG_qemu_no_kexec_BOOT_KERNEL=0
 IMG_qemu_no_kexec_DISK_FORMAT=qcow2
 IMG_qemu_no_kexec_DISK_LAYOUT=vm
 IMG_qemu_no_kexec_CONF_FORMAT=qemu
+
+IMG_qemu_uefi_BOOT_KERNEL=0
+IMG_qemu_uefi_DISK_FORMAT=qcow2
+IMG_qemu_uefi_DISK_LAYOUT=vm
+IMG_qemu_uefi_CONF_FORMAT=qemu_uefi
 
 ## xen
 IMG_xen_BOOT_KERNEL=0
@@ -572,6 +578,19 @@ _write_qemu_conf() {
 
     _write_qemu_common "${script}"
     sed -e "s%^VM_IMAGE=.*%VM_IMAGE='${dst_name}'%" -i "${script}"
+}
+
+_write_qemu_uefi_conf() {
+    local script="$(_dst_dir)/$(_dst_name ".sh")"
+    local ovmf_ro="$(_dst_name "_ovmf_code.fd")"
+    local ovmf_rw="$(_dst_name "_ovmf_vars.fd")"
+
+    _write_qemu_conf
+    cp "/usr/share/edk2-ovmf/OVMF_CODE.fd" "$(_dst_dir)/${ovmf_ro}"
+    cp "/usr/share/edk2-ovmf/OVMF_VARS.fd" "$(_dst_dir)/${ovmf_rw}"
+    sed -e "s%^VM_PFLASH_RO=.*%VM_PFLASH_RO='${ovmf_ro}'%" \
+        -e "s%^VM_PFLASH_RW=.*%VM_PFLASH_RW='${ovmf_rw}'%" -i "${script}"
+    VM_GENERATED_FILES+=( "$(_dst_dir)/${ovmf_ro}" "$(_dst_dir)/${ovmf_rw}" )
 }
 
 _write_pxe_conf() {
