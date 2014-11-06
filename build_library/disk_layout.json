@@ -125,6 +125,40 @@
         "type":"4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
         "blocks":"6291456"
       }
+    },
+    "secure_demo":{
+      "1":{
+        "label":"EFI-SYSTEM",
+        "type":"efi",
+        "blocks":"2097152",
+        "fs_type":"vfat",
+        "mount":"/",
+        "features": []
+      },
+      "2":{
+        "type":"blank"
+      },
+      "3":{
+        "type":"blank"
+      },
+      "4":{
+        "type":"blank"
+      },
+      "5":{
+        "type":"blank"
+      },
+      "6":{
+        "type":"blank"
+      },
+      "7":{
+        "type":"blank"
+      },
+      "8":{
+        "type":"blank"
+      },
+      "9":{
+        "type":"blank"
+      }
     }
   }
 }
