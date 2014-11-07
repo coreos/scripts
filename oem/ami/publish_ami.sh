@@ -75,7 +75,7 @@ done
 upload_file() {
     local name="$1"
     local content="$2"
-    url="$GS_URL/$GROUP/boards/$BOARD/$VER/${IMAGE}_${name}.txt"
+    url="$GS_URL/$GROUP/boards/$BOARD/$VER/${IMAGE}_${name}"
     python -W "ignore:Not using mpz_powm_sec" \
         `which gsutil` cp - "$url" <<<"$content"
     echo "OK, ${url}=${content}"
@@ -106,10 +106,10 @@ publish_ami() {
 
     # compatibility name from before addition of hvm
     if [[ "${virt_type}" == "pv" ]]; then
-        upload_file "$r" "$r_amiid"
+        upload_file "${r}.txt" "$r_amiid"
     fi
 
-    upload_file "${virt_type}_${r}" "$r_amiid"
+    upload_file "${virt_type}_${r}.txt" "$r_amiid"
 }
 
 WAIT_PIDS=()
@@ -129,6 +129,14 @@ for r in "${!HVM_AMIS[@]}"; do
 done
 HVM_ALL="${HVM_ALL#|}"
 
+AMI_YAML="amis:\n"
+for r in "${ALL_REGIONS[@]}"; do
+	AMI_YAML+="  -\n"
+	AMI_YAML+="    name: ${r}\n"
+	AMI_YAML+="    pv: ${AMIS[$r]}\n"
+	AMI_YAML+="    hvm: ${HVM_AMIS[$r]}\n"
+done
+
 # wait for each subshell individually to report errors
 WAIT_FAILED=0
 for wait_pid in "${WAIT_PIDS[@]}"; do
@@ -142,7 +150,8 @@ if [[ ${WAIT_FAILED} -ne 0 ]]; then
     exit ${WAIT_FAILED}
 fi
 
-upload_file "all" "${PV_ALL}"
-upload_file "pv" "${PV_ALL}"
-upload_file "hvm" "${HVM_ALL}"
+upload_file "all.txt" "${PV_ALL}"
+upload_file "pv.txt" "${PV_ALL}"
+upload_file "hvm.txt" "${HVM_ALL}"
+upload_file "all.yaml" "${AMI_YAML}"
 echo "Done"
