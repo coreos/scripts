@@ -1,0 +1,7 @@
+#cloud-config
+
+hostname: secure_demo
+
+users:
+  - name: core
+    coreos-ssh-import-github: marineam
