@@ -178,14 +178,14 @@ if [[ -n "${FLAGS_output_ovf}" ]]; then
         </BIOS>
         <USBController enabled="false" enabledEhci="false"/>
         <Network>
-          <Adapter slot="0" enabled="true" MACAddress="${PRIMARY_MAC}" cable="true" speed="0" type="82540EM">
+          <Adapter slot="0" enabled="true" MACAddress="${PRIMARY_MAC}" cable="true" speed="0" type="virtio">
             <DisabledModes/>
             <NAT>
               <DNS pass-domain="true" use-proxy="false" use-host-resolver="false"/>
               <Alias logging="false" proxy-only="false" use-same-ports="false"/>
             </NAT>
           </Adapter>
-          <Adapter slot="1" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="82540EM">
+          <Adapter slot="1" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="virtio">
             <DisabledModes>
               <NAT>
                 <DNS pass-domain="true" use-proxy="false" use-host-resolver="false"/>
@@ -193,7 +193,7 @@ if [[ -n "${FLAGS_output_ovf}" ]]; then
               </NAT>
             </DisabledModes>
           </Adapter>
-          <Adapter slot="2" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="82540EM">
+          <Adapter slot="2" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="virtio">
             <DisabledModes>
               <NAT>
                 <DNS pass-domain="true" use-proxy="false" use-host-resolver="false"/>
@@ -201,7 +201,7 @@ if [[ -n "${FLAGS_output_ovf}" ]]; then
               </NAT>
             </DisabledModes>
           </Adapter>
-          <Adapter slot="3" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="82540EM">
+          <Adapter slot="3" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="virtio">
             <DisabledModes>
               <NAT>
                 <DNS pass-domain="true" use-proxy="false" use-host-resolver="false"/>
@@ -209,7 +209,7 @@ if [[ -n "${FLAGS_output_ovf}" ]]; then
               </NAT>
             </DisabledModes>
           </Adapter>
-          <Adapter slot="4" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="82540EM">
+          <Adapter slot="4" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="virtio">
             <DisabledModes>
               <NAT>
                 <DNS pass-domain="true" use-proxy="false" use-host-resolver="false"/>
@@ -217,7 +217,7 @@ if [[ -n "${FLAGS_output_ovf}" ]]; then
               </NAT>
             </DisabledModes>
           </Adapter>
-          <Adapter slot="5" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="82540EM">
+          <Adapter slot="5" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="virtio">
             <DisabledModes>
               <NAT>
                 <DNS pass-domain="true" use-proxy="false" use-host-resolver="false"/>
@@ -225,7 +225,7 @@ if [[ -n "${FLAGS_output_ovf}" ]]; then
               </NAT>
             </DisabledModes>
           </Adapter>
-          <Adapter slot="6" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="82540EM">
+          <Adapter slot="6" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="virtio">
             <DisabledModes>
               <NAT>
                 <DNS pass-domain="true" use-proxy="false" use-host-resolver="false"/>
@@ -233,7 +233,7 @@ if [[ -n "${FLAGS_output_ovf}" ]]; then
               </NAT>
             </DisabledModes>
           </Adapter>
-          <Adapter slot="7" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="82540EM">
+          <Adapter slot="7" enabled="false" MACAddress="$(macgen)" cable="true" speed="0" type="virtio">
             <DisabledModes>
               <NAT>
                 <DNS pass-domain="true" use-proxy="false" use-host-resolver="false"/>
