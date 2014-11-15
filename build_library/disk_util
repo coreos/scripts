@@ -278,6 +278,7 @@ def WritePartitionTable(options, config=None, partitions=None):
 
   syslinux = False
   hybrid = None
+  prioritize = []
   for partition in partitions.itervalues():
     if partition['type'] != 'blank':
       Cgpt('add', '-i', partition['num'],
@@ -293,6 +294,8 @@ def WritePartitionTable(options, config=None, partitions=None):
         hybrid = partition['num']
       if 'syslinux' in features:
         syslinux = True
+      if 'prioritize' in features:
+        prioritize.append(partition)
 
   if hybrid:
     # Enable legacy boot flag and generate a hybrid MBR partition table
@@ -313,6 +316,10 @@ def WritePartitionTable(options, config=None, partitions=None):
 
     with open(options.disk_image, 'r+') as image_fd:
       image_fd.write(mbr_code)
+
+  prioritize.reverse()
+  for i, partition in enumerate(prioritize):
+    Cgpt('add', '-i', partition['num'], '-S1', '-P', i+1, options.disk_image)
 
   Cgpt('show', options.disk_image)
 
