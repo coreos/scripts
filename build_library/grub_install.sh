@@ -29,11 +29,8 @@ switch_to_strict_mode
 # Our GRUB lives under coreos/grub so new pygrub versions cannot find grub.cfg
 GRUB_DIR="coreos/grub/${FLAGS_target}"
 
-# Assumes the ESP is the first partition, GRUB cannot search for it by type.
-GRUB_PREFIX="(,gpt1)/coreos/grub"
-
 # Modules required to find and read everything else from ESP
-CORE_MODULES=( fat part_gpt gzio )
+CORE_MODULES=( fat part_gpt search_fs_uuid gzio )
 
 # Name of the core image, depends on target
 CORE_NAME=
@@ -46,6 +43,9 @@ case "${FLAGS_target}" in
     x86_64-efi)
         CORE_NAME="core.efi"
         ;;
+    x86_64-xen)
+        CORE_NAME="core.elf"
+        ;;
     *)
         die_notrace "Unknown GRUB target ${FLAGS_target}"
         ;;
@@ -57,14 +57,10 @@ esac
 # the kernel can automatically detach the loop devices on unmount. When
 # using a single loop device with partitions there is no such cleanup.
 # That's the story of why this script has all this goo for loop and mount.
-STAGE_DIR=
 ESP_DIR=
 LOOP_DEV=
 
 cleanup() {
-    if [[ -d "${STAGE_DIR}" ]]; then
-        rm -rf "${STAGE_DIR}"
-    fi
     if [[ -d "${ESP_DIR}" ]]; then
         if mountpoint -q "${ESP_DIR}"; then
             sudo umount "${ESP_DIR}"
@@ -77,24 +73,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-STAGE_DIR=$(mktemp --directory)
-mkdir -p "${STAGE_DIR}/${GRUB_DIR}"
-
-info "Compressing modules in ${GRUB_DIR}"
-for file in "/usr/lib/grub/${FLAGS_target}"/*{.lst,.mod}; do
-    out="${STAGE_DIR}/${GRUB_DIR}/${file##*/}"
-    gzip --best --stdout "${file}" > "${out}"
-done
-
-info "Generating ${GRUB_DIR}/${CORE_NAME}"
-grub-mkimage \
-    --compression=auto \
-    --format "${FLAGS_target}" \
-    --prefix "${GRUB_PREFIX}" \
-    --output "${STAGE_DIR}/${GRUB_DIR}/${CORE_NAME}" \
-    "${CORE_MODULES[@]}"
-
-info "Installing GRUB ${FLAGS_target} to ${FLAGS_disk_image##*/}"
+info "Installing GRUB ${FLAGS_target} in ${FLAGS_disk_image##*/}"
 LOOP_DEV=$(sudo losetup --find --show --partscan "${FLAGS_disk_image}")
 ESP_DIR=$(mktemp --directory)
 
@@ -117,7 +96,33 @@ if [[ ! -b "${LOOP_DEV}p1" ]]; then
 fi
 
 sudo mount -t vfat "${LOOP_DEV}p1" "${ESP_DIR}"
-sudo cp -r "${STAGE_DIR}/." "${ESP_DIR}/."
+sudo mkdir -p "${ESP_DIR}/${GRUB_DIR}"
+
+info "Compressing modules in ${GRUB_DIR}"
+for file in "/usr/lib/grub/${FLAGS_target}"/*{.lst,.mod}; do
+    out="${ESP_DIR}/${GRUB_DIR}/${file##*/}"
+    gzip --best --stdout "${file}" | sudo_clobber "${out}"
+done
+
+info "Generating ${GRUB_DIR}/load.cfg"
+# Include a small initial config in the core image to search for the ESP
+# by filesystem ID in case the platform doesn't provide the boot disk.
+# The existing $root value is given as a hint so it is searched first.
+ESP_FSID=$(sudo grub-probe -t fs_uuid -d "${LOOP_DEV}p1")
+sudo_clobber "${ESP_DIR}/${GRUB_DIR}/load.cfg" <<EOF
+search.fs_uuid ${ESP_FSID} root \$root
+set prefix=(\$root)/coreos/grub
+set
+EOF
+
+info "Generating ${GRUB_DIR}/${CORE_NAME}"
+sudo grub-mkimage \
+    --compression=auto \
+    --format "${FLAGS_target}" \
+    --prefix "(,gpt1)/coreos/grub" \
+    --config "${ESP_DIR}/${GRUB_DIR}/load.cfg" \
+    --output "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}" \
+    "${CORE_MODULES[@]}"
 
 # This script will get called a few times, no need to re-copy grub.cfg
 if [[ ! -f "${ESP_DIR}/coreos/grub/grub.cfg" ]]; then
@@ -136,8 +141,16 @@ case "${FLAGS_target}" in
     x86_64-efi)
         info "Installing default x86_64 UEFI bootloader."
         sudo mkdir -p "${ESP_DIR}/EFI/boot"
-        sudo cp "${STAGE_DIR}/${GRUB_DIR}/${CORE_NAME}" \
+        sudo cp "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}" \
             "${ESP_DIR}/EFI/boot/bootx64.efi"
+        ;;
+    x86_64-xen)
+        info "Installing default x86_64 Xen bootloader."
+        sudo mkdir -p "${ESP_DIR}/xen" "${ESP_DIR}/boot/grub"
+        sudo cp "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}" \
+            "${ESP_DIR}/xen/pvboot-x86_64.elf"
+        sudo cp "${BUILD_LIBRARY_DIR}/menu.lst" \
+            "${ESP_DIR}/boot/grub/menu.lst"
         ;;
 esac
 
