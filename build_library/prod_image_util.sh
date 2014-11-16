@@ -76,10 +76,10 @@ EOF
 
   finish_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${image_contents}"
 
-  # Make the filesystem un-mountable as read-write.
+  # Make the filesystem un-mountable as read-write and setup verity.
   if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
     "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
-      tune --disable2fs_rw "${BUILD_DIR}/${image_name}" "USR-A"
+      verity "${BUILD_DIR}/${image_name}"
   fi
 
   upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \

@@ -27,10 +27,10 @@
         "uuid":"7130c94a-213a-4e5a-8e26-6cce9662f132",
         "type":"coreos-rootfs",
         "blocks":"2097152",
-        "fs_blocks":"262144",
+        "fs_blocks":"260094",
         "fs_type":"ext2",
         "mount":"/usr",
-        "features": ["prioritize"]
+        "features": ["prioritize", "verity"]
       },
       "4":{
         "label":"USR-B",
