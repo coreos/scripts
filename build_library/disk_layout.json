@@ -29,7 +29,8 @@
         "blocks":"2097152",
         "fs_blocks":"262144",
         "fs_type":"ext2",
-        "mount":"/usr"
+        "mount":"/usr",
+        "features": ["prioritize"]
       },
       "4":{
         "label":"USR-B",
