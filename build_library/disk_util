@@ -623,7 +623,7 @@ def Umount(options):
   Sudo(['umount', '--recursive', '--detach-loop', options.mount_dir])
 
 
-def Tune2fsReadWrite(options, partition):
+def Tune2fsReadWrite(options, partition, disable_rw):
   """Enable/Disable read-only hack.
 
   From common.sh:
@@ -654,9 +654,10 @@ def Tune2fsReadWrite(options, partition):
   Args:
     options: Flags passed to the script
     partition: Config for partition to manipulate
+    disable_rw: Set to true to disable read-write access
   """
 
-  if options.disable2fs_rw:
+  if disable_rw:
     print "Disabling read-write mounting of partition %s (%s)" % (
             partition['num'], partition['label'])
   else:
@@ -665,7 +666,7 @@ def Tune2fsReadWrite(options, partition):
 
   # offset of ro_compat, highest order byte (le 32 bit field)
   flag_offset = 0x464 + 3
-  flag_value = 0xff if options.disable2fs_rw else 0x00
+  flag_value = 0xff if disable_rw else 0x00
   with open(options.disk_image, 'r+') as image:
     image.seek(partition['first_byte'] + flag_offset)
     image.write(chr(flag_value))
@@ -705,9 +706,38 @@ def Tune(options):
   if options.disable2fs_rw is not None:
     if part.get('fs_type', None) not in ('ext2', 'ext4'):
       raise Exception("Partition %s is not a ext2 or ext4" % options.partition)
-    Tune2fsReadWrite(options, part)
+    Tune2fsReadWrite(options, part, options.disable2fs_rw)
   else:
     raise Exception("No options specified!")
+
+
+def Verity(options):
+  """Hash verity protected filesystems.
+
+  Args:
+    options: Flags passed to the script
+  """
+
+  config, partitions = LoadPartitionConfig(options)
+  GetPartitionTableFromImage(options, config, partitions)
+
+  for part_num, part in partitions.iteritems():
+    if 'verity' not in part.get('features', []):
+      continue
+
+    if not part['image_compat']:
+      raise InvalidLayout("Disk layout is incompatible with existing image")
+
+    if part.get('fs_type', None) in ('ext2', 'ext4'):
+      Tune2fsReadWrite(options, part, disable_rw=True)
+
+    with PartitionLoop(options, part) as loop_dev:
+      Sudo(['veritysetup', 'format', '--hash=sha256',
+	    '--data-block-size', part['fs_block_size'],
+	    '--hash-block-size', part['fs_block_size'],
+	    '--data-blocks', part['fs_blocks'],
+	    '--hash-offset', part['fs_bytes'],
+	    loop_dev, loop_dev])
 
 
 def Extract(options):
@@ -978,6 +1008,10 @@ def main(argv):
   a.add_argument('disk_image', help='path to disk image file')
   a.add_argument('partition', help='number or label of partition to edit')
   a.set_defaults(func=Tune)
+
+  a = actions.add_parser('verity', help='compute verity hashes')
+  a.add_argument('disk_image', help='path to disk image file')
+  a.set_defaults(func=Verity)
 
   a = actions.add_parser('extract', help='extract a single partition')
   a.add_argument('disk_image', help='path to disk image file')
