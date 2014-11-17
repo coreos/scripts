@@ -33,7 +33,7 @@ GROUP="alpha"
 REGIONS=()
 
 add_region() {
-    if [[ -z "${ALL_REGIONS[$1]}" ]]; then
+    if [[ -z "${ALL_AKIS[$1]}" ]]; then
         echo "Invalid region '$1'" >&2;
         exit 1
     fi
