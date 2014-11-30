@@ -11,7 +11,6 @@ VALID_IMG_TYPES=(
     iso
     openstack
     qemu
-    qemu_no_kexec
     qemu_uefi
     qemu_xen
     rackspace
@@ -71,9 +70,6 @@ VM_GENERATED_FILES=()
 # If set to 0 then a partition skeleton won't be laid out on VM_TMP_IMG
 IMG_DEFAULT_PARTITIONED_IMG=1
 
-# If set to 0 boot_kernel is skipped
-IMG_DEFAULT_BOOT_KERNEL=1
-
 # If set install the given package name to the OEM partition
 IMG_DEFAULT_OEM_PACKAGE=
 
@@ -110,12 +106,6 @@ IMG_qemu_DISK_FORMAT=qcow2
 IMG_qemu_DISK_LAYOUT=vm
 IMG_qemu_CONF_FORMAT=qemu
 
-IMG_qemu_no_kexec_BOOT_KERNEL=0
-IMG_qemu_no_kexec_DISK_FORMAT=qcow2
-IMG_qemu_no_kexec_DISK_LAYOUT=vm
-IMG_qemu_no_kexec_CONF_FORMAT=qemu
-
-IMG_qemu_uefi_BOOT_KERNEL=0
 IMG_qemu_uefi_DISK_FORMAT=qcow2
 IMG_qemu_uefi_DISK_LAYOUT=vm
 IMG_qemu_uefi_CONF_FORMAT=qemu_uefi
@@ -127,7 +117,6 @@ IMG_qemu_xen_OEM_PACKAGE=oem-xendom0
 IMG_qemu_xen_MEM=2048
 
 ## xen
-IMG_xen_BOOT_KERNEL=0
 IMG_xen_CONF_FORMAT=xl
 
 ## virtualbox
@@ -164,7 +153,6 @@ IMG_vmware_insecure_CONF_FORMAT=vmware_zip
 IMG_vmware_insecure_OEM_PACKAGE=oem-vagrant-key
 
 ## ami
-IMG_ami_BOOT_KERNEL=0
 IMG_ami_OEM_PACKAGE=oem-ec2-compat
 IMG_ami_OEM_USE=ec2
 
@@ -194,12 +182,9 @@ IMG_iso_CONF_FORMAT=iso
 IMG_gce_DISK_LAYOUT=vm
 IMG_gce_CONF_FORMAT=gce
 IMG_gce_OEM_PACKAGE=oem-gce
-IMG_gce_FS_HOOK=gce
 
 ## rackspace
-IMG_rackspace_BOOT_KERNEL=0
 IMG_rackspace_OEM_PACKAGE=oem-rackspace
-IMG_rackspace_vhd_BOOT_KERNEL=0
 IMG_rackspace_vhd_DISK_FORMAT=vhd
 IMG_rackspace_vhd_OEM_PACKAGE=oem-rackspace
 
@@ -207,12 +192,9 @@ IMG_rackspace_vhd_OEM_PACKAGE=oem-rackspace
 IMG_rackspace_onmetal_DISK_FORMAT=qcow2
 IMG_rackspace_onmetal_DISK_LAYOUT=onmetal
 IMG_rackspace_onmetal_OEM_PACKAGE=oem-rackspace-onmetal
-IMG_rackspace_onmetal_FS_HOOK=onmetal
 
 ## cloudstack
-IMG_cloudstack_BOOT_KERNEL=0
 IMG_cloudstack_OEM_PACKAGE=oem-cloudstack
-IMG_cloudstack_vhd_BOOT_KERNEL=0
 IMG_cloudstack_vhd_DISK_FORMAT=vhd
 IMG_cloudstack_vhd_OEM_PACKAGE=oem-cloudstack
 
@@ -224,13 +206,11 @@ IMG_exoscale_DISK_FORMAT=qcow2
 IMG_exoscale_OEM_PACKAGE=oem-exoscale
 
 ## azure
-IMG_azure_BOOT_KERNEL=0
 IMG_azure_DISK_FORMAT=vhd
 IMG_azure_DISK_LAYOUT=azure
 IMG_azure_OEM_PACKAGE=oem-azure
 
 ## hyper-v
-IMG_hyperv_BOOT_KERNEL=0
 IMG_hyperv_DISK_FORMAT=vhd
 IMG_hyperv_OEM_PACKAGE=oem-hyperv
 
@@ -359,11 +339,6 @@ setup_disk_image() {
     "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
         mount "${VM_TMP_IMG}" "${VM_TMP_ROOT}"
 
-    local SYSLINUX_DIR="${VM_TMP_ROOT}/boot/syslinux"
-    if [[ $(_get_vm_opt BOOT_KERNEL) -eq 0 ]]; then
-        sudo mv "${SYSLINUX_DIR}/default.cfg.A" "${SYSLINUX_DIR}/default.cfg"
-    fi
-
     # The only filesystems after this point that may be modified are OEM
     # and on rare cases ESP.
     # Note: it would be more logical for disk_util to mount things read-only
@@ -412,31 +387,6 @@ _run_box_fs_hook() {
     # Copy basic Vagrant configs from OEM
     mkdir -p "${VM_TMP_DIR}/box"
     cp -R "${VM_TMP_ROOT}/usr/share/oem/box/." "${VM_TMP_DIR}/box"
-}
-
-_run_onmetal_fs_hook() {
-    # HACKITY HACK until OEMs can customize bootloader configs
-    local arg='8250.nr_uarts=5 console=ttyS4,115200n8 modprobe.blacklist=mei_me'
-    local timeout=150  # 15 seconds
-    local totaltimeout=3000  # 5 minutes
-    sudo sed -i "${VM_TMP_ROOT}/boot/syslinux/boot_kernel.cfg" \
-        -e 's/console=[^ ]*//g' -e "s/\\(append.*$\\)/\\1 ${arg}/"
-    sudo sed -i "${VM_TMP_ROOT}/boot/syslinux/syslinux.cfg" \
-        -e "s/^TIMEOUT [0-9]*/TIMEOUT ${timeout}/g" \
-        -e "s/^TOTALTIMEOUT [0-9]*/TOTALTIMEOUT ${totaltimeout}/g"
-}
-
-_run_gce_fs_hook() {
-    # HACKITY HACK until OEMs can customize bootloader configs
-    local arg='console=ttyS0,115200n8'
-    sudo sed -i "${VM_TMP_ROOT}/boot/syslinux/boot_kernel.cfg" \
-        -e 's/console=[^ ]*//g' -e "s/\\(append.*$\\)/\\1 ${arg}/"
-}
-_run_azure_fs_hook() {
-    # HACKITY HACK until OEMs can customize bootloader configs
-    local arg='console=ttyS0,115200n8'
-    sudo sed -i "${VM_TMP_ROOT}/boot/syslinux/boot_kernel.cfg" \
-        -e 's/console=[^ ]*//g' -e "s/\\(append.*$\\)/\\1 ${arg}/"
 }
 
 # Write the vm disk image to the target directory in the proper format
