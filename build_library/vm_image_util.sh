@@ -13,6 +13,7 @@ VALID_IMG_TYPES=(
     qemu
     qemu_no_kexec
     qemu_uefi
+    qemu_xen
     rackspace
     rackspace_onmetal
     rackspace_vhd
@@ -44,6 +45,7 @@ VALID_OEM_PACKAGES=(
     hyperv
     rackspace
     rackspace-onmetal
+    xendom0
     vagrant
     vagrant-key
     vmware
@@ -117,6 +119,12 @@ IMG_qemu_uefi_BOOT_KERNEL=0
 IMG_qemu_uefi_DISK_FORMAT=qcow2
 IMG_qemu_uefi_DISK_LAYOUT=vm
 IMG_qemu_uefi_CONF_FORMAT=qemu_uefi
+
+IMG_qemu_xen_DISK_FORMAT=qcow2
+IMG_qemu_xen_DISK_LAYOUT=vm
+IMG_qemu_xen_CONF_FORMAT=qemu_xen
+IMG_qemu_xen_OEM_PACKAGE=oem-xendom0
+IMG_qemu_xen_MEM=2048
 
 ## xen
 IMG_xen_BOOT_KERNEL=0
@@ -604,6 +612,21 @@ _write_qemu_uefi_conf() {
     sed -e "s%^VM_PFLASH_RO=.*%VM_PFLASH_RO='${ovmf_ro}'%" \
         -e "s%^VM_PFLASH_RW=.*%VM_PFLASH_RW='${ovmf_rw}'%" -i "${script}"
     VM_GENERATED_FILES+=( "$(_dst_dir)/${ovmf_ro}" "$(_dst_dir)/${ovmf_rw}" )
+}
+
+_write_qemu_xen_conf() {
+    local script="$(_dst_dir)/$(_dst_name ".sh")"
+    local dst_name=$(basename "$VM_DST_IMG")
+    local vm_mem="$(_get_vm_opt MEM)"
+
+    sed -e "s%^VM_NAME=.*%VM_NAME='${VM_NAME}'%" \
+        -e "s%^VM_IMAGE=.*%VM_IMAGE='${dst_name}'%" \
+        -e "s%^VM_MEMORY=.*%VM_MEMORY='${vm_mem}'%" \
+        "${BUILD_LIBRARY_DIR}/qemu_xen.sh" > "${script}"
+    checkbashisms --posix "${script}" || die
+    chmod +x "${script}"
+
+    VM_GENERATED_FILES+=( "${script}" )
 }
 
 _write_pxe_conf() {
