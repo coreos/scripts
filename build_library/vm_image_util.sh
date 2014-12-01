@@ -424,6 +424,12 @@ _run_gce_fs_hook() {
     sudo sed -i "${VM_TMP_ROOT}/boot/syslinux/boot_kernel.cfg" \
         -e 's/console=[^ ]*//g' -e "s/\\(append.*$\\)/\\1 ${arg}/"
 }
+_run_azure_fs_hook() {
+    # HACKITY HACK until OEMs can customize bootloader configs
+    local arg='console=ttyS0,115200n8'
+    sudo sed -i "${VM_TMP_ROOT}/boot/syslinux/boot_kernel.cfg" \
+        -e 's/console=[^ ]*//g' -e "s/\\(append.*$\\)/\\1 ${arg}/"
+}
 
 # Write the vm disk image to the target directory in the proper format
 write_vm_disk() {
