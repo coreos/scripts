@@ -601,6 +601,13 @@ is_mounted() {
   fi
 }
 
+fix_mtab() {
+    local root="$1" mounts="../proc/self/mounts"
+    if [[ "$(readlink "${root}/etc/mtab")" != "${mounts}" ]]; then
+        sudo ln -sf "${mounts}" "${root}/etc/mtab"
+    fi
+}
+
 get_git_id() {
   git var GIT_COMMITTER_IDENT | sed -e 's/^.*<\(\S\+\)>.*$/\1/'
 }
