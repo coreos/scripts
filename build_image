@@ -149,6 +149,8 @@ users:
 EOF
 fi
 
+fix_mtab
+
 if [[ "${DEV_IMAGE}" -eq 1 ]]; then
   create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
   if [[ ${FLAGS_extract_update} -eq ${FLAGS_TRUE} ]]; then

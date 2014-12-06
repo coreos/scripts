@@ -209,6 +209,8 @@ setup_env() {
       fi
     done
 
+    fix_mtab "${FLAGS_chroot}"
+
     debug "Mounting chroot environment."
     MOUNT_CACHE=$(echo $(awk '{print $2}' /proc/mounts))
 

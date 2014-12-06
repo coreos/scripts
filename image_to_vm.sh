@@ -103,6 +103,8 @@ fi
 # Make sure things are cleaned up on failure
 trap vm_cleanup EXIT
 
+fix_mtab
+
 # Setup new (raw) image, possibly resizing filesystems
 setup_disk_image "${FLAGS_disk_layout}"
 
