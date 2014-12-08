@@ -1,0 +1,4 @@
+timeout 0
+title   CoreOS GRUB2
+root    (hd0,0)
+kernel  /xen/pvboot-x86_64.elf

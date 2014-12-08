@@ -242,11 +242,7 @@ finish_image() {
   if mountpoint -q "${root_fs_dir}"/boot; then
     install_grub=1
     ${BUILD_LIBRARY_DIR}/configure_bootloaders.sh \
-      --arch=${ARCH} \
-      --disk_layout="${disk_layout}" \
-      --boot_dir="${root_fs_dir}"/usr/boot \
-      --esp_dir="${root_fs_dir}"/boot \
-      --boot_args="${FLAGS_boot_args}"
+      --boot_dir="${root_fs_dir}"/usr/boot
   fi
 
   if [[ -n "${FLAGS_developer_data}" ]]; then
@@ -273,7 +269,7 @@ finish_image() {
   # This script must mount the ESP partition differently, so run it after unmount
   if [[ "${install_grub}" -eq 1 ]]; then
     local target
-    for target in i386-pc x86_64-efi; do
+    for target in i386-pc x86_64-efi x86_64-xen; do
       ${BUILD_LIBRARY_DIR}/grub_install.sh \
           --target="${target}" --disk_image="${disk_img}"
     done

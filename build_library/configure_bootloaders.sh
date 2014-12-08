@@ -4,8 +4,8 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Helper script to generate GRUB bootloader configuration files for
-# x86 platforms.
+# Helper script to generate bootloader configuration files for systems
+# that predate our new GRUB2 based gptprio bootloader.
 
 SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 . "${SCRIPT_ROOT}/common.sh" || exit 1
@@ -14,16 +14,8 @@ SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 assert_inside_chroot
 
 # Flags.
-DEFINE_string arch "x86" \
-  "The boot architecture: arm or x86. (Default: x86)"
 DEFINE_string boot_dir "/tmp/boot" \
   "Path to boot directory in root filesystem (Default: /tmp/boot)"
-DEFINE_string esp_dir "" \
-  "Path to ESP partition mount point (Default: none)"
-DEFINE_string boot_args "" \
-  "Additional boot arguments to pass to the commandline (Default: '')"
-DEFINE_string disk_layout "base" \
-  "The disk layout type to use for this image."
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -34,17 +26,10 @@ switch_to_strict_mode
 common_args="console=tty0 ro noswap cros_legacy"
 common_args="${common_args} ${FLAGS_boot_args}"
 
-# Get partition UUIDs from the json config
-get_uuid() {
-  "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${FLAGS_disk_layout}" \
-      readuuid "$1"
-}
-
 # Filesystem command line args.
 root_args="root=LABEL=ROOT rootflags=subvol=root"
-gptprio_args="${root_args} usr=gptprio:"
-slot_a_args="${root_args} usr=PARTUUID=$(get_uuid USR-A)"
-slot_b_args="${root_args} usr=PARTUUID=$(get_uuid USR-B)"
+slot_a_args="${root_args} usr=PARTLABEL=USR-A"
+slot_b_args="${root_args} usr=PARTLABEL=USR-B"
 
 GRUB_DIR="${FLAGS_boot_dir}/grub"
 SYSLINUX_DIR="${FLAGS_boot_dir}/syslinux"
@@ -73,11 +58,6 @@ EOF
 default         1
 $(< "${GRUB_DIR}/menu.lst.A")
 EOF
-  sudo cp "${GRUB_DIR}/menu.lst.A" "${GRUB_DIR}/menu.lst"
-
-  # menu.lst needs to go under boot/grub so pvgrub can find it reliably
-  sudo mkdir -p "${FLAGS_esp_dir}/boot/grub"
-  sudo cp "${GRUB_DIR}/menu.lst" "${FLAGS_esp_dir}/boot/grub"
 }
 
 # Build configuration files for syslinux
@@ -87,44 +67,10 @@ configure_syslinux() {
 
   # Add ttyS0 as a secondary console, useful for qemu -nographic
   # This leaves /dev/console mapped to tty0 (vga) which is reasonable default.
-  if [[ ${common_args} == *console=ttyS* ]] ; then
-    syslinux_args="${common_args}"
-  else
-    syslinux_args="console=ttyS0,115200n8 ${common_args}"
-  fi
+  syslinux_args="console=ttyS0,115200n8 ${common_args}"
 
-  sudo_clobber "${SYSLINUX_DIR}/syslinux.cfg" <<EOF
-PROMPT 1
-# display boot: prompt for a half second
-TIMEOUT 5
-# never sit at the prompt longer than a minute
-TOTALTIMEOUT 600
-
-# controls which kernel is the default
-include /syslinux/default.cfg
-
-include /syslinux/boot_kernel.cfg
-
-# coreos.A
-include /syslinux/root.A.cfg
-
-# coreos.B
-include /syslinux/root.B.cfg
-EOF
-
-  sudo_clobber "${SYSLINUX_DIR}/default.cfg" <<<"DEFAULT boot_kernel"
   sudo_clobber "${SYSLINUX_DIR}/default.cfg.A" <<<"DEFAULT coreos.A"
   sudo_clobber "${SYSLINUX_DIR}/default.cfg.B" <<<"DEFAULT coreos.B"
-
-  # Different files are used so that the updater can only touch the file it
-  # needs to for a given change.  This will minimize any potential accidental
-  # updates issues, hopefully.
-  sudo_clobber "${SYSLINUX_DIR}/boot_kernel.cfg" <<EOF
-label boot_kernel
-  menu label boot_kernel
-  kernel vmlinuz-boot_kernel
-  append ${syslinux_args} ${gptprio_args}
-EOF
 
   sudo_clobber "${SYSLINUX_DIR}/root.A.cfg" <<EOF
 label coreos.A
@@ -139,21 +85,7 @@ label coreos.B
   kernel vmlinuz.B
   append ${syslinux_args} ${slot_b_args}
 EOF
-
-  sudo cp -r "${SYSLINUX_DIR}/." "${FLAGS_esp_dir}/syslinux"
-
-  # Stage all kernels with the only one we built.
-  for kernel in syslinux/{vmlinuz-boot_kernel,vmlinuz.A,vmlinuz.B}
-  do
-    sudo cp "${FLAGS_boot_dir}/vmlinuz" "${FLAGS_esp_dir}/${kernel}"
-  done
 }
 
-[[ -d "${FLAGS_esp_dir}" ]] || die_notrace "--esp_dir is required"
-
-if [[ "${FLAGS_arch}" = "x86" || "${FLAGS_arch}" = "amd64"  ]]; then
-  configure_pvgrub
-  configure_syslinux
-else
-  error "No bootloader configuration for ${FLAGS_arch}"
-fi
+configure_pvgrub
+configure_syslinux
