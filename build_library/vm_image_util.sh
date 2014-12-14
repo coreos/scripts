@@ -31,6 +31,7 @@ VALID_IMG_TYPES=(
     azure
     hyperv
     secure_demo
+    niftycloud
 )
 
 #list of oem package names, minus the oem- prefix
@@ -48,6 +49,7 @@ VALID_OEM_PACKAGES=(
     vagrant
     vagrant-key
     vmware
+    niftycloud
 )
 
 # Set at runtime to one of the above types
@@ -218,6 +220,12 @@ IMG_hyperv_OEM_PACKAGE=oem-hyperv
 IMG_secure_demo_PARTITIONED_IMG=0
 IMG_secure_demo_DISK_FORMAT=secure_demo
 IMG_secure_demo_CONF_FORMAT=qemu_uefi
+
+## niftycloud
+IMG_niftycloud_DISK_FORMAT=vmdk_scsi
+IMG_niftycloud_DISK_LAYOUT=vm
+IMG_niftycloud_CONF_FORMAT=niftycloud
+IMG_niftycloud_OEM_PACKAGE=oem-niftycloud
 
 ###########################################################
 
@@ -824,6 +832,55 @@ _write_gce_conf() {
     mv "${VM_DST_IMG}" "${VM_TMP_DIR}/disk.raw"
     tar -czf "${tar_path}" -C "${VM_TMP_DIR}" "disk.raw"
     VM_GENERATED_FILES=( "${tar_path}" )
+}
+
+_write_niftycloud_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local src_name=$(basename "$VM_SRC_IMG")
+    local dst_name=$(basename "$VM_DST_IMG")
+    local dst_dir=$(dirname "$VM_DST_IMG")
+    local vmx_path="${dst_dir}/$(_src_to_dst_name "${src_name}" ".vmx")"
+    cat >"${vmx_path}" <<EOF
+#!/usr/bin/vmware
+.encoding = "UTF-8"
+config.version = "8"
+virtualHW.version = "8"
+cleanShutdown = "TRUE"
+displayName = "${VM_NAME}"
+ethernet0.addressType = "generated"
+ethernet0.present = "TRUE"
+ethernet0.virtualDev = "vmxnet3"
+floppy0.present = "FALSE"
+guestOS = "other26xlinux-64"
+memsize = "${vm_mem}"
+powerType.powerOff = "soft"
+powerType.powerOn = "hard"
+powerType.reset = "hard"
+powerType.suspend = "hard"
+scsi0.present = "TRUE"
+scsi0.virtualDev = "pvscsi"
+scsi0:0.fileName = "${dst_name}"
+scsi0:0.present = "TRUE"
+sound.present = "FALSE"
+rtc.diffFromUTC = 0
+pciBridge0.present = "TRUE"
+pciBridge4.present = "TRUE"
+pciBridge4.virtualDev = "pcieRootPort"
+pciBridge4.functions = "8"
+pciBridge5.present = "TRUE"
+pciBridge5.virtualDev = "pcieRootPort"
+pciBridge5.functions = "8"
+pciBridge6.present = "TRUE"
+pciBridge6.virtualDev = "pcieRootPort"
+pciBridge6.functions = "8"
+pciBridge7.present = "TRUE"
+pciBridge7.virtualDev = "pcieRootPort"
+pciBridge7.functions = "8"
+EOF
+    # Only upload the vmx if it won't be bundled
+    if [[ -z "$(_get_vm_opt BUNDLE_FORMAT)" ]]; then
+        VM_GENERATED_FILES+=( "${vmx_path}" )
+    fi
 }
 
 # If this is a bundled format generate it!
