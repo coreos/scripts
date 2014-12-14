@@ -20,6 +20,7 @@ VALID_IMG_TYPES=(
     vagrant_vmware_fusion
     virtualbox
     vmware
+    vmware_ovf
     vmware_insecure
     xen
     gce
@@ -49,6 +50,7 @@ VALID_OEM_PACKAGES=(
     vagrant
     vagrant-key
     vmware
+    vmware_ovf
     niftycloud
 )
 
@@ -146,6 +148,12 @@ IMG_vagrant_vmware_fusion_OEM_PACKAGE=oem-vagrant
 IMG_vmware_DISK_FORMAT=vmdk_scsi
 IMG_vmware_DISK_LAYOUT=vm
 IMG_vmware_CONF_FORMAT=vmx
+IMG_vmware_OEM_PACKAGE=oem-vmware
+
+## vmware_ovf
+IMG_vmware_DISK_FORMAT=vmdk_scsi_stream_optimized
+IMG_vmware_DISK_LAYOUT=vm
+IMG_vmware_CONF_FORMAT=vmware_ovf
 IMG_vmware_OEM_PACKAGE=oem-vmware
 
 ## vmware_insecure
@@ -322,6 +330,7 @@ _disk_ext() {
         cpio) echo cpio.gz;;
         vmdk_ide) echo vmdk;;
         vmdk_scsi) echo vmdk;;
+        vmdk_scsi_stream_optimized) echo vmdk;;
         secure_demo) echo bin;;
         *) echo "${disk_format}";;
     esac
@@ -435,6 +444,11 @@ _write_vmdk_ide_disk() {
 
 _write_vmdk_scsi_disk() {
     qemu-img convert -f raw "$1" -O vmdk -o adapter_type=lsilogic "$2"
+    assert_image_size "$2" vmdk
+}
+
+_write_vmdk_scsi_stream_optimized_disk() {
+    qemu-img convert -f raw "$1" -O vmdk -o adapter_type=lsilogic -o subformat=streamOptimized "$2"
     assert_image_size "$2" vmdk
 }
 
@@ -809,6 +823,27 @@ _write_vagrant_conf() {
     cat > "${VM_TMP_DIR}"/box/metadata.json <<EOF
 {"provider": "virtualbox"}
 EOF
+}
+
+_write_vmware_ovf_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local src_name=$(basename "$VM_SRC_IMG")
+    local dst_name=$(basename "$VM_DST_IMG")
+    local dst_dir=$(dirname "$VM_DST_IMG")
+    local ovf="${dst_dir}/$(_src_to_dst_name "${src_name}" ".ovf")"
+
+    "${BUILD_LIBRARY_DIR}/vmware_ovf.sh" \
+            --vm_name "$VM_NAME" \
+            --disk_vmdk "$VM_DST_IMG" \
+            --memory_size "$vm_mem" \
+            --output_ovf "$ovf"
+
+    local ovf_name=$(basename "${ovf}")
+    cat > "${VM_README}" <<EOF
+Deploy ${dst_name} and ${ovf_name} to vSphere or vCloud Air.
+EOF
+
+    VM_GENERATED_FILES+=( "$ovf" "${VM_README}" )
 }
 
 _write_vagrant_vmware_fusion_conf() {
