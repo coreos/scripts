@@ -249,6 +249,10 @@ PORT_LOGDIR="${BOARD_ROOT}/var/log/portage"
 PORTAGE_TMPDIR="${BOARD_ROOT}/var/tmp"
 PORTAGE_BINHOST="${BOARD_BINHOST}"
 
+# Tell the linux-info eclass where it can find our kernel
+KERNEL_DIR="${BOARD_ROOT}/usr/src/linux"
+KBUILD_OUTPUT="${BOARD_ROOT}/var/cache/portage/sys-kernel/coreos-kernel"
+
 # Generally there isn't any need to add packages to @world by default.
 # You can use --select to override this.
 EMERGE_DEFAULT_OPTS="--oneshot"
