@@ -75,6 +75,8 @@ cat <<EOF
 export TERM='${TERM}'
 export MAKEOPTS='--jobs=${NUM_JOBS} --load-average=${load}'
 export EMERGE_DEFAULT_OPTS="\$MAKEOPTS"
+export PORTAGE_USERNAME=portage
+export PORTAGE_GRPNAME=portage
 EOF
 }
 
@@ -210,7 +212,8 @@ write_configs() {
     export CCACHE_DIR="$TEMPDIR/ccache"
 
     info "Creating output directories..."
-    mkdir -p "$TEMPDIR" "$DISTDIR" "$CCACHE_DIR"
+    mkdir -m 775 -p "$TEMPDIR" "$DISTDIR" "$CCACHE_DIR"
+    chown portage:portage "$DISTDIR" "$CCACHE_DIR"
     info "Writing out catalyst configs..."
     info "    $TEMPDIR/catalyst.conf"
     catalyst_conf > "$TEMPDIR/catalyst.conf"
