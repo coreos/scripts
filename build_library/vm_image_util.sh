@@ -20,6 +20,7 @@ VALID_IMG_TYPES=(
     vagrant_vmware_fusion
     virtualbox
     vmware
+    vmware_ova
     vmware_insecure
     xen
     gce
@@ -147,6 +148,12 @@ IMG_vmware_DISK_FORMAT=vmdk_scsi
 IMG_vmware_DISK_LAYOUT=vm
 IMG_vmware_CONF_FORMAT=vmx
 IMG_vmware_OEM_PACKAGE=oem-vmware
+
+## vmware
+IMG_vmware_ova_DISK_FORMAT=vmdk_scsi
+IMG_vmware_ova_DISK_LAYOUT=vm
+IMG_vmware_ova_OEM_PACKAGE=oem-vmware
+IMG_vmware_ova_BUNDLE_FORMAT=ova
 
 ## vmware_insecure
 IMG_vmware_insecure_DISK_FORMAT=vmdk_scsi
@@ -920,6 +927,12 @@ _write_box_bundle() {
 }
 EOF
     VM_GENERATED_FILES+=( "${box}" "${json}" )
+}
+
+_write_ova_bundle() {
+    vmdk-convert ${VM_DST_IMG} ${VM_TMP_DIR}/vm.vmdk
+    ( cd $(_dst_dir) && mkova.sh $(_dst_name) ${VM_TMP_DIR}/vm.vmdk ${BUILD_LIBRARY_DIR}/template.ovf)
+    VM_GENERATED_FILES+=$(_dst_dir)/$(_dst_name ".ova")
 }
 
 _write_secure_demo_disk() {
