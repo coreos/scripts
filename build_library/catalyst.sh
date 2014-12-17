@@ -99,6 +99,7 @@ cat <<EOF
 target: stage1
 # stage1 packages aren't published, save in tmp
 pkgcache_path: ${TEMPDIR}/stage1-${ARCH}-packages
+update_seed: yes
 EOF
 catalyst_stage_default
 }
