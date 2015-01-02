@@ -24,6 +24,8 @@ DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
+DEFINE_string base_pkg "coreos-base/coreos" \
+  "The base portage package to base the build off of (only applies to prod images)"
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
 DEFINE_string disk_layout "" \
@@ -161,7 +163,7 @@ if [[ "${CONTAINER}" -eq 1 ]]; then
 fi
 
 if [[ "${PROD_IMAGE}" -eq 1 ]]; then
-  create_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
+  create_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group} ${FLAGS_base_pkg}
   if [[ ${FLAGS_generate_update} -eq ${FLAGS_TRUE} ]]; then
     generate_update "${COREOS_PRODUCTION_IMAGE_NAME}" ${DISK_LAYOUT}
   elif [[ ${FLAGS_extract_update} -eq ${FLAGS_TRUE} ]]; then
