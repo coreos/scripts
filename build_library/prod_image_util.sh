@@ -29,6 +29,11 @@ create_prod_image() {
   local image_name="$1"
   local disk_layout="$2"
   local update_group="$3"
+  local base_pkg="$4"
+  if [ -z "${base_pkg}" ]; then
+    echo "did not get base package!"
+    exit 1
+  fi
 
   info "Building production image ${image_name}"
   local root_fs_dir="${BUILD_DIR}/rootfs"
@@ -40,7 +45,7 @@ create_prod_image() {
   # Install minimal GCC (libs only) and then everything else
   set_image_profile prod
   extract_prod_gcc "${root_fs_dir}"
-  emerge_to_image "${root_fs_dir}" coreos-base/coreos
+  emerge_to_image "${root_fs_dir}" "${base_pkg}"
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
 
   # Assert that if this is supposed to be an official build that the
