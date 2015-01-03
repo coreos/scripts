@@ -47,6 +47,11 @@ DEFINE_string stage3_path "" \
   "Use the stage3 located on this path."
 DEFINE_string cache_dir "" "Directory to store caches within."
 
+DEFINE_string extra_portdir_overlay_path "" \
+  "Extra PORTDIR_OVERLAY direcory path outside of the chroot."
+DEFINE_string extra_portdir_overlay_name "" \
+  "Name of the symlink directory that will be created inside the chroot."
+
 # Parse command line flags.
 FLAGS_HELP="usage: $SCRIPT_NAME [flags]"
 FLAGS "$@" || exit 1
@@ -153,6 +158,13 @@ init_setup () {
      "${FLAGS_chroot}"/"${CHROOT_OVERLAY}"
    ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage-stable" \
      "${FLAGS_chroot}"/"${PORTAGE_STABLE_OVERLAY}"
+
+   if [[ -n "${FLAGS_extra_portdir_overlay_path }" ]]; then
+     if [[ -n "${FLAGS_extra_portdir_overlay_name}" ]]; then
+       ln -sf "${CHROOT_TRUNK_DIR}"/"${FLAGS_extra_portdir_overlay_path}" \
+         "${FLAGS_chroot}"/usr/local/portage/"${FLAGS_extra_portdir_overlay_name}"
+     fi
+   fi
 
    # Set up sudoers.  Inside the chroot, the user can sudo without a password.
    # (Safe enough, since the only way into the chroot is to 'sudo chroot', so
@@ -317,6 +329,11 @@ else
 fi
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   UPDATE_ARGS+=( --jobs=${FLAGS_jobs} )
+fi
+if [[ -n "${FLAGS_extra_portdir_overlay_path }" ]]; then
+  if [[ -n "${FLAGS_extra_portdir_overlay_name}" ]]; then
+    UPDATE_ARGS+=( "--extra_portdir_overlay_dir=/usr/local/portage/${FLAGS_extra_portdir_overlay_name}" )
+  fi
 fi
 enter_chroot "${CHROOT_TRUNK_DIR}/src/scripts/update_chroot" "${UPDATE_ARGS[@]}"
 
