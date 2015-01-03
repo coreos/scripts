@@ -159,7 +159,7 @@ init_setup () {
    ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage-stable" \
      "${FLAGS_chroot}"/"${PORTAGE_STABLE_OVERLAY}"
 
-   if [[ -n "${FLAGS_extra_portdir_overlay_path }" ]]; then
+   if [[ -n "${FLAGS_extra_portdir_overlay_path}" ]]; then
      if [[ -n "${FLAGS_extra_portdir_overlay_name}" ]]; then
        ln -sf "${CHROOT_TRUNK_DIR}"/"${FLAGS_extra_portdir_overlay_path}" \
          "${FLAGS_chroot}"/usr/local/portage/"${FLAGS_extra_portdir_overlay_name}"
