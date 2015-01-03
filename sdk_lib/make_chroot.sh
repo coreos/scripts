@@ -330,7 +330,7 @@ fi
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   UPDATE_ARGS+=( --jobs=${FLAGS_jobs} )
 fi
-if [[ -n "${FLAGS_extra_portdir_overlay_path }" ]]; then
+if [[ -n "${FLAGS_extra_portdir_overlay_path}" ]]; then
   if [[ -n "${FLAGS_extra_portdir_overlay_name}" ]]; then
     UPDATE_ARGS+=( "--extra_portdir_overlay_dir=/usr/local/portage/${FLAGS_extra_portdir_overlay_name}" )
   fi
