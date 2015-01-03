@@ -35,6 +35,9 @@ DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
 DEFINE_string toolchain_boards "" \
   "Extra toolchains to setup for the specified boards."
 
+DEFINE_string extra_portdir_overlay_dir "" \
+  "Extra directory path to be added to PORTDIR_OVERLAY."
+
 # Parse command line flags
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -49,6 +52,11 @@ PORTAGE_STABLE_OVERLAY="/usr/local/portage/stable"
 CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
 COREOS_OVERLAY="/usr/local/portage/coreos"
 COREOS_CONFIG="${COREOS_OVERLAY}/coreos/config"
+if [[ -n "${FLAGS_extra_portdir_overlay_dir}" ]]; then
+  EXTRA_PORTDIR_OVERLAY="${FLAGS_extra_portdir_overlay_dir}"
+else
+  EXTRA_PORTDIR_OVERLAY=""
+fi
 
 info "Setting up portage..."
 sudo mkdir -p "/etc/portage/repos.conf/"
@@ -58,7 +66,7 @@ sudo touch "/etc/portage/make.conf.user"
 sudo_clobber "/etc/portage/make.conf" <<EOF
 # Created by update_chroot
 PORTDIR="${PORTAGE_STABLE_OVERLAY}"
-PORTDIR_OVERLAY="${CROSSDEV_OVERLAY} ${COREOS_OVERLAY}"
+PORTDIR_OVERLAY="${CROSSDEV_OVERLAY} ${COREOS_OVERLAY} ${EXTRA_PORTDIR_OVERLAY}"
 DISTDIR="/var/lib/portage/distfiles"
 PKGDIR="/var/lib/portage/pkgs"
 PORT_LOGDIR="/var/log/portage"
