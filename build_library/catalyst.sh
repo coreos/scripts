@@ -58,7 +58,7 @@ cat <<EOF
 contents="auto"
 digests="md5 sha1 sha512 whirlpool"
 hash_function="crc32"
-options="autoresume ccache pkgcache"
+options="pkgcache"
 sharedir="/usr/lib/catalyst"
 storedir="$CATALYST_ROOT"
 distdir="$DISTDIR"
