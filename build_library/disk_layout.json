@@ -66,8 +66,7 @@
         "label":"ROOT",
         "type":"coreos-resize",
         "blocks":"4427776",
-        "fs_type":"btrfs",
-        "fs_subvolume":"root",
+        "fs_type":"ext4",
         "mount":"/"
       }
     },
