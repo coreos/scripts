@@ -47,6 +47,7 @@ create_prod_image() {
   extract_prod_gcc "${root_fs_dir}"
   emerge_to_image "${root_fs_dir}" "${base_pkg}"
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
+  extract_docs "${root_fs_dir}"
 
   # Assert that if this is supposed to be an official build that the
   # official update keys have been used.
