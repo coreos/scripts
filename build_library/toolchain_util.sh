@@ -181,7 +181,7 @@ _get_dependency_list() {
 
     PORTAGE_CONFIGROOT="$ROOT" emerge "$@" --pretend \
         --emptytree --root-deps=rdeps --onlydeps --quiet | \
-        sed -e 's/.*\] \([^ :]*\).*/=\1/' |
+        sed -e 's/[^]]*\] \([^ :]*\).*/=\1/' |
         egrep -v "(=$(echo "${pkgs[*]}")-[0-9])"
 }
 
