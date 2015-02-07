@@ -130,16 +130,16 @@ for r in "${!HVM_AMIS[@]}"; do
 done
 HVM_ALL="${HVM_ALL#|}"
 
-AMI_ALL="\"amis\": ["
+AMI_ALL="{\n  \"amis\": ["
 for r in "${ALL_REGIONS[@]}"; do
-	AMI_ALL+="\n  {"
-	AMI_ALL+="\n    \"name\": \"${r}\","
-	AMI_ALL+="\n    \"pv\":   \"${AMIS[$r]}\","
-	AMI_ALL+="\n    \"hvm\":  \"${HVM_AMIS[$r]}\""
-	AMI_ALL+="\n  },"
+	AMI_ALL+="\n    {"
+	AMI_ALL+="\n      \"name\": \"${r}\","
+	AMI_ALL+="\n      \"pv\":   \"${AMIS[$r]}\","
+	AMI_ALL+="\n      \"hvm\":  \"${HVM_AMIS[$r]}\""
+	AMI_ALL+="\n    },"
 done
 AMI_ALL="${AMI_ALL%,}"
-AMI_ALL+="\n]"
+AMI_ALL+="\n  ]\n}"
 
 # wait for each subshell individually to report errors
 WAIT_FAILED=0
