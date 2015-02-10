@@ -7,5 +7,5 @@ getManagementEndpoint() {
 
 getSubscriptionId() {
 	azure account show --json | \
-		jq '.id' --raw-output
+		jq '.[0].id' --raw-output
 }
