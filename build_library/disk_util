@@ -45,9 +45,10 @@ def LoadPartitionConfig(options):
   valid_layout_keys = set((
       '_comment', 'type', 'num', 'label', 'blocks', 'block_size', 'fs_blocks',
       'fs_block_size', 'fs_type', 'features', 'uuid', 'part_alignment', 'mount',
-      'binds', 'fs_subvolume'))
+      'binds', 'fs_subvolume', 'fs_bytes_per_inode', 'fs_inode_size'))
   integer_layout_keys = set((
-      'blocks', 'block_size', 'fs_blocks', 'fs_block_size', 'part_alignment'))
+      'blocks', 'block_size', 'fs_blocks', 'fs_block_size', 'part_alignment',
+      'fs_bytes_per_inode', 'fs_inode_size'))
   required_layout_keys = set(('type', 'num', 'label', 'blocks'))
 
   filename = options.disk_layout_file
@@ -107,6 +108,10 @@ def LoadPartitionConfig(options):
       if 'fs_subvolume' in part:
         if part.get('fs_type', None) != 'btrfs':
           raise InvalidLayout('Invalid fs: only btrfs supports subvolumes')
+
+      if 'fs_bytes_per_inode' in part or 'fs_inode_size' in part:
+        if part.get('fs_type', None) not in ('ext2', 'ext4'):
+          raise InvalidLayout('Invalid fs: only extX supports inode options')
 
   def Align(count, alignment):
     offset = count % alignment
@@ -393,6 +398,8 @@ def FormatExt(part, device):
   Sudo(['mke2fs', '-q',
                   '-t', part['fs_type'],
                   '-b', part['fs_block_size'],
+                  '-i', part.get('fs_bytes_per_inode', part['fs_block_size']),
+                  '-I', part.get('fs_inode_size', 128),
                   device,
                   part['fs_blocks']])
 
