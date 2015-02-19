@@ -33,6 +33,7 @@ VALID_IMG_TYPES=(
     hyperv
     secure_demo
     niftycloud
+    cloudsigma
 )
 
 #list of oem package names, minus the oem- prefix
@@ -51,6 +52,7 @@ VALID_OEM_PACKAGES=(
     vagrant-key
     vmware
     niftycloud
+    cloudsigma
 )
 
 # Set at runtime to one of the above types
@@ -233,6 +235,10 @@ IMG_niftycloud_DISK_FORMAT=vmdk_scsi
 IMG_niftycloud_DISK_LAYOUT=vm
 IMG_niftycloud_CONF_FORMAT=niftycloud
 IMG_niftycloud_OEM_PACKAGE=oem-niftycloud
+
+## cloudsigma
+IMG_cloudsigma_DISK_FORMAT=qcow2
+IMG_cloudsigma_OEM_PACKAGE=oem-cloudsigma
 
 ###########################################################
 
