@@ -26,6 +26,8 @@ DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
 DEFINE_string base_pkg "coreos-base/coreos" \
   "The base portage package to base the build off of (only applies to prod images)"
+DEFINE_string base_dev_pkg "coreos-base/coreos-dev" \
+  "The base portage package to base the build off of (only applies to dev images)"
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
 DEFINE_string disk_layout "" \
@@ -152,14 +154,14 @@ fi
 fix_mtab
 
 if [[ "${DEV_IMAGE}" -eq 1 ]]; then
-  create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group}
+  create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group} ${FLAGS_base_dev_pkg}
   if [[ ${FLAGS_extract_update} -eq ${FLAGS_TRUE} ]]; then
     extract_update "${COREOS_DEVELOPER_IMAGE_NAME}" "${DISK_LAYOUT}"
   fi
 fi
 
 if [[ "${CONTAINER}" -eq 1 ]]; then
-  create_dev_image "${COREOS_DEVELOPER_CONTAINER_NAME}" "${CONTAINER_LAYOUT}" "${FLAGS_group}"
+  create_dev_image "${COREOS_DEVELOPER_CONTAINER_NAME}" "${CONTAINER_LAYOUT}" "${FLAGS_group}" ${FLAGS_base_dev_pkg}
 fi
 
 if [[ "${PROD_IMAGE}" -eq 1 ]]; then

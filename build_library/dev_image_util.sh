@@ -70,8 +70,14 @@ create_dev_image() {
   local image_name=$1
   local disk_layout=$2
   local update_group=$3
+  local base_pkg="$4"
   local devserver=$(detect_dev_url)
   local auserver=""
+
+  if [ -z "${base_pkg}" ]; then
+    echo "did not get base package!"
+    exit 1
+  fi
 
   if [[ -n "${devserver}" ]]; then
     info "Using ${devserver} for local dev server URL."
@@ -88,7 +94,7 @@ create_dev_image() {
   start_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
   set_image_profile dev
-  emerge_to_image "${root_fs_dir}" @system coreos-base/coreos-dev
+  emerge_to_image "${root_fs_dir}" @system ${base_pkg}
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
 
   # Setup portage for emerge and gmerge
