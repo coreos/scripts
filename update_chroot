@@ -87,6 +87,40 @@ location = ${COREOS_OVERLAY}
 location = ${PORTAGE_STABLE_OVERLAY}
 EOF
 
+# Automatically symlink any provided portage repo configurations into
+# the appropriate destination directory from "config/portage/repos".
+# CAUTON: Any repo configuration files with the same name, will be silently
+# relinked to the last file found.
+# Automatic file renaming to avoid this is challenging as it has to deal with
+# the case where we actually do want the files overwritten and so is outside
+# the scope of this function for now.
+# If your taking advantage of this functionality in the build toolchain
+# you probably found out about it from these code comments so we can assume
+# for now at least, that you have been somewhat warned.
+
+# If any directories match config/portage/repos/*/repos.conf
+if [[ -n $(sudo find /mnt/host/source/config/portage/repos \
+  -maxdepth 2 -mindepth 2 -type d -name "repos.conf") ]]; then
+  # If any files match config/portage/repos/*/repos.conf/*
+  if [[ -n $(sudo find /mnt/host/source/config/portage/repos \
+    -maxdepth 3 -mindepth 3 -path "*/repos.conf/*" -type f) ]]; then
+    info "Symlinking portage repo configuration files into repos.conf dir..."
+    # Do not name any of your repo configs "coreos.conf" bad things will happen.
+    # We abort if any file matches config/portage/repos/*/repos.conf/coreos.conf
+    if [[ -n $(sudo find /mnt/host/source/config/portage/repos \
+      -maxdepth 3 -mindepth 3 -path "*/repos.conf/*" -name "coreos.conf") ]]; then
+      die_notrace "One of the portage repo configuration files to be symlinked is " \
+        "named \"coreos.conf\" which will conflict with the main configuation file " \
+        "called \"coreos.conf\" which is created during the chroot build process."
+    fi
+    # We run through all the other files matching config/portage/repos/*/repos.conf/*
+    # and symlink them to the right place for portage.
+    sudo find /mnt/host/source/config/portage/repos \
+      -maxdepth 3 -mindepth 3 -path "*/repos.conf/*" -type f \
+      -exec bash -c 'ln -sf {} /etc/portage/repos.conf/$(basename {})' \;
+  fi
+fi
+
 sudo eselect profile set --force "$(get_sdk_profile)"
 
 # Create crossdev repo_name and metadata
