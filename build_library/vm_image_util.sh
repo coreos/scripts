@@ -476,6 +476,11 @@ _write_cpio_common() {
         echo "/.noupdate f 444 root root echo -n" >"${VM_TMP_DIR}/extra"
     fi
 
+    # Set correct group for PXE/ISO, which has no writeable /etc
+    echo /usr/share/coreos/update.conf f 644 root root \
+        "sed -e 's/GROUP=.*$/GROUP=${VM_GROUP}/' ${base_dir}/share/coreos/update.conf" \
+        >> "${VM_TMP_DIR}/extra"
+
     # Build the squashfs, embed squashfs into a gzipped cpio
     pushd "${cpio_target}" >/dev/null
     sudo mksquashfs "${base_dir}" "./${squashfs}" -pf "${VM_TMP_DIR}/extra"
