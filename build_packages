@@ -168,12 +168,23 @@ if [[ ${#CROS_WORKON_PKGS[@]} -gt 0 ]]; then
   )
 fi
 
+# check if any of the given use flags are enabled for a pkg
+pkg_use_enabled() {
+  local pkg="$1"
+  shift
+  # for every flag argument, turn it into `-e ^+flag` for grep
+  local grep_args="${@/#/-e ^+}"
+
+  equery-"${BOARD}" -q uses "${pkg}" | grep -q ${grep_args}
+  return $?
+}
+
 # Goo to attempt to resolve dependency loops on individual packages.
 # If this becomes insufficient we will need to move to a full multi-stage
 # bootstrap process like we do with the SDK via catalyst.
 break_dep_loop() {
   local pkg="$1"
-  local flag="$2"
+  local flags=( ${2//,/ } )
   shift 2
   local flag_file="${BOARD_ROOT}/etc/portage/package.use/break_dep_loop"
 
@@ -186,15 +197,16 @@ break_dep_loop() {
   fi
 
   # Likewise, nothing to do if the flag isn't actually enabled.
-  if equery-"${BOARD}" -q uses "${pkg}" | grep -q "^-${flag}"; then
+  if ! pkg_use_enabled "${pkg}" "${flags[@]}"; then
     return 0
   fi
 
   # Temporarily compile/install package with flag disabled. If a binary
   # package is available use it regardless of its version or use flags.
-  info "Merging ${pkg} wtih USE=-${flag}"
+  local disabled_flags="${flags[@]/#/-}"
+  info "Merging ${pkg} wtih USE=${disabled_flags}"
   sudo mkdir -p "${flag_file%/*}"
-  sudo_clobber "${flag_file}" <<<"${pkg} -${flag}"
+  sudo_clobber "${flag_file}" <<<"${pkg} ${disabled_flags}"
   # Disable any other problematic flags
   extra_args=""
   while [[ $# -gt 0 ]]; do
@@ -214,7 +226,7 @@ break_dep_loop() {
 }
 
 # util-linux[udev] -> virtual->udev -> systemd -> util-linux
-break_dep_loop sys-apps/util-linux udev sys-apps/systemd cryptsetup
+break_dep_loop sys-apps/util-linux udev,systemd sys-apps/systemd cryptsetup
 
 # systemd[cryptsetup] -> cryptsetup -> lvm2 -> virtual/udev -> systemd
 break_dep_loop sys-apps/systemd cryptsetup
