@@ -142,16 +142,38 @@ write_contents() {
     popd >/dev/null
 }
 
+# Generate a list of packages installed in an image.
+# Usage: image_packages /image/root
+image_packages() {
+    local profile="${BUILD_DIR}/configroot/etc/portage/profile"    
+    ROOT="$1" PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
+        equery --no-color list --format '$cpv::$repo' '*'
+    # In production images GCC libraries are extracted manually.
+    if [[ -f "${profile}/package.provided" ]]; then
+        xargs --arg-file="${profile}/package.provided" \
+            equery-${BOARD} --no-color list --format '$cpv::$repo'
+    fi
+}
+
 # Generate a list of installed packages in the format:
 #   sys-apps/systemd-212-r8::coreos
 write_packages() {
-    local profile="${BUILD_DIR}/configroot/etc/portage/profile"    
     info "Writing ${2##*/}"
-    ROOT="$1" PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
-        equery --no-color list '*' --format '$cpv::$repo' > "$2"
-    if [[ -f "${profile}/package.provided" ]]; then
-        cat "${profile}/package.provided" >> "$2"
-    fi
+    image_packages "$1" | sort > "$2"
+}
+
+# Generate a list of packages w/ their licenses in the format:
+#   sys-apps/systemd-212-r8::coreos GPL-2 LGPL-2.1 MIT public-domain
+write_licenses() {
+    info "Writing ${2##*/}"
+    local vdb=$(portageq-${BOARD} vdb_path)
+    local pkg lic
+    for pkg in $(image_packages "$1" | sort); do
+        lic="$vdb/${pkg%%:*}/LICENSE"
+        if [[ -f "$lic" ]]; then
+            echo "$pkg $(< "$lic")"
+	fi
+    done > "$2"
 }
 
 extract_docs() {
