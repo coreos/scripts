@@ -84,12 +84,14 @@ create_dev_image() {
   local root_fs_dir="${BUILD_DIR}/rootfs"
   local image_contents="${image_name%.bin}_contents.txt"
   local image_packages="${image_name%.bin}_packages.txt"
+  local image_licenses="${image_name%.bin}_licenses.txt"
 
   start_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
   set_image_profile dev
   emerge_to_image "${root_fs_dir}" @system coreos-base/coreos-dev
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
+  write_licenses "${root_fs_dir}" "${BUILD_DIR}/${image_licenses}"
 
   # Setup portage for emerge and gmerge
   configure_dev_portage "${root_fs_dir}" "${devserver}"

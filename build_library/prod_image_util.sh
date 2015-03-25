@@ -39,6 +39,7 @@ create_prod_image() {
   local root_fs_dir="${BUILD_DIR}/rootfs"
   local image_contents="${image_name%.bin}_contents.txt"
   local image_packages="${image_name%.bin}_packages.txt"
+  local image_licenses="${image_name%.bin}_licenses.txt"
 
   start_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
@@ -47,6 +48,7 @@ create_prod_image() {
   extract_prod_gcc "${root_fs_dir}"
   emerge_to_image "${root_fs_dir}" "${base_pkg}"
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
+  write_licenses "${root_fs_dir}" "${BUILD_DIR}/${image_licenses}"
   extract_docs "${root_fs_dir}"
 
   # Assert that if this is supposed to be an official build that the
