@@ -508,7 +508,7 @@ def ResizeExt(part, device):
     part: dict defining the partition
     device: name of the block device
   """
-  Sudo(['e2fsck', '-p', '-f', device], stdout_null=True)
+  Sudo(['e2fsck', '-p', '-f', device])
   Sudo(['resize2fs', device, str(part['fs_blocks'])])
 
 
