@@ -156,6 +156,9 @@ for host in ${ips[@]}; do
 done
 echo "OK ($instances)"
 
+echo "Letting etcd settle..."
+sleep 10
+
 echo "Running coretest..."
 for host in ${ips[@]}; do
     if ! ssh -i "$key_file" -l core -o StrictHostKeyChecking=no "$host" \
@@ -168,7 +171,7 @@ done
 echo "OK"
 
 echo -n "Testing etcd... "
-test_key="v1/keys/test"
+test_key="v2/keys/test"
 token=$(uuidgen)
 # XXX: the sleep *should never* be required, this is a bug in etcd
 sleep 5
