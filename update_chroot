@@ -125,16 +125,7 @@ sudo eselect profile set --force "$(get_sdk_profile)"
 
 # Create crossdev repo_name and metadata
 info "Setting up crossdev..."
-sudo mkdir -p "${FLAGS_chroot}/${CROSSDEV_OVERLAY}/profiles"
-echo "x-crossdev" | \
-    sudo tee "/${CROSSDEV_OVERLAY}/profiles/repo_name" > /dev/null
-
-sudo mkdir -p "/${CROSSDEV_OVERLAY}/metadata"
-sudo tee "/${CROSSDEV_OVERLAY}/metadata/layout.conf" > /dev/null <<EOF
-masters = portage-stable coreos
-use-manifests = true
-thin-manifests = true
-EOF
+configure_crossdev_overlay "${FLAGS_chroot}" "${CROSSDEV_OVERLAY}"
 
 # Run version hooks as pre-update
 if [[ -f /etc/os-release ]]; then

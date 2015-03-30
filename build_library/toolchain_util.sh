@@ -172,6 +172,35 @@ get_binonly_args() {
 
 ### Toolchain building utilities ###
 
+# Create the crossdev overlay and repos.conf entry.
+# crossdev will try to setup this itself but doesn't do everything needed
+# to make the newer repos.conf based configuration system happy. This can
+# probably go away if crossdev itself is improved.
+configure_crossdev_overlay() {
+    local root="$1"
+    local location="$2"
+
+    # may be called from either catalyst (root) or update_chroot (user)
+    local sudo="env"
+    if [[ $(id -u) -ne 0 ]]; then
+        sudo="sudo -E"
+    fi
+
+    $sudo mkdir -p "${root}${location}/"{profiles,metadata}
+    echo "x-crossdev" | \
+        $sudo tee "${root}${location}/profiles/repo_name" > /dev/null
+    $sudo tee "${root}${location}/metadata/layout.conf" > /dev/null <<EOF
+masters = portage-stable coreos
+use-manifests = true
+thin-manifests = true
+EOF
+
+    $sudo tee "${root}/etc/portage/repos.conf/crossdev.conf" > /dev/null <<EOF
+[x-crossdev]
+location = ${location}
+EOF
+}
+
 # Ugly hack to get a dependency list of a set of packages.
 # This is required to figure out what to install in the crossdev sysroot.
 # Usage: ROOT=/foo/bar _get_dependency_list pkgs... [--portage-opts...]
@@ -198,7 +227,8 @@ _configure_sysroot() {
         sudo="sudo -E"
     fi
 
-    $sudo mkdir -p "${ROOT}/etc/portage"
+    $sudo mkdir -p "${ROOT}/etc/portage/"{profile,repos.conf}
+    $sudo cp /etc/portage/repos.conf/* "${ROOT}/etc/portage/repos.conf/"
     $sudo eselect profile set --force "$profile"
 
     $sudo tee "${ROOT}/etc/portage/make.conf" >/dev/null <<EOF
@@ -238,6 +268,16 @@ install_cross_toolchain() {
     local sudo="env"
     if [[ $(id -u) -ne 0 ]]; then
         sudo="sudo -E"
+    fi
+
+    # crossdev will arbitrarily choose an overlay that it finds first.
+    # Force it to use the one created by configure_crossdev_overlay
+    local cross_overlay=$(portageq get_repo_path / x-crossdev)
+    if [[ -n "${cross_overlay}" ]]; then
+        cross_flags+=( --ov-output "${cross_overlay}" )
+    else
+        echo "No x-crossdev overlay found!" >&2
+        return 1
     fi
 
     # Only call crossdev to regenerate configs if something has changed

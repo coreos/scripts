@@ -80,11 +80,28 @@ export PORTAGE_GRPNAME=portage
 EOF
 }
 
+repos_conf() {
+cat <<EOF
+[DEFAULT]
+main-repo = portage-stable
+
+[gentoo]
+disabled = true
+
+[coreos]
+location = /usr/portage
+
+[portage-stable]
+location = /usr/local/portage
+EOF
+}
+
 # Common values for all stage spec files
 catalyst_stage_default() {
 cat <<EOF
 subarch: $ARCH
 rel_type: $TYPE
+portage_confdir: $TEMPDIR/portage
 portage_overlay: $FLAGS_coreos_overlay
 profile: $FLAGS_profile
 snapshot: $FLAGS_version
@@ -212,20 +229,22 @@ write_configs() {
     export CCACHE_DIR="$TEMPDIR/ccache"
 
     info "Creating output directories..."
-    mkdir -m 775 -p "$TEMPDIR" "$DISTDIR" "$CCACHE_DIR"
+    mkdir -m 775 -p "$TEMPDIR/portage/repos.conf" "$DISTDIR" "$CCACHE_DIR"
     chown portage:portage "$DISTDIR" "$CCACHE_DIR"
     info "Writing out catalyst configs..."
-    info "    $TEMPDIR/catalyst.conf"
+    info "    catalyst.conf"
     catalyst_conf > "$TEMPDIR/catalyst.conf"
-    info "    $TEMPDIR/catalystrc"
+    info "    catalystrc"
     catalystrc > "$TEMPDIR/catalystrc"
-    info "    $TEMPDIR/stage1.spec"
+    info "    portage/repos.conf/coreos.conf"
+    repos_conf > "$TEMPDIR/portage/repos.conf/coreos.conf"
+    info "    stage1.spec"
     catalyst_stage1 > "$TEMPDIR/stage1.spec"
-    info "    $TEMPDIR/stage2.spec"
+    info "    stage2.spec"
     catalyst_stage2 > "$TEMPDIR/stage2.spec"
-    info "    $TEMPDIR/stage3.spec"
+    info "    stage3.spec"
     catalyst_stage3 > "$TEMPDIR/stage3.spec"
-    info "    $TEMPDIR/stage4.spec"
+    info "    stage4.spec"
     catalyst_stage4 > "$TEMPDIR/stage4.spec"
 }
 
