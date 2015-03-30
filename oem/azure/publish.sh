@@ -50,6 +50,13 @@ azure storage blob upload \
 	--blob="coreos-${VERSION}-${LGROUP}.vhd" \
 	--blobtype="Page"
 
+azure storage blob copy start \
+	--account-name="coreos" \
+	--account-key="${ACCOUNT_KEY}" \
+	--source-blob="coreos-${VERSION}-${LGROUP}.vhd" \
+	--source-container="publish" \
+	--dest-container="pre-publish"
+
 echo "Creating Azure image from blob..."
 azure vm image create \
 	--blob-url="https://coreos.blob.core.windows.net/publish/coreos-${VERSION}-${LGROUP}.vhd" \
