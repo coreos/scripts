@@ -187,7 +187,8 @@ _get_dependency_list() {
 
 # Configure a new ROOT
 # Values are copied from the environment or the current host configuration.
-# Usage: ROOT=/foo/bar SYSROOT=/foo/bar configure_portage coreos:some/profile
+# Usage: CBUILD=foo-bar-linux-gnu ROOT=/foo/bar SYSROOT=/foo/bar configure_portage coreos:some/profile
+# Note: if using portageq to get CBUILD it must be called before CHOST is set.
 _configure_sysroot() {
     local profile="$1"
 
@@ -279,7 +280,10 @@ install_cross_libs() {
         sudo="sudo -E"
     fi
 
-    CHOST="${cross_chost}" ROOT="$ROOT" SYSROOT="$ROOT" \
+    CBUILD="$(portageq envvar CBUILD)" \
+        CHOST="${cross_chost}" \
+        ROOT="$ROOT" \
+        SYSROOT="$ROOT" \
         _configure_sysroot "${CROSS_PROFILES[${cross_chost}]}"
 
     # In order to get a dependency list we must calculate it before
