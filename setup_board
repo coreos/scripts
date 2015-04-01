@@ -265,7 +265,7 @@ sudo cp /etc/portage/repos.conf/* "${BOARD_ETC}"/portage/repos.conf/
 
 # make it easy to find debug symbols
 sudo mkdir -p /usr/lib/debug/build
-sudo ln -sfT /build/amd64-usr/usr/lib/debug /usr/lib/debug/build/amd64-usr
+sudo ln -sfT ${BOARD_ROOT}/usr/lib/debug /usr/lib/debug/${BOARD_ROOT}
 
 generate_all_wrappers
 
