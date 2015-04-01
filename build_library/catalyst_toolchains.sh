@@ -34,6 +34,16 @@ build_target_toolchain() {
 mkdir -p "/tmp/crossdev"
 export PORTDIR_OVERLAY="/tmp/crossdev $(portageq envvar PORTDIR_OVERLAY)"
 
+# For some reason the final native native toolchain build is doing a two
+# stage gcc build despite CBUILD!=CHOST when I would have assumed it is
+# disabled. In the process xgcc/cc1 gets linked against the wrong libs,
+# sysroot isn't properly respected, and so forth. To at least get amd64
+# builds working again make double sure the build environment is updated
+# to reduce the risk of mismatched library versions. I haven't checked if
+# the two stage build kicks in for true cross-architecture builds yet.
+# This is the same update command as stage1 catalyst uses.
+run_merge --update --deep --newuse --complete-graph --rebuild-if-new-ver sys-devel/gcc
+
 for cross_chost in $(get_chost_list); do
     echo "Building cross toolchain for ${cross_chost}"
     PKGDIR="$(portageq envvar PKGDIR)/crossdev" \
