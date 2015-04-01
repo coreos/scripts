@@ -203,8 +203,8 @@ _configure_sysroot() {
     $sudo tee "${ROOT}/etc/portage/make.conf" >/dev/null <<EOF
 $(portageq envvar -v CHOST CBUILD ROOT SYSROOT \
     PORTDIR PORTDIR_OVERLAY DISTDIR PKGDIR)
-HOSTCC=\${CBUILD}-gcc
-PKG_CONFIG_PATH="\${SYSROOT}/usr/lib/pkgconfig/"
+HOSTCC=${CBUILD}-gcc
+PKG_CONFIG_PATH="${SYSROOT}/usr/lib/pkgconfig/"
 EOF
 }
 
