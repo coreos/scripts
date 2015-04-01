@@ -187,7 +187,7 @@ _get_dependency_list() {
 
 # Configure a new ROOT
 # Values are copied from the environment or the current host configuration.
-# Usage: ROOT=/foo/bar SYSROOT=/foo/bar configure_portage coreos:some/profile
+# Usage: CBUILD=foo-bar-linux-gnu ROOT=/foo/bar SYSROOT=/foo/bar configure_portage coreos:some/profile
 _configure_sysroot() {
     local profile="$1"
 
@@ -201,10 +201,10 @@ _configure_sysroot() {
     $sudo eselect profile set --force "$profile"
 
     $sudo tee "${ROOT}/etc/portage/make.conf" >/dev/null <<EOF
-$(portageq envvar -v CHOST CBUILD ROOT SYSROOT \
-    PORTDIR PORTDIR_OVERLAY DISTDIR PKGDIR)
-HOSTCC=\${CBUILD}-gcc
-PKG_CONFIG_PATH="\${SYSROOT}/usr/lib/pkgconfig/"
+$(portageq envvar -v CHOST ROOT SYSROOT PORTDIR PORTDIR_OVERLAY DISTDIR PKGDIR)
+CBUILD=${CBUILD}
+HOSTCC=${CBUILD}-gcc
+PKG_CONFIG_PATH="${SYSROOT}/usr/lib/pkgconfig/"
 EOF
 }
 
@@ -279,7 +279,9 @@ install_cross_libs() {
         sudo="sudo -E"
     fi
 
-    CHOST="${cross_chost}" ROOT="$ROOT" SYSROOT="$ROOT" \
+    CBUILD="$(portageq envvar CBUILD)" \
+        CHOST="${cross_chost}" \
+        ROOT="$ROOT" SYSROOT="$ROOT" \
         _configure_sysroot "${CROSS_PROFILES[${cross_chost}]}"
 
     # In order to get a dependency list we must calculate it before

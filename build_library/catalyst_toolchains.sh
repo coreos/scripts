@@ -16,10 +16,10 @@ configure_target_root() {
     local cross_chost=$(get_board_chost "$1")
     local profile=$(get_board_profile "${board}")
 
-    CHOST="${cross_chost}" \
-        ROOT="/build/${board}" \
-        SYSROOT="/usr/${cross_chost}" \
-        _configure_sysroot "${profile}"
+    CBUILD="$(portageq envvar CBUILD)" \
+        CHOST="${cross_chost}" \
+        ROOT="$ROOT" SYSROOT="$ROOT" \
+        _configure_sysroot "${CROSS_PROFILES[${cross_chost}]}"
 }
 
 build_target_toolchain() {
