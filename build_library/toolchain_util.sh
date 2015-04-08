@@ -15,6 +15,7 @@ TOOLCHAIN_PKGS=(
 # compiler to build a full native toolchain. Packages are not uploaded.
 declare -A CROSS_PROFILES
 CROSS_PROFILES["x86_64-cros-linux-gnu"]="coreos:coreos/amd64/generic"
+CROSS_PROFILES["aarch64-cros-linux-gnu"]="coreos:coreos/arm64/generic"
 
 # Map board names to CHOSTs and portage profiles. This is the
 # definitive list, there is assorted code new and old that either
@@ -22,6 +23,10 @@ CROSS_PROFILES["x86_64-cros-linux-gnu"]="coreos:coreos/amd64/generic"
 declare -A BOARD_CHOSTS BOARD_PROFILES
 BOARD_CHOSTS["amd64-usr"]="x86_64-cros-linux-gnu"
 BOARD_PROFILES["amd64-usr"]="coreos:coreos/amd64/generic"
+
+BOARD_CHOSTS["arm64-usr"]="aarch64-cros-linux-gnu"
+BOARD_PROFILES["arm64-usr"]="coreos:coreos/arm64/generic"
+
 BOARD_NAMES=( "${!BOARD_CHOSTS[@]}" )
 
 # Declare the above globals as read-only to avoid accidental conflicts.
@@ -38,7 +43,7 @@ declare -r \
 # Usage: get_portage_arch chost
 get_portage_arch() {
     case "$1" in
-        aarch64*)   echo arm;;
+        aarch64*)   echo arm64;;
         alpha*)     echo alpha;;
         arm*)       echo arm;;
         hppa*)      echo hppa;;
