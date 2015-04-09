@@ -188,6 +188,8 @@ gcc_set_latest_profile "$(portageq envvar CHOST)"
 if [[ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" && \
       -n "${FLAGS_toolchain_boards}" ]]; then
   CROSS_CHOSTS=( $(get_board_chost ${FLAGS_toolchain_boards} | sort -u) )
+  # double check get_board_chost actually returned results, pipefail isn't set.
+  [[ -n "${CROSS_CHOSTS[*]}" ]] || exit 1
 
   for cross_chost in "${CROSS_CHOSTS[@]}"; do
     info "Updating cross ${cross_chost} toolchain"
