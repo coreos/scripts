@@ -28,10 +28,10 @@ DEFINE_boolean fetchonly "${FLAGS_FALSE}" \
 
 FLAGS_HELP="usage: $(basename $0) [flags] [packages]
 
-build_packages updates the set of binary packages needed by Chrome OS. It will
+build_packages updates the set of binary packages needed by CoreOS. It will
 cross compile all packages that have been updated into the given target's root
 and build binary packages as a side-effect. The output packages will be picked
-up by the build_image script to put together a bootable Chrome OS image.
+up by the build_image script to put together a bootable CoreOS image.
 
 If [packages] are specified, only build those specific packages (and any
 dependencies they might need).
