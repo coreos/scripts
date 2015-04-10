@@ -39,9 +39,6 @@ DEFINE_boolean toolchainpkgonly $FLAGS_FALSE \
   "Use binary packages only for the board toolchain."
 DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
-DEFINE_boolean latest_toolchain $FLAGS_FALSE \
-  "Use the latest ebuild for all toolchain packages (gcc, binutils, libc, \
-kernel). This overrides the other toolchain version options."
 DEFINE_string libc_version "[stable]" \
   "Version of libc to use."
 DEFINE_boolean quiet $FLAGS_FALSE \
