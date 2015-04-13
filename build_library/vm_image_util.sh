@@ -12,6 +12,7 @@ VALID_IMG_TYPES=(
     openstack
     qemu
     qemu_uefi
+    qemu_uefi_secure
     qemu_xen
     rackspace
     rackspace_onmetal
@@ -114,6 +115,10 @@ IMG_qemu_CONF_FORMAT=qemu
 IMG_qemu_uefi_DISK_FORMAT=qcow2
 IMG_qemu_uefi_DISK_LAYOUT=vm
 IMG_qemu_uefi_CONF_FORMAT=qemu_uefi
+
+IMG_qemu_uefi_secure_DISK_FORMAT=qcow2
+IMG_qemu_uefi_secure_DISK_LAYOUT=vm
+IMG_qemu_uefi_secure_CONF_FORMAT=qemu_uefi_secure
 
 IMG_qemu_xen_DISK_FORMAT=qcow2
 IMG_qemu_xen_DISK_LAYOUT=vm
@@ -588,6 +593,18 @@ _write_qemu_uefi_conf() {
     sed -e "s%^VM_PFLASH_RO=.*%VM_PFLASH_RO='${ovmf_ro}'%" \
         -e "s%^VM_PFLASH_RW=.*%VM_PFLASH_RW='${ovmf_rw}'%" -i "${script}"
     VM_GENERATED_FILES+=( "$(_dst_dir)/${ovmf_ro}" "$(_dst_dir)/${ovmf_rw}" )
+}
+
+_write_qemu_uefi_secure_conf() {
+    local ovmf_rw="$(_dst_name "_ovmf_vars.fd")"
+
+    _write_qemu_uefi_conf
+    cert-to-efi-sig-list "/usr/share/sb_keys/PK.crt" "${VM_TMP_DIR}/PK.esl"
+    cert-to-efi-sig-list "/usr/share/sb_keys/KEK.crt" "${VM_TMP_DIR}/KEK.esl"
+    cert-to-efi-sig-list "/usr/share/sb_keys/DB.crt" "${VM_TMP_DIR}/DB.esl"
+    flash-var "$(_dst_dir)/${ovmf_rw}" "PK" "${VM_TMP_DIR}/PK.esl"
+    flash-var "$(_dst_dir)/${ovmf_rw}" "KEK" "${VM_TMP_DIR}/KEK.esl"
+    flash-var "$(_dst_dir)/${ovmf_rw}" "db" "${VM_TMP_DIR}/DB.esl"
 }
 
 _write_qemu_xen_conf() {
