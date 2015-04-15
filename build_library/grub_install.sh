@@ -147,7 +147,11 @@ case "${FLAGS_target}" in
 		--cert /usr/share/sb_keys/DB.crt \
                     "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}"
             sudo cp "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}.signed" \
-                "${ESP_DIR}/EFI/boot/bootx64.efi"
+                "${ESP_DIR}/EFI/boot/grub.efi"
+            sudo sbsign --key /usr/share/sb_keys/DB.key \
+                 --cert /usr/share/sb_keys/DB.crt \
+                 --output "${ESP_DIR}/EFI/boot/bootx64.efi" \
+                 "/usr/lib/shim/shim.efi"
         else
             sudo cp "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}" \
                 "${ESP_DIR}/EFI/boot/bootx64.efi"
