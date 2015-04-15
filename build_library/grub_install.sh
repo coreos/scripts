@@ -141,8 +141,17 @@ case "${FLAGS_target}" in
     x86_64-efi)
         info "Installing default x86_64 UEFI bootloader."
         sudo mkdir -p "${ESP_DIR}/EFI/boot"
-        sudo cp "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}" \
-            "${ESP_DIR}/EFI/boot/bootx64.efi"
+	# Use the test keys for signing unofficial builds
+	if [[ ${COREOS_OFFICIAL:-0} -ne 1 ]]; then
+            sudo sbsign --key /usr/share/sb_keys/DB.key \
+		--cert /usr/share/sb_keys/DB.crt \
+                    "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}"
+            sudo cp "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}.signed" \
+                "${ESP_DIR}/EFI/boot/bootx64.efi"
+        else
+            sudo cp "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}" \
+                "${ESP_DIR}/EFI/boot/bootx64.efi"
+	fi
         ;;
     x86_64-xen)
         info "Installing default x86_64 Xen bootloader."
