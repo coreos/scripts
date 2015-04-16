@@ -258,6 +258,11 @@ finish_image() {
 
   local disk_img="${BUILD_DIR}/${image_name}"
 
+  sudo mkdir -p "${root_fs_dir}/boot/coreos"
+  sudo cp "${root_fs_dir}/usr/boot/vmlinuz" \
+       "${root_fs_dir}/boot/coreos/vmlinuz-a"
+  sudo cp "${root_fs_dir}/usr/boot/vmlinuz" \
+       "${root_fs_dir}/boot/coreos/vmlinuz-b"
   # Record directories installed to the state partition.
   # Explicitly ignore entries covered by existing configs.
   local tmp_ignore=$(awk '/^[dDfFL]/ {print "--ignore=" $2}' \
@@ -293,6 +298,19 @@ finish_image() {
     sudo fstrim "${root_fs_dir}/usr" || true
   fi
 
+  # Sign the kernels after /usr is in a consistent state
+  if [[ ${COREOS_OFFICIAL:-0} -ne 1 ]]; then
+      sudo sbsign --key /usr/share/sb_keys/DB.key \
+	   --cert /usr/share/sb_keys/DB.crt \
+	   "${root_fs_dir}/boot/coreos/vmlinuz-a"
+      sudo mv "${root_fs_dir}/boot/coreos/vmlinuz-a.signed" \
+	   "${root_fs_dir}/boot/coreos/vmlinuz-a"
+      sudo sbsign --key /usr/share/sb_keys/DB.key \
+	   --cert /usr/share/sb_keys/DB.crt \
+	   "${root_fs_dir}/boot/coreos/vmlinuz-b"
+      sudo mv "${root_fs_dir}/boot/coreos/vmlinuz-b.signed" \
+	   "${root_fs_dir}/boot/coreos/vmlinuz-b"
+  fi
   rm -rf "${BUILD_DIR}"/configroot
   cleanup_mounts "${root_fs_dir}"
   trap - EXIT
