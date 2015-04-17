@@ -89,7 +89,7 @@ generate_all_wrappers() {
   info "Generating wrapper scripts"
 
   for wrapper in 'emerge --root-deps' ebuild eclean equery portageq \
-                 qcheck qfile qlist; do
+                 qcheck qfile qlist emaint; do
     _generate_wrapper ${wrapper}
   done
 
@@ -265,6 +265,12 @@ sudo mkdir -p /usr/lib/debug/build
 sudo ln -sfT ${BOARD_ROOT}/usr/lib/debug /usr/lib/debug/${BOARD_ROOT}
 
 generate_all_wrappers
+
+# Unclear why this is required but it doesn't happen automatically
+info "Performing package updates..."
+${EMAINT_WRAPPER} --fix movebin
+${EMAINT_WRAPPER} --fix moveinst
+${EMAINT_WRAPPER} --fix world
 
 if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
   EMERGE_FLAGS="--select --quiet --root-deps=rdeps"
