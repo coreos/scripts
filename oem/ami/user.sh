@@ -11,6 +11,6 @@ eval $(curl -f "${URL}/version.txt")
 
 source $DIR/marineam-auth.sh
 args="-b amd64-usr -g ${USER} -V ${VERSION}"
-$DIR/build_ebs_on_ec2.sh ${args} -u "${URL}/coreos_${TYPE}_ami_image.bin.bz2"
+$DIR/import.sh ${args} -u "${URL}/coreos_${TYPE}_ami_image.bin.bz2"
 $DIR/test_ami.sh -v ${args}
 #$DIR/copy_ami.sh ${args}

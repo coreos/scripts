@@ -13,6 +13,6 @@ fi
 set -e
 source $DIR/marineam-auth.sh
 args="-b $BOARD -g $GROUP -V $VER"
-$DIR/build_ebs_on_ec2.sh ${args}
+$DIR/import.sh ${args}
 $DIR/test_ami.sh -v ${args}
 $DIR/copy_ami.sh ${args}
