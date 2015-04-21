@@ -19,6 +19,9 @@ IMAGE="coreos_production_ami_image.bin.bz2"
 GS_URL="gs://builds.release.core-os.net"
 IMG_URL=""
 IMG_PATH=""
+# accepted via the environment
+: ${EC2_IMPORT_BUCKET:=}
+: ${EC2_IMPORT_ZONE:=}
 
 USAGE="Usage: $0 [-V 1.2.3] [-p path/image.bz2 | -u http://foo/image.bz2]
 Options:
@@ -28,13 +31,15 @@ Options:
     -p PATH     Path to compressed disk image, overrides -u
     -u URL      URL to compressed disk image, derived from -V if unset.
     -s STORAGE  GS URL for Google storage (used to generate URL)
+    -B          S3 bucket to use for temporary storage.
+    -Z          EC2 availability zone to use.
     -h          this ;-)
     -v          Verbose, see all the things!
 
 This script must be run from an ec2 host with the ec2 tools installed.
 "
 
-while getopts "V:b:g:p:u:s:hv" OPTION
+while getopts "V:b:g:p:u:s:t:B:Z:hv" OPTION
 do
     case $OPTION in
         V) VERSION="$OPTARG";;
@@ -43,6 +48,8 @@ do
         p) IMG_PATH="$OPTARG";;
         u) IMG_URL="$OPTARG";;
         s) GS_URL="$OPTARG";;
+        B) EC2_IMPORT_BUCKET="${OPTARG}";;
+        Z) EC2_IMPORT_ZONE="${OPTARG}";;
         t) export TMPDIR="$OPTARG";;
         h) echo "$USAGE"; exit;;
         v) set -x;;
@@ -52,6 +59,11 @@ done
 
 if [[ $(id -u) -eq 0 ]]; then
     echo "$0: This command should not be ran run as root!" >&2
+    exit 1
+fi
+
+if [[ -z "${EC2_IMPORT_BUCKET}" ]]; then
+    echo "$0: -B or \$EC2_IMPORT_BUCKET must be set!" >&2
     exit 1
 fi
 
@@ -94,9 +106,11 @@ arch=x86_64
 name=$(sed -e "s%[^A-Za-z0-9()\\./_-]%_%g" <<< "CoreOS-$GROUP-$VERSION")
 description="CoreOS $GROUP $VERSION"
 
-zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
-zone=$(curl --fail -s $zoneurl)
-region=$(echo $zone | sed 's/.$//')
+if [[ -z "${EC2_IMPORT_ZONE}" ]]; then
+    zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
+    EC2_IMPORT_ZONE=$(curl --fail -s $zoneurl)
+fi
+region=$(echo "${EC2_IMPORT_ZONE}" | sed 's/.$//')
 akiid=${ALL_AKIS[$region]}
 
 if [ -z "$akiid" ]; then
@@ -105,7 +119,7 @@ if [ -z "$akiid" ]; then
 fi
 
 export EC2_URL="http://ec2.${region}.amazonaws.com"
-echo "Building AMI in zone $zone, region id $akiid"
+echo "Building AMI in zone ${EC2_IMPORT_ZONE}"
 
 tmpimg=$(mktemp)
 trap "rm -f '${dldir}'" EXIT
@@ -125,10 +139,10 @@ else
     curl --fail "$IMG_URL" | bunzip2 >"${tmpimg}"
 fi
 
-#aws s3 mb s3://marineam-import-testing --region $region
 importid=$(ec2-import-volume "${tmpimg}" \
-  -f raw -s $size -x 2 -z $zone \
-  -b marineam-import-testing \
+  -f raw -s $size -x 2 \
+  -z "${EC2_IMPORT_ZONE}" \
+  -b "${EC2_IMPORT_BUCKET}" \
   -o "${AWS_ACCESS_KEY}" \
   -w "${AWS_SECRET_KEY}" \
   --no-upload | awk '/IMPORTVOLUME/{print $4}')
@@ -192,7 +206,7 @@ amiid=$(ec2-register                                  \
 cat <<EOF
 $description
 architecture: $arch
-region:       $region ($zone)
+region:       $region (${EC2_IMPORT_ZONE})
 aki id:       $akiid
 name:         $name
 description:  $description
