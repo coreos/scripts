@@ -7,6 +7,7 @@
 
 VALID_IMG_TYPES=(
     ami
+    ami_vmdk
     pxe
     iso
     openstack
@@ -171,6 +172,9 @@ IMG_vmware_insecure_OEM_PACKAGE=oem-vagrant-key
 ## ami
 IMG_ami_OEM_PACKAGE=oem-ec2-compat
 IMG_ami_OEM_USE=ec2
+IMG_ami_vmdk_DISK_FORMAT=vmdk_stream
+IMG_ami_vmdk_OEM_PACKAGE=oem-ec2-compat
+IMG_ami_vmdk_OEM_USE=ec2
 
 ## openstack, supports ec2's metadata format so use oem-ec2-compat
 IMG_openstack_DISK_FORMAT=qcow2
@@ -236,7 +240,7 @@ IMG_secure_demo_DISK_FORMAT=secure_demo
 IMG_secure_demo_CONF_FORMAT=qemu_uefi
 
 ## niftycloud
-IMG_niftycloud_DISK_FORMAT=vmdk_scsi
+IMG_niftycloud_DISK_FORMAT=vmdk_stream
 IMG_niftycloud_DISK_LAYOUT=vm
 IMG_niftycloud_CONF_FORMAT=niftycloud
 IMG_niftycloud_OEM_PACKAGE=oem-niftycloud
@@ -340,6 +344,7 @@ _disk_ext() {
         cpio) echo cpio.gz;;
         vmdk_ide) echo vmdk;;
         vmdk_scsi) echo vmdk;;
+        vmdk_stream) echo vmdk;;
         secure_demo) echo bin;;
         *) echo "${disk_format}";;
     esac
@@ -453,6 +458,16 @@ _write_vmdk_ide_disk() {
 
 _write_vmdk_scsi_disk() {
     qemu-img convert -f raw "$1" -O vmdk -o adapter_type=lsilogic "$2"
+    assert_image_size "$2" vmdk
+}
+
+_write_vmdk_stream_disk() {
+    # requires two pass conversion, qemu-img doesn't properly support the
+    # stream-optimized VMDK format. The special vmdk-convert tool only takes
+    # VMDK images as an import format.
+    local tmpvmdk="${VM_TMP_DIR}/tmp.vmdk"
+    qemu-img convert -f raw "$1" -O vmdk -o adapter_type=lsilogic "${tmpvmdk}"
+    vmdk-convert "${tmpvmdk}" "$2"
     assert_image_size "$2" vmdk
 }
 
@@ -875,9 +890,6 @@ _write_niftycloud_conf() {
     local dst_name=$(basename "$VM_DST_IMG")
     local dst_dir=$(dirname "$VM_DST_IMG")
     local ovf="${dst_dir}/$(_src_to_dst_name "${src_name}" ".ovf")"
-
-    vmdk-convert ${VM_DST_IMG} ${VM_TMP_DIR}/vm.vmdk
-    mv ${VM_TMP_DIR}/vm.vmdk ${VM_DST_IMG}
 
     "${BUILD_LIBRARY_DIR}/niftycloud_ovf.sh" \
             --vm_name "$VM_NAME" \
