@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DIR=/home/ec2-user/scripts
+DIR=/home/ec2-user/scripts/oem/ami
 USER=someone
 TYPE=production
 VERSION="367.0.0+2014-07-10-1613"

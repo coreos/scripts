@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DIR=/home/ec2-user/scripts
+DIR=/home/ec2-user/scripts/oem/ami
 URL="https://commondatastorage.googleapis.com/storage.core-os.net/coreos/amd64-usr/master"
 
 set -e
