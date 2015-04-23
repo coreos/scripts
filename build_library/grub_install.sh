@@ -29,18 +29,19 @@ switch_to_strict_mode
 # Our GRUB lives under coreos/grub so new pygrub versions cannot find grub.cfg
 GRUB_DIR="coreos/grub/${FLAGS_target}"
 
-# Modules required to find and read everything else from ESP
-CORE_MODULES=( fat part_gpt search_fs_uuid gzio )
+# Modules required to boot a standard CoreOS configuration
+CORE_MODULES=( normal search test fat part_gpt search_fs_uuid gzio search_part_label terminal gptprio configfile memdisk tar echo )
 
 # Name of the core image, depends on target
 CORE_NAME=
 
 case "${FLAGS_target}" in
     i386-pc)
-        CORE_MODULES+=( biosdisk )
+        CORE_MODULES+=( biosdisk serial )
         CORE_NAME="core.img"
         ;;
     x86_64-efi)
+	CORE_MODULES+=( serial linuxefi efi_gop )
         CORE_NAME="core.efi"
         ;;
     x86_64-xen)
@@ -111,9 +112,15 @@ info "Generating ${GRUB_DIR}/load.cfg"
 ESP_FSID=$(sudo grub-probe -t fs_uuid -d "${LOOP_DEV}p1")
 sudo_clobber "${ESP_DIR}/${GRUB_DIR}/load.cfg" <<EOF
 search.fs_uuid ${ESP_FSID} root \$root
-set prefix=(\$root)/coreos/grub
+set prefix=(memdisk)
 set
 EOF
+
+if [[ ! -f "${ESP_DIR}/coreos/grub/grub.cfg.tar" ]]; then
+    info "Generating grub.cfg memdisk"
+    sudo tar cf "${ESP_DIR}/coreos/grub/grub.cfg.tar" \
+	 -C "${BUILD_LIBRARY_DIR}" "grub.cfg"
+fi
 
 info "Generating ${GRUB_DIR}/${CORE_NAME}"
 sudo grub-mkimage \
@@ -121,14 +128,9 @@ sudo grub-mkimage \
     --format "${FLAGS_target}" \
     --prefix "(,gpt1)/coreos/grub" \
     --config "${ESP_DIR}/${GRUB_DIR}/load.cfg" \
+    --memdisk "${ESP_DIR}/coreos/grub/grub.cfg.tar" \
     --output "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}" \
     "${CORE_MODULES[@]}"
-
-# This script will get called a few times, no need to re-copy grub.cfg
-if [[ ! -f "${ESP_DIR}/coreos/grub/grub.cfg" ]]; then
-    info "Installing grub.cfg"
-    sudo cp "${BUILD_LIBRARY_DIR}/grub.cfg" "${ESP_DIR}/coreos/grub/grub.cfg"
-fi
 
 # Now target specific steps to make the system bootable
 case "${FLAGS_target}" in
@@ -147,7 +149,11 @@ case "${FLAGS_target}" in
 		--cert /usr/share/sb_keys/DB.crt \
                     "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}"
             sudo cp "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}.signed" \
-                "${ESP_DIR}/EFI/boot/bootx64.efi"
+                "${ESP_DIR}/EFI/boot/grub.efi"
+            sudo sbsign --key /usr/share/sb_keys/DB.key \
+                 --cert /usr/share/sb_keys/DB.crt \
+                 --output "${ESP_DIR}/EFI/boot/bootx64.efi" \
+                 "/usr/lib/shim/shim.efi"
         else
             sudo cp "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}" \
                 "${ESP_DIR}/EFI/boot/bootx64.efi"
