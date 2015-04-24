@@ -10,6 +10,4 @@ if [ -z "$GROUP" -o -z "$VER" ]; then
   exit 1
 fi
 
-set -e
-source $DIR/marineam-auth.sh
 $DIR/publish_ami.sh -b $BOARD -g $GROUP -V $VER

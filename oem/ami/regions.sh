@@ -13,4 +13,9 @@ ALL_AKIS["ap-southeast-2"]=aki-c362fff9
 ALL_AKIS["ap-northeast-1"]=aki-176bf516
 ALL_AKIS["sa-east-1"]=aki-5553f448
 
+MAIN_REGIONS=( "${!ALL_AKIS[@]}" )
+
+# The following are isolated regions
+ALL_AKIS["us-gov-west-1"]=aki-1de98d3e
+
 ALL_REGIONS=( "${!ALL_AKIS[@]}" )

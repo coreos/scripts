@@ -118,7 +118,7 @@ if [ -z "$akiid" ]; then
    exit 1
 fi
 
-export EC2_URL="http://ec2.${region}.amazonaws.com"
+export EC2_URL="https://ec2.${region}.amazonaws.com"
 echo "Building AMI in zone ${EC2_IMPORT_ZONE}"
 
 tmpimg=$(mktemp)

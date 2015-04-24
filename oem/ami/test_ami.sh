@@ -54,7 +54,7 @@ fi
 zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
 zone=$(curl --fail -s $zoneurl)
 region=$(echo $zone | sed 's/.$//')
-export EC2_URL="http://ec2.${region}.amazonaws.com"
+export EC2_URL="https://ec2.${region}.amazonaws.com"
 
 if [[ -z "$AMI" && -n "$VER" ]]; then
     search_name=$(clean_version "CoreOS-$GROUP-$VER")

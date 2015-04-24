@@ -16,3 +16,6 @@ args="-b $BOARD -g $GROUP -V $VER"
 $DIR/import.sh ${args}
 $DIR/test_ami.sh -v ${args}
 $DIR/copy_ami.sh ${args}
+
+source $DIR/ami-builder-us-gov-auth.sh
+$DIR/import.sh ${args}
