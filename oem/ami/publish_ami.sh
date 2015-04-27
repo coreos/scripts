@@ -55,6 +55,13 @@ fi
 search_name=$(clean_version "CoreOS-$GROUP-$VER")
 declare -A AMIS HVM_AMIS
 for r in "${ALL_REGIONS[@]}"; do
+    # Hacky but avoids writing an indirection layer to handle auth...
+    if [[ "${r}" == "us-gov-west-1" ]]; then
+        source $DIR/ami-builder-us-gov-auth.sh
+    else
+        source $DIR/marineam-auth.sh
+    fi
+
     AMI=$(ec2-describe-images --region=${r} -F name="${search_name}" \
         | grep -m1 ^IMAGE | cut -f2) || true
     if [[ -z "$AMI" ]]; then
@@ -86,20 +93,27 @@ publish_ami() {
     local r="$1"
     local virt_type="$2"
     local r_amiid="$3"
-    local r_snapshotid=$(ec2-describe-images --region="$r" "$r_amiid" \
-        | grep -E '^BLOCKDEVICEMAPPING.*/dev/(xv|s)da' | cut -f5) || true
 
-    # run in a subshell, the -e flag doesn't get inherited
-    set -e
-
-    if [[ -z "${r_snapshotid}" ]]; then
-        echo "$0: Cannot find snapshot id for $r_amiid in $r" >&2
-        return 1
+    if [[ "${r}" == "us-gov-west-1" ]]; then
+        source $DIR/ami-builder-us-gov-auth.sh
+    else
+        source $DIR/marineam-auth.sh
     fi
 
-    echo "Sharing snapshot $r_snapshotid in $r with Amazon"
-    ec2-modify-snapshot-attribute --region "$r" \
-        "$r_snapshotid" -c --add 679593333241
+    # Only required for publishing to the marketplace
+    if [[ "$r" == "us-east-1" ]]; then
+        local r_snapshotid=$(ec2-describe-images --region="$r" "$r_amiid" \
+            | grep -E '^BLOCKDEVICEMAPPING.*/dev/(xv|s)da' | cut -f5) || true
+
+        if [[ -z "${r_snapshotid}" ]]; then
+            echo "$0: Cannot find snapshot id for $r_amiid in $r" >&2
+            return 1
+        fi
+
+        echo "Sharing snapshot $r_snapshotid in $r with Amazon"
+        ec2-modify-snapshot-attribute --region "$r" \
+            "$r_snapshotid" -c --add 679593333241
+    fi
 
     echo "Making $r_amiid in $r public"
     ec2-modify-image-attribute --region "$r" \
@@ -113,19 +127,16 @@ publish_ami() {
     upload_file "${virt_type}_${r}.txt" "$r_amiid"
 }
 
-WAIT_PIDS=()
 PV_ALL=""
 for r in "${!AMIS[@]}"; do
-    publish_ami "$r" pv "${AMIS[$r]}" &
-    WAIT_PIDS+=( $! )
+    publish_ami "$r" pv "${AMIS[$r]}"
     PV_ALL+="|${r}=${AMIS[$r]}"
 done
 PV_ALL="${PV_ALL#|}"
 
 HVM_ALL=""
 for r in "${!HVM_AMIS[@]}"; do
-    publish_ami "$r" hvm "${HVM_AMIS[$r]}" &
-    WAIT_PIDS+=( $! )
+    publish_ami "$r" hvm "${HVM_AMIS[$r]}"
     HVM_ALL+="|${r}=${HVM_AMIS[$r]}"
 done
 HVM_ALL="${HVM_ALL#|}"
@@ -140,19 +151,6 @@ for r in "${ALL_REGIONS[@]}"; do
 done
 AMI_ALL="${AMI_ALL%,}"
 AMI_ALL+="\n  ]\n}"
-
-# wait for each subshell individually to report errors
-WAIT_FAILED=0
-for wait_pid in "${WAIT_PIDS[@]}"; do
-    if ! wait ${wait_pid}; then
-        : $(( WAIT_FAILED++ ))
-    fi
-done
-
-if [[ ${WAIT_FAILED} -ne 0 ]]; then
-    echo "${WAIT_FAILED} jobs failed, aborting :(" >&2
-    exit ${WAIT_FAILED}
-fi
 
 upload_file "all.txt" "${PV_ALL}"
 upload_file "pv.txt" "${PV_ALL}"

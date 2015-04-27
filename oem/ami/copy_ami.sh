@@ -71,7 +71,7 @@ fi
 zoneurl=http://instance-data/latest/meta-data/placement/availability-zone
 zone=$(curl --fail -s $zoneurl)
 region=$(echo $zone | sed 's/.$//')
-export EC2_URL="http://ec2.${region}.amazonaws.com"
+export EC2_URL="https://ec2.${region}.amazonaws.com"
 
 if [[ -z "$AMI" ]]; then
     search_name=$(clean_version "CoreOS-$GROUP-$VER")
@@ -96,7 +96,7 @@ else
 fi
 
 if [[ ${#REGIONS[@]} -eq 0 ]]; then
-    REGIONS=( "${ALL_REGIONS[@]}" )
+    REGIONS=( "${MAIN_REGIONS[@]}" )
 fi
 
 # The name has a limited set of allowed characterrs
