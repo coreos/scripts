@@ -202,8 +202,16 @@ echo "Detaching $enc_volumeid and creating snapshot"
 ec2-detach-volume "$enc_volumeid"
 while ec2-describe-volumes "$enc_volumeid" | grep -q ATTACHMENT
   do sleep 3; done
+
+enc_snapshotid=$(ec2-create-snapshot --description "$name" "$enc_volumeid" | cut -f2)
+while ec2-describe-snapshots "$enc_snapshotid" | grep -q pending
+  do sleep 30; done
+
 echo "Created snapshot $snapshotid, deleting $volumeid"
 ec2-delete-volume "$volumeid"
+
+echo "Created snapshot $enc_snapshotid, deleting $enc_volumeid"
+ec2-delete-volume "$enc_volumeid"
 
 echo "Registering hvm AMI"
 hvm_amiid=$(ec2-register                              \
