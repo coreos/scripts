@@ -180,6 +180,15 @@ while ec2-describe-snapshots "$snapshotid" | grep -q pending
 # Attach imported volume
 echo "Attaching imported volume $volumeid locally (instance $instanceid)"
 ec2-attach-volume --device /dev/sd2 --instance "$instanceid" "$volumeid"
+
+# Create and mount temporary EBS volume with file system to hold new AMI image
+enc_volumeid=$(ec2-create-volume --size $size --availability-zone "${EC2_IMPORT_ZONE}" --encrypted |
+  cut -f2)
+while ! ec2-describe-volumes "$enc_volumeid" | grep -q available
+  do sleep 1; done
+instanceid=$(curl --fail -s http://instance-data/latest/meta-data/instance-id)
+echo "Attaching new volume $enc_volumeid locally (instance $instanceid)"
+ec2-attach-volume --device /dev/sdi --instance "$instanceid" "$enc_volumeid"
 echo "Created snapshot $snapshotid, deleting $volumeid"
 ec2-delete-volume "$volumeid"
 
