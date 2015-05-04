@@ -177,6 +177,9 @@ echo "Waiting on snapshot ${snapshotid}"
 while ec2-describe-snapshots "$snapshotid" | grep -q pending
   do sleep 30; done
 
+# Attach imported volume
+echo "Attaching imported volume $volumeid locally (instance $instanceid)"
+ec2-attach-volume --device /dev/sd2 --instance "$instanceid" "$volumeid"
 echo "Created snapshot $snapshotid, deleting $volumeid"
 ec2-delete-volume "$volumeid"
 
