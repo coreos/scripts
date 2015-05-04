@@ -192,6 +192,16 @@ ec2-attach-volume --device /dev/sdi --instance "$instanceid" "$enc_volumeid"
 
 echo "Writing volume data from $volumeid to $enc_volumeid"
 cp -ar /dev/sd2 /dev/sdi
+
+echo "Detaching $volumeid"
+ec2-detach-volume "$volumeid"
+while ec2-describe-volumes "$volumeid" | grep -q ATTACHMENT
+  do sleep 3; done
+
+echo "Detaching $enc_volumeid and creating snapshot"
+ec2-detach-volume "$enc_volumeid"
+while ec2-describe-volumes "$enc_volumeid" | grep -q ATTACHMENT
+  do sleep 3; done
 echo "Created snapshot $snapshotid, deleting $volumeid"
 ec2-delete-volume "$volumeid"
 
