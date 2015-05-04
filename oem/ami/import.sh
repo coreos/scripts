@@ -189,6 +189,9 @@ while ! ec2-describe-volumes "$enc_volumeid" | grep -q available
 instanceid=$(curl --fail -s http://instance-data/latest/meta-data/instance-id)
 echo "Attaching new volume $enc_volumeid locally (instance $instanceid)"
 ec2-attach-volume --device /dev/sdi --instance "$instanceid" "$enc_volumeid"
+
+echo "Writing volume data from $volumeid to $enc_volumeid"
+cp -ar /dev/sd2 /dev/sdi
 echo "Created snapshot $snapshotid, deleting $volumeid"
 ec2-delete-volume "$volumeid"
 
