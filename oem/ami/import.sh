@@ -226,13 +226,36 @@ hvm_amiid=$(ec2-register                              \
 
 echo "Registering paravirtual AMI"
 amiid=$(ec2-register                                  \
-  --name "$name"                                      \
+  --name "${name}"                                    \
   --description "$description (PV)"                   \
   --architecture "$arch"                              \
   --virtualization-type paravirtual                   \
   --kernel "$akiid"                                   \
   --root-device-name /dev/sda                         \
   --block-device-mapping /dev/sda=$snapshotid::true   \
+  --block-device-mapping /dev/sdb=ephemeral0          |
+  cut -f2)
+
+echo "Registering hvm AMI"
+enc_hvm_amiid=$(ec2-register                                        \
+  --name "${name}-encrypted-hvm"                                    \
+  --description "$description (HVM)"                                \
+  --architecture "$arch"                                            \
+  --virtualization-type hvm                                         \
+  --root-device-name /dev/xvda                                      \
+  --block-device-mapping /dev/xvda=$enc_snapshotid::true:encrypted  \
+  --block-device-mapping /dev/xvdb=ephemeral0         |
+  cut -f2)
+
+echo "Registering paravirtual AMI"
+enc_amiid=$(ec2-register                                            \
+  --name "${name}-encrypted"                                        \
+  --description "$description (PV)"                                 \
+  --architecture "$arch"                                            \
+  --virtualization-type paravirtual                                 \
+  --kernel "$akiid"                                                 \
+  --root-device-name /dev/sda                                       \
+  --block-device-mapping /dev/sda=$enc_snapshotid::true:encrypted   \
   --block-device-mapping /dev/sdb=ephemeral0          |
   cut -f2)
 
