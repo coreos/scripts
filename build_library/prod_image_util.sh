@@ -86,8 +86,9 @@ EOF
 
   # Make the filesystem un-mountable as read-write and setup verity.
   if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
-    "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
-      verity "${BUILD_DIR}/${image_name}"
+    "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" verity \
+      --root_hash="${BUILD_DIR}/${image_name%.bin}_verity.txt" \
+      "${BUILD_DIR}/${image_name}"
   fi
 
   upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \
