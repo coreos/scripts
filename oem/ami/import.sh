@@ -122,7 +122,7 @@ export EC2_URL="https://ec2.${region}.amazonaws.com"
 echo "Building AMI in zone ${EC2_IMPORT_ZONE}"
 
 tmpimg=$(mktemp)
-trap "rm -f '${dldir}'" EXIT
+trap "rm -f '${tmpimg}'" EXIT
 
 # if it is on the local fs, just use it, otherwise try to download it
 if [[ -n "$IMG_PATH" ]]; then
