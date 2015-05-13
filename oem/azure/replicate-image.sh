@@ -25,11 +25,19 @@ if [ -z $subscription_id ]; then
 	subscription_id=$(getSubscriptionId)
 fi
 
-requestBody="<ReplicationInput xmlns=\"http://schemas.microsoft.com/windowsazure\">\n\t<TargetLocations>\n"
+requestBody="<ReplicationInput xmlns=\"http://schemas.microsoft.com/windowsazure\">
+	<TargetLocations>"
 for region in "${REGIONS[@]}"; do
-	requestBody+="\t\t<Region>$region</Region>\n"
+	requestBody+="\n\t\t<Region>$region</Region>"
 done
-requestBody+="\t</TargetLocations>\n</ReplicationInput>"
+requestBody+="
+	</TargetLocations>
+	<ComputeImageAttributes>
+		<Offer>CoreOS</Offer>
+		<Sku>${GROUP}</Sku>
+		<Version>${VERSION}</Version>
+	</ComputeImageAttributes>
+</ReplicationInput>"
 
 url="$(getManagementEndpoint)/${subscription_id}/services/images/${image_name}/replicate"
 
@@ -43,7 +51,7 @@ azure account cert export \
 result=$(echo -e "${requestBody}" | curl \
 	--silent \
 	--request PUT \
-	--header "x-ms-version: 2014-10-01" \
+	--header "x-ms-version: 2015-04-01" \
 	--header "Content-Type: application/xml" \
 	--cert "${workdir}/cert" \
 	--url "${url}" \
