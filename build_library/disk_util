@@ -678,6 +678,12 @@ def Tune2fsReadWrite(options, partition, disable_rw):
     image.seek(partition['first_byte'] + flag_offset)
     image.write(chr(flag_value))
 
+  # bit 60 is 'read-only', TODO: support this in cgpt
+  # http://www.freedesktop.org/wiki/Specifications/DiscoverablePartitionsSpec/
+  attr_cmd = "set" if disable_rw else "clear"
+  attr_arg = "--attributes=%s:%s:60" % (partition['num'], attr_cmd)
+  subprocess.check_call(['sgdisk', attr_arg, options.disk_image])
+
 
 def IsE2fsReadWrite(options, partition):
   """Returns True if FS is read-write, False if hack is active.

@@ -36,6 +36,7 @@ VALID_IMG_TYPES=(
     secure_demo
     niftycloud
     cloudsigma
+    nspawn
 )
 
 #list of oem package names, minus the oem- prefix
@@ -107,6 +108,9 @@ IMG_DEFAULT_BUNDLE_FORMAT=
 
 # Memory size to use in any config files
 IMG_DEFAULT_MEM=1024
+
+## systemd-nspawn
+IMG_nspawn_DISK_LAYOUT=nspawn
 
 ## qemu
 IMG_qemu_DISK_FORMAT=qcow2

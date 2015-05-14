@@ -76,6 +76,13 @@
         "blocks":"12943360"
       }
     },
+    "nspawn":{
+      "9":{
+        "label":"ROOT",
+        "type":"4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
+        "blocks":"12943360"
+      }
+    },
     "azure":{
       "9":{
         "label":"ROOT",
