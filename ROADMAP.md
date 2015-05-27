@@ -21,9 +21,6 @@ their individual roadmaps:
    - Secondary motivation is to support using the SDK on CoreOS itself.
    - Requires running `repo init` *after* entering the SDK.
    - Should support using loop devices without needing udev.
- - Initial ARM64 port.
-   - Should be able to boot a basic image in QEMU and on hardware.
-   - Excludes all Go software, blocked on the Go 1.5 release.
  - Begin development on a new minimal image type, `amd64-rkt`.
    - Includes only what is required to provision a machine via ignition
      and launch rkt containers. Rest of user space lives in containers.
@@ -34,3 +31,5 @@ their individual roadmaps:
  - Release new `amd64-rkt` images as new recommended flavor of CoreOS.
    Updates and support for the existing `amd64-usr` images will
    continue under the name *CoreOS Classic*.
+ - Initial ARM64 port.
+   - Should be able to boot a basic image in QEMU and on hardware.
