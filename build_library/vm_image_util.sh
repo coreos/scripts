@@ -108,6 +108,9 @@ IMG_DEFAULT_BUNDLE_FORMAT=
 # Memory size to use in any config files
 IMG_DEFAULT_MEM=1024
 
+# Number of CPUs to use in any config files
+IMG_DEFAULT_CPUS=2
+
 ## qemu
 IMG_qemu_DISK_FORMAT=qcow2
 IMG_qemu_DISK_LAYOUT=vm
@@ -133,7 +136,7 @@ IMG_xen_CONF_FORMAT=xl
 ## virtualbox
 IMG_virtualbox_DISK_FORMAT=vmdk_ide
 IMG_virtualbox_DISK_LAYOUT=vm
-IMG_virtualbox_CONF_FORMAT=ovf
+IMG_virtualbox_CONF_FORMAT=ovf_virtualbox
 
 ## vagrant
 IMG_vagrant_FS_HOOK=box
@@ -158,9 +161,10 @@ IMG_vmware_CONF_FORMAT=vmx
 IMG_vmware_OEM_PACKAGE=oem-vmware
 
 ## vmware
-IMG_vmware_ova_DISK_FORMAT=vmdk_scsi
+IMG_vmware_ova_DISK_FORMAT=vmdk_stream
 IMG_vmware_ova_DISK_LAYOUT=vm
 IMG_vmware_ova_OEM_PACKAGE=oem-vmware
+IMG_vmware_ova_CONF_FORMAT=ovf_vmware
 IMG_vmware_ova_BUNDLE_FORMAT=ova
 
 ## vmware_insecure
@@ -822,7 +826,7 @@ EOF
     VM_GENERATED_FILES+=( "${pygrub}" "${pvgrub}" "${VM_README}" )
 }
 
-_write_ovf_conf() {
+_write_ovf_virtualbox_conf() {
     local vm_mem="${1:-$(_get_vm_opt MEM)}"
     local src_name=$(basename "$VM_SRC_IMG")
     local dst_name=$(basename "$VM_DST_IMG")
@@ -888,8 +892,7 @@ _write_niftycloud_conf() {
     local vm_mem="${1:-$(_get_vm_opt MEM)}"
     local src_name=$(basename "$VM_SRC_IMG")
     local dst_name=$(basename "$VM_DST_IMG")
-    local dst_dir=$(dirname "$VM_DST_IMG")
-    local ovf="${dst_dir}/$(_src_to_dst_name "${src_name}" ".ovf")"
+    local ovf="$(_dst_dir)/$(_src_to_dst_name "${src_name}" ".ovf")"
 
     "${BUILD_LIBRARY_DIR}/niftycloud_ovf.sh" \
             --vm_name "$VM_NAME" \
@@ -901,6 +904,24 @@ _write_niftycloud_conf() {
     cat > "${VM_README}" <<EOF
 Import ${ovf_name} and ${dst_name} to NIFTY Cloud.
 EOF
+
+    VM_GENERATED_FILES+=( "$ovf" )
+}
+
+_write_ovf_vmware_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local vm_cpus="$(_get_vm_opt CPUS)"
+    local vmdk_file_size=$(du --bytes "${VM_DST_IMG}" | cut -f1)
+    local vmdk_capacity=$(vmdk-convert -i "${VM_DST_IMG}" | jq .capacity)
+    local ovf="$(_dst_path ".ovf")"
+
+    sed "${BUILD_LIBRARY_DIR}/template_vmware.ovf" \
+        -e "s/@@NAME@@/$(_dst_name)/g" \
+        -e "s/@@VMDK_FILE_SIZE@@/${vmdk_file_size}/g" \
+        -e "s/@@VMDK_CAPACITY@@/${vmdk_capacity}/g" \
+        -e "s/@@NUM_CPUS@@/${vm_cpus}/g" \
+        -e "s/@@MEM_SIZE@@/${vm_mem}/g" \
+        > "${ovf}"
 
     VM_GENERATED_FILES+=( "$ovf" )
 }
@@ -945,9 +966,19 @@ EOF
 }
 
 _write_ova_bundle() {
-    vmdk-convert ${VM_DST_IMG} ${VM_TMP_DIR}/vm.vmdk
-    ( cd $(_dst_dir) && mkova.sh $(_dst_name) ${VM_TMP_DIR}/vm.vmdk ${BUILD_LIBRARY_DIR}/template.ovf)
-    VM_GENERATED_FILES+=$(_dst_dir)/$(_dst_name ".ova")
+    local mf="$(_dst_name ".mf")"
+    local vmdk="$(basename ${VM_DST_IMG})"
+    local ovf=$(_dst_name ".ovf")
+
+    cp "${VM_DST_IMG}" "${VM_TMP_DIR}/${vmdk}"
+    cp "$(_dst_dir)/${ovf}" "${VM_TMP_DIR}/${ovf}"
+
+    echo "SHA1(${vmdk})= $(sha1sum "${VM_TMP_DIR}/${vmdk}" | cut -d' ' -f1)" > "${VM_TMP_DIR}/${mf}"
+    echo "SHA1(${ovf})= $(sha1sum "${VM_TMP_DIR}/${ovf}" | cut -d' ' -f1)" >> "${VM_TMP_DIR}/${mf}"
+
+    tar -cf $(_dst_path ".ova") -C "${VM_TMP_DIR}" "${ovf}" "${mf}" "${vmdk}"
+
+    VM_GENERATED_FILES+=( $(_dst_path ".ova") "${VM_DST_IMG}" )
 }
 
 _write_secure_demo_disk() {
