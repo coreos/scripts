@@ -16,11 +16,14 @@ their individual roadmaps:
    - Prototype providing trusted user configuration via UEFI variables
      and integrate with ignition.
  - Complete initial automated test framework, kola.
+   - Add kola to release process to verify builds.
  - Support using the SDK as a stand-alone container.
    - Primary motivation is easier deployment of CI systems for the OS.
    - Secondary motivation is to support using the SDK on CoreOS itself.
    - Requires running `repo init` *after* entering the SDK.
    - Should support using loop devices without needing udev.
+ - Begin development of an Omaha updater for rkt containers.
+   - Use in `amd64-rkt` to update OEM containers.
  - Begin development on a new minimal image type, `amd64-rkt`.
    - Includes only what is required to provision a machine via ignition
      and launch rkt containers. Rest of user space lives in containers.
@@ -33,3 +36,8 @@ their individual roadmaps:
    continue under the name *CoreOS Classic*.
  - Initial ARM64 port.
    - Should be able to boot a basic image in QEMU and on hardware.
+ - Add support for our gptprio boot scheme to systemd:
+   - systemd-nspawn can boot CoreOS disk images as a container.
+   - bootctl or similar tool can select between partitions.
+   - coreos-setgoodroot converted to a new tool and stand-alone service.
+   - Optional: support gptprio in systemd's UEFI bootloader.
