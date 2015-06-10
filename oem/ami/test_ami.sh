@@ -150,7 +150,7 @@ declare -a ips=($($ec2_cmd | grep INSTANCE | cut -f4))
 # sleep until all the sockets we need come up
 for host in ${ips[@]}; do
     for port in 22 4001 7001; do
-        timeout 300 perl -MIO::Socket::INET -e "
+        timeout 600 perl -MIO::Socket::INET -e "
             until(new IO::Socket::INET('$host:$port')){sleep 1}"
     done
 done
