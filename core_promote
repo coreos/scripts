@@ -93,7 +93,8 @@ fi
 
 if [[ ${FLAGS_do_gce} -eq ${FLAGS_TRUE} ]]; then
     gce_name="coreos-${lower_channel}-${FLAGS_version//./-}-v$(date -u +%Y%m%d)"
-    gce_desc="CoreOS ${lower_channel} ${FLAGS_version}"
+    # description must be of the format "Vendor, OS, Version, Description"
+    gce_desc="CoreOS, CoreOS ${lower_channel}, ${FLAGS_version}, ${FLAGS_board} published on $(date -u +%Y-%m-%d)"
     gcutil \
         --project coreos-cloud \
         addimage \
