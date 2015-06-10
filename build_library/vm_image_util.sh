@@ -917,6 +917,7 @@ _write_ovf_vmware_conf() {
 
     sed "${BUILD_LIBRARY_DIR}/template_vmware.ovf" \
         -e "s/@@NAME@@/$(_dst_name)/g" \
+        -e "s/@@VMDK_FILE_NAME@@/$(basename ${VM_DST_IMG})/g" \
         -e "s/@@VMDK_FILE_SIZE@@/${vmdk_file_size}/g" \
         -e "s/@@VMDK_CAPACITY@@/${vmdk_capacity}/g" \
         -e "s/@@NUM_CPUS@@/${vm_cpus}/g" \
