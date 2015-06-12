@@ -351,6 +351,22 @@ def Sudo(cmd, stdout_null=False):
     if null:
       null.close()
 
+def SudoOutput(cmd):
+  """Wrapper around sudo which returns the command's output
+
+  We use this when parsing the root hash of a partition from veritysetup output.
+
+  Args:
+    cmd: a command and arguments to run.
+
+  Returns:
+    A bytestring of the command's output
+  """
+
+  output = subprocess.check_output(['sudo'] + [str(c) for c in cmd])
+
+  return output
+
 
 def BtrfsSubvolId(path):
   """Get the subvolume id from a given path."""
@@ -739,12 +755,21 @@ def Verity(options):
       Tune2fsReadWrite(options, part, disable_rw=True)
 
     with PartitionLoop(options, part) as loop_dev:
-      Sudo(['veritysetup', 'format', '--hash=sha256',
-	    '--data-block-size', part['fs_block_size'],
-	    '--hash-block-size', part['fs_block_size'],
-	    '--data-blocks', part['fs_blocks'],
-	    '--hash-offset', part['fs_bytes'],
-	    loop_dev, loop_dev])
+      verityout = SudoOutput(['veritysetup', 'format', '--hash=sha256',
+                  '--data-block-size', part['fs_block_size'],
+                  '--hash-block-size', part['fs_block_size'],
+                  '--data-blocks', part['fs_blocks'],
+                  '--hash-offset', part['fs_bytes'],
+                  loop_dev, loop_dev])
+      print(verityout.strip())
+      m = re.search("Root hash:\s+([a-f0-9]{64})$", verityout, re.IGNORECASE|re.MULTILINE)
+      if not m:
+          raise Exception("Failed to parse verity output!")
+
+      if options.root_hash != None:
+          with open(options.root_hash, "w") as hash_file:
+              hash_file.write(m.group(1))
+              hash_file.write("\n")
 
 
 def Extract(options):
@@ -1018,6 +1043,7 @@ def main(argv):
 
   a = actions.add_parser('verity', help='compute verity hashes')
   a.add_argument('disk_image', help='path to disk image file')
+  a.add_argument('--root_hash', help='name of file to contain root hash')
   a.set_defaults(func=Verity)
 
   a = actions.add_parser('extract', help='extract a single partition')
