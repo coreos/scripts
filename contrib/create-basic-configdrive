@@ -31,7 +31,7 @@ ssh_authorized_keys:
   - <SSH_KEY>
 hostname: <HOSTNAME>
 "
-REGEX_SSH_FILE="^ssh-(rsa|dss) [-A-Za-z0-9+\/]+[=]{0,2} .+"
+REGEX_SSH_FILE="^ssh-(rsa|dss|ed25519) [-A-Za-z0-9+\/]+[=]{0,2} .+"
 
 while getopts "d:e:H:i:n:p:S:t:h" OPTION
 do
