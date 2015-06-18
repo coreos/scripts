@@ -258,11 +258,11 @@ finish_image() {
 
   local disk_img="${BUILD_DIR}/${image_name}"
 
+  # Copy kernel to support dm-verity boots
   sudo mkdir -p "${root_fs_dir}/boot/coreos"
   sudo cp "${root_fs_dir}/usr/boot/vmlinuz" \
        "${root_fs_dir}/boot/coreos/vmlinuz-a"
-  sudo cp "${root_fs_dir}/usr/boot/vmlinuz" \
-       "${root_fs_dir}/boot/coreos/vmlinuz-b"
+
   # Record directories installed to the state partition.
   # Explicitly ignore entries covered by existing configs.
   local tmp_ignore=$(awk '/^[dDfFL]/ {print "--ignore=" $2}' \
@@ -303,19 +303,36 @@ finish_image() {
       sudo chroot ${root_fs_dir} bash -c "cd /usr/share/selinux/mcs; semodule -i *.pp"
   fi
 
-  # Sign the kernels after /usr is in a consistent state
+  # We only need to disable rw and apply dm-verity in prod with a /usr partition
+  if [ "${PROD_IMAGE}" -eq 1 ] && mountpoint -q "${root_fs_dir}/usr"; then
+    local disable_read_write=${FLAGS_enable_rootfs_verification}
+
+    # Unmount /usr partition
+    sudo umount --recursive "${root_fs_dir}/usr" || exit 1
+
+    # Make the filesystem un-mountable as read-write and setup verity.
+    if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
+      "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" verity \
+        --root_hash="${BUILD_DIR}/${image_name%.bin}_verity.txt" \
+        "${BUILD_DIR}/${image_name}"
+
+      # Magic alert! Root hash injection works by replacing a seldom-used rdev
+      # error message in the uncompressed section of the kernel that happens to
+      # be exactly SHA256-sized. Our modified GRUB extracts it to the cmdline.
+      printf %s "$(cat ${BUILD_DIR}/${image_name%.bin}_verity.txt)" | \
+        sudo dd of="${root_fs_dir}/boot/coreos/vmlinuz-a" conv=notrunc seek=64 count=64 bs=1
+    fi
+  fi
+
+  # Sign the kernel after /usr is in a consistent state and verity is calculated
   if [[ ${COREOS_OFFICIAL:-0} -ne 1 ]]; then
       sudo sbsign --key /usr/share/sb_keys/DB.key \
 	   --cert /usr/share/sb_keys/DB.crt \
 	   "${root_fs_dir}/boot/coreos/vmlinuz-a"
       sudo mv "${root_fs_dir}/boot/coreos/vmlinuz-a.signed" \
 	   "${root_fs_dir}/boot/coreos/vmlinuz-a"
-      sudo sbsign --key /usr/share/sb_keys/DB.key \
-	   --cert /usr/share/sb_keys/DB.crt \
-	   "${root_fs_dir}/boot/coreos/vmlinuz-b"
-      sudo mv "${root_fs_dir}/boot/coreos/vmlinuz-b.signed" \
-	   "${root_fs_dir}/boot/coreos/vmlinuz-b"
   fi
+
   rm -rf "${BUILD_DIR}"/configroot
   cleanup_mounts "${root_fs_dir}"
   trap - EXIT
@@ -324,8 +341,13 @@ finish_image() {
   if [[ "${install_grub}" -eq 1 ]]; then
     local target
     for target in i386-pc x86_64-efi x86_64-xen; do
-      ${BUILD_LIBRARY_DIR}/grub_install.sh \
-          --target="${target}" --disk_image="${disk_img}"
+      if [[ "${PROD_IMAGE}" -eq 1 && ${FLAGS_enable_verity} -eq ${FLAGS_TRUE} ]]; then
+        ${BUILD_LIBRARY_DIR}/grub_install.sh \
+            --target="${target}" --disk_image="${disk_img}" --verity
+      else
+        ${BUILD_LIBRARY_DIR}/grub_install.sh \
+            --target="${target}" --disk_image="${disk_img}" --noverity
+      fi
     done
   fi
 }
