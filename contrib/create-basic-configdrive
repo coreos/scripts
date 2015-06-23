@@ -55,6 +55,12 @@ if [ $(id -u) -eq 0 ]; then
     exit 1
 fi
 
+# mkisofs tool check
+if ! which mkisofs &>/dev/null; then
+    echo "$0: mkisofs tool is required to create image." >&2
+    exit 1
+fi
+
 if [ -z "$HNAME" ]; then
     echo "$0: The hostname parameter '-H' is required." >&2
     exit 1
