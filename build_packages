@@ -218,9 +218,7 @@ break_dep_loop() {
   # rebuilding zlib for some unknown reason, in turn triggering more rebuilds.
   sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" \
       --rebuild-if-unbuilt=n \
-      --binpkg-respect-use=n \
       --buildpkg-exclude="${pkg}" \
-      --useoldpkg-atoms="${pkg}" \
       ${extra_args} "${pkg}"
   sudo rm -f "${flag_file}"
 }
