@@ -98,6 +98,40 @@ upload_files() {
         "${local_upload_path}/${extra_upload_suffix}"
 }
 
+
+# Identical to upload_files but GPG signs every file if enabled.
+# Usage: sign_and_upload_files "file type" "${UPLOAD_ROOT}/default/path" "" files...
+#  arg1: file type reported via log
+#  arg2: default upload path, overridden by --upload_path
+#  arg3: upload path suffix that can't be overridden, must end in /
+#  argv: remaining args are files or directories to upload
+sign_and_upload_files() {
+    [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]] || return 0
+
+    local msg="$1"
+    local path="$2"
+    local suffix="$3"
+    shift 3
+
+    # Create simple GPG detached signature for all uploads.
+    local sigs=()
+    if [[ -n "${FLAGS_sign}" ]]; then
+        local file
+        for file in "$@"; do
+            if [[ "${file}" =~ \.(asc|gpg|sig)$ ]]; then
+                continue
+            fi
+
+            rm -f "${file}.sig"
+            gpg --batch --local-user "${FLAGS_sign}" \
+                --detach-sign "${file}" || die "gpg failed"
+            sigs+=( "${file}.sig" )
+        done
+    fi
+
+    upload_files "${msg}" "${path}" "${suffix}" "$@" "${sigs[@]}"
+}
+
 upload_packages() {
     [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]] || return 0
     [[ -n "${BOARD}" ]] || die "board_options.sh must be sourced first"
@@ -160,26 +194,9 @@ upload_image() {
       uploads+=( "${digests}.asc" )
     fi
 
-    # Create simple GPG detached signature for all uploads.
-    local sigs=()
-    if [[ -n "${FLAGS_sign}" ]]; then
-        local file
-        for file in "${uploads[@]}"; do
-            if [[ "${file}" =~ \.(asc|gpg|sig)$ ]]; then
-                continue
-            fi
-
-            rm -f "${file}.sig"
-            gpg --batch --local-user "${FLAGS_sign}" \
-                --detach-sign "${file}" || die "gpg failed"
-            sigs+=( "${file}.sig" )
-        done
-    fi
-    uploads+=( "${sigs[@]}" )
-
     local log_msg=$(basename "$digests" .DIGESTS)
     local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION_STRING}"
-    upload_files "${log_msg}" "${def_upload_path}" "" "${uploads[@]}"
+    sign_and_upload_files "${log_msg}" "${def_upload_path}" "" "${uploads[@]}"
 }
 
 # Translate the configured upload URL to a download URL
