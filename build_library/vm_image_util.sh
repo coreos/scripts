@@ -36,6 +36,7 @@ VALID_IMG_TYPES=(
     secure_demo
     niftycloud
     cloudsigma
+    packet
 )
 
 #list of oem package names, minus the oem- prefix
@@ -55,6 +56,7 @@ VALID_OEM_PACKAGES=(
     vmware
     niftycloud
     cloudsigma
+    packet
 )
 
 # Set at runtime to one of the above types
@@ -252,6 +254,9 @@ IMG_niftycloud_OEM_PACKAGE=oem-niftycloud
 ## cloudsigma
 IMG_cloudsigma_DISK_FORMAT=qcow2
 IMG_cloudsigma_OEM_PACKAGE=oem-cloudsigma
+
+## packet
+IMG_packet_OEM_PACKAGE=oem-packet
 
 ###########################################################
 
