@@ -188,6 +188,7 @@ hvm_amiid=$(ec2-register                              \
   --virtualization-type hvm                           \
   --root-device-name /dev/xvda                        \
   --block-device-mapping /dev/xvda=$snapshotid::true  \
+  --sriov simple                                      \
   --block-device-mapping /dev/xvdb=ephemeral0         |
   cut -f2)
 
