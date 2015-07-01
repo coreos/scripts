@@ -269,7 +269,8 @@ def WritePartitionTable(options, config=None, partitions=None):
     config, partitions = LoadPartitionConfig(options)
 
   if options.create:
-    Cgpt('create', '-c', '-s', config['metadata']['blocks'], options.disk_image)
+    Cgpt('create', '-c', '-s', config['metadata']['blocks'],
+        '-g', '00000000-0000-0000-0000-000000000001', options.disk_image)
   else:
     # If we are not creating a fresh image all partitions must be compatible.
     GetPartitionTableFromImage(options, config, partitions)
