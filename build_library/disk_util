@@ -65,7 +65,7 @@ def LoadPartitionConfig(options):
     metadata = config['metadata']
     base = config['layouts']['base']
     for key in ('part_alignment', 'disk_alignment',
-		'block_size', 'fs_block_size'):
+        'block_size', 'fs_block_size'):
       metadata[key] = int(metadata[key])
   except KeyError as e:
     raise InvalidLayout('Metadata is missing required entries: %s' % e)
