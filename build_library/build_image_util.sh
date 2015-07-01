@@ -298,6 +298,11 @@ finish_image() {
     sudo fstrim "${root_fs_dir}/usr" || true
   fi
 
+  # Build the selinux policy
+  if [[ "$BOARD" = amd64* ]]; then
+      sudo chroot ${root_fs_dir} bash -c "cd /usr/share/selinux/mcs; semodule -i *.pp"
+  fi
+
   # Sign the kernels after /usr is in a consistent state
   if [[ ${COREOS_OFFICIAL:-0} -ne 1 ]]; then
       sudo sbsign --key /usr/share/sb_keys/DB.key \
