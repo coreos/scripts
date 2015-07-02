@@ -13,3 +13,14 @@ ARCH=$(get_board_arch ${BOARD})
 
 # What cross-build are we targeting?
 . "${BOARD_ROOT}/etc/portage/make.conf"
+
+# check if any of the given use flags are enabled for a pkg
+pkg_use_enabled() {
+  local pkg="$1"
+  shift
+  # for every flag argument, turn it into `-e ^+flag` for grep
+  local grep_args="${@/#/-e ^+}"
+
+  equery-"${BOARD}" -q uses "${pkg}" | grep -q ${grep_args}
+  return $?
+}
