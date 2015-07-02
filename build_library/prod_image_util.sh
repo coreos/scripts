@@ -76,20 +76,7 @@ create_prod_image() {
 L+  /etc/ld.so.conf     -   -   -   -   ../usr/lib/ld.so.conf
 EOF
 
-  # Only try to disable rw on /usr if there is a /usr partition 
-  local disable_read_write=${FLAGS_enable_rootfs_verification}
-  if ! mountpoint -q "${root_fs_dir}/usr"; then
-    disable_read_write=${FLAGS_FALSE}
-  fi
-
   finish_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${image_contents}"
-
-  # Make the filesystem un-mountable as read-write and setup verity.
-  if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
-    "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" verity \
-      --root_hash="${BUILD_DIR}/${image_name%.bin}_verity.txt" \
-      "${BUILD_DIR}/${image_name}"
-  fi
 
   upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \
       "${BUILD_DIR}/${image_contents}" \

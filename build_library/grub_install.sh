@@ -20,6 +20,8 @@ DEFINE_string esp_dir "" \
   "Path to EFI System partition mount point."
 DEFINE_string disk_image "" \
   "The disk image containing the EFI System partition."
+DEFINE_boolean verity ${FLAGS_FALSE} \
+  "Indicates that boot commands should enable dm-verity."
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -71,6 +73,9 @@ cleanup() {
     if [[ -b "${LOOP_DEV}" ]]; then
         sudo losetup --detach "${LOOP_DEV}"
     fi
+    if [[ -n "${GRUB_TEMP_DIR}" && -e "${GRUB_TEMP_DIR}" ]]; then
+      rm -r "${GRUB_TEMP_DIR}"
+    fi
 }
 trap cleanup EXIT
 
@@ -116,10 +121,26 @@ set prefix=(memdisk)
 set
 EOF
 
+# Generate a memdisk containing the appropriately generated grub.cfg. Doing
+# this because we need conflicting default behaviors between verity and
+# non-verity images.
+GRUB_TEMP_DIR=$(mktemp -d)
 if [[ ! -f "${ESP_DIR}/coreos/grub/grub.cfg.tar" ]]; then
     info "Generating grub.cfg memdisk"
+
+    if [[ ${FLAGS_verity} -eq ${FLAGS_TRUE} ]]; then
+      # use dm-verity for /usr
+      cat "${BUILD_LIBRARY_DIR}/grub.cfg" | \
+        sed 's/@@MOUNTUSR@@/mount.usr=\/dev\/mapper\/usr verity.usr/' > \
+        "${GRUB_TEMP_DIR}/grub.cfg"
+    else
+      # uses standard systemd /usr mount
+      cat "${BUILD_LIBRARY_DIR}/grub.cfg" | \
+        sed 's/@@MOUNTUSR@@/mount.usr/' > "${GRUB_TEMP_DIR}/grub.cfg"
+    fi
+
     sudo tar cf "${ESP_DIR}/coreos/grub/grub.cfg.tar" \
-	 -C "${BUILD_LIBRARY_DIR}" "grub.cfg"
+	 -C "${GRUB_TEMP_DIR}" "grub.cfg"
 fi
 
 info "Generating ${GRUB_DIR}/${CORE_NAME}"
