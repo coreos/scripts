@@ -299,8 +299,8 @@ finish_image() {
   fi
 
   # Build the selinux policy
-  if [[ "$BOARD" = amd64* ]]; then
-      sudo chroot ${root_fs_dir} bash -c "cd /usr/share/selinux/mcs; semodule -i *.pp"
+  if pkg_use_enabled coreos-base/coreos selinux; then
+      sudo chroot "${root_fs_dir}" bash -c "cd /usr/share/selinux/mcs && semodule -i *.pp"
   fi
 
   # We only need to disable rw and apply dm-verity in prod with a /usr partition
