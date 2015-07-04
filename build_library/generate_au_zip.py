@@ -62,6 +62,8 @@ def CreateTempDir():
   logging.debug('Using tempdir = %s', temp_dir)
   return temp_dir
 
+class _LibNotFound(Exception):
+  pass
 
 def _SplitAndStrip(data):
   """Prunes the ldd output, and return a list of needed library names
@@ -78,6 +80,8 @@ def _SplitAndStrip(data):
   """
   return_list = []
   for line in data.split('\n'):
+    if 'not found' in line:
+      raise _LibNotFound(line)
     line = re.sub('.*not a dynamic executable.*', '', line)
     line = re.sub('.* =>\s+', '', line)
     line = re.sub('\(0x.*\)\s?', '', line)
@@ -120,7 +124,11 @@ def DepsToCopy(ldd_files):
     logging.debug('ldd for %s = stdout = %s stderr =%s', file_name,
                   stdout_data, stderr_data)
 
-    libs |= set(_SplitAndStrip(stdout_data))
+    try:
+      libs |= set(_SplitAndStrip(stdout_data))
+    except _LibNotFound as ex:
+      logging.error("ldd for %s failed: %s", file_name, ex)
+      sys.exit(1)
 
   result = _ExcludeBlacklist(list(libs), BLACK_LIST)
   _EnforceWhiteList(list(libs), WHITE_LIST)
@@ -148,14 +156,22 @@ def CopyRequiredFiles(dest_files_root):
   all_files
   for file_name in all_files:
     logging.debug('Copying file  %s to %s', file_name, dest_files_root)
-    shutil.copy2(file_name, dest_files_root)
+    try:
+      shutil.copy2(file_name, dest_files_root)
+    except EnvironmentError:
+      logging.exception("Copying '%s' to %s failed", file_name, dest_files_root)
+      sys.exit(1)
 
   libraries = DepsToCopy(ldd_files=DYNAMIC_EXECUTABLES)
   lib_dir = os.path.join(dest_files_root, LIB_DIR)
   os.mkdir(lib_dir)
   for file_name in libraries:
     logging.debug('Copying file  %s to %s', file_name, lib_dir)
-    shutil.copy2(file_name, lib_dir)
+    try:
+      shutil.copy2(file_name, lib_dir)
+    except EnvironmentError:
+      logging.exception("Copying '%s' to %s failed", file_name, lib_dir)
+      sys.exit(1)
 
   for source_dir, target_dir in RECURSE_DIRS.iteritems():
     logging.debug('Processing directory %s', source_dir)
@@ -166,7 +182,11 @@ def CopyRequiredFiles(dest_files_root):
       sys.exit(1)
   dest = os.path.join(dest_files_root, target_dir)
   logging.debug('Copying directory %s to %s.', full_path, target_dir)
-  shutil.copytree(full_path, dest)
+  try:
+    shutil.copytree(full_path, dest)
+  except EnvironmentError:
+    logging.exception("Copying tree '%s' to %s failed", full_path, dest)
+    sys.exit(1)
 
 
 def WrapExecutableFiles(dest_files_root):
