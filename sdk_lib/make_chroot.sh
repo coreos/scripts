@@ -146,6 +146,11 @@ init_users () {
 
 init_setup () {
    info "Running init_setup()..."
+   # clean up old catalyst configs to avoid error from env-update
+   # TODO(marineam): remove in a week or so
+   rm -f "${FLAGS_chroot}/etc/portage/make.conf" \
+     "${FLAGS_chroot}/etc/portage/repos.conf/coreos.conf"
+
    # Set up sudoers.  Inside the chroot, the user can sudo without a password.
    # (Safe enough, since the only way into the chroot is to 'sudo chroot', so
    # the user's already typed in one sudo password...)
