@@ -26,7 +26,7 @@ DEFINE_string chrome_root "" \
   "The root of your chrome browser source. Should contain a 'src' subdir."
 DEFINE_string chrome_root_mount "/home/${SUDO_USER}/chrome_root" \
   "The mount point of the chrome broswer source in the chroot."
-DEFINE_string cache_dir "" "Directory to use for caching."
+DEFINE_string cache_dir "" "unused"
 
 DEFINE_boolean official_build $FLAGS_FALSE \
   "Set COREOS_OFFICIAL=1 for release builds."
@@ -69,9 +69,6 @@ eval set -- "${FLAGS_ARGV}"
 if [ $FLAGS_official_build -eq $FLAGS_TRUE ]; then
    COREOS_OFFICIAL=1
 fi
-
-[ -z "${FLAGS_cache_dir}" ] && \
-  die "--cache_dir is required"
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
 # so will die prematurely if 'switch_to_strict_mode' is specified before now.
@@ -281,27 +278,6 @@ setup_env() {
     fi
     unset REFERENCE_DIR
 
-    chroot_cache='/var/cache/chromeos-cache'
-    debug "Setting up shared cache dir directory."
-    user_mkdir "${FLAGS_cache_dir}"/distfiles/{target,host}
-    user_mkdir "${FLAGS_chroot}/${chroot_cache}"
-    setup_mount "${FLAGS_cache_dir}" "--bind" "${chroot_cache}"
-    # TODO(build): remove this as of 12/01/12.
-    # Because of how distfiles -> cache_dir was deployed, if this isn't
-    # a symlink, we *know* the ondisk pathways aren't compatible- thus
-    # fix it now.
-    distfiles_path="${FLAGS_chroot}/var/cache/distfiles"
-    if [ ! -L "${distfiles_path}" ]; then
-      # While we're at it, ensure the var is exported w/in the chroot; it
-      # won't exist if distfiles isn't a symlink.
-      p="${FLAGS_chroot}/etc/profile.d/chromeos-cachedir.sh"
-      rm -rf "${distfiles_path}"
-      ln -s chromeos-cache/distfiles "${distfiles_path}"
-      mkdir -p -m 775 "${p%/*}"
-      echo 'export CHROMEOS_CACHEDIR=${chroot_cache}' > "${p}"
-      chmod 0644 "${p}"
-    fi
-
     user_mkdir "${FLAGS_chroot}/home/${SUDO_USER}/.ssh"
     if [ $FLAGS_ssh_agent -eq $FLAGS_TRUE ]; then
       # Clean up previous ssh agents.
@@ -375,17 +351,6 @@ setup_env() {
       modprobe fuse 2> /dev/null ||\
         warn "-- Note: modprobe fuse failed.  gmergefs will not work"
     fi
-
-    # Fix permissions on ccache tree.  If this is a fresh chroot, then they
-    # might not be set up yet.  Or if the user manually `rm -rf`-ed things,
-    # we need to reset it.  Otherwise, gcc itself takes care of fixing things
-    # on demand, but only when it updates.
-    ccache_dir="${FLAGS_chroot}/var/cache/distfiles/ccache"
-    if [[ ! -d ${ccache_dir} ]]; then
-      mkdir -p -m 2775 "${ccache_dir}"
-    fi
-    find -H "${ccache_dir}" -type d -exec chmod 2775 {} + &
-    find -H "${ccache_dir}" -gid 0 -exec chgrp 250 {} + &
 
     # Certain files get copied into the chroot when entering.
     for fn in "${FILES_TO_COPY_TO_CHROOT[@]}"; do

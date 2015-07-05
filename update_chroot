@@ -50,19 +50,33 @@ CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
 COREOS_OVERLAY="${REPO_ROOT}/src/third_party/coreos-overlay"
 COREOS_CONFIG="${COREOS_OVERLAY}/coreos/config"
 
+# PORTAGE_USERNAME may already be in the env but set just to be safe.
+: ${PORTAGE_USERNAME:=${USER}}
+
+# Clean up old distfiles cache. It used to be split for 'host' and
+# 'target' but that just duplicates files. Also a ccache was in there.
+if [[ -d "${REPO_CACHE_DIR}/distfiles/host" ]]; then
+  info "Cleaning up old distfiles cache..."
+  sudo mv "${REPO_CACHE_DIR}"/{distfiles/host,distfiles.host}
+  sudo rm -rf "${REPO_CACHE_DIR}/distfiles"
+  sudo mv "${REPO_CACHE_DIR}"/{distfiles.host,distfiles}
+fi
+
 info "Setting up portage..."
-sudo mkdir -p "/etc/portage/repos.conf/"
-sudo rm -f "/etc/portage/make.conf"
-sudo touch "/etc/portage/make.conf.user"
+sudo mkdir -p "${REPO_CACHE_DIR}/distfiles"
+sudo chown "${PORTAGE_USERNAME}:portage" "${REPO_CACHE_DIR}/distfiles"
+sudo mkdir -p /etc/portage/repos.conf /var/lib/portage/pkgs
+sudo touch /etc/portage/make.conf.user
 
 sudo_clobber "/etc/portage/make.conf" <<EOF
 # Created by update_chroot
 PORTDIR="${PORTAGE_STABLE_OVERLAY}"
 PORTDIR_OVERLAY="${CROSSDEV_OVERLAY} ${COREOS_OVERLAY}"
-DISTDIR="/var/lib/portage/distfiles"
+DISTDIR="${REPO_CACHE_DIR}/distfiles"
 PKGDIR="/var/lib/portage/pkgs"
 PORT_LOGDIR="/var/log/portage"
 PORTAGE_BINHOST="$(get_sdk_binhost)"
+PORTAGE_USERNAME="${PORTAGE_USERNAME}"
 MAKEOPTS="--jobs=${NUM_JOBS} --load-average=$((NUM_JOBS * 2))"
 
 # Generally there isn't any need to add packages to @world by default.

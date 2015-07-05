@@ -50,7 +50,7 @@ update_local_mirror() {
     emirrordist --mirror --verbose $extra_flags \
         --jobs=${NUM_JOBS} --repo="${repo_name}" \
         --distfiles="${repo_mirror}/distfiles" \
-        --distfiles-local="/var/lib/portage/distfiles" \
+        --distfiles-local="$(portageq envvar DISTDIR)" \
         --fetch-log-dir="${repo_mirror}/log" \
         --failure-log="${repo_mirror}/log/failure.log" \
         --success-log="${repo_mirror}/log/success.log" \
