@@ -45,9 +45,9 @@ switch_to_strict_mode
 
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh"
 
-PORTAGE_STABLE_OVERLAY="/usr/local/portage/stable"
+PORTAGE_STABLE_OVERLAY="${REPO_ROOT}/src/third_party/portage-stable"
 CROSSDEV_OVERLAY="/usr/local/portage/crossdev"
-COREOS_OVERLAY="/usr/local/portage/coreos"
+COREOS_OVERLAY="${REPO_ROOT}/src/third_party/coreos-overlay"
 COREOS_CONFIG="${COREOS_OVERLAY}/coreos/config"
 
 info "Setting up portage..."

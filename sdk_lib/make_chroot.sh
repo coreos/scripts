@@ -146,14 +146,6 @@ init_users () {
 
 init_setup () {
    info "Running init_setup()..."
-   mkdir -p -m 755 "${FLAGS_chroot}/usr" \
-     "${FLAGS_chroot}/usr/local/portage" \
-     "${FLAGS_chroot}"/"${CROSSDEV_OVERLAY}"
-   ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/coreos-overlay" \
-     "${FLAGS_chroot}"/"${CHROOT_OVERLAY}"
-   ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage-stable" \
-     "${FLAGS_chroot}"/"${PORTAGE_STABLE_OVERLAY}"
-
    # Set up sudoers.  Inside the chroot, the user can sudo without a password.
    # (Safe enough, since the only way into the chroot is to 'sudo chroot', so
    # the user's already typed in one sudo password...)

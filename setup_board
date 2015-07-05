@@ -168,7 +168,8 @@ case "$BOARD" in
     ;;
 esac
 # Locations we will need
-COREOS_CONFIG="/usr/local/portage/coreos/coreos/config"
+COREOS_OVERLAY="${REPO_ROOT}/src/third_party/coreos-overlay"
+COREOS_CONFIG="${COREOS_OVERLAY}/coreos/config"
 BOARD_ROOT="/build/${BOARD_VARIANT}"
 BOARD_ETC="${BOARD_ROOT}/etc"
 BOARD_ARCH=$(get_board_arch "$BOARD")
