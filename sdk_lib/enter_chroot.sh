@@ -316,21 +316,6 @@ setup_env() {
       fi
     fi
 
-    if [[ -d "$SUDO_HOME/.subversion" ]]; then
-      TARGET="/home/${SUDO_USER}/.subversion"
-      setup_mount "${SUDO_HOME}/.subversion" "--bind" "${TARGET}"
-      # Symbolic-link the .subversion directory so sandboxed subversion.class
-      # clients can use it.
-      for d in \
-        "${FLAGS_cache_dir}"/distfiles/{host,target}/svn-src/"${SUDO_USER}"; do
-        if [[ ! -L "${d}/.subversion" ]]; then
-          rm -rf "${d}/.subversion"
-          user_mkdir "${d}"
-          user_symlink /home/${SUDO_USER}/.subversion "${d}/.subversion"
-        fi
-      done
-    fi
-
     # Mount GnuPG's data directory for signing uploads
     if [[ -d "$SUDO_HOME/.gnupg" ]]; then
       debug "Mounting GnuPG"
