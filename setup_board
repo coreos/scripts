@@ -71,9 +71,6 @@ _generate_wrapper() {
 
 export PORTAGE_CONFIGROOT="$BOARD_ROOT"
 export SYSROOT="\${SYSROOT:-$BOARD_ROOT}"
-if [ -z "\$PORTAGE_USERNAME" ]; then
-  export PORTAGE_USERNAME=\$(basename \$HOME)
-fi
 export ROOT="$BOARD_ROOT"
 exec sudo -E ${command} ${extra_args} "\$@"
 EOF
@@ -168,7 +165,8 @@ case "$BOARD" in
     ;;
 esac
 # Locations we will need
-COREOS_CONFIG="/usr/local/portage/coreos/coreos/config"
+COREOS_OVERLAY="${REPO_ROOT}/src/third_party/coreos-overlay"
+COREOS_CONFIG="${COREOS_OVERLAY}/coreos/config"
 BOARD_ROOT="/build/${BOARD_VARIANT}"
 BOARD_ETC="${BOARD_ROOT}/etc"
 BOARD_ARCH=$(get_board_arch "$BOARD")
@@ -236,6 +234,7 @@ PORTDIR="$(portageq envvar PORTDIR)"
 PORTDIR_OVERLAY="$(portageq envvar PORTDIR_OVERLAY)"
 DISTDIR="$(portageq envvar DISTDIR)"
 MAKEOPTS="$(portageq envvar MAKEOPTS)"
+PORTAGE_USERNAME="$(portageq envvar PORTAGE_USERNAME)"
 
 # Board specific settings
 CHOST="${BOARD_CHOST}"

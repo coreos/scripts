@@ -45,7 +45,7 @@ DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
 DEFINE_string stage3_path "" \
   "Use the stage3 located on this path."
-DEFINE_string cache_dir "" "Directory to store caches within."
+DEFINE_string cache_dir "" "unused"
 
 # Parse command line flags.
 FLAGS_HELP="usage: $SCRIPT_NAME [flags]"
@@ -64,10 +64,6 @@ umask 022
 # TODO: replace shflags with something less error-prone, or contribute a fix.
 switch_to_strict_mode
 
-[[ "${FLAGS_delete}" == "${FLAGS_FALSE}" ]] && \
-  [[ -z "${FLAGS_cache_dir}" ]] && \
-  die "--cache_dir is required"
-
 ENTER_CHROOT_ARGS=(
   CROS_WORKON_SRCROOT="$CHROOT_TRUNK"
   PORTAGE_USERNAME="${SUDO_USER}"
@@ -75,15 +71,13 @@ ENTER_CHROOT_ARGS=(
 
 # Invoke enter_chroot.  This can only be used after sudo has been installed.
 enter_chroot() {
-  "$ENTER_CHROOT" --cache_dir "${FLAGS_cache_dir}" --chroot "$FLAGS_chroot" \
-    -- "${ENTER_CHROOT_ARGS[@]}" "$@"
+  "$ENTER_CHROOT" --chroot "$FLAGS_chroot" -- "${ENTER_CHROOT_ARGS[@]}" "$@"
 }
 
 # Invoke enter_chroot running the command as root, and w/out sudo.
 # This should be used prior to sudo being merged.
 early_enter_chroot() {
   "$ENTER_CHROOT" --chroot "$FLAGS_chroot" --early_make_chroot \
-    --cache_dir "${FLAGS_cache_dir}" \
     -- "${ENTER_CHROOT_ARGS[@]}" "$@"
 }
 
@@ -146,13 +140,10 @@ init_users () {
 
 init_setup () {
    info "Running init_setup()..."
-   mkdir -p -m 755 "${FLAGS_chroot}/usr" \
-     "${FLAGS_chroot}/usr/local/portage" \
-     "${FLAGS_chroot}"/"${CROSSDEV_OVERLAY}"
-   ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/coreos-overlay" \
-     "${FLAGS_chroot}"/"${CHROOT_OVERLAY}"
-   ln -sf "${CHROOT_TRUNK_DIR}/src/third_party/portage-stable" \
-     "${FLAGS_chroot}"/"${PORTAGE_STABLE_OVERLAY}"
+   # clean up old catalyst configs to avoid error from env-update
+   # TODO(marineam): remove in a week or so
+   rm -f "${FLAGS_chroot}/etc/portage/make.conf" \
+     "${FLAGS_chroot}/etc/portage/repos.conf/coreos.conf"
 
    # Set up sudoers.  Inside the chroot, the user can sudo without a password.
    # (Safe enough, since the only way into the chroot is to 'sudo chroot', so
@@ -171,29 +162,6 @@ ${SUDO_USER} ALL=NOPASSWD: ALL
 EOF
 
    chmod 0440 "${FLAGS_chroot}/etc/sudoers.d/90_cros"
-
-   # Create directories referred to by our conf files.
-   mkdir -p -m 775 "${FLAGS_chroot}/var/lib/portage/pkgs" \
-     "${FLAGS_chroot}/var/cache/"chromeos-{cache,chrome} \
-     "${FLAGS_chroot}/etc/profile.d"
-
-   echo "export CHROMEOS_CACHEDIR=/var/cache/chromeos-cache" > \
-     "${FLAGS_chroot}/etc/profile.d/chromeos-cachedir.sh"
-   chmod 0644 "${FLAGS_chroot}/etc/profile.d/chromeos-cachedir.sh"
-   rm -rf "${FLAGS_chroot}/var/cache/distfiles"
-   ln -s chromeos-cache/distfiles "${FLAGS_chroot}/var/cache/distfiles"
-
-   # Run this from w/in the chroot so we use whatever uid/gid
-   # these are defined as w/in the chroot.
-   bare_chroot chown "${SUDO_USER}:portage" /var/cache/chromeos-chrome
-
-   # These are created for compatibility while transitioning
-   # make.conf and friends over to the new location.
-   # TODO(ferringb): remove this 01/13 or so.
-   ln -s ../../cache/chromeos-cache/distfiles/host \
-     "${FLAGS_chroot}/var/lib/portage/distfiles"
-   ln -s ../../cache/chromeos-cache/distfiles/target \
-     "${FLAGS_chroot}/var/lib/portage/distfiles-target"
 
    # Add chromite/bin into the path globally
    # We rely on 'env-update' getting called below.
