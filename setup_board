@@ -71,9 +71,6 @@ _generate_wrapper() {
 
 export PORTAGE_CONFIGROOT="$BOARD_ROOT"
 export SYSROOT="\${SYSROOT:-$BOARD_ROOT}"
-if [ -z "\$PORTAGE_USERNAME" ]; then
-  export PORTAGE_USERNAME=\$(basename \$HOME)
-fi
 export ROOT="$BOARD_ROOT"
 exec sudo -E ${command} ${extra_args} "\$@"
 EOF
@@ -237,6 +234,7 @@ PORTDIR="$(portageq envvar PORTDIR)"
 PORTDIR_OVERLAY="$(portageq envvar PORTDIR_OVERLAY)"
 DISTDIR="$(portageq envvar DISTDIR)"
 MAKEOPTS="$(portageq envvar MAKEOPTS)"
+PORTAGE_USERNAME="$(portageq envvar PORTAGE_USERNAME)"
 
 # Board specific settings
 CHOST="${BOARD_CHOST}"
