@@ -49,7 +49,7 @@ stage4/packages: coreos-devel/sdk-depends
 stage4/fsscript: ${BUILD_LIBRARY_DIR}/catalyst_default_stage4.sh
 stage4/root_overlay: ${TEMPDIR}/stage4_overlay
 stage4/empty: /etc/portage/repos.conf /root /usr/portage /var/cache/edb
-stage4/rm: /etc/machine-id /etc/resolv.conf /etc/portage/make.conf
+stage4/rm: /etc/machine-id /etc/resolv.conf
 EOF
 catalyst_stage_default
 }
