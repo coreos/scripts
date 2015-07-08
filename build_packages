@@ -49,7 +49,7 @@ DEFINE_string accept_licenses "" \
   "Licenses to append to the accept list."
 DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
-DEFINE_boolean norebuild "${FLAGS_FALSE}" \
+DEFINE_boolean rebuild "${FLAGS_FALSE}" \
   "Don't automatically rebuild dependencies."
 DEFINE_boolean skip_chroot_upgrade "${FLAGS_FALSE}" \
   "Don't run the chroot upgrade automatically; use with care."
@@ -150,7 +150,7 @@ if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   EMERGE_FLAGS+=( --jobs=${FLAGS_jobs} )
 fi
 
-if [[ "${FLAGS_norebuild}" -eq "${FLAGS_FALSE}" ]]; then
+if [[ "${FLAGS_rebuild}" -eq "${FLAGS_TRUE}" ]]; then
   EMERGE_FLAGS+=( --rebuild-if-unbuilt )
 fi
 
