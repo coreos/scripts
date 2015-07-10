@@ -8,34 +8,39 @@ their individual roadmaps:
  - [etcd](https://github.com/coreos/etcd/milestones)
  - [mantle](https://github.com/coreos/mantle/blob/master/ROADMAP.md)
 
-## Q2 2015
+## July 1 - Aug 15
 
  - Initial release of [ignition](https://github.com/coreos/ignition/)
+ - Initial release of [strudel](https://github.com/coreos/strudel)
  - Complete secure/verified boot on UEFI hardware.
    - Boot with full chain of trust through up to user configuration.
-   - Prototype providing trusted user configuration via UEFI variables
-     and integrate with ignition.
- - Complete initial automated test framework, kola.
-   - Add kola to release process to verify builds.
+ - Experimental support of SELinux support in CoreOS and rkt.
+ - Begin building releases via new CI pipeline, using kola to test
+   releases. Use Jenkins for managing builds and tests.
+ - Replace current Google Cloud Storage download site with a new system
+   that supports SSL and is (at least usually) available in China.
+   - Makes skipping GPG validation of images less problematic.
+   - Enables us to begin supporting deployments in China.
+ - Initial ARM64 port.
+   - Should be able to boot a basic image in QEMU and on hardware.
+
+## Aug 16 - Sep 30
+
+ - Support OEM updates on CoreOS via rkt and strudel.
  - Support using the SDK as a stand-alone container.
    - Primary motivation is easier deployment of CI systems for the OS.
    - Secondary motivation is to support using the SDK on CoreOS itself.
    - Requires running `repo init` *after* entering the SDK.
    - Should support using loop devices without needing udev.
- - Begin development of an Omaha updater for rkt containers.
-   - Use in `amd64-rkt` to update OEM containers.
+
+## Unscheduled
+
  - Begin development on a new minimal image type, `amd64-rkt`.
    - Includes only what is required to provision a machine via ignition
      and launch rkt containers. Rest of user space lives in containers.
- - Research improvements to overlayfs and alternatives such as reflinks.
-
-## Q3 2015
-
  - Release new `amd64-rkt` images as new recommended flavor of CoreOS.
    Updates and support for the existing `amd64-usr` images will
    continue under the name *CoreOS Classic*.
- - Initial ARM64 port.
-   - Should be able to boot a basic image in QEMU and on hardware.
  - Add support for our gptprio boot scheme to systemd:
    - systemd-nspawn can boot CoreOS disk images as a container.
    - bootctl or similar tool can select between partitions.
