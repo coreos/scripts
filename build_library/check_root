@@ -1,0 +1,156 @@
+#!/usr/bin/python
+
+# Copyright (c) 2015 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+from __future__ import unicode_literals
+
+import sys
+
+import portage
+from portage import dep
+from portage import output
+from portage.dep.soname.SonameAtom import SonameAtom
+from portage.dep.soname.parse import parse_soname_deps
+
+VARDB = portage.db[portage.root]["vartree"].dbapi
+
+# TODO(marneam): possibly accept globs for arch and sonames
+IGNORE_MISSING = {
+    # /usr/lib/go/src/debug/elf/testdata/gcc-386-freebsd-exec
+    "dev-lang/go":              [SonameAtom("x86_32", "libc.so.6")],
+    "dev-lang/go-bootstrap":    [SonameAtom("x86_32", "libc.so.6")],
+
+    # https://bugs.gentoo.org/show_bug.cgi?id=554582
+    "net-firewall/ebtables":    [SonameAtom("x86_64", "libebt_802_3.so"),
+                                 SonameAtom("x86_64", "libebt_among.so"),
+                                 SonameAtom("x86_64", "libebt_arp.so"),
+                                 SonameAtom("x86_64", "libebt_arpreply.so"),
+                                 SonameAtom("x86_64", "libebt_ip.so"),
+                                 SonameAtom("x86_64", "libebt_ip6.so"),
+                                 SonameAtom("x86_64", "libebt_limit.so"),
+                                 SonameAtom("x86_64", "libebt_log.so"),
+                                 SonameAtom("x86_64", "libebt_mark.so"),
+                                 SonameAtom("x86_64", "libebt_mark_m.so"),
+                                 SonameAtom("x86_64", "libebt_nat.so"),
+                                 SonameAtom("x86_64", "libebt_nflog.so"),
+                                 SonameAtom("x86_64", "libebt_pkttype.so"),
+                                 SonameAtom("x86_64", "libebt_redirect.so"),
+                                 SonameAtom("x86_64", "libebt_standard.so"),
+                                 SonameAtom("x86_64", "libebt_stp.so"),
+                                 SonameAtom("x86_64", "libebt_ulog.so"),
+                                 SonameAtom("x86_64", "libebt_vlan.so"),
+                                 SonameAtom("x86_64", "libebtable_broute.so"),
+                                 SonameAtom("x86_64", "libebtable_filter.so"),
+                                 SonameAtom("x86_64", "libebtable_nat.so")],
+}
+
+USR_LINKS = ("/bin/", "/sbin/", "/lib/", "/lib32/", "/lib64/")
+
+def provided_sonames():
+    for cpv in VARDB.cpv_all():
+        raw = VARDB.aux_get(cpv, ["PROVIDES"])[0]
+        for atom in parse_soname_deps(raw):
+            yield atom
+
+    # soname.provided in PORTAGE_CONFIGROOT
+    for atom in VARDB.settings.soname_provided:
+        yield atom
+
+def ignore_sonames(cpv):
+    for key in dep.match_to_list(cpv, IGNORE_MISSING.iterkeys()):
+        for atom in IGNORE_MISSING[key]:
+            yield atom
+
+def missing_sonames():
+    provided = frozenset(provided_sonames())
+    for cpv in VARDB.cpv_all():
+        raw = VARDB.aux_get(cpv, ["REQUIRES"])[0]
+        requires = frozenset(parse_soname_deps(raw))
+        ignore = frozenset(ignore_sonames(cpv))
+        missing = requires - provided - ignore
+        if missing:
+            yield (cpv, missing)
+
+def usr_conflicts():
+    for cpv in VARDB.cpv_all():
+        raw = VARDB.aux_get(cpv, ["CONTENTS"])[0]
+        usr = set()
+        root = set()
+
+        # format is:
+        #  obj /path goo 123
+        #  dir /path/foo
+        #  sym /this -> that 123
+        # and so on
+        for line in raw.split("\n"):
+            if line[:4] != "obj " and line[:4] != "sym ":
+                continue
+
+            # yeah, hard to read, trying to make it fast...
+            i = line.find("/", 5)
+            topdir = line[4:i+1]
+            if topdir == "/usr/":
+                j = line.find("/", 9)
+                nextdir = line[8:j+1]
+                if nextdir in USR_LINKS:
+                    end = line.find(" ", 8)
+                    usr.add(line[8:end])
+            elif topdir in USR_LINKS:
+                end = line.find(" ", 4)
+                root.add(line[4:end])
+
+        conflicts = frozenset(root).intersection(usr)
+        if conflicts:
+            yield (cpv, conflicts)
+
+def check_libs():
+    ok = True
+    for cpv, sonames in missing_sonames():
+        error("%s is missing libraries:", cpv)
+        for soname in sonames:
+            error("\t%s", soname)
+        ok = False
+    return ok
+
+def check_usr():
+    ok = True
+    for cpv, conflicts in usr_conflicts():
+        error("%s has paths that conflict with /usr", cpv)
+        for path in conflicts:
+            error("\t%s", path)
+        ok = False
+    return ok
+
+def error(fmt, *args):
+    sys.stderr.write(output.red(fmt % args))
+    sys.stderr.write("\n")
+
+def main():
+    ok = True
+    check_funcs = {
+            "libs": check_libs,
+            "usr": check_usr,
+    }
+
+    if not sys.stderr.isatty():
+        output.nocolor()
+
+    checks = sys.argv[1:]
+    if not checks:
+        checks = check_funcs.keys()
+
+    for check in checks:
+        func = check_funcs.get(check)
+        if func:
+            ok = func() and ok
+        else:
+            error("Unknown test name '%s'", check)
+            error("Valid tests: %s", " ".join(check_funcs))
+            ok = False
+
+    return 0 if ok else 1
+
+if __name__ == "__main__":
+    sys.exit(main())
