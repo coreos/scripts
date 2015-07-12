@@ -125,6 +125,7 @@ fi
 
 # Setup all the emerge command/flags.
 EMERGE_FLAGS=( -uDNv --backtrack=30 --select )
+REBUILD_FLAGS=()
 EMERGE_CMD=( "emerge-${FLAGS_board}" )
 if [[ "${FLAGS_fetchonly}" -eq "${FLAGS_TRUE}" ]]; then
   EMERGE_CMD+=( --fetchonly )
@@ -144,10 +145,12 @@ if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
 
   # Only update toolchain when binpkgs are available.
   EMERGE_FLAGS+=( $(get_binonly_args) )
+  REBUILD_FLAGS+=( $(get_binonly_args) )
 fi
 
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   EMERGE_FLAGS+=( --jobs=${FLAGS_jobs} )
+  REBUILD_FLAGS+=( --jobs=${FLAGS_jobs} )
 fi
 
 if [[ "${FLAGS_rebuild}" -eq "${FLAGS_TRUE}" ]]; then
@@ -221,6 +224,10 @@ break_dep_loop sys-apps/systemd cryptsetup
 info "Merging board packages now"
 sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" \
     @system coreos-devel/board-packages
+
+if "portageq-${BOARD}" list_preserved_libs "${BOARD_ROOT}" >/dev/null; then
+  sudo -E "${EMERGE_CMD[@]}" "${REBUILD_FLAGS[@]}" @preserved-rebuild
+fi
 
 info "Checking build root"
 test_image_content "${BOARD_ROOT}"
