@@ -16,7 +16,7 @@
   <VirtualSystem ovf:id="@@NAME@@">
     <Info>A virtual machine</Info>
     <Name>@@NAME@@</Name>
-    <OperatingSystemSection ovf:id="101" vmw:osType="otherLinux64Guest">
+    <OperatingSystemSection ovf:id="100" vmw:osType="other26xLinux64Guest">
       <Info>The kind of installed guest operating system</Info>
     </OperatingSystemSection>
     <VirtualHardwareSection>
