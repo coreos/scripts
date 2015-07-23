@@ -169,6 +169,7 @@ done
 "${BUILD_LIBRARY_DIR}/set_lsb_release" --root /
 
 EMERGE_FLAGS="-uNv --with-bdeps=y --select"
+REBUILD_FLAGS=""
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   EMERGE_FLAGS="${EMERGE_FLAGS} --usepkg"
   if [ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]; then
@@ -177,10 +178,12 @@ if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
 
   # Only update toolchain when binpkgs are available.
   EMERGE_FLAGS+=" $(get_binonly_args $(get_chost_list))"
+  REBUILD_FLAGS+=" $(get_binonly_args $(get_chost_list))"
 fi
 
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   EMERGE_FLAGS+=" --jobs=${FLAGS_jobs}"
+  REBUILD_FLAGS+=" --jobs=${FLAGS_jobs}"
 fi
 
 # Perform an update of coreos-devel/sdk-depends and world in the chroot.
@@ -222,6 +225,11 @@ EMERGE_FLAGS+=" --deep"
 info "Updating all SDK packages"
 sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
     coreos-devel/sdk-depends world
+
+if portageq list_preserved_libs / >/dev/null; then
+  info "Rebuilding packages linked against old libraries"
+  sudo -E ${EMERGE_CMD} ${REBUILD_FLAGS} @preserved-rebuild
+fi
 
 # Automatically discard all CONFIG_PROTECT'ed files. Those that are
 # protected should not be overwritten until the variable is changed.

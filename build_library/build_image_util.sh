@@ -105,6 +105,11 @@ emerge_to_image() {
 
   # Make sure profile.env and ld.so.cache has been generated
   sudo -E ROOT="${root_fs_dir}" env-update
+
+  # TODO(marineam): just call ${BUILD_LIBRARY_DIR}/check_root directly once
+  # all tests are fatal, for now let the old function skip soname errors.
+  ROOT="${root_fs_dir}" PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
+      test_image_content "${root_fs_dir}"
 }
 
 # Switch to the dev or prod sub-profile
@@ -189,8 +194,9 @@ extract_docs() {
 package_provided() {
     local p profile="${BUILD_DIR}/configroot/etc/portage/profile"    
     for p in "$@"; do
-        info "Writing $p to package.provided"
+        info "Writing $p to package.provided and soname.provided"
         echo "$p" >> "${profile}/package.provided"
+	pkg_soname_provides "$p" >> "${profile}/soname.provided"
     done
 }
 

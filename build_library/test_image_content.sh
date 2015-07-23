@@ -6,30 +6,14 @@ test_image_content() {
   local root="$1"
   local returncode=0
 
-  if [[ -z "$BOARD" ]]; then
-    die '$BOARD is undefined!'
-  fi
-  local portageq="portageq-$BOARD"
-
-  local binaries=(
-    "$root/usr/boot/vmlinuz"
-    "$root/bin/sed"
-  )
-
-  for test_file in "${binaries[@]}"; do
-    if [ ! -f "$test_file" ]; then
-      error "test_image_content: Cannot find '$test_file'"
-      returncode=1
-    fi
-  done
-
-  local libs=( $(sudo find "$root" -type f -name '*.so*') )
-
-  # Check that all .so files, plus the binaries, have the appropriate
-  # dependencies.
-  local check_deps="${BUILD_LIBRARY_DIR}/check_deps"
-  if ! "$check_deps"  "$root" "${binaries[@]}" "${libs[@]}"; then
-    error "test_image_content: Failed dependency check"
+  info "Checking $1"
+  local check_root="${BUILD_LIBRARY_DIR}/check_root"
+  if ! ROOT="$root" "$check_root" libs; then
+    warn "test_image_content: Failed dependency check"
+    warn "This may be the result of having a long-lived SDK with binary"
+    warn "packages that predate portage 2.2.18. If this is the case try:"
+    echo "    emerge-$BOARD -agkuDN --rebuilt-binaries=y -j9  @world"
+    echo "    emerge-$BOARD -a --depclean"
     returncode=1
   fi
 
@@ -47,16 +31,10 @@ test_image_content() {
   done
 
   # Check that there are no conflicts between /* and /usr/*
-  local pkgdb=$(ROOT="${root}" $portageq vdb_path)
-  local files=$(awk '$2 ~ /^\/(bin|sbin|lib|lib32|lib64)\// {print $2}' \
-                "${pkgdb}"/*/*/CONTENTS)
-  local check_file
-  for check_file in $files; do
-    if grep -q "^... /usr$check_file " "${pkgdb}"/*/*/CONTENTS; then
-      error "test_image_content: $check_file conflicts with /usr$check_file"
-      returncode=1
-    fi
-  done
+  if ! ROOT="$root" "$check_root" usr; then
+    error "test_image_content: Failed /usr conflict check"
+    returncode=1
+  fi
 
   return $returncode
 }
