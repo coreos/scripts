@@ -225,6 +225,9 @@ info "Merging board packages now"
 sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" \
     @system coreos-devel/board-packages
 
+info "Removing obsolete packages"
+sudo -E "${EMERGE_CMD[@]}" --depclean @unavailable
+
 if "portageq-${BOARD}" list_preserved_libs "${BOARD_ROOT}" >/dev/null; then
   sudo -E "${EMERGE_CMD[@]}" "${REBUILD_FLAGS[@]}" @preserved-rebuild
 fi

@@ -226,6 +226,9 @@ info "Updating all SDK packages"
 sudo -E ${EMERGE_CMD} ${EMERGE_FLAGS} \
     coreos-devel/sdk-depends world
 
+info "Removing obsolete packages"
+sudo -E ${EMERGE_CMD} --depclean @unavailable
+
 if portageq list_preserved_libs / >/dev/null; then
   info "Rebuilding packages linked against old libraries"
   sudo -E ${EMERGE_CMD} ${REBUILD_FLAGS} @preserved-rebuild
