@@ -19,11 +19,35 @@ VARDB = portage.db[portage.root]["vartree"].dbapi
 # TODO(marneam): possibly accept globs for arch and sonames
 IGNORE_MISSING = {
     # /usr/lib/go/src/debug/elf/testdata/gcc-386-freebsd-exec
-    "dev-lang/go":              [SonameAtom("x86_32", "libc.so.6")],
-    "dev-lang/go-bootstrap":    [SonameAtom("x86_32", "libc.so.6")],
+    # /usr/lib/go/src/debug/elf/testdata/gcc-amd64-linux-exec
+    "dev-lang/go":              [SonameAtom("x86_32", "libc.so.6"),
+                                 SonameAtom("x86_64", "libc.so.6")],
+    "dev-lang/go-bootstrap":    [SonameAtom("x86_32", "libc.so.6"),
+                                 SonameAtom("x86_64", "libc.so.6")],
 
     # https://bugs.gentoo.org/show_bug.cgi?id=554582
-    "net-firewall/ebtables":    [SonameAtom("x86_64", "libebt_802_3.so"),
+    "net-firewall/ebtables":    [SonameAtom("arm_64", "libebt_802_3.so"),
+                                 SonameAtom("arm_64", "libebt_among.so"),
+                                 SonameAtom("arm_64", "libebt_arp.so"),
+                                 SonameAtom("arm_64", "libebt_arpreply.so"),
+                                 SonameAtom("arm_64", "libebt_ip.so"),
+                                 SonameAtom("arm_64", "libebt_ip6.so"),
+                                 SonameAtom("arm_64", "libebt_limit.so"),
+                                 SonameAtom("arm_64", "libebt_log.so"),
+                                 SonameAtom("arm_64", "libebt_mark.so"),
+                                 SonameAtom("arm_64", "libebt_mark_m.so"),
+                                 SonameAtom("arm_64", "libebt_nat.so"),
+                                 SonameAtom("arm_64", "libebt_nflog.so"),
+                                 SonameAtom("arm_64", "libebt_pkttype.so"),
+                                 SonameAtom("arm_64", "libebt_redirect.so"),
+                                 SonameAtom("arm_64", "libebt_standard.so"),
+                                 SonameAtom("arm_64", "libebt_stp.so"),
+                                 SonameAtom("arm_64", "libebt_ulog.so"),
+                                 SonameAtom("arm_64", "libebt_vlan.so"),
+                                 SonameAtom("arm_64", "libebtable_broute.so"),
+                                 SonameAtom("arm_64", "libebtable_filter.so"),
+                                 SonameAtom("arm_64", "libebtable_nat.so"),
+                                 SonameAtom("x86_64", "libebt_802_3.so"),
                                  SonameAtom("x86_64", "libebt_among.so"),
                                  SonameAtom("x86_64", "libebt_arp.so"),
                                  SonameAtom("x86_64", "libebt_arpreply.so"),
