@@ -14,7 +14,7 @@ test_image_content() {
     warn "packages that predate portage 2.2.18. If this is the case try:"
     echo "    emerge-$BOARD -agkuDN --rebuilt-binaries=y -j9  @world"
     echo "    emerge-$BOARD -a --depclean"
-    returncode=1
+    #returncode=1
   fi
 
   local blacklist_dirs=(
