@@ -93,6 +93,21 @@ generate_update() {
   upload_image -d "${update}.DIGESTS" "${update}".{bin,gz,zip}
 }
 
+# ldconfig cannot generate caches for non-native arches.
+# Use qemu & the native ldconfig to work around that.
+# http://code.google.com/p/chromium/issues/detail?id=378377
+run_ldconfig() {
+  local root_fs_dir=$1
+  case ${ARCH} in
+  arm64)
+    sudo qemu-aarch64 "${root_fs_dir}"/usr/sbin/ldconfig -r "${root_fs_dir}";;
+  x86|amd64)
+    sudo ldconfig -r "${root_fs_dir}";;
+  *)
+    die "Unable to run ldconfig for ARCH ${ARCH}"
+  esac
+}
+
 # Basic command to emerge binary packages into the target image.
 # Arguments to this command are passed as addition options/arguments
 # to the basic emerge command.
@@ -103,8 +118,8 @@ emerge_to_image() {
       PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
       emerge --root-deps=rdeps --usepkgonly --jobs=$FLAGS_jobs -v "$@"
 
-  # Make sure profile.env and ld.so.cache has been generated
-  sudo -E ROOT="${root_fs_dir}" env-update
+  # Make sure profile.env has been generated
+  sudo -E ROOT="${root_fs_dir}" env-update --no-ldconfig
 
   # TODO(marineam): just call ${BUILD_LIBRARY_DIR}/check_root directly once
   # all tests are fatal, for now let the old function skip soname errors.

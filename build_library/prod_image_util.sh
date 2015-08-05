@@ -47,6 +47,7 @@ create_prod_image() {
   set_image_profile prod
   extract_prod_gcc "${root_fs_dir}"
   emerge_to_image "${root_fs_dir}" "${base_pkg}"
+  run_ldconfig "${root_fs_dir}"
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
   write_licenses "${root_fs_dir}" "${BUILD_DIR}/${image_licenses}"
   extract_docs "${root_fs_dir}"
