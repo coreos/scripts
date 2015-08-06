@@ -96,6 +96,7 @@ create_dev_image() {
 
   set_image_profile dev
   emerge_to_image "${root_fs_dir}" @system ${base_pkg}
+  run_ldconfig "${root_fs_dir}"
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
   write_licenses "${root_fs_dir}" "${BUILD_DIR}/${image_licenses}"
 
