@@ -28,10 +28,26 @@ their individual roadmaps:
 
  - Support OEM updates on CoreOS via rkt and strudel.
  - Support using the SDK as a stand-alone container.
-   - Primary motivation is easier deployment of CI systems for the OS.
+   - Primary motivation is easier deployment of [CI](#CI) systems for the OS.
    - Secondary motivation is to support using the SDK on CoreOS itself.
    - Requires running `repo init` *after* entering the SDK.
    - Should support using loop devices without needing udev.
+
+## CI
+
+### Goals
+ - Run comprehensive cluster-wide tests on release candidate OS images in a CI system, ensuring high quality releases.
+ - Tests are executed by `kola` testing framework in the [mantle](https://github.com/coreos/mantle) repo.
+ - Tests triggered in CI system by master image uploads from buildbot.
+
+### Kola
+ - Primary platform is QEMU. GCE is also supported and potentionally other platforms/providers in the future.
+ - Tests must be comprehensive enough to verify that images are ready for release to a CoreOS channel.
+
+### CI Tool
+ - The currently proposed CI Tool is [Jenkins](https://jenkins-ci.org/).
+ - The CI Tool needs a way to learn about new images. Currently, this may involve polling a URL.
+   - builtbot could have a hook added to notify Jenkins about new image uploads.
 
 ## Unscheduled
 
