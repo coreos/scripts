@@ -15,6 +15,9 @@ REGIONS=(
 	"South Central US"
 	"Australia East"
 	"Australia Southeast"
+	"Central India"
+	"West India"
+	"South India"
 )
 
 getManagementEndpoint() {
