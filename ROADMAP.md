@@ -26,12 +26,14 @@ their individual roadmaps:
 
 ## Aug 16 - Sep 30
 
- - Support OEM updates on CoreOS via rkt and strudel.
- - Support using the SDK as a stand-alone container.
-   - Primary motivation is easier deployment of [CI](#CI) systems for the OS.
-   - Secondary motivation is to support using the SDK on CoreOS itself.
-   - Requires running `repo init` *after* entering the SDK.
-   - Should support using loop devices without needing udev.
+## Ignition
+ - Provision bare metal and EC2 systems
+ - Publish new documentation on CoreOS website for bare metal/EC2
+
+## Release Tooling (plume)
+ - Images uploaded and HTML indexes automatically generated in one command.
+ - EC2 AMIs created remotely via API, AWS cli tools not required.
+ - GCE images created and automatically garbage collected.
 
 ## CI
 
@@ -62,3 +64,9 @@ their individual roadmaps:
    - bootctl or similar tool can select between partitions.
    - coreos-setgoodroot converted to a new tool and stand-alone service.
    - Optional: support gptprio in systemd's UEFI bootloader.
+ - Support OEM updates on CoreOS via rkt and strudel.
+ - Support using the SDK as a stand-alone container.
+   - Primary motivation is easier deployment of [CI](#CI) systems for the OS.
+   - Secondary motivation is to support using the SDK on CoreOS itself.
+   - Requires running `repo init` *after* entering the SDK.
+   - Should support using loop devices without needing udev.
