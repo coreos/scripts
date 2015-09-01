@@ -15,7 +15,7 @@ readonly COREOS_EPOCH=1372636800
 VERSION="master"
 BOARD="amd64-usr"
 GROUP="alpha"
-IMAGE="coreos_production_ami_image.bin.bz2"
+IMAGE="coreos_production_ami_vmdk_image.vmdk.bz2"
 GS_URL="gs://builds.release.core-os.net"
 IMG_URL=""
 IMG_PATH=""
@@ -121,12 +121,22 @@ fi
 export EC2_URL="https://ec2.${region}.amazonaws.com"
 echo "Building AMI in zone ${EC2_IMPORT_ZONE}"
 
+imgfmt=unknown
+setfmt() {
+    case "$1" in
+        *_image.bin*)  imgfmt=raw;;
+        *_image.vmdk*) imgfmt=vmdk;;
+        *_image.vhd*)  imgfmt=vhd;;
+    esac
+}
+
 tmpimg=$(mktemp)
 trap "rm -f '${tmpimg}'" EXIT
 
 # if it is on the local fs, just use it, otherwise try to download it
 if [[ -n "$IMG_PATH" ]]; then
-    if [[ "$IMG_PATH" =~ \.bz2$ ]]; then
+    setfmt "$IMG_PATH"
+    if [[ "$IMG_PATH" == *.bz2 ]]; then
         bunzip2 -c "$IMG_PATH" >"${tmpimg}"
     else
         rm -f "${tmpimg}"
@@ -134,13 +144,20 @@ if [[ -n "$IMG_PATH" ]]; then
         tmpimg="$IMG_PATH"
     fi
 elif [[ "$IMG_URL" == gs://* ]]; then
+    setfmt "$IMG_URL"
     gsutil cat "$IMG_URL" | bunzip2 >"${tmpimg}"
 else
+    setfmt "$IMG_URL"
     curl --fail "$IMG_URL" | bunzip2 >"${tmpimg}"
 fi
 
+if [[ "$imgfmt" == unknown ]]; then
+    echo "$0: Cannot guess image format from image path!"
+    exit 1
+fi
+
 importid=$(ec2-import-volume "${tmpimg}" \
-  -f raw -s $size -x 2 \
+  -f $imgfmt -s $size -x 2 \
   -z "${EC2_IMPORT_ZONE}" \
   -b "${EC2_IMPORT_BUCKET}" \
   -o "${AWS_ACCESS_KEY}" \
