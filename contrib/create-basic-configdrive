@@ -1,20 +1,24 @@
 #!/bin/bash
 
 DEFAULT_ETCD_DISCOVERY="https//discovery.etcd.io/TOKEN"
-DEFAULT_ETCD_ADDR="\$public_ipv4:4001"
-DEFAULT_ETCD_PEER_ADDR="\$private_ipv4:7001"
+DEFAULT_ETCD_ADDR="http://\$public_ipv4:2379"
+DEFAULT_ETCD_PEER_URLS="http://\$private_ipv4:2380"
+DEFAULT_ETCD_LISTEN_PEER_URLS="http://0.0.0.0:2380"
+DEFAULT_ETCD_LISTEN_CLIENT_URLS="http://0.0.0.0:2379,http://0.0.0.0:4001"
 
 USAGE="Usage: $0 -H HOSTNAME -S SSH_FILE [-p /target/path] [-d|-e|-i|-n|-t|-h]
 Options:
-    -d URL      Full URL path to discovery endpoint.
-    -e IP:PORT  Address for client communication.
-    -H HOSTNAME Machine hostname.
-    -i IP:PORT  Address for server communication.
-    -n NAME     etcd node name.
-    -p DEST     Create config-drive ISO image to the given path.
-    -S FILE     SSH keys file.
-    -t TOKEN    Token ID from https://discovery.etcd.io.
-    -h          This help
+    -d URL             Full URL path to discovery endpoint.
+    -e http://IP:PORT  Adviertise URL for client communication.
+    -H HOSTNAME        Machine hostname.
+    -i http://IP:PORT  URL for server communication.
+    -l http://IP:PORT  Listen URL for client communication.
+    -u http://IP:PORT  Listen URL for server communication.
+    -n NAME            etcd node name.
+    -p DEST            Create config-drive ISO image to the given path.
+    -S FILE            SSH keys file.
+    -t TOKEN           Token ID from https://discovery.etcd.io.
+    -h                 This help
 
 This tool creates a basic config-drive ISO image.
 "
@@ -22,28 +26,37 @@ This tool creates a basic config-drive ISO image.
 CLOUD_CONFIG="#cloud-config
 
 coreos:
-  etcd:
+  etcd2:
     name: <ETCD_NAME>
+    advertise-client-urls: <ETCD_ADDR>
+    initial-advertise-peer-urls: <ETCD_PEER_URLS>
     discovery: <ETCD_DISCOVERY>
-    addr: <ETCD_ADDR>
-    peer-addr: <ETCD_PEER_ADDR>
+    listen-peer-urls: <ETCD_LISTEN_PEER_URLS>
+    listen-client-urls: <ETCD_LISTEN_CLIENT_URLS>
+  units:
+    - name: etcd2.service
+      command: start
+    - name: fleet.service
+      command: start
 ssh_authorized_keys:
   - <SSH_KEY>
 hostname: <HOSTNAME>
 "
 REGEX_SSH_FILE="^ssh-(rsa|dss|ed25519) [-A-Za-z0-9+\/]+[=]{0,2} .+"
 
-while getopts "d:e:H:i:n:p:S:t:h" OPTION
+while getopts "d:e:H:i:n:p:S:t:l:u:h" OPTION
 do
     case $OPTION in
         d) ETCD_DISCOVERY="$OPTARG" ;;
         e) ETCD_ADDR="$OPTARG" ;;
         H) HNAME="$OPTARG" ;;
-        i) ETCD_PEER_ADDR="$OPTARG" ;;
+        i) ETCD_PEER_URLS="$OPTARG" ;;
         n) ETCD_NAME="$OPTARG" ;;
         p) DEST="$OPTARG" ;;
         S) SSH_FILE="$OPTARG" ;;
         t) TOKEN="$OPTARG" ;;
+        u) ETCD_LISTEN_PEER_URLS="$OPTARG" ;;
+        l) ETCD_LISTEN_CLIENT_URLS="$OPTARG" ;;
         h) echo "$USAGE"; exit;;
         *) exit 1;;
     esac
@@ -116,10 +129,17 @@ if [ -z "$ETCD_ADDR" ]; then
     ETCD_ADDR=$DEFAULT_ETCD_ADDR
 fi
 
-if [ -z "$ETCD_PEER_ADDR" ]; then
-    ETCD_PEER_ADDR=$DEFAULT_ETCD_PEER_ADDR
+if [ -z "$ETCD_PEER_URLS" ]; then
+    ETCD_PEER_URLS=$DEFAULT_ETCD_PEER_URLS
 fi
 
+if [ -z "$ETCD_LISTEN_PEER_URLS" ]; then
+    ETCD_LISTEN_PEER_URLS=$DEFAULT_ETCD_LISTEN_PEER_URLS
+fi
+
+if [ -z "$ETCD_LISTEN_CLIENT_URLS" ]; then
+    ETCD_LISTEN_CLIENT_URLS=$DEFAULT_ETCD_LISTEN_CLIENT_URLS
+fi
 
 WORKDIR="${DEST}/tmp.${RANDOM}"
 mkdir "$WORKDIR"
@@ -143,7 +163,9 @@ done < "$SSH_FILE"
 CLOUD_CONFIG="${CLOUD_CONFIG/<ETCD_NAME>/${ETCD_NAME}}"
 CLOUD_CONFIG="${CLOUD_CONFIG/<ETCD_DISCOVERY>/${ETCD_DISCOVERY}}"
 CLOUD_CONFIG="${CLOUD_CONFIG/<ETCD_ADDR>/${ETCD_ADDR}}"
-CLOUD_CONFIG="${CLOUD_CONFIG/<ETCD_PEER_ADDR>/${ETCD_PEER_ADDR}}"
+CLOUD_CONFIG="${CLOUD_CONFIG/<ETCD_PEER_URLS>/${ETCD_PEER_URLS}}"
+CLOUD_CONFIG="${CLOUD_CONFIG/<ETCD_LISTEN_PEER_URLS>/${ETCD_LISTEN_PEER_URLS}}"
+CLOUD_CONFIG="${CLOUD_CONFIG/<ETCD_LISTEN_CLIENT_URLS>/${ETCD_LISTEN_CLIENT_URLS}}"
 CLOUD_CONFIG="${CLOUD_CONFIG/<SSH_KEY>/${SSH_KEY}}"
 CLOUD_CONFIG="${CLOUD_CONFIG/<HOSTNAME>/${HNAME}}"
 
