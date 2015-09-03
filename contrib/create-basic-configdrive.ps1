@@ -6,14 +6,15 @@ This tool creates a basic config-drive ISO image.
 .DESCRIPTION
 Usage: .\create-basic-configdrive.ps1 -H HOSTNAME -S SSH_FILE [-d|-e|-i|-n|-t|-h]
 Options:
-    -d URL      Full URL path to discovery endpoint.
-    -e IP:PORT  Address for client communication.
-    -H HOSTNAME Machine hostname.
-    -i IP:PORT  Address for server communication.
-    -n NAME     etcd node name.
-    -S FILE     SSH keys file.
-    -t TOKEN    Token ID from https://discovery.etcd.io.
-    -h          This help
+    -d URL             Full URL path to discovery endpoint.
+    -e http://IP:PORT  Adviertise URL for client communication.
+    -H HOSTNAME        Machine hostname.
+    -i http://IP:PORT  URL for server communication.
+    -l http://IP:PORT  Listen URL for client communication.
+    -u http://IP:PORT  Listen URL for server communication.
+    -n NAME            etcd node name.
+    -S FILE            SSH keys file.
+    -t TOKEN           Token ID from https://discovery.etcd.io.
 
 #>
 
