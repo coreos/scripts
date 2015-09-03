@@ -11,7 +11,6 @@ Options:
     -H HOSTNAME Machine hostname.
     -i IP:PORT  Address for server communication.
     -n NAME     etcd node name.
-    -p DEST     Create config-drive ISO image to the given path.
     -S FILE     SSH keys file.
     -t TOKEN    Token ID from https://discovery.etcd.io.
     -h          This help
