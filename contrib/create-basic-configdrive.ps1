@@ -4,7 +4,7 @@
 This tool creates a basic config-drive ISO image.
 
 .DESCRIPTION
-Usage: .\create-basic-configdrive.ps1 -H HOSTNAME -S SSH_FILE [-d|-e|-i|-n|-t|-h]
+Usage: .\create-basic-configdrive.ps1 -H HOSTNAME -S SSH_FILE [-d|-e|-i|-n|-t]
 Options:
     -d URL             Full URL path to discovery endpoint.
     -e http://IP:PORT  Adviertise URL for client communication.
