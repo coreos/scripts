@@ -1,14 +1,22 @@
+<#
 
-Param ( 
-  [string] $version = "stable"
+.SYNOPSIS
+This tool creates a CoreOS VDI image to be used with VirtualBox.
+
+.DESCRIPTION
+
+Usage: .\create-coreos-vdi.ps1 [-V version]
+    -V VERSION  Version to install (e.g. alpha) [default: stable]
+    
+#>
+
+Param (
+  [string] [Parameter(Mandatory=$False)][Alias('V')]
+  [string] $VERSION_ID = "stable"
 )
 
-"
-This tool creates a CoreOS VDI image to be used with VirtualBox.
-"  
 
 . .\create-tools.ps1
-
 
 function IsValidUrl
 {
@@ -59,7 +67,6 @@ function Install-Bzip2($tooldir)
     Expand-ZIP -Filename "$tooldir\bzip2.zip" -Destination "$tooldir"
 }
 
-[string] $VERSION_ID="stable"
 [string] $GPG_KEY_URL="https://coreos.com/security/image-signing-key/CoreOS_Image_Signing_Key.pem"
 [string] $GPG_LONG_ID="50E0885593D2DCB4"
 $wc = New-Object system.Net.WebClient
@@ -130,3 +137,4 @@ Invoke-Expression '& $VBoxManage convertdd "$DOWN_IMAGE" "$VDI_IMAGE" --format V
 Write-Host "Success CoreOS $VERSION_ID VDI image was created on $VDI_IMAGE"
 
 Remove-Item $WORKDIR -Recurse
+ 
