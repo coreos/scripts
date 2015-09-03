@@ -37,32 +37,8 @@ function Make-ConfigDrive($tooldir, $source, $destination) {
 }  
 
 $CLOUD_CONFIG="#cloud-config
-
 coreos:
   units:
-    - name: br0.netdev
-      runtime: true
-      content: |
-        [NetDev]
-        Name=br0
-        Kind=bridge
-    - name: enp0s3.network
-      runtime: true
-      content: |
-        [Match]
-        Name=enp0s3
-
-        [Network]
-        Bridge=br0
-    - name: br0.network
-      runtime: true
-      content: |
-        [Match]
-        Name=br0
-
-        [Network]
-        DNS=1.2.3.4
-        Address=10.0.2.2/24
     - name: etcd2.service
       command: start
     - name: fleet.service
