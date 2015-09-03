@@ -16,10 +16,53 @@ Param (
     [string] $ETCD_PEER_ADDR 
   )
   
+"
+This tool creates a basic config-drive ISO image.
+"
 
-CLOUD_CONFIG="#cloud-config
+. .\create-tools.ps1
+
+
+function Install-Mkisofs($tooldir)
+{
+  # Redirects and get parameters does not work with BitsTransfer
+  Invoke-Expression '& $tooldir\wget.exe --mirror --no-check-certificate --domains=* -O "$tooldir\mkisofs.zip" "http://downloads.sourceforge.net/project/mkisofs-md5/mkisofs-md5-v2.01/mkisofs-md5-2.01-Binary.zip?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fmkisofs-md5%2Ffiles%2Fmkisofs-md5-v2.01%2Fmkisofs-md5-2.01-Binary.zip%2Fdownload&ts=1441282840&use_mirror=netcologne"'
+  Expand-ZIP -Filename "$tooldir\mkisofs.zip" -Destination "$tooldir"
+}
+
+function Make-ConfigDrive($tooldir, $source, $destination) {
+  Install-Wget $tooldir
+  Install-Mkisofs $tooldir
+  Invoke-Expression '& $tooldir\Binary\MinGW\Gcc-4.4.5\mkisofs.exe -R -V config-2 -o $destination $source'
+}  
+
+$CLOUD_CONFIG="#cloud-config
+
 coreos:
   units:
+    - name: br0.netdev
+      runtime: true
+      content: |
+        [NetDev]
+        Name=br0
+        Kind=bridge
+    - name: enp0s3.network
+      runtime: true
+      content: |
+        [Match]
+        Name=enp0s3
+
+        [Network]
+        Bridge=br0
+    - name: br0.network
+      runtime: true
+      content: |
+        [Match]
+        Name=br0
+
+        [Network]
+        DNS=1.2.3.4
+        Address=10.0.2.2/24
     - name: etcd2.service
       command: start
     - name: fleet.service
@@ -34,81 +77,16 @@ ssh_authorized_keys:
 hostname: <HOSTNAME>
 "
 
-function Download-File 
-{ 
-  Param ( 
-    [string] [Parameter(Mandatory=$True,Position=1)]
-    [string] $Url,
-    [string] [Parameter(Mandatory=$True,Position=1)]
-    [string] $Outfile
-  )
-  Process {
-    Write-Host "Dl: $Url"
-    Import-Module BitsTransfer
-    Start-BitsTransfer -Source $Url -Destination $Outfile -Description "$Url" -DisplayName "Downloading"
-
-  }
-}
-function Get-AbsolutePath ($Path)
-{
-    # System.IO.Path.Combine has two properties making it necesarry here:
-    #   1) correctly deals with situations where $Path (the second term) is an absolute path
-    #   2) correctly deals with situations where $Path (the second term) is relative
-    # (join-path) commandlet does not have this first property
-    $Path = [System.IO.Path]::Combine( ((pwd).Path), ($Path) );
-
-    # this piece strips out any relative path modifiers like '..' and '.'
-    $Path = [System.IO.Path]::GetFullPath($Path);
-
-    return $Path;
-}
-
-function Expand-ZIP
-{
-  Param ( 
-    [string] [Parameter(Mandatory=$True,Position=1)]
-    [string] $Filename,
-    [string] [Parameter(Mandatory=$True)]
-    [string] $Destination
-  )
-  
-  Process {
-    $shell = new-object -com shell.application
-    if (!(Test-Path "$Filename"))
-    {
-        throw "$Filename does not exist" 
-    }
-        # Flags and values found at: https://msdn.microsoft.com/en-us/library/windows/desktop/bb759795%28v=vs.85%29.aspx
-        $FOF_NOCONFIRMATION = 0x0010
- 
-        # Set the flag values based on the parameters provided.
-        $copyFlags = $FOF_NOCONFIRMATION
- 
-        # Get the Shell object, Destination Directory, and Zip file.
-        $shell = New-Object -ComObject Shell.Application
-        $destinationDirectoryShell = $shell.NameSpace((Get-AbsolutePath $Destination))
-        $zipShell = $shell.NameSpace((Get-AbsolutePath $Filename))
-         
-        # Start copying the Zip files into the destination directory, using the flags specified by the user. This is an asynchronous operation.
-        $destinationDirectoryShell.CopyHere($zipShell.Items(), $copyFlags)
-  }
-}
-
 [string] $RANDOM = Get-Random
 [string] $WORKDIR="tmp.$RANDOM"
+[string] $TOOLDIR="$WORKDIR\tools"
+[string] $DATADIR="$WORKDIR\data"
     
 New-Item -Path "$WORKDIR" -Type directory | Out-Null
-New-Item -Path "$WORKDIR\data" -Type directory | Out-Null
-New-Item -Path "$WORKDIR\tools" -Type directory | Out-Null
-
-# BitsTransfer is being difficult, wget to the rescue
-Download-File "https://eternallybored.org/misc/wget/wget.exe" -Outfile "$WORKDIR\wget.exe"
-# Redirects and get parameters does not work with BitsTransfer
-Invoke-Expression '& $WORKDIR\wget.exe --mirror --no-check-certificate --domains=* -O "$WORKDIR\tools\mkisofs.zip" "http://downloads.sourceforge.net/project/mkisofs-md5/mkisofs-md5-v2.01/mkisofs-md5-2.01-Binary.zip?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fmkisofs-md5%2Ffiles%2Fmkisofs-md5-v2.01%2Fmkisofs-md5-2.01-Binary.zip%2Fdownload&ts=1441282840&use_mirror=netcologne"'
-Expand-ZIP -Filename "$WORKDIR\tools\mkisofs.zip" -Destination "$WORKDIR\tools"
+New-Item -Path "$TOOLDIR" -Type directory | Out-Null
+New-Item -Path "$DATADIR" -Type directory | Out-Null
 
 $DEFAULT_ETCD_DISCOVERY="https//discovery.etcd.io/TOKEN"
-
 $DEFAULT_ETCD_ADDR="\`$public_ipv4:4001"
 $DEFAULT_ETCD_PEER_ADDR="\`$private_ipv4:7001"
 
@@ -146,7 +124,6 @@ if (!$ETCD_PEER_ADDR) {
     $ETCD_PEER_ADDR=$DEFAULT_ETCD_PEER_ADDR
 }
 
-
 $SSH_KEY=(Get-Content $SSH_FILE)
 
 $CLOUD_CONFIG=($CLOUD_CONFIG -replace '<ETCD_NAME>',$ETCD_NAME)
@@ -157,7 +134,7 @@ $CLOUD_CONFIG=($CLOUD_CONFIG -replace '<SSH_KEY>',$SSH_KEY)
 $CLOUD_CONFIG=($CLOUD_CONFIG -replace '<HOSTNAME>',$HOSTNAME)
 
 
-$CONFIG_DIR="$WORKDIR\data\openstack\latest"
+$CONFIG_DIR="$DATADIR\openstack\latest"
 $CONFIG_FILE="$CONFIG_DIR\user_data"
 $CONFIGDRIVE_FILE="$HOSTNAME.iso"
 
@@ -166,6 +143,8 @@ New-Item -Path "$CONFIG_DIR" -Type directory | Out-Null
 $CLOUD_CONFIG=($CLOUD_CONFIG -replace "`r`n", "`n")
 [IO.File]::WriteAllText($CONFIG_FILE, $CLOUD_CONFIG)
 
-Invoke-Expression '& $WORKDIR\tools\Binary\MinGW\Gcc-4.4.5\mkisofs.exe -R -V config-2 -o $CONFIGDRIVE_FILE $WORKDIR\data'
+Make-ConfigDrive $TOOLDIR -source $DATADIR -destination $CONFIGDRIVE_FILE
 
 Write-Host "Success! The config-drive image was created on ${CONFIGDRIVE_FILE}"
+
+Remove-Item $WORKDIR -Recurse
