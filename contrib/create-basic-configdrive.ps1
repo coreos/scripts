@@ -97,13 +97,13 @@ if(($TOKEN) -and ($ETCD_DISCOVERY)) { Throw "You cannot specify both discovery t
 if ( -not (Test-Path $SSH_FILE)) {
     Throw "($SSH_FILE) was not found." 
 }
-if ( (Get-Content $SSH_FILE).length -eq 0 ) { 
-    Throw "The SSH file (${SSH_FILE}) is empty."
+if ( -not (Get-Content $SSH_FILE) ) { 
+    Throw "The SSH file ($SSH_FILE) is empty."
 }
 
-#if ( (Get-Content $SSH_FILE) -match $REGEX_SSH_FILE) { 
-#    Throw "The SSH file $SSH_FILE content is invalid."
-#}
+if ( -not ((Get-Content $SSH_FILE) -match $REGEX_SSH_FILE)) { 
+    Throw "The SSH file $SSH_FILE content is invalid."
+}
 
 if (($TOKEN)) {
     $ETCD_DISCOVERY=($DEFAULT_ETCD_DISCOVERY -replace '//TOKEN','/($TOKEN)')
