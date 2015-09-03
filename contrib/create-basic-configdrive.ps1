@@ -1,28 +1,44 @@
+<#
+
+.SYNOPSIS
+This tool creates a basic config-drive ISO image.
+
+.DESCRIPTION
+Usage: .\create-basic-configdrive.ps1 -H HOSTNAME -S SSH_FILE [-d|-e|-i|-n|-t|-h]
+Options:
+    -d URL      Full URL path to discovery endpoint.
+    -e IP:PORT  Address for client communication.
+    -H HOSTNAME Machine hostname.
+    -i IP:PORT  Address for server communication.
+    -n NAME     etcd node name.
+    -p DEST     Create config-drive ISO image to the given path.
+    -S FILE     SSH keys file.
+    -t TOKEN    Token ID from https://discovery.etcd.io.
+    -h          This help
+
+#>
 
 Param ( 
-    [string] [Parameter(Mandatory=$True),Alias('H')]
+    [Parameter(Mandatory=$True)][Alias('H')]
     [string] $HOSTNAME,
-    [string] [Parameter(Mandatory=$True),Alias('S')]
-    [string] $SSH_FILE
-    [string] [Parameter(Mandatory=$False),Alias('t')]
-    [string] $TOKEN,,
-    [string] [Parameter(Mandatory=$False),Alias('n')]
+    [string] [Parameter(Mandatory=$True)][Alias('S')]
+    [string] $SSH_FILE,
+    [string] [Parameter(Mandatory=$False)][Alias('t')]
+    [string] $TOKEN,
+    [string] [Parameter(Mandatory=$False)][Alias('n')]
     [string] $ETCD_NAME,
-    [string] [Parameter(Mandatory=$False),Alias('d')]
+    [string] [Parameter(Mandatory=$False)][Alias('d')]
     [string] $ETCD_DISCOVERY,
-    [string] [Parameter(Mandatory=$False),Alias('e')]
+    [string] [Parameter(Mandatory=$False)][Alias('e')]
     [string] $ETCD_ADDR,
-    [string] [Parameter(Mandatory=$False),Alias('i')]
+    [string] [Parameter(Mandatory=$False)][Alias('i')]
     [string] $ETCD_PEER_URLS,
-    [string] [Parameter(Mandatory=$False),Alias('u')]
+    [string] [Parameter(Mandatory=$False)][Alias('u')]
     [string] $ETCD_LISTEN_PEER_URLS,
-    [string] [Parameter(Mandatory=$False),Alias('l')]
+    [string] [Parameter(Mandatory=$False)][Alias('l')]
     [string] $ETCD_LISTEN_CLIENT_URLS
   )
   
-"
-This tool creates a basic config-drive ISO image.
-"
 
 . .\create-tools.ps1
 
