@@ -1,19 +1,23 @@
 
 Param ( 
-    [string] [Parameter(Mandatory=$True)]
+    [string] [Parameter(Mandatory=$True),Alias('H')]
     [string] $HOSTNAME,
-    [string] [Parameter(Mandatory=$True)]
-    [string] $SSH_FILE,
-    [string] [Parameter(Mandatory=$False)]
+    [string] [Parameter(Mandatory=$True),Alias('S')]
+    [string] $SSH_FILE
+    [string] [Parameter(Mandatory=$False),Alias('t')]
+    [string] $TOKEN,,
+    [string] [Parameter(Mandatory=$False),Alias('n')]
     [string] $ETCD_NAME,
-    [string] [Parameter(Mandatory=$False)]
-    [string] $TOKEN,
-    [string] [Parameter(Mandatory=$False)]
+    [string] [Parameter(Mandatory=$False),Alias('d')]
     [string] $ETCD_DISCOVERY,
-    [string] [Parameter(Mandatory=$False)]
+    [string] [Parameter(Mandatory=$False),Alias('e')]
     [string] $ETCD_ADDR,
-    [string] [Parameter(Mandatory=$False)]
-    [string] $ETCD_PEER_ADDR 
+    [string] [Parameter(Mandatory=$False),Alias('i')]
+    [string] $ETCD_PEER_URLS,
+    [string] [Parameter(Mandatory=$False),Alias('u')]
+    [string] $ETCD_LISTEN_PEER_URLS,
+    [string] [Parameter(Mandatory=$False),Alias('l')]
+    [string] $ETCD_LISTEN_CLIENT_URLS
   )
   
 "
@@ -38,16 +42,18 @@ function Make-ConfigDrive($tooldir, $source, $destination) {
 
 $CLOUD_CONFIG="#cloud-config
 coreos:
+  etcd2:
+    name: <ETCD_NAME>
+    advertise-client-urls: <ETCD_ADDR>
+    initial-advertise-peer-urls: <ETCD_PEER_URLS>
+    discovery: <ETCD_DISCOVERY>
+    listen-peer-urls: <ETCD_LISTEN_PEER_URLS>
+    listen-client-urls: <ETCD_LISTEN_CLIENT_URLS>
   units:
     - name: etcd2.service
       command: start
     - name: fleet.service
       command: start
-  etcd2:
-    name: <ETCD_NAME>
-    discovery: <ETCD_DISCOVERY>
-    addr: <ETCD_ADDR>
-    peer-addr: <ETCD_PEER_ADDR>
 ssh_authorized_keys:
   - <SSH_KEY>
 hostname: <HOSTNAME>
@@ -63,8 +69,10 @@ New-Item -Path "$TOOLDIR" -Type directory | Out-Null
 New-Item -Path "$DATADIR" -Type directory | Out-Null
 
 $DEFAULT_ETCD_DISCOVERY="https//discovery.etcd.io/TOKEN"
-$DEFAULT_ETCD_ADDR="\`$public_ipv4:4001"
-$DEFAULT_ETCD_PEER_ADDR="\`$private_ipv4:7001"
+$DEFAULT_ETCD_ADDR="http://\`$public_ipv4:2379"
+$DEFAULT_ETCD_PEER_URLS="http://\`$private_ipv4:2380"
+$DEFAULT_ETCD_LISTEN_PEER_URLS="http://0.0.0.0:2380"
+$DEFAULT_ETCD_LISTEN_CLIENT_URLS="http://0.0.0.0:2379,http://0.0.0.0:4001"
 
 $REGEX_SSH_FILE="^ssh-(rsa|dss|ed25519) [-A-Za-z0-9+\/]+[=]{0,2} .+"
 
@@ -96,8 +104,16 @@ if (!$ETCD_ADDR) {
     $ETCD_ADDR=$DEFAULT_ETCD_ADDR
 }
 
-if (!$ETCD_PEER_ADDR) {
-    $ETCD_PEER_ADDR=$DEFAULT_ETCD_PEER_ADDR
+if (!$ETCD_PEER_URLS) {
+    $ETCD_PEER_URLS=$DEFAULT_ETCD_PEER_URLS
+}
+
+if (!$ETCD_LISTEN_PEER_URLS) {
+    $ETCD_LISTEN_PEER_URLS=$DEFAULT_LISTEN_PEER_URLS
+}
+
+if (!$ETCD_LISTEN_CLIENT_URLS) {
+    $ETCD_LISTEN_CLIENT_URLS=$DEFAULT_ETCD_LISTEN_CLIENT_URLS
 }
 
 $SSH_KEY=(Get-Content $SSH_FILE)
@@ -105,7 +121,9 @@ $SSH_KEY=(Get-Content $SSH_FILE)
 $CLOUD_CONFIG=($CLOUD_CONFIG -replace '<ETCD_NAME>',$ETCD_NAME)
 $CLOUD_CONFIG=($CLOUD_CONFIG -replace '<ETCD_DISCOVERY>',$ETCD_DISCOVERY)
 $CLOUD_CONFIG=($CLOUD_CONFIG -replace '<ETCD_ADDR>',$ETCD_ADDR)
-$CLOUD_CONFIG=($CLOUD_CONFIG -replace '<ETCD_PEER_ADDR>',$ETCD_PEER_ADDR)
+$CLOUD_CONFIG=($CLOUD_CONFIG -replace '<ETCD_PEER_URLS>',$ETCD_PEER_URLS)
+$CLOUD_CONFIG=($CLOUD_CONFIG -replace '<ETCD_LISTEN_PEER_URLS>',$ETCD_LISTEN_PEER_URLS)
+$CLOUD_CONFIG=($CLOUD_CONFIG -replace '<ETCD_LISTEN_CLIENT_URLS>',$ETCD_LISTEN_CLIENT_URLS)
 $CLOUD_CONFIG=($CLOUD_CONFIG -replace '<SSH_KEY>',$SSH_KEY)
 $CLOUD_CONFIG=($CLOUD_CONFIG -replace '<HOSTNAME>',$HOSTNAME)
 
