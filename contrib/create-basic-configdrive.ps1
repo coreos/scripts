@@ -105,7 +105,7 @@ if ( -not ((Get-Content $SSH_FILE) -match $REGEX_SSH_FILE)) {
 }
 
 if (($TOKEN)) {
-    $ETCD_DISCOVERY=($DEFAULT_ETCD_DISCOVERY -replace '//TOKEN','/($TOKEN)')
+    $ETCD_DISCOVERY=($DEFAULT_ETCD_DISCOVERY -replace '/TOKEN', $('/' + $TOKEN))
 }
 
 if (!$ETCD_DISCOVERY) {
