@@ -19,6 +19,7 @@ IMAGE="coreos_production_ami_vmdk_image.vmdk.bz2"
 GS_URL="gs://builds.release.core-os.net"
 IMG_URL=""
 IMG_PATH=""
+USE_GPG=1
 # accepted via the environment
 : ${EC2_IMPORT_BUCKET:=}
 : ${EC2_IMPORT_ZONE:=}
@@ -31,15 +32,16 @@ Options:
     -p PATH     Path to compressed disk image, overrides -u
     -u URL      URL to compressed disk image, derived from -V if unset.
     -s STORAGE  GS URL for Google storage (used to generate URL)
-    -B          S3 bucket to use for temporary storage.
-    -Z          EC2 availability zone to use.
+    -B BUCKET   S3 bucket to use for temporary storage.
+    -Z ZONE     EC2 availability zone to use.
+    -X          Disable GPG verification of downloads.
     -h          this ;-)
     -v          Verbose, see all the things!
 
 This script must be run from an ec2 host with the ec2 tools installed.
 "
 
-while getopts "V:b:g:p:u:s:t:B:Z:hv" OPTION
+while getopts "V:b:g:p:u:s:t:B:Z:Xhv" OPTION
 do
     case $OPTION in
         V) VERSION="$OPTARG";;
@@ -51,6 +53,7 @@ do
         B) EC2_IMPORT_BUCKET="${OPTARG}";;
         Z) EC2_IMPORT_ZONE="${OPTARG}";;
         t) export TMPDIR="$OPTARG";;
+        X) USE_GPG=0;;
         h) echo "$USAGE"; exit;;
         v) set -x;;
         *) exit 1;;
@@ -121,40 +124,43 @@ fi
 export EC2_URL="https://ec2.${region}.amazonaws.com"
 echo "Building AMI in zone ${EC2_IMPORT_ZONE}"
 
-imgfmt=unknown
-setfmt() {
-    case "$1" in
-        *_image.bin*)  imgfmt=raw;;
-        *_image.vmdk*) imgfmt=vmdk;;
-        *_image.vhd*)  imgfmt=vhd;;
-    esac
-}
-
-tmpimg=$(mktemp)
-trap "rm -f '${tmpimg}'" EXIT
+tmpdir=$(mktemp -d)
+trap "rm -rf '${tmpdir}'" EXIT
 
 # if it is on the local fs, just use it, otherwise try to download it
-if [[ -n "$IMG_PATH" ]]; then
-    setfmt "$IMG_PATH"
-    if [[ "$IMG_PATH" == *.bz2 ]]; then
-        bunzip2 -c "$IMG_PATH" >"${tmpimg}"
+if [[ -z "$IMG_PATH" ]]; then
+    IMG_PATH="${tmpdir}/${IMG_URL##*/}"
+    if [[ "$IMG_URL" == gs://* ]]; then
+        gsutil cp "$IMG_URL" "$IMG_PATH"
+        if [[ "$USE_GPG" != 0 ]]; then
+            gsutil cp "${IMG_URL}.sig" "${IMG_PATH}.sig"
+        fi
     else
-        rm -f "${tmpimg}"
-        trap - EXIT
-        tmpimg="$IMG_PATH"
+        curl --fail "$IMG_URL" > "$IMG_PATH"
+        if [[ "$USE_GPG" != 0 ]]; then
+            curl --fail "${IMG_URL}.sig" > "${IMG_PATH}.sig"
+        fi
     fi
-elif [[ "$IMG_URL" == gs://* ]]; then
-    setfmt "$IMG_URL"
-    gsutil cat "$IMG_URL" | bunzip2 >"${tmpimg}"
-else
-    setfmt "$IMG_URL"
-    curl --fail "$IMG_URL" | bunzip2 >"${tmpimg}"
 fi
 
-if [[ "$imgfmt" == unknown ]]; then
-    echo "$0: Cannot guess image format from image path!"
-    exit 1
+if [[ "$USE_GPG" != 0 ]]; then
+    gpg --verify "${IMG_PATH}.sig"
 fi
+
+echo "Bunzipping...."
+tmpimg="${tmpdir}/img"
+bunzip2 -c "$IMG_PATH" >"${tmpimg}"
+
+imgfmt=ponies
+case "$IMG_PATH" in
+    *_image.bin*)  imgfmt=raw;;
+    *_image.vmdk*) imgfmt=vmdk;;
+    *_image.vhd*)  imgfmt=vhd;;
+    *)
+        echo "$0: Cannot guess image format from image path!"
+        exit 1
+        ;;
+esac
 
 importid=$(ec2-import-volume "${tmpimg}" \
   -f $imgfmt -s $size -x 2 \
