@@ -185,6 +185,20 @@ for host in ${ips[@]}; do
 done
 echo "OK"
 
+echo "Checking disk GUID... "
+for host in ${ips[@]}; do
+    if ! ssh -i "$key_file" -l core -o StrictHostKeyChecking=no "$host" \
+            sudo sgdisk --print /dev/xvda | \
+            grep "^Disk identifier" | \
+            grep -v 00000000-0000-0000-0000-000000000001
+    then
+        echo "disk guid unset on $host" >&2
+        exit 1
+    fi
+done
+echo "OK"
+
+
 echo -n "Cleaning up environment... "
 ec2-terminate-instances $instances > /dev/null
 while ! $ec2_cmd | grep INSTANCE | grep -q terminated
