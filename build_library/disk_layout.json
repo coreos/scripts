@@ -159,6 +159,12 @@
       "9":{
         "type":"blank"
       }
+    },
+    "interoute":{
+      "9":{
+        "label":"ROOT",
+        "blocks":"33845248"
+      }
     }
   }
 }

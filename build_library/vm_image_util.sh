@@ -37,6 +37,7 @@ VALID_IMG_TYPES=(
     niftycloud
     cloudsigma
     packet
+    interoute
 )
 
 #list of oem package names, minus the oem- prefix
@@ -57,6 +58,7 @@ VALID_OEM_PACKAGES=(
     niftycloud
     cloudsigma
     packet
+    interoute
 )
 
 # Set at runtime to one of the above types
@@ -257,6 +259,13 @@ IMG_cloudsigma_OEM_PACKAGE=oem-cloudsigma
 
 ## packet
 IMG_packet_OEM_PACKAGE=oem-packet
+
+## interoute
+IMG_interoute_DISK_FORMAT=vmdk_stream
+IMG_interoute_DISK_LAYOUT=interoute
+IMG_interoute_CONF_FORMAT=interoute
+IMG_interoute_OEM_PACKAGE=oem-interoute
+IMG_interoute_BUNDLE_FORMAT=ova
 
 ###########################################################
 
@@ -921,6 +930,25 @@ _write_ovf_vmware_conf() {
     local ovf="$(_dst_path ".ovf")"
 
     sed "${BUILD_LIBRARY_DIR}/template_vmware.ovf" \
+        -e "s/@@NAME@@/$(_dst_name)/g" \
+        -e "s/@@VMDK_FILE_NAME@@/$(basename ${VM_DST_IMG})/g" \
+        -e "s/@@VMDK_FILE_SIZE@@/${vmdk_file_size}/g" \
+        -e "s/@@VMDK_CAPACITY@@/${vmdk_capacity}/g" \
+        -e "s/@@NUM_CPUS@@/${vm_cpus}/g" \
+        -e "s/@@MEM_SIZE@@/${vm_mem}/g" \
+        > "${ovf}"
+
+    VM_GENERATED_FILES+=( "$ovf" )
+}
+
+_write_interoute_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local vm_cpus="$(_get_vm_opt CPUS)"
+    local vmdk_file_size=$(du --bytes "${VM_DST_IMG}" | cut -f1)
+    local vmdk_capacity=$(vmdk-convert -i "${VM_DST_IMG}" | jq .capacity)
+    local ovf="$(_dst_path ".ovf")"
+
+    sed "${BUILD_LIBRARY_DIR}/template_interoute.ovf" \
         -e "s/@@NAME@@/$(_dst_name)/g" \
         -e "s/@@VMDK_FILE_NAME@@/$(basename ${VM_DST_IMG})/g" \
         -e "s/@@VMDK_FILE_SIZE@@/${vmdk_file_size}/g" \
