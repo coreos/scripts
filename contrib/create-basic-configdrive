@@ -119,10 +119,9 @@ fi
 
 if [ ! -z "$TOKEN" ]; then
     ETCD_DISCOVERY="${DEFAULT_ETCD_DISCOVERY//TOKEN/$TOKEN}"
-fi
-
-if [ -z "$ETCD_DISCOVERY" ]; then
-    ETCD_DISCOVERY=$DEFAULT_ETCD_DISCOVERY
+elif [ -z "$ETCD_DISCOVERY" ]; then
+    echo "$0: You need to specify a discovery token or a discovery URL." >&2
+    exit 1
 fi
 
 if [ -z "$ETCD_NAME" ]; then
