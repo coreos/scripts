@@ -164,7 +164,7 @@ IMG_vmware_DISK_LAYOUT=vm
 IMG_vmware_CONF_FORMAT=vmx
 IMG_vmware_OEM_PACKAGE=oem-vmware
 
-## vmware
+## vmware_ova
 IMG_vmware_ova_DISK_FORMAT=vmdk_stream
 IMG_vmware_ova_DISK_LAYOUT=vm
 IMG_vmware_ova_OEM_PACKAGE=oem-vmware
