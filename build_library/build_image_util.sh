@@ -361,7 +361,11 @@ finish_image() {
   # This script must mount the ESP partition differently, so run it after unmount
   if [[ "${install_grub}" -eq 1 ]]; then
     local target
-    for target in i386-pc x86_64-efi x86_64-xen; do
+    local target_list="i386-pc x86_64-efi x86_64-xen"
+    if [[ ${BOARD} == "arm64-usr" ]]; then
+      target_list="arm64-efi"
+    fi
+    for target in ${target_list}; do
       if [[ "${PROD_IMAGE}" -eq 1 && ${FLAGS_enable_verity} -eq ${FLAGS_TRUE} ]]; then
         ${BUILD_LIBRARY_DIR}/grub_install.sh \
             --target="${target}" --disk_image="${disk_img}" --verity
