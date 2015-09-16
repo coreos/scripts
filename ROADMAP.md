@@ -11,7 +11,6 @@ their individual roadmaps:
 ## July 1 - Aug 15
 
  - Initial release of [ignition](https://github.com/coreos/ignition/)
- - Initial release of [strudel](https://github.com/coreos/strudel)
  - Complete secure/verified boot on UEFI hardware.
    - Boot with full chain of trust through up to user configuration.
  - Experimental support of SELinux support in CoreOS and rkt.
@@ -70,3 +69,4 @@ their individual roadmaps:
    - Secondary motivation is to support using the SDK on CoreOS itself.
    - Requires running `repo init` *after* entering the SDK.
    - Should support using loop devices without needing udev.
+   
