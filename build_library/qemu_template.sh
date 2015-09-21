@@ -1,6 +1,7 @@
 #!/bin/sh
 
 SCRIPT_DIR="`dirname "$0"`"
+VM_BOARD=
 VM_NAME=
 VM_UUID=
 VM_IMAGE=
@@ -136,8 +137,15 @@ if [ "${SAFE_ARGS}" -eq 1 ]; then
     # Disable KVM, for testing things like UEFI which don't like it
     set -- -machine accel=tcg "$@"
 else
-    # Emulate the host CPU closely in both features and cores.
-    set -- -machine accel=kvm -cpu host -smp "${VM_NCPUS}" "$@"
+    case "${VM_BOARD}" in
+        amd64-usr)
+            # Emulate the host CPU closely in both features and cores.
+            set -- -machine accel=kvm -cpu host -smp "${VM_NCPUS}" "$@" ;;
+        arm64-usr)
+            #FIXME(andrejro): tune the smp parameter
+            set -- -machine virt -cpu cortex-a57 -machine type=virt -smp 1 "$@" ;;
+        *) die "Unsupported arch" ;;
+    esac
 fi
 
 # ${CONFIG_DRIVE} or ${CONFIG_IMAGE} will be mounted in CoreOS as /media/configdrive
@@ -152,7 +160,15 @@ if [ -n "${CONFIG_IMAGE}" ]; then
 fi
 
 if [ -n "${VM_IMAGE}" ]; then
-    set -- -drive if=virtio,file="${SCRIPT_DIR}/${VM_IMAGE}" "$@"
+    case "${VM_BOARD}" in
+        amd64-usr)
+            set -- -drive if=virtio,file="${SCRIPT_DIR}/${VM_IMAGE}" "$@" ;;
+        arm64-usr)
+            set -- -drive if=none,id=blk,file="${SCRIPT_DIR}/${VM_IMAGE}" \
+            -device virtio-blk-device,drive=blk "$@"
+            ;;
+        *) die "Unsupported arch" ;;
+    esac
 fi
 
 if [ -n "${VM_KERNEL}" ]; then
@@ -177,11 +193,26 @@ if [ -n "${VM_PFLASH_RO}" ] && [ -n "${VM_PFLASH_RW}" ]; then
         -drive if=pflash,file="${SCRIPT_DIR}/${VM_PFLASH_RW}",format=raw "$@"
 fi
 
-# Default to KVM, fall back on full emulation
-qemu-system-x86_64 \
-    -name "$VM_NAME" \
-    -m ${VM_MEMORY} \
-    -net nic,vlan=0,model=virtio \
-    -net user,vlan=0,hostfwd=tcp::"${SSH_PORT}"-:22,hostname="${VM_NAME}" \
-    "$@"
+case "${VM_BOARD}" in
+    amd64-usr)
+        # Default to KVM, fall back on full emulation
+        qemu-system-x86_64 \
+            -name "$VM_NAME" \
+            -m ${VM_MEMORY} \
+            -net nic,vlan=0,model=virtio \
+            -net user,vlan=0,hostfwd=tcp::"${SSH_PORT}"-:22,hostname="${VM_NAME}" \
+            "$@"
+        ;;
+    arm64-usr)
+        qemu-system-aarch64 -nographic \
+            -bios QEMU_EFI.fd \
+            -name "$VM_NAME" \
+            -m ${VM_MEMORY} \
+            -netdev user,id=eth0,hostfwd=tcp::"${SSH_PORT}"-:22,hostname="${VM_NAME}" \
+            -device virtio-net-device,netdev=eth0 \
+            "$@"
+        ;;
+    *) die "Unsupported arch" ;;
+esac
+
 exit $?

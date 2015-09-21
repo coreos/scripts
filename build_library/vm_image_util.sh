@@ -584,17 +584,23 @@ _write_qemu_common() {
 
     sed -e "s%^VM_NAME=.*%VM_NAME='${VM_NAME}'%" \
         -e "s%^VM_MEMORY=.*%VM_MEMORY='${vm_mem}'%" \
+        -e "s%^VM_BOARD=.*%VM_BOARD='${BOARD}'%" \
         "${BUILD_LIBRARY_DIR}/qemu_template.sh" > "${script}"
     checkbashisms --posix "${script}" || die
     chmod +x "${script}"
 
+    arm64_msg=""
+    if [[ ${BOARD} == "arm64-usr" ]]; then
+        arm64_msg="-bios QEMU_EFI.fd"
+    fi
+
     cat >"${VM_README}" <<EOF
 If you have qemu installed (or in the SDK), you can start the image with:
   cd path/to/image
-  ./$(basename "${script}") -curses
+  ./$(basename "${script}") -curses ${arm64_msg}
 
 If you need to use a different ssh key or different ssh port:
-  ./$(basename "${script}") -a ~/.ssh/authorized_keys -p 2223 -- -curses
+  ./$(basename "${script}") -a ~/.ssh/authorized_keys -p 2223 -- -curses ${arm64_msg}
 
 If you rather you can use the -nographic option instad of -curses. In this
 mode you can switch from the vm to the qemu monitor console with: Ctrl-a c
@@ -603,6 +609,14 @@ See the qemu man page for more details on the monitor console.
 SSH into that host with:
   ssh 127.0.0.1 -p 2222
 EOF
+
+    if [[ ${BOARD} == "arm64-usr" ]]; then
+        cat >>"${VM_README}" <<EOF
+
+A prebuilt QEMU EFI firmware can be downloaded at the following link:
+http://snapshots.linaro.org/components/kernel/leg-virt-tianocore-edk2-upstream/latest/QEMU-AARCH64/RELEASE_GCC48/QEMU_EFI.fd
+EOF
+    fi
 
     VM_GENERATED_FILES+=( "${script}" "${VM_README}" )
 }
