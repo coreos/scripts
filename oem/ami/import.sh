@@ -19,6 +19,7 @@ IMAGE="coreos_production_ami_image.bin.bz2"
 GS_URL="gs://builds.release.core-os.net"
 IMG_URL=""
 IMG_PATH=""
+GRANT_LAUNCH=""
 USE_GPG=1
 # accepted via the environment
 : ${EC2_IMPORT_BUCKET:=}
@@ -34,6 +35,7 @@ Options:
     -s STORAGE  GS URL for Google storage (used to generate URL)
     -B BUCKET   S3 bucket to use for temporary storage.
     -Z ZONE     EC2 availability zone to use.
+    -l ACCOUNT  Grant launch permission to a given AWS account ID.
     -X          Disable GPG verification of downloads.
     -h          this ;-)
     -v          Verbose, see all the things!
@@ -41,7 +43,7 @@ Options:
 This script must be run from an ec2 host with the ec2 tools installed.
 "
 
-while getopts "V:b:g:p:u:s:t:B:Z:Xhv" OPTION
+while getopts "V:b:g:p:u:s:t:l:B:Z:Xhv" OPTION
 do
     case $OPTION in
         V) VERSION="$OPTARG";;
@@ -52,6 +54,7 @@ do
         s) GS_URL="$OPTARG";;
         B) EC2_IMPORT_BUCKET="${OPTARG}";;
         Z) EC2_IMPORT_ZONE="${OPTARG}";;
+        l) GRANT_LAUNCH="${OPTARG}";;
         t) export TMPDIR="$OPTARG";;
         X) USE_GPG=0;;
         h) echo "$USAGE"; exit;;
@@ -226,6 +229,14 @@ amiid=$(ec2-register                                  \
   --block-device-mapping /dev/sda=$snapshotid::true   \
   --block-device-mapping /dev/sdb=ephemeral0          |
   cut -f2)
+
+if [[ -n "${GRANT_LAUNCH}" ]]; then
+  echo "Granting launch permission to ${GRANT_LAUNCH}"
+  ec2-modify-image-attribute "${hvm_amiid}" \
+      --launch-permission --add "${GRANT_LAUNCH}"
+  ec2-modify-image-attribute "${amiid}" \
+      --launch-permission --add "${GRANT_LAUNCH}"
+fi
 
 cat <<EOF
 $description

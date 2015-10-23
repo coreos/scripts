@@ -20,6 +20,8 @@ USAGE="Usage: $0 -a ami-id
     -V VERSION  Find AMI by CoreOS version.
     -b BOARD    Set to the board name, default is amd64-usr
     -g GROUP    Set the update group, default is alpha
+    -l ACCOUNT  Grant launch permission to a given AWS account ID.
+    -r REGION   Copy to the specified region, may be repeated.
     -h          this ;-)
     -v          Verbose, see all the things!
 
@@ -30,6 +32,7 @@ AMI=
 VER=
 BOARD="amd64-usr"
 GROUP="alpha"
+GRANT_LAUNCH=""
 REGIONS=()
 
 add_region() {
@@ -44,13 +47,14 @@ clean_version() {
     sed -e 's%[^A-Za-z0-9()\\./_-]%_%g' <<< "$1"
 }
 
-while getopts "a:V:b:g:r:hv" OPTION
+while getopts "a:V:b:g:l:r:hv" OPTION
 do
     case $OPTION in
         a) AMI="$OPTARG";;
         V) VER="$OPTARG";;
         b) BOARD="$OPTARG";;
         g) GROUP="$OPTARG";;
+        l) GRANT_LAUNCH="${OPTARG}";;
         r) add_region "$OPTARG";;
         h) echo "$USAGE"; exit;;
         v) set -x;;
@@ -129,6 +133,13 @@ do_copy() {
     while ec2-describe-images "$r_amiid" --region="$r" | grep -q pending; do
         sleep 30
     done
+
+    if [[ -n "${GRANT_LAUNCH}" ]]; then
+      echo "Granting launch permission to ${GRANT_LAUNCH} for $r_amiid in $r"
+      ec2-modify-image-attribute --region="$r" "${r_amiid}" \
+          --launch-permission --add "${GRANT_LAUNCH}"
+    fi
+
     echo "AMI $virt_type copy to $r as $r_amiid in complete"
 }
 
