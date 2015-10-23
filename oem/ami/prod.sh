@@ -13,9 +13,9 @@ fi
 set -e
 source $DIR/marineam-auth.sh
 args="-b $BOARD -g $GROUP -V $VER"
-$DIR/import.sh ${args}
+$DIR/import.sh -l 477645798544 ${args}
 $DIR/test_ami.sh -v ${args}
-$DIR/copy_ami.sh ${args}
+$DIR/copy_ami.sh -l 477645798544 ${args}
 
 source $DIR/ami-builder-us-gov-auth.sh
 $DIR/import.sh ${args}
