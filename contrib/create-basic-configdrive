@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEFAULT_ETCD_DISCOVERY="https//discovery.etcd.io/TOKEN"
+DEFAULT_ETCD_DISCOVERY="https://discovery.etcd.io/TOKEN"
 DEFAULT_ETCD_ADDR="http://\$public_ipv4:2379"
 DEFAULT_ETCD_PEER_URLS="http://\$private_ipv4:2380"
 DEFAULT_ETCD_LISTEN_PEER_URLS="http://0.0.0.0:2380"
