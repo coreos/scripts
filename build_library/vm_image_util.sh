@@ -480,12 +480,7 @@ _write_vmdk_scsi_disk() {
 }
 
 _write_vmdk_stream_disk() {
-    # requires two pass conversion, qemu-img doesn't properly support the
-    # stream-optimized VMDK format. The special vmdk-convert tool only takes
-    # VMDK images as an import format.
-    local tmpvmdk="${VM_TMP_DIR}/tmp.vmdk"
-    qemu-img convert -f raw "$1" -O vmdk -o adapter_type=lsilogic "${tmpvmdk}"
-    vmdk-convert "${tmpvmdk}" "$2"
+    qemu-img convert -f raw "$1" -O vmdk -o subformat=streamOptimized,adapter_type=lsilogic "$2"
     assert_image_size "$2" vmdk
 }
 
