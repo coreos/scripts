@@ -1,0 +1,83 @@
+#!/bin/bash
+
+# Copyright (c) 2015 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname "$(readlink -f "$0")")
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+# Script must run inside the chroot
+restart_in_chroot_if_needed "$@"
+
+assert_not_root_user
+
+# Flags
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "Board to use for kernel source and architecture."
+DEFINE_string overlay "coreos" \
+  "Portage repo containing the kernel ebuild."
+DEFINE_string package "sys-kernel/coreos-kernel" \
+  "Portage ebuild name for the kernel."
+
+# Parse command line
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Die on any errors.
+switch_to_strict_mode
+
+if [[ -z "${FLAGS_board}" ]] ; then
+  die_notrace "--board is required."
+fi
+
+. "${BUILD_LIBRARY_DIR}/toolchain_util.sh"
+. "${BUILD_LIBRARY_DIR}/board_options.sh"
+
+KERNEL_ARCH=$(get_kernel_arch "${CHOST}")
+KERNEL_CLFAGS="-nopie -fstack-check=no"
+KERNEL_SRC="${BOARD_ROOT}/usr/src/linux"
+if [[ ! -f "${KERNEL_SRC}/Makefile" ]]; then
+  die_notrace "No kernel source found at ${KERNEL_SRC}"
+fi
+
+KERNEL_BUILD=$(mktemp -d)
+trap "rm -rf '${KERNEL_BUILD}'" EXIT
+
+# Set up a ccache friendly build tree
+mkdir -p "${KERNEL_BUILD}/build"
+ln -s "${KERNEL_SRC}"/* "${KERNEL_BUILD}"
+
+if [[ -d /usr/lib/ccache/bin ]]; then
+  export PATH="/usr/lib/ccache/bin:${PATH}"
+  export CCACHE_BASEDIR="${KERNEL_BUILD}"
+fi
+
+kmake() {
+  make -C "${KERNEL_BUILD}" \
+    ARCH="${KERNEL_ARCH}" \
+    CROSS_COMPILE="${CHOST}-" \
+    KBUILD_OUTPUT="build" \
+    KCFLAGS="${KERNEL_CFLAGS}" \
+    LDFLAGS="" \
+    "$@"
+}
+
+kmake_var() {
+  echo -e "e:\\n\\t@echo \$(${1})\\ninclude Makefile" | kmake -s -f -
+}
+
+KERNEL_MAJOR=$(kmake_var VERSION)
+KERNEL_MINOR=$(kmake_var PATCHLEVEL)
+
+OVERLAY=$(portageq get_repo_path / "${FLAGS_overlay}")
+FILESDIR="${OVERLAY}/${FLAGS_package}/files"
+DEFCONFIG_NAME="${ARCH}_defconfig-${KERNEL_MAJOR}.${KERNEL_MINOR}"
+DEFCONFIG_PATH="${FILESDIR}/${DEFCONFIG_NAME}"
+
+cp "${DEFCONFIG_PATH}" "${KERNEL_BUILD}/build/.config"
+kmake olddefconfig
+kmake menuconfig
+kmake savedefconfig
+cp "${KERNEL_BUILD}/build/defconfig" "${DEFCONFIG_PATH}"
+git -C "${OVERLAY}" --no-pager diff "${FLAGS_package}"
