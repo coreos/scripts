@@ -61,6 +61,28 @@ get_portage_arch() {
     esac
 }
 
+# map CHOST to kernel ARCH
+# Usage: get_kernel_arch chost
+get_kernel_arch() {
+    case "$1" in
+        aarch64*)   echo arm64;;
+        alpha*)     echo alpha;;
+        arm*)       echo arm;;
+        hppa*)      echo parisc;;
+        ia64*)      echo ia64;;
+        i?86*)      echo x86;;
+        m68*)       echo m68k;;
+        mips*)      echo mips;;
+        powerpc*)   echo powerpc;;
+        sparc64*)   echo sparc64;;
+        sparc*)     echo sparc;;
+        s390*)      echo s390;;
+        sh*)        echo sh;;
+        x86_64*)    echo x86;;
+        *)          die "Unknown CHOST '$1'";;
+    esac
+}
+
 get_board_list() {
     local IFS=$'\n\t '
     sort <<<"${BOARD_NAMES[*]}"
