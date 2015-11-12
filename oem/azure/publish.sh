@@ -20,7 +20,7 @@ UGROUP="${1^}"
 LGROUP="${1,}"
 VERSION=$2
 DATE=$3
-GS_BUCKET_URL="gs://builds.release.core-os.net/${LGROUP}/boards/amd64-usr/${VERSION}/coreos_production_azure_image.vhd.bz2"
+GS_BUCKET_URL="gs://builds.release.core-os.net/${LGROUP}/boards/amd64-usr/${VERSION}/coreos_production_azure_image.vhd"
 
 if [[ -z $UGROUP || -z $VERSION ]]; then
 	echo "Usage: $0 <group> <version> [<published date>]"
@@ -28,7 +28,9 @@ if [[ -z $UGROUP || -z $VERSION ]]; then
 fi
 
 echo "Downloading image from CoreOS build bucket..."
-gsutil cp ${GS_BUCKET_URL} "${IMAGE_PATH}.bz2"
+gsutil cp "${GS_BUCKET_URL}.bz2" "${IMAGE_PATH}.bz2"
+gsutil cp "${GS_BUCKET_URL}.bz2.sig" "${IMAGE_PATH}.bz2.sig"
+gpg --verify "${IMAGE_PATH}.bz2.sig"
 
 echo "Unzipping image..."
 bunzip2 "${IMAGE_PATH}.bz2"
