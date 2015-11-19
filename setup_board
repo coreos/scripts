@@ -317,3 +317,6 @@ if [ -n "${WORKING_ON}" ]; then
   info "Currently working on the following ebuilds for this board:"
   info "${WORKING_ON}"
 fi
+
+# Setup BOARD_ROOT for QEMU user emulation.
+setup_qemu_static "${BOARD_ROOT}"
