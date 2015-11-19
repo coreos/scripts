@@ -218,11 +218,29 @@ get_gclient_root() {
 
 # Populate the ENVIRONMENT_WHITELIST array.
 load_environment_whitelist() {
-  set -f
   ENVIRONMENT_WHITELIST=(
-    $("${GCLIENT_ROOT}/chromite/scripts/cros_env_whitelist")
+    CHROMEOS_OFFICIAL
+    CHROMEOS_VERSION_AUSERVER
+    CHROMEOS_VERSION_DEVSERVER
+    CHROMEOS_VERSION_TRACK
+    GCC_GITHASH
+    GIT_AUTHOR_EMAIL
+    GIT_AUTHOR_NAME
+    GIT_COMMITTER_EMAIL
+    GIT_COMMITTER_NAME
+    GIT_PROXY_COMMAND
+    GIT_SSH
+    RSYNC_PROXY
+    GPG_AGENT_INFO
+    SSH_AGENT_PID
+    SSH_AUTH_SOCK
+    USE
+    all_proxy
+    ftp_proxy
+    http_proxy
+    https_proxy
+    no_proxy
   )
-  set +f
 }
 
 # Find root of source tree
