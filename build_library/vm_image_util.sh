@@ -19,6 +19,7 @@ VALID_IMG_TYPES=(
     rackspace_onmetal
     rackspace_vhd
     vagrant
+    vagrant_parallels
     vagrant_vmware_fusion
     virtualbox
     vmware
@@ -157,6 +158,14 @@ IMG_vagrant_vmware_fusion_DISK_FORMAT=vmdk_scsi
 IMG_vagrant_vmware_fusion_DISK_LAYOUT=vagrant
 IMG_vagrant_vmware_fusion_CONF_FORMAT=vagrant_vmware_fusion
 IMG_vagrant_vmware_fusion_OEM_PACKAGE=oem-vagrant
+
+## vagrant_parallels
+IMG_vagrant_parallels_FS_HOOK=box
+IMG_vagrant_parallels_BUNDLE_FORMAT=box
+IMG_vagrant_parallels_DISK_FORMAT=parallels
+IMG_vagrant_parallels_DISK_LAYOUT=vagrant
+IMG_vagrant_parallels_CONF_FORMAT=vagrant_parallels
+IMG_vagrant_parallels_OEM_PACKAGE=oem-vagrant
 
 ## vmware
 IMG_vmware_DISK_FORMAT=vmdk_scsi
@@ -363,6 +372,7 @@ _disk_ext() {
         vmdk_ide) echo vmdk;;
         vmdk_scsi) echo vmdk;;
         vmdk_stream) echo vmdk;;
+        parallels) echo hdd;;
         secure_demo) echo bin;;
         *) echo "${disk_format}";;
     esac
@@ -477,6 +487,11 @@ _write_vmdk_ide_disk() {
 _write_vmdk_scsi_disk() {
     qemu-img convert -f raw "$1" -O vmdk -o adapter_type=lsilogic "$2"
     assert_image_size "$2" vmdk
+}
+
+_write_parallels_disk() {
+    qemu-img convert -f raw "$1" -O parallels "$2"
+    assert_image_size "$2" parallels
 }
 
 _write_vmdk_stream_disk() {
@@ -906,6 +921,22 @@ _write_vagrant_vmware_fusion_conf() {
 EOF
 }
 
+_write_vagrant_parallels_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local box="${VM_TMP_DIR}/box"
+
+    mkdir -p "${box}"
+    "${BUILD_LIBRARY_DIR}/parallels_pvm.sh" \
+            --vm_name "coreos-${VM_GROUP}" \
+            --disk_image "${VM_DST_IMG}" \
+            --memory_size "$vm_mem" \
+            --output_dir "${box}"
+
+    cat > "${box}"/metadata.json <<EOF
+{"provider": "parallels"}
+EOF
+}
+
 _write_gce_conf() {
     local src_name=$(basename "$VM_SRC_IMG")
     local dst_dir=$(dirname "$VM_DST_IMG")
@@ -987,12 +1018,18 @@ _write_box_bundle() {
     local box=$(_dst_path ".box")
     local json=$(_dst_path ".json")
 
-    mv "${VM_DST_IMG}" "${VM_TMP_DIR}/box"
+    if [[ "${VM_IMG_TYPE}" == vagrant_parallels ]]; then
+        rm "${VM_DST_IMG}"
+    else
+        mv "${VM_DST_IMG}" "${VM_TMP_DIR}/box"
+    fi
     tar -czf "${box}" -C "${VM_TMP_DIR}/box" .
 
     local provider="virtualbox"
     if [[ "${VM_IMG_TYPE}" == vagrant_vmware_fusion ]]; then
         provider="vmware_fusion"
+    elif [[ "${VM_IMG_TYPE}" == vagrant_parallels ]]; then
+        provider="parallels"
     fi
 
     cat >"${json}" <<EOF
