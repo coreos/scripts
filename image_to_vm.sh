@@ -115,6 +115,7 @@ run_fs_hook
 # Changes done, glue it together
 write_vm_disk
 write_vm_conf "${FLAGS_mem}"
+write_vm_layout
 write_vm_bundle
 
 vm_cleanup

@@ -25,6 +25,7 @@ VALID_IMG_TYPES=(
     vmware
     vmware_ova
     vmware_insecure
+    parallels
     xen
     gce
     brightbox
@@ -107,6 +108,9 @@ IMG_DEFAULT_DISK_LAYOUT=base
 # Name of the target config format, default is no config
 IMG_DEFAULT_CONF_FORMAT=
 
+# The layout of the VM. By default none, i.e. the conf and disk are side-by-side
+IMG_DEFAULT_VM_LAYOUT=
+
 # Bundle configs and disk image into some archive
 IMG_DEFAULT_BUNDLE_FORMAT=
 
@@ -162,9 +166,10 @@ IMG_vagrant_vmware_fusion_OEM_PACKAGE=oem-vagrant
 ## vagrant_parallels
 IMG_vagrant_parallels_FS_HOOK=box
 IMG_vagrant_parallels_BUNDLE_FORMAT=box
-IMG_vagrant_parallels_DISK_FORMAT=parallels
+IMG_vagrant_parallels_DISK_FORMAT=hdd
 IMG_vagrant_parallels_DISK_LAYOUT=vagrant
 IMG_vagrant_parallels_CONF_FORMAT=vagrant_parallels
+IMG_vagrant_parallels_VM_LAYOUT=pvm
 IMG_vagrant_parallels_OEM_PACKAGE=oem-vagrant
 
 ## vmware
@@ -185,6 +190,12 @@ IMG_vmware_insecure_DISK_FORMAT=vmdk_scsi
 IMG_vmware_insecure_DISK_LAYOUT=vm
 IMG_vmware_insecure_CONF_FORMAT=vmware_zip
 IMG_vmware_insecure_OEM_PACKAGE=oem-vagrant-key
+
+## parallels
+IMG_parallels_DISK_FORMAT=hdd
+IMG_parallels_DISK_LAYOUT=vm
+IMG_parallels_CONF_FORMAT=pvs
+IMG_parallels_VM_LAYOUT=pvm_tgz
 
 ## ami
 IMG_ami_OEM_PACKAGE=oem-ec2-compat
@@ -321,6 +332,8 @@ set_vm_paths() {
     VM_TMP_DIR="${dst_dir}/${dst_name}.vmtmpdir"
     VM_TMP_IMG="${VM_TMP_DIR}/disk_image.bin"
     VM_TMP_ROOT="${VM_TMP_DIR}/rootfs"
+    local dst_vm="$(_src_to_dst_name "${src_name}" ".$(_vm_ext)")"
+    VM_DST_VM="${dst_dir}/${dst_vm}"
     VM_NAME="$(_src_to_dst_name "${src_name}" "")-${COREOS_VERSION_STRING}"
     VM_README="${dst_dir}/$(_src_to_dst_name "${src_name}" ".README")"
 
@@ -372,9 +385,18 @@ _disk_ext() {
         vmdk_ide) echo vmdk;;
         vmdk_scsi) echo vmdk;;
         vmdk_stream) echo vmdk;;
-        parallels) echo hdd;;
+        hdd) echo hdd;;
         secure_demo) echo bin;;
         *) echo "${disk_format}";;
+    esac
+}
+
+_vm_ext() {
+    local vm_layout=$(_get_vm_opt VM_LAYOUT)
+    case ${vm_layout} in
+        pvm) echo pvm;;
+        pvm_tgz) echo pvm.tgz;;
+        *) echo "${vm_layout}";;
     esac
 }
 
@@ -459,8 +481,9 @@ write_vm_disk() {
     info "Writing $disk_format image $(basename "${VM_DST_IMG}")"
     _write_${disk_format}_disk "${VM_TMP_IMG}" "${VM_DST_IMG}"
 
-    # Add disk image to final file list if it isn't going to be bundled
-    if [[ -z "$(_get_vm_opt BUNDLE_FORMAT)" ]]; then
+    # Add disk image to final file list if it isn't going to be bundled 
+    # or part of a layout
+    if [[ -z "$(_get_vm_opt BUNDLE_FORMAT)" ]] && [[ -z "$(_get_vm_opt VM_LAYOUT)" ]]; then
         VM_GENERATED_FILES+=( "${VM_DST_IMG}" )
     fi
 }
@@ -489,9 +512,11 @@ _write_vmdk_scsi_disk() {
     assert_image_size "$2" vmdk
 }
 
-_write_parallels_disk() {
-    qemu-img convert -f raw "$1" -O parallels "$2"
-    assert_image_size "$2" parallels
+_write_hdd_disk() {
+    "${BUILD_LIBRARY_DIR}/write_hdd.sh" \
+        --input_disk_image "$1" \
+        --input_disk_format "raw" \
+        --output_disk "${2}"
 }
 
 _write_vmdk_stream_disk() {
@@ -902,10 +927,6 @@ _write_vagrant_conf() {
             --memory_size "$vm_mem" \
             --output_ovf "$ovf" \
             --output_vagrant "$mac"
-
-    cat > "${VM_TMP_DIR}"/box/metadata.json <<EOF
-{"provider": "virtualbox"}
-EOF
 }
 
 _write_vagrant_vmware_fusion_conf() {
@@ -915,26 +936,29 @@ _write_vagrant_vmware_fusion_conf() {
     mkdir -p "${VM_TMP_DIR}/box"
     _write_vmx_conf ${vm_mem}
     mv "${vmx}" "${VM_TMP_DIR}/box"
-
-    cat > "${VM_TMP_DIR}"/box/metadata.json <<EOF
-{"provider": "vmware_fusion"}
-EOF
 }
 
 _write_vagrant_parallels_conf() {
     local vm_mem="${1:-$(_get_vm_opt MEM)}"
-    local box="${VM_TMP_DIR}/box"
+    local pvs=$(_dst_path ".pvs")
 
-    mkdir -p "${box}"
-    "${BUILD_LIBRARY_DIR}/parallels_pvm.sh" \
-            --vm_name "coreos-${VM_GROUP}" \
-            --disk_image "${VM_DST_IMG}" \
+    "${BUILD_LIBRARY_DIR}/parallels_pvs.sh" \
+            --vm_name "$VM_NAME" \
+            --disk_image "$VM_DST_IMG" \
             --memory_size "$vm_mem" \
-            --output_dir "${box}"
+            --output_pvs "$pvs" \
+            --template
+}
 
-    cat > "${box}"/metadata.json <<EOF
-{"provider": "parallels"}
-EOF
+_write_pvs_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local pvs=$(_dst_path ".pvs")
+
+    "${BUILD_LIBRARY_DIR}/parallels_pvs.sh" \
+            --vm_name "$VM_NAME" \
+            --disk_image "$VM_DST_IMG" \
+            --memory_size "$vm_mem" \
+            --output_pvs "$pvs"
 }
 
 _write_gce_conf() {
@@ -1005,6 +1029,40 @@ _write_interoute_conf() {
     VM_GENERATED_FILES+=( "$ovf" )
 }
 
+write_vm_layout() {
+    local vm_layout=$(_get_vm_opt VM_LAYOUT)
+    if [[ -n "${vm_layout}" ]]; then
+        info "Writing ${vm_layout} layout"
+        _write_${vm_layout}_layout "$@"
+    fi
+}
+
+_write_pvm_layout() {
+    local pvm="$(basename ${VM_DST_VM})"
+
+    mkdir -p "${VM_DST_VM}"
+    mv "${VM_DST_IMG}" "${VM_DST_VM}"
+    mv "$(_dst_path ".pvs")" "${VM_DST_VM}"/config.pvs
+
+    if [[ -z "$(_get_vm_opt BUNDLE_FORMAT)" ]]; then
+        VM_GENERATED_FILES+=( "${VM_DST_VM}" )
+    fi
+}
+
+_write_pvm_tgz_layout() {
+    local pvm="${VM_TMP_DIR}/tmp.pvm"
+
+    mkdir -p "${pvm}"
+    mv "${VM_DST_IMG}" "${pvm}"
+    mv "$(_dst_path ".pvs")" "${pvm}"/config.pvs
+
+    tar -czf "${VM_DST_VM}" -C "${pvm}" .
+
+    if [[ -z "$(_get_vm_opt BUNDLE_FORMAT)" ]]; then
+        VM_GENERATED_FILES+=( "${VM_DST_VM}" )
+    fi
+}
+
 # If this is a bundled format generate it!
 write_vm_bundle() {
     local bundle_format=$(_get_vm_opt BUNDLE_FORMAT)
@@ -1018,19 +1076,23 @@ _write_box_bundle() {
     local box=$(_dst_path ".box")
     local json=$(_dst_path ".json")
 
-    if [[ "${VM_IMG_TYPE}" == vagrant_parallels ]]; then
-        rm "${VM_DST_IMG}"
-    else
-        mv "${VM_DST_IMG}" "${VM_TMP_DIR}/box"
-    fi
-    tar -czf "${box}" -C "${VM_TMP_DIR}/box" .
-
     local provider="virtualbox"
     if [[ "${VM_IMG_TYPE}" == vagrant_vmware_fusion ]]; then
         provider="vmware_fusion"
     elif [[ "${VM_IMG_TYPE}" == vagrant_parallels ]]; then
         provider="parallels"
     fi
+
+    cat > "${VM_TMP_DIR}"/box/metadata.json <<EOF
+{"provider": "${provider}"}
+EOF
+
+    if [[ -z "$(_get_vm_opt VM_LAYOUT)" ]]; then
+        mv "${VM_DST_IMG}" "${VM_TMP_DIR}/box"
+    else
+        mv "${VM_DST_VM}" "${VM_TMP_DIR}/box"
+    fi
+    tar -czf "${box}" -C "${VM_TMP_DIR}/box" .
 
     cat >"${json}" <<EOF
 {

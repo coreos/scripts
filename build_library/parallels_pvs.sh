@@ -7,9 +7,10 @@ SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
 DEFINE_string vm_name "CoreOS" "Name for this VM"
-DEFINE_string disk_image "" "Disk image to reference, only basename is used."
+DEFINE_string disk_image "" "Disk image to reference."
 DEFINE_integer memory_size 1024 "Memory size in MB"
-DEFINE_string output_dir "" "Path to the output directory, required."
+DEFINE_string output_pvs "" "Path to write pvs file to, required."
+DEFINE_boolean template ${FLAGS_FALSE} "Whether this vm is a template."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -18,23 +19,21 @@ eval set -- "${FLAGS_ARGV}"
 # Die on any errors.
 switch_to_strict_mode
 
-if [[ ! -e "${FLAGS_disk_image}" ]]; then
+if [[ ! -d "${FLAGS_disk_image}" ]]; then
     echo "No such disk image '${FLAGS_disk_image}'" >&2
     exit 1
 fi
 
-if [[ ! -d "${FLAGS_output_dir}" ]]; then
-    echo "Output directory '${FLAGS_output_dir}' not found" >&2
-    exit 1
-fi
+snapshot_image=$(find "${FLAGS_disk_image}" -name '*.hds')
 
 DISK_UUID=$(uuidgen)
-DISK_VIRTUAL_SIZE_BYTES=$(qemu-img info -f parallels --output json "${FLAGS_disk_image}" \
-    | jq --raw-output '.["virtual-size"]')
-DISK_ACTUAL_SIZE_BYTES=$(du --bytes "${FLAGS_disk_image}" | cut -f1)
+DISK_NAME=$(basename "${FLAGS_disk_image}")
+DISK_VIRTUAL_SIZE_BYTES=$(qemu-img info -f parallels --output json \
+   "${snapshot_image}" | jq --raw-output '.["virtual-size"]')
+DISK_ACTUAL_SIZE_BYTES=$(du --bytes "${snapshot_image}" | cut -f1)
 
 if [[ -z "${DISK_VIRTUAL_SIZE_BYTES}" ]]; then
-    echo "Unable to determine virtual size of ${FLAGS_disk_image}" >&2
+    echo "Unable to determine virtual size of '${snapshot_image}'" >&2
     exit 1
 fi
 
@@ -43,14 +42,16 @@ macgen() {
     hexdump -n3 -e "\"${PARALLELS_MAC_PREFIX}%06X\n\"" /dev/urandom
 }
 
-datez() {
+datep() {
     date -u "+%Y-%m-%d %H:%M:%S"
 }
 
-pvm_dir="${FLAGS_output_dir}"/"${FLAGS_vm_name}".pvm
-mkdir -p ${pvm_dir}
+template=0
+if [ ${FLAGS_template} -eq ${FLAGS_TRUE} ]; then
+   template=1
+fi
 
-cat >"${pvm_dir}"/config.pvs <<EOF
+cat >"${FLAGS_output_pvs}" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <ParallelsVirtualMachine schemaVersion="1.0" dyn_lists="VirtualAppliance 0">
    <AppVersion>10.3.0-29227</AppVersion>
@@ -65,8 +66,8 @@ cat >"${pvm_dir}"/config.pvs <<EOF
       <LastServerUuid>{0ba0dd3e-d0bf-420c-a0b2-b83cb4d885c1}</LastServerUuid>
       <ServerHost></ServerHost>
       <VmFilesLocation>1</VmFilesLocation>
-      <VmCreationDate>$(datez)</VmCreationDate>
-      <VmUptimeStartDateTime>$(datez)</VmUptimeStartDateTime>
+      <VmCreationDate>$(datep)</VmCreationDate>
+      <VmUptimeStartDateTime>$(datep)</VmUptimeStartDateTime>
       <VmUptimeInSeconds>0</VmUptimeInSeconds>
       <EnvId>1336536201</EnvId>
    </Identification>
@@ -84,7 +85,7 @@ cat >"${pvm_dir}"/config.pvs <<EOF
          <OsType>9</OsType>
          <OsNumber>2309</OsNumber>
          <VmDescription></VmDescription>
-         <IsTemplate>1</IsTemplate>
+         <IsTemplate>${template}</IsTemplate>
          <CustomProperty></CustomProperty>
          <SwapDir></SwapDir>
          <VmColor>0</VmColor>
@@ -115,7 +116,7 @@ cat >"${pvm_dir}"/config.pvs <<EOF
                <Index>0</Index>
                <Type>5</Type>
                <BootingNumber>2</BootingNumber>
-               <InUse>1</InUse>
+               <InUse>0</InUse>
             </BootDevice>
             <BootDevice id="8" dyn_lists="">
                <Index>0</Index>
@@ -500,8 +501,8 @@ cat >"${pvm_dir}"/config.pvs <<EOF
          <Enabled>1</Enabled>
          <Connected>1</Connected>
          <EmulatedType>1</EmulatedType>
-         <SystemName>${FLAGS_vm_name}.hdd</SystemName>
-         <UserFriendlyName>${FLAGS_vm_name}.hdd</UserFriendlyName>
+         <SystemName>${DISK_NAME}</SystemName>
+         <UserFriendlyName>${DISK_NAME}</UserFriendlyName>
          <Remote>0</Remote>
          <InterfaceType>2</InterfaceType>
          <StackIndex>0</StackIndex>
@@ -570,52 +571,3 @@ cat >"${pvm_dir}"/config.pvs <<EOF
    </ExternalConfigInfo>
 </ParallelsVirtualMachine>
 EOF
-
-disk_dir="${pvm_dir}"/"${FLAGS_vm_name}".hdd
-mkdir -p ${disk_dir}
-
-cat >"${disk_dir}"/DiskDescriptor.xml <<EOF
-<?xml version='1.0' encoding='UTF-8'?>
-<Parallels_disk_image Version="1.0">
-    <Disk_Parameters>
-        <Disk_size>$((DISK_VIRTUAL_SIZE_BYTES / 16 / 32))</Disk_size>
-        <Cylinders>$((DISK_VIRTUAL_SIZE_BYTES / 16 / 32 / 512))</Cylinders>
-        <PhysicalSectorSize>512</PhysicalSectorSize>
-        <Heads>16</Heads>
-        <Sectors>32</Sectors>
-        <Padding>0</Padding>
-        <Encryption>
-            <Engine>{00000000-0000-0000-0000-000000000000}</Engine>
-            <Data></Data>
-        </Encryption>
-        <UID>{$(uuidgen)}</UID>
-        <Name>coreos</Name>
-        <Miscellaneous>
-            <CompatLevel>level2</CompatLevel>
-            <Bootable>1</Bootable>
-            <SuspendState>0</SuspendState>
-        </Miscellaneous>
-    </Disk_Parameters>
-    <StorageData>
-        <Storage>
-            <Start>0</Start>
-            <End>$((DISK_VIRTUAL_SIZE_BYTES / 16 / 32))</End>
-            <Blocksize>2048</Blocksize>
-            <Image>
-                <GUID>{5fbaabe3-6958-40ff-92a7-860e329aab41}</GUID>
-                <Type>Compressed</Type>
-                <File>${FLAGS_vm_name}.hdd.0.{5fbaabe3-6958-40ff-92a7-860e329aab41}.hds</File>
-            </Image>
-        </Storage>
-    </StorageData>
-    <Snapshots>
-        <Shot>
-            <GUID>{5fbaabe3-6958-40ff-92a7-860e329aab41}</GUID>
-            <ParentGUID>{00000000-0000-0000-0000-000000000000}</ParentGUID>
-        </Shot>
-    </Snapshots>
-</Parallels_disk_image>
-EOF
-
-touch "${disk_dir}"/"${FLAGS_vm_name}".hdd
-cp ${FLAGS_disk_image} "${disk_dir}"/"${FLAGS_vm_name}".hdd.0.{5fbaabe3-6958-40ff-92a7-860e329aab41}.hds
