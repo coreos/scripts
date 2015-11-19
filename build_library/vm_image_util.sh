@@ -468,6 +468,7 @@ _run_box_fs_hook() {
     # Copy basic Vagrant configs from OEM
     mkdir -p "${VM_TMP_DIR}/box"
     cp -R "${VM_TMP_ROOT}/usr/share/oem/box/." "${VM_TMP_DIR}/box"
+    sudo rm -fr "${VM_TMP_ROOT}/usr/share/oem/box"
 }
 
 # Write the vm disk image to the target directory in the proper format
