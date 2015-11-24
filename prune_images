@@ -44,9 +44,13 @@ for board_path in "${board_paths[@]}"; do
             continue
         fi
 
-        if [[ ${FLAGS_keep_latest} -eq ${FLAGS_TRUE} &&
-              "${board_path}/latest" -ef "${image_path}" ]]; then
-            continue
+        if [[ ${FLAGS_keep_latest} -eq ${FLAGS_TRUE} ]]; then
+	    # keep anything that is or newer than the latest
+	    if [[ "${board_path}/latest" -ef "${image_path}" || \
+	          "${board_path}/latest/version.txt" -ot \
+		      "${image_path}/version.txt" ]]; then
+                continue
+	    fi
         fi
 
         # best effort attempt to clean up old mounts
