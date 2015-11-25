@@ -78,6 +78,7 @@ export EMERGE_DEFAULT_OPTS="\$MAKEOPTS"
 export PORTAGE_USERNAME=portage
 export PORTAGE_GRPNAME=portage
 export GENTOO_MIRRORS='$(portageq envvar GENTOO_MIRRORS)'
+export ac_cv_posix_semaphores_enabled=yes
 EOF
 }
 
