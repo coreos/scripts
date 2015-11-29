@@ -293,9 +293,10 @@ setup_env() {
     fi
 
     # Mount GnuPG's data directory for signing uploads
-    if [[ -d "$SUDO_HOME/.gnupg" ]]; then
+    : ${GNUPGHOME:="$SUDO_HOME/.gnupg"}
+    if [[ -d "${GNUPGHOME}" ]]; then
       debug "Mounting GnuPG"
-      setup_mount "${SUDO_HOME}/.gnupg" "--bind" "/home/${SUDO_USER}/.gnupg"
+      setup_mount "${GNUPGHOME}" "--bind" "${GNUPGHOME}"
 
       # bind mount the gpg agent dir if available
       GPG_AGENT_DIR="${GPG_AGENT_INFO%/*}"

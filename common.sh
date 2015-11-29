@@ -231,6 +231,7 @@ load_environment_whitelist() {
     GIT_PROXY_COMMAND
     GIT_SSH
     RSYNC_PROXY
+    GNUPGHOME
     GPG_AGENT_INFO
     SSH_AGENT_PID
     SSH_AUTH_SOCK
