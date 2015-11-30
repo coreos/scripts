@@ -219,11 +219,8 @@ get_gclient_root() {
 # Populate the ENVIRONMENT_WHITELIST array.
 load_environment_whitelist() {
   ENVIRONMENT_WHITELIST=(
-    CHROMEOS_OFFICIAL
-    CHROMEOS_VERSION_AUSERVER
-    CHROMEOS_VERSION_DEVSERVER
-    CHROMEOS_VERSION_TRACK
-    GCC_GITHASH
+    COREOS_BUILD_ID
+    COREOS_OFFICIAL
     GIT_AUTHOR_EMAIL
     GIT_AUTHOR_NAME
     GIT_COMMITTER_EMAIL
@@ -242,6 +239,13 @@ load_environment_whitelist() {
     https_proxy
     no_proxy
   )
+}
+
+load_environment_var() {
+    local file="$1" name="$2"
+    local value
+    value=$(grep "^${name}=" "${file}")
+    export "${value}"
 }
 
 # Find root of source tree
@@ -267,23 +271,22 @@ BUILD_LIBRARY_DIR="${SCRIPTS_DIR}/build_library"
 REPO_CACHE_DIR="${REPO_ROOT}/.cache"
 REPO_MANIFESTS_DIR="${REPO_ROOT}/.repo/manifests"
 
-# Source COREOS_* from manifest for version information.
-COREOS_VERSION_FILE="${REPO_MANIFESTS_DIR}/version.txt"
-if [[ ! -f "${COREOS_VERSION_FILE}" ]]; then
-    COREOS_VERSION_FILE="${SCRIPT_LOCATION}/version.txt"
+# Source COREOS_VERSION_ID from manifest.
+if [[ -f "${REPO_MANIFESTS_DIR}/version.txt" ]]; then
+  load_environment_var "${REPO_MANIFESTS_DIR}/version.txt" COREOS_VERSION_ID
+  # The build id may be provided externally by the build system.
+  : ${COREOS_BUILD_ID:=$(date +%Y-%m-%d-%H%M)}
+elif [[ -f "${SCRIPT_LOCATION}/version.txt" ]]; then
+  load_environment_var "${SCRIPT_LOCATION}/version.txt" COREOS_VERSION_ID
+  # This only happens in update.zip where we must use the current build id.
+  load_environment_var "${SCRIPT_LOCATION}/version.txt" COREOS_BUILD_ID
+else
+  die "Unable to locate version.txt"
 fi
-source "$COREOS_VERSION_FILE" || die "Cannot source version.txt"
-
-# Set version based on old variables if undefined
-: ${COREOS_VERSION_ID:=${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}}
 
 # Official builds must set COREOS_OFFICIAL=1 to use an official version.
-# Unofficial builds always appended the date/time as a build identifier.
-# Also do not alter the version if using an alternate version.txt path.
-COREOS_BUILD_ID=""
-if [[ ${COREOS_OFFICIAL:-0} -ne 1 &&
-    "${COREOS_VERSION_FILE}" =~ /\.repo/manifests/version.txt ]]; then
-  COREOS_BUILD_ID=$(date +%Y-%m-%d-%H%M)
+# Unofficial builds always appended the build identifier.
+if [[ ${COREOS_OFFICIAL:-0} -ne 1 && -n "${COREOS_BUILD_ID}" ]]; then
   COREOS_VERSION="${COREOS_VERSION_ID}+${COREOS_BUILD_ID}"
 else
   COREOS_VERSION="${COREOS_VERSION_ID}"
