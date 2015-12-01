@@ -296,7 +296,7 @@ setup_env() {
     : ${GNUPGHOME:="$SUDO_HOME/.gnupg"}
     if [[ -d "${GNUPGHOME}" ]]; then
       debug "Mounting GnuPG"
-      setup_mount "${GNUPGHOME}" "--bind" "${GNUPGHOME}"
+      setup_mount "${GNUPGHOME}" "--bind" "/home/${SUDO_USER}/.gnupg"
 
       # bind mount the gpg agent dir if available
       GPG_AGENT_DIR="${GPG_AGENT_INFO%/*}"
@@ -304,6 +304,7 @@ setup_env() {
         setup_mount "$GPG_AGENT_DIR" "--bind" "$GPG_AGENT_DIR"
       fi
     fi
+    unset GNUPGHOME
 
     # Mount additional directories as specified in .local_mounts file.
     local local_mounts="${FLAGS_trunk}/src/scripts/.local_mounts"
