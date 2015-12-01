@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
@@ -185,9 +185,9 @@ generate_locales() {
     # with long multibyte strings.  Newer setups have this fixed,
     # but locale-gen doesn't need to be run in any locale in the
     # first place, so just go with C to keep it fast.
-    PATH="/usr/sbin:/usr/bin:/sbin:/bin" LC_ALL=C \
-      chroot "${FLAGS_chroot}" locale-gen -q -u \
-      -G "$(printf '%s\n' "${gen_locales[@]}")"
+    chroot "${FLAGS_chroot}" /usr/bin/env \
+      PATH="/usr/sbin:/usr/bin:/sbin:/bin" LC_ALL=C \
+      locale-gen -q -u -G "$(printf '%s\n' "${gen_locales[@]}")"
   fi
 }
 
@@ -398,15 +398,16 @@ fi
 # the source trunk for scripts that may need to print it (e.g.
 # build_image.sh).
 
+cmd=( /usr/bin/env PATH="/usr/sbin:/usr/bin:/sbin:/bin" LC_ALL=C )
 if [ $FLAGS_early_make_chroot -eq $FLAGS_TRUE ]; then
-  cmd=( /bin/bash -l -c 'env "$@"' -- )
+  cmd+=( /bin/bash -l -c 'env "$@"' -- )
 elif [ ! -x "${FLAGS_chroot}/usr/bin/sudo" ]; then
   # Complain that sudo is missing.
   error "Failing since the chroot lacks sudo."
   error "Requested enter_chroot command was: $@"
   exit 127
 else
-  cmd=( sudo -i -u "${SUDO_USER}" )
+  cmd+=( sudo -i -u "${SUDO_USER}" )
 fi
 
 cmd+=( "${CHROOT_PASSTHRU[@]}" "$@" )

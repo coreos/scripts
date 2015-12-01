@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
@@ -85,8 +85,9 @@ early_enter_chroot() {
 # the overhead of enter_chroot, and do not need access to the source tree,
 # don't need the actual chroot profile env, and can run the command as root.
 bare_chroot() {
-  PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-    chroot "${FLAGS_chroot}" "$@"
+  chroot "${FLAGS_chroot}" /usr/bin/env \
+    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    "$@"
 }
 
 cleanup() {
