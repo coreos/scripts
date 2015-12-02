@@ -172,6 +172,20 @@ cmp_ver() {
   return $?
 }
 
+# Split a semver into a 3 item array (major minor patch)
+# Usage: split_ver 1.2.3 NAME
+split_ver() {
+  local v="$1" n="$2"
+  v="${v%%-*}" # strip off pre-release suffix
+  v="${v%%+*}" # strip off build id suffix
+  v="${v//./ }"
+  local -a a="(${v})"
+  if [[ ${#a[@]} -ne 3 ]]; then
+    die "Invalid version string '$1'"
+  fi
+  declare -g -a ${n}="(${v})"
+}
+
 # repo source root inside the chroot, usually mounted from the outside.
 CHROOT_TRUNK_DIR="/mnt/host/source"
 
