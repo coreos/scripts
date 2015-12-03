@@ -48,7 +48,7 @@ cd "$FLAGS_portage_stable"
 
 for pkg in "$@"; do
     # Only allow packages, not categories or the whole tree
-    if [[ ! "$pkg" =~ ^[a-z0-9-][a-z0-9-]*\/[a-zA-Z0-9-][a-zA-Z0-9-]*$ ]] &&
+    if [[ ! "$pkg" =~ ^[a-z0-9-][a-z0-9-]*\/[a-zA-Z0-9-][a-zA-Z0-9_-]*$ ]] &&
        [[ ! "$pkg" =~ ^(eclass|licenses|profiles|scripts) ]]; then
         die "Invalid name $pkg, must be category/package or special dir."
     fi
