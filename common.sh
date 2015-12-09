@@ -246,8 +246,8 @@ load_environment_var() {
   shift
   for name in "$@"; do
     value=$(grep "^${name}=" "${file}")
-    export "${value}"
-  done
+    [[ -z ${value} ]] || export "${value}"
+ done
 }
 
 # Find root of source tree
