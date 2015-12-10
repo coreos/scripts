@@ -305,7 +305,7 @@ readonly COREOS_EPOCH=1372636800
 TODAYS_VERSION=$(( (`date +%s` - ${COREOS_EPOCH}) / 86400 ))
 
 # Download URL prefix for SDK and board binary packages
-: ${COREOS_DEV_BUILDS:=https://s3.amazonaws.com/coreos-builds}
+: ${COREOS_DEV_BUILDS:=http://s3.amazonaws.com/coreos-builds}
 
 # since that's available both inside and outside the chroot.  By convention,
 # settings from this file are variables starting with 'CHROMEOS_'
