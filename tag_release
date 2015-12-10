@@ -19,7 +19,7 @@ fi
 DEFINE_integer major ${DEFAULT_MAJOR} "Branch major version (aka 'build')"
 DEFINE_integer minor ${DEFAULT_MINOR} "Branch revision or minor version"
 DEFINE_integer patch 0 "Branch patch id, normally 0"
-DEFINE_string track "dev-channel" "Set the given track to this new branch"
+DEFINE_string track "" "Set the given track to this new branch"
 DEFINE_string sdk_version "${COREOS_VERSION_ID}" \
     "Set the SDK version to use. (current: ${COREOS_SDK_VERSION})"
 DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
