@@ -159,6 +159,10 @@ promote_api_keys() {
 }
 
 generate_locales() {
+  # Going forward the SDK will no longer include locale-gen and instead
+  # glibc will just install the full locale archive, skipping this goo.
+  [[ -x "${FLAGS_chroot}/usr/sbin/locale-gen" ]] || return 0
+
   # Make sure user's requested locales are available
   # http://crosbug.com/19139
   # And make sure en_US{,.UTF-8} are always available as
