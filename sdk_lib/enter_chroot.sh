@@ -220,6 +220,10 @@ setup_env() {
     # Using 'slave' means we see global changes but cannot change global state.
     mount --make-rslave /
 
+    # Make sure the new root directory itself is a mount point. Tools like
+    # unshare assume that things like `mount --make-rprivate /` work.
+    setup_mount "${MOUNTED_PATH}" "--bind" /
+
     setup_mount none "-t proc" /proc
     setup_mount none "-t sysfs" /sys
     setup_mount /dev "--bind" /dev
