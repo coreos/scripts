@@ -218,7 +218,7 @@ setup_env() {
 
     # Make sure the new root directory itself is a mount point. Tools like
     # unshare assume that things like `mount --make-rprivate /` work.
-    setup_mount "${MOUNTED_PATH}" "--bind" /
+    setup_mount "${MOUNTED_PATH}" "--rbind" /
 
     setup_mount none "-t proc" /proc
     setup_mount none "-t sysfs" /sys
