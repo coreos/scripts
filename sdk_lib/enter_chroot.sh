@@ -159,6 +159,10 @@ promote_api_keys() {
 }
 
 generate_locales() {
+  # Going forward the SDK will no longer include locale-gen and instead
+  # glibc will just install the full locale archive, skipping this goo.
+  [[ -x "${FLAGS_chroot}/usr/sbin/locale-gen" ]] || return 0
+
   # Make sure user's requested locales are available
   # http://crosbug.com/19139
   # And make sure en_US{,.UTF-8} are always available as
@@ -215,6 +219,10 @@ setup_env() {
     # default (namely on systemd hosts) may be for everything to be shared.
     # Using 'slave' means we see global changes but cannot change global state.
     mount --make-rslave /
+
+    # Make sure the new root directory itself is a mount point. Tools like
+    # unshare assume that things like `mount --make-rprivate /` work.
+    setup_mount "${MOUNTED_PATH}" "--rbind" /
 
     setup_mount none "-t proc" /proc
     setup_mount none "-t sysfs" /sys
