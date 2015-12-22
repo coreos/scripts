@@ -212,11 +212,11 @@ download_image_url() {
     local download_path
     if [[ -n "${FLAGS_download_path}" ]]; then
         download_path="${FLAGS_download_path%%/}"
-    elif [[ "${download_root}" = *release.core-os.net* ]]; then
+    elif [[ "${download_root}" = *coreos-release/* ]]; then
         # Official release download paths don't include the boards directory
-        download_path="${download_root%%/}/${BOARD}/${COREOS_VERSION_STRING}"
+        download_path="${download_root%%/}/${BOARD}/${COREOS_VERSION_STRING/\+/%2B}"
     else
-        download_path="${download_root%%/}/boards/${BOARD}/${COREOS_VERSION_STRING}"
+        download_path="${download_root%%/}/boards/${BOARD}/${COREOS_VERSION_STRING/\+/%2B}"
     fi
 
     # Just in case download_root was set from UPLOAD_ROOT

@@ -25,16 +25,17 @@ DEFINE_string api_key "" \
     "API key for roller."
 DEFINE_string endpoint "https://public.update.core-os.net" \
     "Roller endpoint to update."
-DEFINE_string build_storage "gs://builds.release.core-os.net" \
+DEFINE_string build_storage "s3://coreos-release-builds" \
     "GS bucket with official build artifacts."
-DEFINE_string release_storage "" \
+DEFINE_string release_storage "s3://coreos-release/${FLAGS_channel}" \
     "GS bucket for release downloads."
-DEFINE_string legacy_storage "gs://storage.core-os.net/coreos" \
+DEFINE_string legacy_storage "" \
     "Legacy 'storage' GS bucket."
 
 # Allow toggling the assorted actions.
-DEFINE_boolean do_roller ${FLAGS_TRUE} "Update the channel in roller"
-DEFINE_boolean do_gce ${FLAGS_TRUE} "Add image to coreos-cloud GCE project"
+# TODO(bassamt): disabled until we have roller support
+DEFINE_boolean do_roller ${FLAGS_FALSE} "Update the channel in roller"
+DEFINE_boolean do_gce ${FLAGS_FALSE} "Add image to coreos-cloud GCE project"
 DEFINE_boolean do_storage ${FLAGS_TRUE} "Copy images to public storage"
 
 FLAGS_HELPS="usage: $SCRIPTNAME [flags]
