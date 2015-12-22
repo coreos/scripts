@@ -83,3 +83,5 @@ merge_from_upstream coreos/portage-stable quantum/coreos-portage-stable src/thir
 merge_from_upstream coreos/scripts quantum/coreos-scripts src/scripts
 
 cleanup
+
+info "Success. Upstream CoreOS version ${FLAGS_version} merged into new branches."
