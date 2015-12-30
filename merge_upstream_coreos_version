@@ -70,12 +70,13 @@ merge_from_upstream() {
 
       info "Merging commit hash ${commit_hash}. You might need to resolve conflicts."
       ${gitcmd} merge ${commit_hash} -m "Merging CoreOS build-${FLAGS_version}"
-    fi
-
-    if [[ ${FLAGS_push} -eq ${FLAGS_TRUE} ]]; then
+      
+      if [[ ${FLAGS_push} -eq ${FLAGS_TRUE} ]]; then
         info "Pushing changes in branch ${branch} to github."
         ${gitcmd} push -f github ${branch}
+      fi
     fi
+
 }
 
 merge_from_upstream coreos/coreos-overlay quantum/coreos-overlay src/third_party/coreos-overlay
