@@ -16,7 +16,7 @@ VERSION="master"
 BOARD="amd64-usr"
 GROUP="alpha"
 IMAGE="coreos_production_ami_image.bin.bz2"
-GS_URL="gs://builds.release.core-os.net"
+GS_URL="s3://coreos-release-builds"
 IMG_URL=""
 IMG_PATH=""
 GRANT_LAUNCH=""
@@ -84,7 +84,7 @@ else
     if [[ -z "$IMG_URL" ]]; then
         IMG_URL="$GS_URL/$GROUP/boards/$BOARD/$VERSION/$IMAGE"
     fi
-    if [[ "$IMG_URL" == gs://* ]]; then
+    if [[ "$IMG_URL" == gs://* ]] || [[ "$IMG_URL" == s3://* ]]; then
         if ! gsutil -q stat "$IMG_URL"; then
             echo "$0: Image URL unavailable: $IMG_URL" >&2
             exit 1
@@ -133,7 +133,7 @@ trap "rm -rf '${tmpdir}'" EXIT
 # if it is on the local fs, just use it, otherwise try to download it
 if [[ -z "$IMG_PATH" ]]; then
     IMG_PATH="${tmpdir}/${IMG_URL##*/}"
-    if [[ "$IMG_URL" == gs://* ]]; then
+    if [[ "$IMG_URL" == gs://* ]] || [[ "$IMG_URL" == s3://* ]]; then
         gsutil cp "$IMG_URL" "$IMG_PATH"
         if [[ "$USE_GPG" != 0 ]]; then
             gsutil cp "${IMG_URL}.sig" "${IMG_PATH}.sig"
