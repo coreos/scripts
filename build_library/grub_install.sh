@@ -43,7 +43,7 @@ case "${FLAGS_target}" in
         CORE_NAME="core.img"
         ;;
     x86_64-efi)
-	CORE_MODULES+=( serial linuxefi efi_gop getenv smbios efinet http )
+	CORE_MODULES+=( serial linuxefi efi_gop getenv smbios efinet verify http )
         CORE_NAME="core.efi"
         ;;
     x86_64-xen)
