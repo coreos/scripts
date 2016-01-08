@@ -22,6 +22,7 @@ function cleanup {
     rm -fr ${tmpdir}
 }
 trap cleanup EXIT
+
 info "Retrieving the manifest for CoreOS release build ${FLAGS_version}"
 git clone -b build-"${FLAGS_version}" --depth=1 --single-branch ${FLAGS_url} ${tmpdir} &>/dev/null
 
@@ -69,7 +70,7 @@ merge_from_upstream() {
       ${gitcmd} checkout ${branch}
 
       info "Merging commit hash ${commit_hash}. You might need to resolve conflicts."
-      ${gitcmd} merge ${commit_hash} -m "Merging CoreOS build-${FLAGS_version}"
+      ${gitcmd} merge ${commit_hash} -m "Merging upstream CoreOS build-${FLAGS_version}"
       
       if [[ ${FLAGS_push} -eq ${FLAGS_TRUE} ]]; then
         info "Pushing changes in branch ${branch} to github."
@@ -85,4 +86,6 @@ merge_from_upstream coreos/scripts quantum/coreos-scripts src/scripts
 
 cleanup
 
-info "Success. Upstream CoreOS version ${FLAGS_version} merged into new branches."
+info "Upstream CoreOS version ${FLAGS_version} merged into new branches."
+
+command_completed
