@@ -56,7 +56,8 @@ if [[ -n "${OLD_BRANCHES}" ]]; then
     git rm -f ${OLD_BRANCHES}
 fi
 
-repo manifest -o "${BRANCH_NAME}.xml" -r
+repo manifest -o "${BRANCH_NAME}.tmp.xml" -r
+mv -f "${BRANCH_NAME}.tmp.xml" "${BRANCH_NAME}.xml"
 tee version.txt <<EOF
 COREOS_BUILD=${FLAGS_major}
 COREOS_BRANCH=${FLAGS_minor}
