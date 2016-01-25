@@ -41,6 +41,7 @@ VALID_IMG_TYPES=(
     cloudsigma
     packet
     interoute
+    castle_installer
 )
 
 #list of oem package names, minus the oem- prefix
@@ -62,6 +63,7 @@ VALID_OEM_PACKAGES=(
     cloudsigma
     packet
     interoute
+    castle_installer
 )
 
 # Set at runtime to one of the above types
@@ -293,6 +295,12 @@ IMG_interoute_CONF_FORMAT=interoute
 IMG_interoute_OEM_PACKAGE=oem-interoute
 IMG_interoute_BUNDLE_FORMAT=ova
 
+## castle-installer
+IMG_castle_installer_DISK_FORMAT=castle_installer
+IMG_castle_installer_PARTITIONED_IMG=0
+IMG_castle_installer_CONF_FORMAT=iso
+IMG_castle_installer_OEM_PACKAGE=oem-castle-installer
+
 ###########################################################
 
 # Validate and set the vm type to use for the rest of the functions
@@ -393,6 +401,7 @@ _disk_ext() {
         vmdk_stream) echo vmdk;;
         hdd) echo hdd;;
         secure_demo) echo bin;;
+        castle_installer) echo iso;;
         *) echo "${disk_format}";;
     esac
 }
@@ -627,6 +636,41 @@ label coreos
   append initrd=/coreos/cpio.gz coreos.autologin
 EOF
     mkisofs -v -l -r -J -o $2 -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table .
+    isohybrid $2
+    popd >/dev/null
+}
+
+_write_castle_installer_disk() {
+    local base_dir="${VM_TMP_ROOT}/usr"
+    local iso_target="${VM_TMP_DIR}/rootiso"
+    local dst_dir=$(_dst_dir)
+    local vmlinuz_name="$(_dst_name ".vmlinuz")"
+    local src_image_compressed=${VM_SRC_IMG%.bin}.bin.bz2
+
+    mkdir "${iso_target}"
+    pushd "${iso_target}" >/dev/null
+    mkdir isolinux syslinux coreos
+    _write_cpio_common "$1" "${iso_target}/coreos/cpio.gz"
+    cp "${base_dir}"/boot/vmlinuz "${iso_target}/coreos/vmlinuz"
+    lbzip2 --compress --keep -f "${VM_SRC_IMG}"
+    mv "${src_image_compressed}" "${iso_target}/coreos/"
+
+    cp -R /usr/share/syslinux/* isolinux/
+    cat<<EOF > isolinux/isolinux.cfg
+INCLUDE /syslinux/syslinux.cfg
+EOF
+    cat<<EOF > syslinux/syslinux.cfg
+default castle-installer
+prompt 1
+timeout 15
+
+label castle-installer
+  menu default
+  kernel /coreos/vmlinuz
+  append initrd=/coreos/cpio.gz coreos.autologin console=tty2 systemd.mask=getty@tty1.service quiet
+EOF
+
+    mkisofs -V castle-installer -v -l -r -J -o $2 -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table .
     isohybrid $2
     popd >/dev/null
 }
