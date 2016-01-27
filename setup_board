@@ -163,6 +163,13 @@ case "$BOARD" in
   *-host)
     die_notrace "host boards not supported by setup_board"
     ;;
+  arm64-usr)
+    # Set grub use flags to build arm64.
+    [[ ! -d /etc/portage/package.use ]] && sudo mkdir /etc/portage/package.use
+    sudo_clobber "/etc/portage/package.use/grub" <<EOF
+sys-boot/grub grub_platforms_arm64
+EOF
+    ;;
 esac
 # Locations we will need
 COREOS_OVERLAY="${REPO_ROOT}/src/third_party/coreos-overlay"
@@ -310,3 +317,6 @@ if [ -n "${WORKING_ON}" ]; then
   info "Currently working on the following ebuilds for this board:"
   info "${WORKING_ON}"
 fi
+
+# Setup BOARD_ROOT for QEMU user emulation.
+setup_qemu_static "${BOARD_ROOT}"

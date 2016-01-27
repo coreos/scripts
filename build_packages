@@ -222,8 +222,6 @@ break_dep_loop sys-apps/util-linux udev,systemd sys-apps/systemd cryptsetup
 break_dep_loop sys-apps/systemd cryptsetup
 
 info "Merging board packages now"
-# The following line is required by chroots present in "update-bootengine"
-setup_qemu_static "${BOARD_ROOT}"
 sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" \
     @system coreos-devel/board-packages
 
