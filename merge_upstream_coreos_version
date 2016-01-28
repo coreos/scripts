@@ -83,6 +83,7 @@ merge_from_upstream() {
 merge_from_upstream coreos/coreos-overlay quantum/coreos-overlay src/third_party/coreos-overlay
 merge_from_upstream coreos/portage-stable quantum/coreos-portage-stable src/third_party/portage-stable
 merge_from_upstream coreos/scripts quantum/coreos-scripts src/scripts
+merge_from_upstream coreos/mantle quantum/coreos-mantle src/third_party/mantle
 
 cleanup
 
