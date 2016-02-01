@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Copyright (c) 2016 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+if [[ "$1" == "-v" ]]; then
+    shift
+    if [[ $# -ge 1 ]] && [[ "$1" != [-+]* ]]; then
+        v="$1"
+        shift
+    else
+        v="${COREOS_VERSION}"
+    fi
+
+    # strip of a v prefix or .0.0 suffix
+    v="${v#v}"
+    v="${v%%.*}"
+
+    export TZ=${TZ:=UTC}
+    date -d @$(( (v * 86400) + COREOS_EPOCH )) "$@"
+else
+    t=$(date +%s "$@")
+    echo $(( (t - COREOS_EPOCH) / 86400 ))
+fi
