@@ -18,8 +18,8 @@ DEFINE_boolean usepkg "${FLAGS_TRUE}" \
   "Use binary packages to bootstrap when possible."
 DEFINE_boolean getbinpkg "${FLAGS_TRUE}" \
   "Download binary packages from remote repository."
-DEFINE_boolean noworkon "${FLAGS_FALSE}" \
-  "Don't force-build workon packages."
+DEFINE_boolean workon "${FLAGS_TRUE}" \
+  "Automatically rebuild updated cros-workon packages."
 DEFINE_boolean fetchonly "${FLAGS_FALSE}" \
   "Don't build anything, instead only fetch what is needed."
 
@@ -154,7 +154,7 @@ fi
 
 # Build cros_workon packages when they are changed.
 CROS_WORKON_PKGS=()
-if [ "${FLAGS_noworkon}" -eq "${FLAGS_FALSE}" ]; then
+if [ "${FLAGS_workon}" -eq "${FLAGS_TRUE}" ]; then
   LIST_MODIFIED_PACKAGES="${CHROMITE_BIN}/cros_list_modified_packages"
   CROS_WORKON_PKGS+=( $("${LIST_MODIFIED_PACKAGES}" --board=${FLAGS_board}) )
 fi
