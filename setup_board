@@ -21,6 +21,8 @@ DEFINE_boolean force "${FLAGS_FALSE}" \
   "Force re-creating board root."
 DEFINE_boolean usepkg "${FLAGS_TRUE}" \
   "Use binary packages when possible."
+DEFINE_boolean usepkgonly "${FLAGS_FALSE}" \
+  "Only use/download binary packages."
 DEFINE_boolean getbinpkg "${FLAGS_TRUE}" \
   "Download binary packages from remote repository."
 DEFINE_string getbinpkgver "" \
@@ -135,12 +137,26 @@ if [ -z "$FLAGS_board" ] ; then
   exit 1
 fi
 
+if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+  for flag in usepkg getbinpkg; do
+    fvar="FLAGS_${flag}"
+    if [[ "${!fvar}" -ne "${FLAGS_TRUE}" ]]; then
+      die_notrace "--usepkgonly is incompatible with --no${flag}"
+    fi
+  done
+fi
+
 get_board_and_variant $FLAGS_board $FLAGS_variant
 
 # Before we can run any tools, we need to update chroot
 UPDATE_ARGS="--toolchain_boards=${BOARD}"
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=" --usepkg"
+  if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+    UPDATE_ARGS+=" --usepkgonly"
+  else
+    UPDATE_ARGS+=" --usepkgonly"
+  fi
   if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
     UPDATE_ARGS+=" --getbinpkg "
   else
@@ -284,7 +300,12 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
   if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}"  && \
         "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]
   then
-    EMERGE_FLAGS+=" --usepkg --getbinpkg"
+    if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+      EMERGE_FLAGS+=" --usepkgonly"
+    else
+      EMERGE_FLAGS+=" --usepkg"
+    fi
+    EMERGE_FLAGS+=" --getbinpkg"
     EMERGE_TOOLCHAIN_FLAGS+=" --usepkgonly --getbinpkg"
   else
     # When binary packages are disabled we need to make sure the cross
