@@ -301,12 +301,12 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
         "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]
   then
     if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
-      EMERGE_FLAGS+=" --usepkgonly"
+      EMERGE_FLAGS+=" --usepkgonly --rebuilt-binaries n"
     else
       EMERGE_FLAGS+=" --usepkg"
     fi
     EMERGE_FLAGS+=" --getbinpkg"
-    EMERGE_TOOLCHAIN_FLAGS+=" --usepkgonly --getbinpkg"
+    EMERGE_TOOLCHAIN_FLAGS+=" --usepkgonly --getbinpkg --rebuilt-binaries n"
   else
     # When binary packages are disabled we need to make sure the cross
     # sysroot includes any build dependencies for the toolchain.
