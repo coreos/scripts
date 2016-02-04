@@ -56,6 +56,12 @@ eval set -- "${FLAGS_ARGV}"
 # Die on any errors.
 switch_to_strict_mode
 
+# TODO(marineam): specify the default top-level ebuild in the portage profile.
+# I could have sworn we did that or similar but maybe got lost at some point.
+if [[ $# -eq 0 ]]; then
+  set -- @system coreos-devel/board-packages
+fi
+
 if [[ -z "${FLAGS_board}" ]]; then
   echo "Error: --board is required."
   exit 1
@@ -200,8 +206,7 @@ break_dep_loop sys-apps/util-linux udev,systemd sys-apps/systemd cryptsetup
 break_dep_loop sys-apps/systemd cryptsetup
 
 info "Merging board packages now"
-sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" \
-    @system coreos-devel/board-packages
+sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" "$@"
 
 info "Removing obsolete packages"
 sudo -E "${EMERGE_CMD[@]}" --quiet --depclean @unavailable
