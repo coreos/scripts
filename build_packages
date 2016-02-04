@@ -54,14 +54,6 @@ DEFINE_boolean skip_chroot_upgrade "${FLAGS_FALSE}" \
 DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
   "Don't update toolchain automatically."
 
-# The --reuse_pkgs_from_local_boards flag tells Portage to share binary
-# packages between boards that are built locally, so that the total time
-# required to build several boards is reduced. This flag is only useful
-# when you are not able to use remote binary packages, since remote binary
-# packages are usually more up to date than anything you have locally.
-DEFINE_boolean reuse_pkgs_from_local_boards $FLAGS_FALSE \
-  "Bootstrap from local packages instead of remote packages."
-
 # Parse command line
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
@@ -101,9 +93,6 @@ fi
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   UPDATE_ARGS+=( --jobs=${FLAGS_jobs} )
 fi
-if [ "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]; then
-  UPDATE_ARGS+=( --reuse_pkgs_from_local_boards )
-fi
 if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=( --skip_toolchain_update )
 fi
@@ -128,8 +117,7 @@ fi
 
 EMERGE_CMD+=( ${EXTRA_BOARD_FLAGS} )
 
-if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
-      "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]]; then
+if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
   # Use binary packages. Include all build-time dependencies,
   # so as to avoid unnecessary differences between source
   # and binary builds.
