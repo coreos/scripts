@@ -155,7 +155,7 @@ if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
     UPDATE_ARGS+=" --usepkgonly"
   else
-    UPDATE_ARGS+=" --usepkgonly"
+    UPDATE_ARGS+=" --nousepkgonly"
   fi
   if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
     UPDATE_ARGS+=" --getbinpkg "
