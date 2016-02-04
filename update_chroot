@@ -13,27 +13,21 @@ assert_inside_chroot "$@"
 # Do not run as root
 assert_not_root_user
 
-# Developer-visible flags.
-DEFINE_boolean usepkg $FLAGS_TRUE \
-  "Use binary packages to bootstrap."
-DEFINE_boolean getbinpkg $FLAGS_TRUE \
+DEFINE_boolean usepkg "${FLAGS_TRUE}" \
+  "Use binary packages when possible."
+DEFINE_boolean getbinpkg "${FLAGS_TRUE}" \
   "Download binary packages from remote repository."
+DEFINE_integer jobs "${NUM_JOBS}" \
+  "How many packages to build in parallel at maximum."
+DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
+  "Don't update the toolchains."
+DEFINE_string toolchain_boards "" \
+  "Extra toolchains to setup for the specified boards."
 
 FLAGS_HELP="usage: $(basename $0) [flags]
 Performs an update of the chroot. This script is called as part of
 build_packages, so there is typically no need to call this script directly.
 "
-show_help_if_requested "$@"
-
-# The following options are advanced options, only available to those willing
-# to read the source code. They are not shown in help output, since they are
-# not needed for the typical developer workflow.
-DEFINE_integer jobs "${NUM_JOBS}" \
-  "How many packages to build in parallel at maximum."
-DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
-  "Don't update the toolchains."
-DEFINE_string toolchain_boards "" \
-  "Extra toolchains to setup for the specified boards."
 
 # Parse command line flags
 FLAGS "$@" || exit 1
