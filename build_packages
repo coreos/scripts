@@ -45,8 +45,6 @@ DEFINE_string getbinpkgver "" \
   "Use binary packages from a specific version."
 DEFINE_boolean toolchainpkgonly $FLAGS_FALSE \
   "Use binary packages only for the board toolchain."
-DEFINE_string accept_licenses "" \
-  "Licenses to append to the accept list."
 DEFINE_integer jobs "${NUM_JOBS}" \
   "How many packages to build in parallel at maximum."
 DEFINE_boolean rebuild "${FLAGS_FALSE}" \
@@ -82,9 +80,6 @@ CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
 
 # Before we can run any tools, we need to update chroot or setup_board.
 UPDATE_ARGS=( --regen_configs )
-if [[ -n ${FLAGS_accept_licenses} ]]; then
-  UPDATE_ARGS+=( --accept_licenses "${FLAGS_accept_licenses}" )
-fi
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=( --usepkg )
   if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
