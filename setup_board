@@ -13,14 +13,28 @@ restart_in_chroot_if_needed "$@"
 assert_not_root_user
 
 # Developer-visible flags.
-DEFINE_string board "$DEFAULT_BOARD" \
+DEFINE_string board "${DEFAULT_BOARD}" \
   "The name of the board to set up."
-DEFINE_boolean default $FLAGS_FALSE \
+DEFINE_boolean default "${FLAGS_FALSE}" \
   "Set board to the default board in your chroot"
-DEFINE_boolean force $FLAGS_FALSE \
+DEFINE_boolean force "${FLAGS_FALSE}" \
   "Force re-creating board root."
-DEFINE_boolean usepkg $FLAGS_TRUE \
-  "Use binary packages to bootstrap."
+DEFINE_boolean usepkg "${FLAGS_TRUE}" \
+  "Use binary packages when possible."
+DEFINE_boolean usepkgonly "${FLAGS_FALSE}" \
+  "Only use/download binary packages."
+DEFINE_boolean getbinpkg "${FLAGS_TRUE}" \
+  "Download binary packages from remote repository."
+DEFINE_string getbinpkgver "" \
+  "Use binary packages from a specific version."
+DEFINE_boolean toolchainpkgonly "${FLAGS_FALSE}" \
+  "Use binary packages only for the board toolchain."
+DEFINE_integer jobs "${NUM_JOBS}" \
+  "How many packages to build in parallel at maximum."
+DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
+  "Don't update toolchain automatically."
+DEFINE_boolean skip_chroot_upgrade "${FLAGS_FALSE}" \
+  "Don't run the chroot upgrade automatically; use with care."
 
 FLAGS_HELP="usage: $(basename $0) [flags]
 
@@ -33,26 +47,14 @@ show_help_if_requested "$@"
 # The following options are advanced options, only available to those willing
 # to read the source code. They are not shown in help output, since they are
 # not needed for the typical developer workflow.
-DEFINE_string getbinpkgver "" \
-  "Use binary packages from a specific version."
-DEFINE_boolean toolchainpkgonly $FLAGS_FALSE \
-  "Use binary packages only for the board toolchain."
-DEFINE_integer jobs "${NUM_JOBS}" \
-  "How many packages to build in parallel at maximum."
 DEFINE_string libc_version "[stable]" \
   "Version of libc to use."
 DEFINE_boolean quiet $FLAGS_FALSE \
   "Don't print warnings when board already exists."
-DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
-  "Don't update toolchain automatically."
-DEFINE_boolean skip_chroot_upgrade $FLAGS_FALSE \
-  "Don't run the chroot upgrade automatically; use with care."
 DEFINE_string variant "" \
   "Board variant."
 DEFINE_boolean regen_configs ${FLAGS_FALSE} \
   "Regenerate all config files (useful for modifying profiles w/out rebuild)."
-DEFINE_boolean getbinpkg $FLAGS_TRUE \
-  "Passed to update_chroot, ignored by setup_board itself."
 
 
 # builds wrappers like equery-arm-generic.
@@ -135,12 +137,26 @@ if [ -z "$FLAGS_board" ] ; then
   exit 1
 fi
 
+if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+  for flag in usepkg getbinpkg; do
+    fvar="FLAGS_${flag}"
+    if [[ "${!fvar}" -ne "${FLAGS_TRUE}" ]]; then
+      die_notrace "--usepkgonly is incompatible with --no${flag}"
+    fi
+  done
+fi
+
 get_board_and_variant $FLAGS_board $FLAGS_variant
 
 # Before we can run any tools, we need to update chroot
 UPDATE_ARGS="--toolchain_boards=${BOARD}"
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=" --usepkg"
+  if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+    UPDATE_ARGS+=" --usepkgonly"
+  else
+    UPDATE_ARGS+=" --nousepkgonly"
+  fi
   if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
     UPDATE_ARGS+=" --getbinpkg "
   else
@@ -284,8 +300,13 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
   if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}"  && \
         "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]
   then
-    EMERGE_FLAGS+=" --usepkg --getbinpkg"
-    EMERGE_TOOLCHAIN_FLAGS+=" --usepkgonly --getbinpkg"
+    if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+      EMERGE_FLAGS+=" --usepkgonly --rebuilt-binaries n"
+    else
+      EMERGE_FLAGS+=" --usepkg"
+    fi
+    EMERGE_FLAGS+=" --getbinpkg"
+    EMERGE_TOOLCHAIN_FLAGS+=" --usepkgonly --getbinpkg --rebuilt-binaries n"
   else
     # When binary packages are disabled we need to make sure the cross
     # sysroot includes any build dependencies for the toolchain.

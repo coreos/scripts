@@ -15,13 +15,27 @@ assert_not_root_user
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build packages for."
 DEFINE_boolean usepkg "${FLAGS_TRUE}" \
-  "Use binary packages to bootstrap when possible."
+  "Use binary packages when possible."
+DEFINE_boolean usepkgonly "${FLAGS_FALSE}" \
+  "Only use/download binary packages. Implies --noworkon"
 DEFINE_boolean getbinpkg "${FLAGS_TRUE}" \
   "Download binary packages from remote repository."
-DEFINE_boolean noworkon "${FLAGS_FALSE}" \
-  "Don't force-build workon packages."
+DEFINE_string getbinpkgver "" \
+  "Use binary packages from a specific version."
+DEFINE_boolean toolchainpkgonly "${FLAGS_FALSE}" \
+  "Use binary packages only for the board toolchain."
+DEFINE_boolean workon "${FLAGS_TRUE}" \
+  "Automatically rebuild updated cros-workon packages."
 DEFINE_boolean fetchonly "${FLAGS_FALSE}" \
   "Don't build anything, instead only fetch what is needed."
+DEFINE_integer jobs "${NUM_JOBS}" \
+  "How many packages to build in parallel at maximum."
+DEFINE_boolean rebuild "${FLAGS_FALSE}" \
+  "Automatically rebuild dependencies."
+DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
+  "Don't update toolchain automatically."
+DEFINE_boolean skip_chroot_upgrade "${FLAGS_FALSE}" \
+  "Don't run the chroot upgrade automatically; use with care."
 
 # include upload options
 . "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
@@ -36,33 +50,6 @@ up by the build_image script to put together a bootable CoreOS image.
 If [packages] are specified, only build those specific packages (and any
 dependencies they might need).
 "
-show_help_if_requested "$@"
-
-# The following options are advanced options, only available to those willing
-# to read the source code. They are not shown in help output, since they are
-# not needed for the typical developer workflow.
-DEFINE_string getbinpkgver "" \
-  "Use binary packages from a specific version."
-DEFINE_boolean toolchainpkgonly $FLAGS_FALSE \
-  "Use binary packages only for the board toolchain."
-DEFINE_string accept_licenses "" \
-  "Licenses to append to the accept list."
-DEFINE_integer jobs "${NUM_JOBS}" \
-  "How many packages to build in parallel at maximum."
-DEFINE_boolean rebuild "${FLAGS_FALSE}" \
-  "Don't automatically rebuild dependencies."
-DEFINE_boolean skip_chroot_upgrade "${FLAGS_FALSE}" \
-  "Don't run the chroot upgrade automatically; use with care."
-DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
-  "Don't update toolchain automatically."
-
-# The --reuse_pkgs_from_local_boards flag tells Portage to share binary
-# packages between boards that are built locally, so that the total time
-# required to build several boards is reduced. This flag is only useful
-# when you are not able to use remote binary packages, since remote binary
-# packages are usually more up to date than anything you have locally.
-DEFINE_boolean reuse_pkgs_from_local_boards $FLAGS_FALSE \
-  "Bootstrap from local packages instead of remote packages."
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -71,9 +58,28 @@ eval set -- "${FLAGS_ARGV}"
 # Die on any errors.
 switch_to_strict_mode
 
+# TODO(marineam): specify the default top-level ebuild in the portage profile.
+# I could have sworn we did that or similar but maybe got lost at some point.
+if [[ $# -eq 0 ]]; then
+  set -- @system coreos-devel/board-packages
+fi
+
 if [[ -z "${FLAGS_board}" ]]; then
   echo "Error: --board is required."
   exit 1
+fi
+
+if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+  for flag in usepkg getbinpkg; do
+    fvar="FLAGS_${flag}"
+    if [[ "${!fvar}" -ne "${FLAGS_TRUE}" ]]; then
+      die_notrace "--usepkgonly is incompatible with --no${flag}"
+    fi
+  done
+  if [[ "${FLAGS_rebuild}" -eq "${FLAGS_TRUE}" ]]; then
+    die_notrace "--usepkgonly is incompatible with --rebuild"
+  fi
+  FLAGS_workon="${FLAGS_FALSE}"
 fi
 
 check_gsutil_opts
@@ -82,11 +88,13 @@ CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
 
 # Before we can run any tools, we need to update chroot or setup_board.
 UPDATE_ARGS=( --regen_configs )
-if [[ -n ${FLAGS_accept_licenses} ]]; then
-  UPDATE_ARGS+=( --accept_licenses "${FLAGS_accept_licenses}" )
-fi
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=( --usepkg )
+  if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+    UPDATE_ARGS+=( --usepkgonly )
+  else
+    UPDATE_ARGS+=( --nousepkgonly )
+  fi
   if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
     UPDATE_ARGS+=( --getbinpkg )
   else
@@ -105,9 +113,6 @@ else
 fi
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   UPDATE_ARGS+=( --jobs=${FLAGS_jobs} )
-fi
-if [ "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]; then
-  UPDATE_ARGS+=( --reuse_pkgs_from_local_boards )
 fi
 if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_TRUE}" ]; then
   UPDATE_ARGS+=( --skip_toolchain_update )
@@ -133,19 +138,22 @@ fi
 
 EMERGE_CMD+=( ${EXTRA_BOARD_FLAGS} )
 
-if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ||
-      "${FLAGS_reuse_pkgs_from_local_boards}" -eq "${FLAGS_TRUE}" ]]; then
+if [[ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]]; then
   # Use binary packages. Include all build-time dependencies,
   # so as to avoid unnecessary differences between source
-  # and binary builds.
-  EMERGE_FLAGS+=( --usepkg --with-bdeps y )
+  # and binary builds except for --usepkgonly for speed.
+  if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+    EMERGE_FLAGS+=( --usepkgonly --rebuilt-binaries n )
+  else
+    EMERGE_FLAGS+=( --usepkg --with-bdeps y )
+
+    # Only update toolchain when binpkgs are available.
+    EMERGE_FLAGS+=( $(get_binonly_args) )
+    REBUILD_FLAGS+=( $(get_binonly_args) )
+  fi
   if [[ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]]; then
       EMERGE_FLAGS+=( --getbinpkg )
   fi
-
-  # Only update toolchain when binpkgs are available.
-  EMERGE_FLAGS+=( $(get_binonly_args) )
-  REBUILD_FLAGS+=( $(get_binonly_args) )
 fi
 
 if [[ "${FLAGS_jobs}" -ne -1 ]]; then
@@ -159,7 +167,7 @@ fi
 
 # Build cros_workon packages when they are changed.
 CROS_WORKON_PKGS=()
-if [ "${FLAGS_noworkon}" -eq "${FLAGS_FALSE}" ]; then
+if [ "${FLAGS_workon}" -eq "${FLAGS_TRUE}" ]; then
   LIST_MODIFIED_PACKAGES="${CHROMITE_BIN}/cros_list_modified_packages"
   CROS_WORKON_PKGS+=( $("${LIST_MODIFIED_PACKAGES}" --board=${FLAGS_board}) )
 fi
@@ -215,21 +223,24 @@ break_dep_loop() {
   sudo rm -f "${flag_file}"
 }
 
-# util-linux[udev] -> virtual->udev -> systemd -> util-linux
-break_dep_loop sys-apps/util-linux udev,systemd sys-apps/systemd cryptsetup
+if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_FALSE}" ]]; then
+  # util-linux[udev] -> virtual->udev -> systemd -> util-linux
+  break_dep_loop sys-apps/util-linux udev,systemd sys-apps/systemd cryptsetup
 
-# systemd[cryptsetup] -> cryptsetup -> lvm2 -> virtual/udev -> systemd
-break_dep_loop sys-apps/systemd cryptsetup
+  # systemd[cryptsetup] -> cryptsetup -> lvm2 -> virtual/udev -> systemd
+  break_dep_loop sys-apps/systemd cryptsetup
+fi
 
 info "Merging board packages now"
-sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" \
-    @system coreos-devel/board-packages
+sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" "$@"
 
 info "Removing obsolete packages"
 sudo -E "${EMERGE_CMD[@]}" --quiet --depclean @unavailable
 
-if "portageq-${BOARD}" list_preserved_libs "${BOARD_ROOT}" >/dev/null; then
-  sudo -E "${EMERGE_CMD[@]}" "${REBUILD_FLAGS[@]}" @preserved-rebuild
+if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+  if "portageq-${BOARD}" list_preserved_libs "${BOARD_ROOT}" >/dev/null; then
+    sudo -E "${EMERGE_CMD[@]}" "${REBUILD_FLAGS[@]}" @preserved-rebuild
+  fi
 fi
 
 info "Checking build root"

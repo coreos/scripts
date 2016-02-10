@@ -56,17 +56,10 @@ check_gsutil_opts() {
         UPLOAD_PATH="${FLAGS_upload_path%%/}"
     fi
 
-    # Search for .boto, may be run via sudo
-    local boto
-    for boto in "$HOME/.boto" "/home/$SUDO_USER/.boto"; do
-        if [[ -f "$boto" ]]; then
-            info "Using boto config $boto"
-            export BOTO_CONFIG="$boto"
-            break
-        fi
-    done
-    if [[ ! -f "$BOTO_CONFIG" ]]; then
-        die_notrace "Please run gsutil config to create ~/.boto"
+    # Ensure scripts run via sudo can use the user's gsutil/boto configuration.
+    if [[ -n "${SUDO_USER}" ]]; then
+        : ${BOTO_PATH:="$HOME/.boto:/home/$SUDO_USER/.boto"}
+        export BOTO_PATH
     fi
 }
 
