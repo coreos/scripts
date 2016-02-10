@@ -13,27 +13,25 @@ assert_inside_chroot "$@"
 # Do not run as root
 assert_not_root_user
 
-# Developer-visible flags.
-DEFINE_boolean usepkg $FLAGS_TRUE \
-  "Use binary packages to bootstrap."
-DEFINE_boolean getbinpkg $FLAGS_TRUE \
+DEFINE_boolean usepkg "${FLAGS_TRUE}" \
+  "Use binary packages when possible."
+DEFINE_boolean getbinpkg "${FLAGS_TRUE}" \
   "Download binary packages from remote repository."
+DEFINE_boolean usepkgonly "${FLAGS_FALSE}" \
+  "Only use/download binary packages. Implies --noworkon"
+DEFINE_boolean workon "${FLAGS_TRUE}" \
+  "Automatically rebuild updated cros-workon packages."
+DEFINE_integer jobs "${NUM_JOBS}" \
+  "How many packages to build in parallel at maximum."
+DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
+  "Don't update the toolchains."
+DEFINE_string toolchain_boards "" \
+  "Extra toolchains to setup for the specified boards."
 
 FLAGS_HELP="usage: $(basename $0) [flags]
 Performs an update of the chroot. This script is called as part of
 build_packages, so there is typically no need to call this script directly.
 "
-show_help_if_requested "$@"
-
-# The following options are advanced options, only available to those willing
-# to read the source code. They are not shown in help output, since they are
-# not needed for the typical developer workflow.
-DEFINE_integer jobs "${NUM_JOBS}" \
-  "How many packages to build in parallel at maximum."
-DEFINE_boolean skip_toolchain_update $FLAGS_FALSE \
-  "Don't update the toolchains."
-DEFINE_string toolchain_boards "" \
-  "Extra toolchains to setup for the specified boards."
 
 # Parse command line flags
 FLAGS "$@" || exit 1
@@ -42,6 +40,16 @@ eval set -- "${FLAGS_ARGV}"
 # Only now can we die on error.  shflags functions leak non-zero error codes,
 # so will die prematurely if 'switch_to_strict_mode' is specified before now.
 switch_to_strict_mode
+
+if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+  for flag in usepkg getbinpkg; do
+    fvar="FLAGS_${flag}"
+    if [[ "${!fvar}" -ne "${FLAGS_TRUE}" ]]; then
+      die_notrace "--usepkgonly is incompatible with --no${flag}"
+    fi
+  done
+  FLAGS_workon="${FLAGS_FALSE}"
+fi
 
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh"
 
@@ -172,6 +180,9 @@ EMERGE_FLAGS="-uNv --with-bdeps=y --select"
 REBUILD_FLAGS=""
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
   EMERGE_FLAGS="${EMERGE_FLAGS} --usepkg"
+  if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+    EMERGE_FLAGS+=" --usepkgonly --rebuilt-binaries n"
+  fi
   if [ "${FLAGS_getbinpkg}" -eq "${FLAGS_TRUE}" ]; then
     EMERGE_FLAGS="${EMERGE_FLAGS} --getbinpkg"
   fi
@@ -216,9 +227,11 @@ fi
 
 # Build cros_workon packages when they are changed.
 CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
-for pkg in $("${CHROMITE_BIN}/cros_list_modified_packages" --host); do
-  EMERGE_FLAGS+=" --reinstall-atoms=${pkg} --usepkg-exclude=${pkg}"
-done
+if [ "${FLAGS_workon}" -eq "${FLAGS_TRUE}" ]; then
+  for pkg in $("${CHROMITE_BIN}/cros_list_modified_packages" --host); do
+    EMERGE_FLAGS+=" --reinstall-atoms=${pkg} --usepkg-exclude=${pkg}"
+  done
+fi
 
 # Second pass, update everything else.
 EMERGE_FLAGS+=" --deep"
