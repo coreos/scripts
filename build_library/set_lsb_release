@@ -25,28 +25,30 @@ ROOT_FS_DIR="$FLAGS_root"
 [ -n "$ROOT_FS_DIR" ] || die "--root is required."
 [ -d "$ROOT_FS_DIR" ] || die "Root FS does not exist? ($ROOT_FS_DIR)"
 
-COREOS_VERSION_NAME="CoreOS"
+OS_NAME="CoreOS"
+OS_CODENAME="Coeur Rouge"
+OS_ID="${OS_NAME,,}" # lower case for os-release
+OS_PRETTY_NAME="$OS_NAME $COREOS_VERSION (${OS_CODENAME})"
 
 # DISTRIB_* are the standard lsb-release names
 sudo mkdir -p "${ROOT_FS_DIR}/usr/share/coreos" "${ROOT_FS_DIR}/etc/coreos"
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/lsb-release" <<EOF
-DISTRIB_ID=$COREOS_VERSION_NAME
+DISTRIB_ID=$OS_NAME
 DISTRIB_RELEASE=$COREOS_VERSION
-DISTRIB_CODENAME="Red Dog"
-DISTRIB_DESCRIPTION="$COREOS_VERSION_NAME $COREOS_VERSION"
+DISTRIB_CODENAME="$OS_CODENAME"
+DISTRIB_DESCRIPTION="$OS_PRETTY_NAME"
 EOF
 sudo ln -sf "../usr/share/coreos/lsb-release" "${ROOT_FS_DIR}/etc/lsb-release"
 
-# Aaaannd for the new systemd world order
-# os-release provides a separate build-id field, so split it from version
-OS_ID=$(tr '[:upper:]' '[:lower:]' <<<"$COREOS_VERSION_NAME")
+# And the new standard, os-release
+# https://www.freedesktop.org/software/systemd/man/os-release.html
 sudo_clobber "${ROOT_FS_DIR}/usr/lib/os-release" <<EOF
-NAME=$COREOS_VERSION_NAME
+NAME=$OS_NAME
 ID=$OS_ID
 VERSION=$COREOS_VERSION
 VERSION_ID=$COREOS_VERSION_ID
 BUILD_ID=$COREOS_BUILD_ID
-PRETTY_NAME="$COREOS_VERSION_NAME $COREOS_VERSION"
+PRETTY_NAME="$OS_PRETTY_NAME"
 ANSI_COLOR="1;32"
 HOME_URL="https://coreos.com/"
 BUG_REPORT_URL="https://github.com/coreos/bugs/issues"
