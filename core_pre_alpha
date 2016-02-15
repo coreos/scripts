@@ -12,7 +12,7 @@ export GCLIENT_ROOT=$(readlink -f "${SCRIPT_ROOT}/../../")
 
 DEFINE_string board "amd64-usr" \
     "Board type of the image"
-DEFINE_string version "${COREOS_VERSION_STRING}" \
+DEFINE_string version "${COREOS_VERSION}" \
     "Version number to promote."
 
 DEFINE_string build_storage "gs://builds.release.core-os.net" \

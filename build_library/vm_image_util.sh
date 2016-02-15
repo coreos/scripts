@@ -312,7 +312,7 @@ set_vm_paths() {
     VM_TMP_DIR="${dst_dir}/${dst_name}.vmtmpdir"
     VM_TMP_IMG="${VM_TMP_DIR}/disk_image.bin"
     VM_TMP_ROOT="${VM_TMP_DIR}/rootfs"
-    VM_NAME="$(_src_to_dst_name "${src_name}" "")-${COREOS_VERSION_STRING}"
+    VM_NAME="$(_src_to_dst_name "${src_name}" "")-${COREOS_VERSION}"
     VM_README="${dst_dir}/$(_src_to_dst_name "${src_name}" ".README")"
 
     # Make VM_NAME safe for use as a hostname
@@ -1127,7 +1127,7 @@ vm_upload() {
         cp "${digests}.asc" "${legacy_digests}.asc"
     fi
 
-    local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION_STRING}"
+    local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION}"
     upload_files "$(_dst_name)" "${def_upload_path}" "" "${legacy_uploads[@]}"
 }
 

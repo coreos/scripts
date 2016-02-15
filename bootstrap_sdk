@@ -58,7 +58,7 @@ catalyst_init "$@"
 check_gsutil_opts
 
 if [[ "$STAGES" =~ stage4 ]]; then
-    info "Setting release to ${COREOS_VERSION_STRING}"
+    info "Setting release to ${COREOS_VERSION}"
     rm -rf "${TEMPDIR}/stage4_overlay"
     # need to setup the lib->lib64 symlink correctly
     libdir=$(get_sdk_libdir)

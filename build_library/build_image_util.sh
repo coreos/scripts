@@ -12,7 +12,7 @@
 # Use canonical path since some tools (e.g. mount) do not like symlinks.
 # Append build attempt to output directory.
 if [ -z "${FLAGS_version}" ]; then
-  IMAGE_SUBDIR="${FLAGS_group}-${COREOS_VERSION_STRING}-a${FLAGS_build_attempt}"
+  IMAGE_SUBDIR="${FLAGS_group}-${COREOS_VERSION}-a${FLAGS_build_attempt}"
 else
   IMAGE_SUBDIR="${FLAGS_group}-${FLAGS_version}"
 fi
