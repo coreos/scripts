@@ -130,7 +130,7 @@ upload_packages() {
     [[ -n "${BOARD}" ]] || die "board_options.sh must be sourced first"
 
     local board_packages="${1:-"${BOARD_ROOT}/packages"}"
-    local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION_STRING}"
+    local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION}"
     upload_files packages ${def_upload_path} "pkgs/" "${board_packages}"/*
 }
 
@@ -188,7 +188,7 @@ upload_image() {
     fi
 
     local log_msg=$(basename "$digests" .DIGESTS)
-    local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION_STRING}"
+    local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION}"
     sign_and_upload_files "${log_msg}" "${def_upload_path}" "" "${uploads[@]}"
 }
 
@@ -207,9 +207,9 @@ download_image_url() {
         download_path="${FLAGS_download_path%%/}"
     elif [[ "${download_root}" = *release.core-os.net* ]]; then
         # Official release download paths don't include the boards directory
-        download_path="${download_root%%/}/${BOARD}/${COREOS_VERSION_STRING}"
+        download_path="${download_root%%/}/${BOARD}/${COREOS_VERSION}"
     else
-        download_path="${download_root%%/}/boards/${BOARD}/${COREOS_VERSION_STRING}"
+        download_path="${download_root%%/}/boards/${BOARD}/${COREOS_VERSION}"
     fi
 
     # Just in case download_root was set from UPLOAD_ROOT

@@ -158,14 +158,14 @@ fi
 
 info "Updating chroot:"
 info " chroot version: $OLDVER"
-info " CoreOS version: $COREOS_VERSION_STRING"
+info " CoreOS version: $COREOS_VERSION"
 
 # Updates should be of the form 1.2.3_desc.sh
 for update_script in ${SCRIPTS_DIR}/sdk_lib/updates/*.sh; do
   update_name="${update_script##*/}"
   update_ver="${update_name%%_*}"
   # Run newer updates but don't pass our current version
-  if ! cmp_ver le "$update_ver" "$COREOS_VERSION_STRING"; then
+  if ! cmp_ver le "$update_ver" "$COREOS_VERSION"; then
       warn "Skipping update from the future: $update_name"
       warn "Perhaps it is time to run a repo sync?"
   elif ! cmp_ver ge "$OLDVER" "$update_ver"; then

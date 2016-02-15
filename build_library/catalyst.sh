@@ -34,7 +34,7 @@ DEFINE_string coreos_overlay "${SRC_ROOT}/third_party/coreos-overlay" \
     "Path to the coreos-overlay git checkout."
 DEFINE_string seed_tarball "${DEFAULT_SEED}" \
     "Path to an existing stage tarball to start from."
-DEFINE_string version "${COREOS_VERSION_STRING}" \
+DEFINE_string version "${COREOS_VERSION}" \
     "Version to use for portage snapshot and stage tarballs."
 DEFINE_string profile "${DEFAULT_PROFILE}" \
     "Portage profile, may be prefixed with repo:"
