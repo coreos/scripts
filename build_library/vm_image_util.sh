@@ -11,6 +11,7 @@ VALID_IMG_TYPES=(
     pxe
     iso
     openstack
+    openstack_mini
     qemu
     qemu_uefi
     qemu_uefi_secure
@@ -189,6 +190,11 @@ IMG_openstack_DISK_FORMAT=qcow2
 IMG_openstack_DISK_LAYOUT=vm
 IMG_openstack_OEM_PACKAGE=oem-ec2-compat
 IMG_openstack_OEM_USE=openstack
+
+## openstack but without a resized root partition for more flexibility
+IMG_openstack_mini_DISK_FORMAT=qcow2
+IMG_openstack_mini_OEM_PACKAGE=oem-ec2-compat
+IMG_openstack_mini_OEM_USE=openstack
 
 ## brightbox, supports ec2's metadata format so use oem-ec2-compat
 IMG_brightbox_DISK_FORMAT=qcow2
