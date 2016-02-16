@@ -341,3 +341,6 @@ fi
 
 # Setup BOARD_ROOT for QEMU user emulation.
 setup_qemu_static "${BOARD_ROOT}"
+
+# Build grub platform modules if needed.
+sudo -E emerge --changed-use sys-boot/grub
