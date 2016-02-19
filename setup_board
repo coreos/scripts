@@ -150,6 +150,39 @@ fi
 
 get_board_and_variant $FLAGS_board $FLAGS_variant
 
+# Locations we will need
+COREOS_OVERLAY="${REPO_ROOT}/src/third_party/coreos-overlay"
+COREOS_CONFIG="${COREOS_OVERLAY}/coreos/config"
+BOARD_ROOT="/build/${BOARD_VARIANT}"
+BOARD_ETC="${BOARD_ROOT}/etc"
+BOARD_ARCH=$(get_board_arch "$BOARD")
+BOARD_CHOST=$(get_board_chost ${BOARD})
+PORTAGE_PROFILE=$(get_board_profile "$BOARD")
+BOARD_BINHOST=$(generate_binhost_list)
+
+if [[ ${FLAGS_regen_configs_only} -eq ${FLAGS_TRUE} ]]; then
+  FLAGS_regen_configs=${FLAGS_TRUE}
+  FLAGS_skip_chroot_upgrade=${FLAGS_TRUE}
+elif [[ -d "${BOARD_ROOT}" ]]; then
+  if [[ ${FLAGS_force} -eq ${FLAGS_TRUE} ]]; then
+    info "--force set.  Re-creating ${BOARD_ROOT}..."
+    # Removal takes long. Make it asynchronous.
+    TEMP_DIR=`mktemp -d`
+    sudo mv "${BOARD_ROOT}" "${TEMP_DIR}"
+    sudo rm -rf "${TEMP_DIR}" &
+  elif [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
+    if [[ ${FLAGS_quiet} -eq ${FLAGS_FALSE} ]]; then
+      warn "Board output directory '$BOARD_ROOT' already exists."
+      warn "Not setting up board root. "
+      warn "Use --force to clobber the board root and start again."
+    fi
+    exit 0
+  fi
+else
+  # Missing board root and --regen_configs_only wasn't used.
+  FLAGS_regen_configs=${FLAGS_FALSE}
+fi
+
 # Before we can run any tools, we need to update chroot
 UPDATE_ARGS="--toolchain_boards=${BOARD}"
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
@@ -175,38 +208,6 @@ if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_TRUE}" ]; then
 fi
 if [ "${FLAGS_skip_chroot_upgrade}" -eq "${FLAGS_FALSE}" ] ; then
   "${SRC_ROOT}/scripts"/update_chroot ${UPDATE_ARGS}
-fi
-
-# Locations we will need
-COREOS_OVERLAY="${REPO_ROOT}/src/third_party/coreos-overlay"
-COREOS_CONFIG="${COREOS_OVERLAY}/coreos/config"
-BOARD_ROOT="/build/${BOARD_VARIANT}"
-BOARD_ETC="${BOARD_ROOT}/etc"
-BOARD_ARCH=$(get_board_arch "$BOARD")
-BOARD_CHOST=$(get_board_chost ${BOARD})
-PORTAGE_PROFILE=$(get_board_profile "$BOARD")
-BOARD_BINHOST=$(generate_binhost_list)
-
-if [[ ${FLAGS_regen_configs_only} -eq ${FLAGS_TRUE} ]]; then
-  FLAGS_regen_configs=${FLAGS_TRUE}
-elif [[ -d "${BOARD_ROOT}" ]]; then
-  if [[ ${FLAGS_force} -eq ${FLAGS_TRUE} ]]; then
-    info "--force set.  Re-creating ${BOARD_ROOT}..."
-    # Removal takes long. Make it asynchronous.
-    TEMP_DIR=`mktemp -d`
-    sudo mv "${BOARD_ROOT}" "${TEMP_DIR}"
-    sudo rm -rf "${TEMP_DIR}" &
-  elif [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
-    if [[ ${FLAGS_quiet} -eq ${FLAGS_FALSE} ]]; then
-      warn "Board output directory '$BOARD_ROOT' already exists."
-      warn "Not setting up board root. "
-      warn "Use --force to clobber the board root and start again."
-    fi
-    exit 0
-  fi
-else
-  # Missing board root and --regen_configs_only wasn't used.
-  FLAGS_regen_configs=${FLAGS_FALSE}
 fi
 
 # Migrate board roots that were created before the package location
