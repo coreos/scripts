@@ -177,18 +177,6 @@ if [ "${FLAGS_skip_chroot_upgrade}" -eq "${FLAGS_FALSE}" ] ; then
   "${SRC_ROOT}/scripts"/update_chroot ${UPDATE_ARGS}
 fi
 
-case "$BOARD" in
-  *-host)
-    die_notrace "host boards not supported by setup_board"
-    ;;
-  arm64-usr)
-    # Set grub use flags to build arm64.
-    [[ ! -d /etc/portage/package.use ]] && sudo mkdir /etc/portage/package.use
-    sudo_clobber "/etc/portage/package.use/grub" <<EOF
-sys-boot/grub grub_platforms_arm64
-EOF
-    ;;
-esac
 # Locations we will need
 COREOS_OVERLAY="${REPO_ROOT}/src/third_party/coreos-overlay"
 COREOS_CONFIG="${COREOS_OVERLAY}/coreos/config"
@@ -326,6 +314,9 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
       ${EMERGE_TOOLCHAIN_FLAGS} "${TOOLCHAIN_PKGS[@]}"
 fi
 
+# Setup BOARD_ROOT for QEMU user emulation.
+setup_qemu_static "${BOARD_ROOT}"
+
 if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then
   echo $BOARD_VARIANT > "$GCLIENT_ROOT/src/scripts/.default_board"
 fi
@@ -342,9 +333,3 @@ if [ -n "${WORKING_ON}" ]; then
   info "Currently working on the following ebuilds for this board:"
   info "${WORKING_ON}"
 fi
-
-# Setup BOARD_ROOT for QEMU user emulation.
-setup_qemu_static "${BOARD_ROOT}"
-
-# Build grub platform modules if needed.
-sudo -E emerge --changed-use sys-boot/grub
