@@ -22,6 +22,10 @@ DEFAULT_GROUP=developer
 # Developer-visible flags.
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
+DEFINE_boolean getbinpkg "${FLAGS_FALSE}" \
+  "Download binary packages from remote repository."
+DEFINE_string getbinpkgver "" \
+  "Use binary packages from a specific version."
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
 DEFINE_boolean enable_verity ${FLAGS_FALSE} \
@@ -83,6 +87,12 @@ eval set -- "${FLAGS_ARGV:-dev}"
 switch_to_strict_mode
 
 check_gsutil_opts
+
+# If downloading packages is enabled ensure the board is configured properly.
+if [[ ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
+  "${SRC_ROOT}/scripts/setup_board" --board="${FLAGS_board}" \
+      --getbinpkgver="${FLAGS_getbinpkgver}" --regen_configs_only
+fi
 
 # N.B.  Ordering matters for some of the libraries below, because
 # some of the files contain initialization used by later files.
