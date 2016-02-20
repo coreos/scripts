@@ -105,8 +105,6 @@ for arg in "$@"; do
   esac
 done
 
-eclean-$BOARD -d packages
-
 # Check that the build root is sane.
 if [[ ${skip_test_build_root} -ne 1 ]]; then
   info "Checking build root"
