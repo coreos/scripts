@@ -271,6 +271,9 @@ EOF
 
 sudo cp /etc/portage/repos.conf/* "${BOARD_ETC}"/portage/repos.conf/
 
+# required when using --regen_configs_only
+sudo mkdir -p --mode=01777 "${BOARD_ROOT}"{/tmp,/var/tmp}
+
 # make it easy to find debug symbols
 sudo mkdir -p /usr/lib/debug/build
 sudo ln -sfT ${BOARD_ROOT}/usr/lib/debug /usr/lib/debug/${BOARD_ROOT}
