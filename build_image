@@ -111,11 +111,6 @@ if [[ ${skip_test_build_root} -ne 1 ]]; then
   test_image_content "${BOARD_ROOT}"
 fi
 
-# Hack to fix bug where x86_64 CHOST line gets incorrectly added.
-# ToDo(msb): remove this hack.
-PACKAGES_FILE="${BOARD_ROOT}/packages/Packages"
-sudo sed -e "s/CHOST: x86_64-pc-linux-gnu//" -i "${PACKAGES_FILE}"
-
 # Handle existing directory.
 if [[ -e "${BUILD_DIR}" ]]; then
   if [[ ${FLAGS_replace} -eq ${FLAGS_TRUE} ]]; then
