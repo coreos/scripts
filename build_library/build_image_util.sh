@@ -211,7 +211,7 @@ package_provided() {
     for p in "$@"; do
         info "Writing $p to package.provided and soname.provided"
         echo "$p" >> "${profile}/package.provided"
-	pkg_soname_provides "$p" >> "${profile}/soname.provided"
+	pkg_provides binary "$p" >> "${profile}/soname.provided"
     done
 }
 
