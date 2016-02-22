@@ -243,6 +243,8 @@ if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
   fi
 fi
 
+eclean-$BOARD -d packages
+
 info "Checking build root"
 test_image_content "${BOARD_ROOT}"
 

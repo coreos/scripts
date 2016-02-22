@@ -3,16 +3,42 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+# Lookup the current version of a binary package, downloading it if needed.
+# Usage: get_binary_pkg some-pkg/name
+# Prints: some-pkg/name-1.2.3
+get_binary_pkg() {
+    local name="$1" version
+
+    # If possible use the version installed in $BOARD_ROOT,
+    # fall back to any binary package that is available.
+    version=$(pkg_version installed "${name}")
+    if [[ -z "${version}" ]]; then
+        version=$(pkg_version binary "${name}")
+    fi
+
+    # Nothing? Maybe we can fetch it.
+    if [[ -z "${version}" && ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
+        emerge-${BOARD} --getbinpkg --usepkgonly --fetchonly --nodeps "${name}" >&2
+        version=$(pkg_version binary "${name}")
+    fi
+
+    # Cry
+    if [[ -z "${version}" ]]; then
+        die "Binary package missing for ${name}"
+    fi
+
+    echo "${version}"
+}
+
 # The GCC package includes both its libraries and the compiler.
 # In prod images we only need the shared libraries.
 extract_prod_gcc() {
-    local root_fs_dir="$1"; shift
-    local gcc=$(portageq-${BOARD} best_version "${BOARD_ROOT}" sys-devel/gcc)
-    local pkg="$(portageq-${BOARD} pkgdir)/${gcc}.tbz2"
+    local root_fs_dir="$1" gcc pkg
+    gcc=$(get_binary_pkg sys-devel/gcc)
 
-    if [[ ! -f "${pkg}" ]]; then
-        die "Binary package missing: $pkg"
-    fi
+    # FIXME(marineam): Incompatible with FEATURES=binpkg-multi-instance
+    pkg="$(portageq-${BOARD} pkgdir)/${gcc}.tbz2"
+    [[ -f "${pkg}" ]] || die "${pkg} is missing"
 
     # Normally GCC's shared libraries are installed to:
     #  /usr/lib/gcc/x86_64-cros-linux-gnu/$version/*

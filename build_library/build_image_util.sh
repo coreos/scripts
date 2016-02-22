@@ -114,6 +114,10 @@ run_ldconfig() {
 emerge_to_image() {
   local root_fs_dir="$1"; shift
 
+  if [[ ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
+    set -- --getbinpkg "$@"
+  fi
+
   sudo -E ROOT="${root_fs_dir}" \
       PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
       emerge --root-deps=rdeps --usepkgonly --jobs=$FLAGS_jobs -v "$@"
@@ -211,7 +215,7 @@ package_provided() {
     for p in "$@"; do
         info "Writing $p to package.provided and soname.provided"
         echo "$p" >> "${profile}/package.provided"
-	pkg_soname_provides "$p" >> "${profile}/soname.provided"
+	pkg_provides binary "$p" >> "${profile}/soname.provided"
     done
 }
 
