@@ -422,9 +422,24 @@ install_oem_package() {
         return 0
     fi
 
+    # Split into two steps because we want to always install $oem_pkg from
+    # the ebuild (build_packages doesn't handle it) *but* we never want to
+    # build anything else from source here. emerge doesn't have a way to
+    # enforce this in a single command.
+    info "Building ${oem_pkg}"
+    USE="${oem_use}" emerge-${BOARD} --root="${oem_tmp}" \
+        --nodeps --buildpkgonly --usepkg n \
+        --quiet "${oem_pkg}"
+
+    local getbinpkg
+    if [[ ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
+        getbinpkg=--getbinpkg
+    fi
+
     info "Installing ${oem_pkg} to OEM partition"
     USE="${oem_use}" emerge-${BOARD} --root="${oem_tmp}" \
-        --root-deps=rdeps --usepkg --quiet "${oem_pkg}"
+        --root-deps=rdeps --usepkgonly ${getbinpkg} \
+        --quiet --jobs=2 "${oem_pkg}"
     sudo rsync -a "${oem_tmp}/usr/share/oem/" "${VM_TMP_ROOT}/usr/share/oem/"
     sudo rm -rf "${oem_tmp}"
 }
