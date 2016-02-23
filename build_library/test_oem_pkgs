@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/vm_image_util.sh" || exit 1
+
+# We're invoked only by build_image, which runs in the chroot
+assert_inside_chroot
+
+# Die on any errors
+switch_to_strict_mode
+
+# all of this is amd64 only right now
+BOARD="amd64-usr"
+
+oem_uses() {
+  local vm oem="$1"
+  for vm in "${VALID_IMG_TYPES[@]}"; do
+    local oem_var="IMG_${vm}_OEM_PACKAGE"
+    local use_var="IMG_${vm}_OEM_USE"
+    if [[ "${!oem_var}" == "${oem}" && -n "${!use_var}" ]]; then
+      echo "${!use_var}"
+    fi
+  done | sort -u
+}
+
+for oem in "${VALID_OEM_PACKAGES[@]/#/oem-}"; do
+  # experimental thingy for testing, generally unused.
+  [[ "${oem}" == oem-xendom0 ]] && continue
+
+  uses=( $(oem_uses "${oem}") )
+  if [[ ${#uses} -eq 0 ]]; then
+    uses=( "" )
+  fi
+
+  for use in "${uses[@]}"; do
+    info "Checking ${oem}${use:+[${use}]}"
+    USE="${use}" emerge-${BOARD} --usepkg --getbinpkg \
+        --emptytree --pretend --quiet "coreos-base/${oem}"
+  done
+done
