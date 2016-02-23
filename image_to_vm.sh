@@ -42,6 +42,10 @@ DEFINE_string to "" \
   "Destination folder for VM output file(s)"
 DEFINE_string oem_pkg "" \
   "OEM package to install"
+DEFINE_boolean getbinpkg "${FLAGS_FALSE}" \
+  "Download binary packages from remote repository."
+DEFINE_string getbinpkgver "" \
+  "Use binary packages from a specific version."
 
 # include upload options
 . "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
@@ -67,7 +71,13 @@ if [ -z "${FLAGS_board}" ] ; then
   die_notrace "--board is required."
 fi
 
-# Loaded after flags are parsed because board_options depends on --board
+# If downloading packages is enabled ensure the board is configured properly.
+if [[ ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
+  "${SRC_ROOT}/scripts/setup_board" --board="${FLAGS_board}" \
+      --getbinpkgver="${FLAGS_getbinpkgver}" --regen_configs_only
+fi
+
+# Loaded late because board_options depends on setup_board
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 
 
