@@ -69,8 +69,12 @@ if [ $(id -u) -eq 0 ]; then
 fi
 
 # mkisofs tool check
-if ! which mkisofs &>/dev/null; then
-    echo "$0: mkisofs tool is required to create image." >&2
+if which mkisofs &>/dev/null; then
+    MKISOFS="mkisofs"
+elif which genisoimage &>/dev/null; then
+    MKISOFS="genisoimage"
+else
+    echo "$0: mkisofs/genisoimage tool is required to create image." >&2
     exit 1
 fi
 
@@ -115,10 +119,9 @@ fi
 
 if [ ! -z "$TOKEN" ]; then
     ETCD_DISCOVERY="${DEFAULT_ETCD_DISCOVERY//TOKEN/$TOKEN}"
-fi
-
-if [ -z "$ETCD_DISCOVERY" ]; then
-    ETCD_DISCOVERY=$DEFAULT_ETCD_DISCOVERY
+elif [ -z "$ETCD_DISCOVERY" ]; then
+    echo "$0: You need to specify a discovery token or a discovery URL." >&2
+    exit 1
 fi
 
 if [ -z "$ETCD_NAME" ]; then
@@ -171,7 +174,7 @@ CLOUD_CONFIG="${CLOUD_CONFIG/<HOSTNAME>/${HNAME}}"
 
 echo "$CLOUD_CONFIG" > "$CONFIG_FILE"
 
-mkisofs -R -V config-2 -o $CONFIGDRIVE_FILE $WORKDIR
+$MKISOFS -R -V config-2 -o $CONFIGDRIVE_FILE $WORKDIR
 
 echo
 echo
