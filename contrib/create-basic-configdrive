@@ -171,7 +171,7 @@ CLOUD_CONFIG="${CLOUD_CONFIG/<HOSTNAME>/${HNAME}}"
 
 echo "$CLOUD_CONFIG" > "$CONFIG_FILE"
 
-mkisofs -R -V config-2 -o $CONFIGDRIVE_FILE $WORKDIR
+mkisofs -R -V config-2 -o "$CONFIGDRIVE_FILE" "$WORKDIR"
 
 echo
 echo
