@@ -122,6 +122,9 @@ emerge_to_image() {
       PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
       emerge --root-deps=rdeps --usepkgonly --jobs=$FLAGS_jobs -v "$@"
 
+  # Shortcut if this was just baselayout
+  [[ "$*" == *sys-apps/baselayout ]] && return
+
   # Make sure profile.env has been generated
   sudo -E ROOT="${root_fs_dir}" env-update --no-ldconfig
 

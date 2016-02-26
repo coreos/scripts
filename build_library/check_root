@@ -6,6 +6,8 @@
 
 from __future__ import unicode_literals
 
+import fnmatch
+import os
 import sys
 
 import portage
@@ -71,6 +73,12 @@ IGNORE_MISSING = {
 }
 
 USR_LINKS = ("/bin/", "/sbin/", "/lib/", "/lib32/", "/lib64/")
+
+IGNORE_SHEBANG = (
+    b"*/python2.7/cgi.py",
+    b"*/usr/lib64/modules/*/source/scripts/*",
+    b"*/usr/share/nova-agent/*/etc/gentoo/nova-agent",
+)
 
 def provided_sonames():
     for cpv in VARDB.cpv_all():
@@ -147,6 +155,29 @@ def check_usr():
         ok = False
     return ok
 
+def check_shebang():
+    ok = True
+    cache = {}
+    root = os.environ.get("ROOT", b"/")
+    for parent, _, files in os.walk(root):
+        for path in [os.path.join(parent, f) for f in files]:
+            if any(fnmatch.fnmatchcase(path,i) for i in IGNORE_SHEBANG):
+                continue
+            if not os.access(path, os.R_OK|os.X_OK):
+                continue
+            with open(path, "r") as fd:
+                line = fd.readline(80)
+                if not line.startswith(b"#!"):
+                    continue
+                cmd = line[2:].rstrip().split(None,1)[0]
+                if cmd not in cache:
+                    cache[cmd] = os.path.exists(root+cmd)
+                if not cache[cmd]:
+                    relpath = path[len(root):]
+                    error("%s: %s does not exist", relpath, cmd)
+                    ok = False
+    return ok
+
 def error(fmt, *args):
     sys.stderr.write(output.red(fmt % args))
     sys.stderr.write("\n")
@@ -156,6 +187,7 @@ def main():
     check_funcs = {
             "libs": check_libs,
             "usr": check_usr,
+            "shebang": check_shebang,
     }
 
     if not sys.stderr.isatty():

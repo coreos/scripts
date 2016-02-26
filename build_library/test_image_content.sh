@@ -36,5 +36,11 @@ test_image_content() {
     returncode=1
   fi
 
+  # Check that there are no #! lines pointing to non-existant locations
+  if ! ROOT="$root" "$check_root" shebang; then
+    error "test_image_content: Failed #! check"
+    returncode=1
+  fi
+
   return $returncode
 }
