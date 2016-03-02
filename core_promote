@@ -12,7 +12,7 @@ export GCLIENT_ROOT=$(readlink -f "${SCRIPT_ROOT}/../../")
 
 DEFINE_string board "amd64-usr" \
     "Board type of the image"
-DEFINE_string version "${COREOS_VERSION_STRING}" \
+DEFINE_string version "${COREOS_VERSION}" \
     "Version number to promote."
 DEFINE_string channel "alpha" \
     "Roller channel to promote this version to."
@@ -89,7 +89,10 @@ if [[ ${FLAGS_do_roller} -eq ${FLAGS_TRUE} ]]; then
 fi
 
 if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]]; then
-    gsutil -m cp "${gs_build}/*" "${gs_release}/"
+    # note: do not use the delete (-d) flag here since this script uploads
+    # coreos_production_gce.txt to $gs_release but not $gs_build.
+    # TODO: maybe fix that ;-)
+    gsutil -m rsync "${gs_build}/" "${gs_release}/"
 fi
 
 if [[ ${FLAGS_do_gce} -eq ${FLAGS_TRUE} ]]; then
@@ -125,19 +128,19 @@ if [[ ${FLAGS_do_gce} -eq ${FLAGS_TRUE} ]]; then
 fi
 
 if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]]; then
-    gsutil -m cp "${gs_release}/*" "${gs_current}/"
+    gsutil -m rsync -d "${gs_release}/" "${gs_current}/"
 fi
 
 if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]] && \
    [[ -n "${FLAGS_legacy_storage}" ]]
 then
     if [[ "${lower_channel}" == alpha ]]; then
-        gsutil -m cp "${gs_release}/*" \
+        gsutil -m rsync -d "${gs_release}/" \
             "${FLAGS_legacy_storage}/${FLAGS_board}/${FLAGS_version}/"
-        gsutil -m cp "${gs_current}/*" \
+        gsutil -m rsync -d "${gs_current}/" \
             "${FLAGS_legacy_storage}/${FLAGS_board}/alpha/"
     elif [[ "${lower_channel}" == beta ]]; then
-        gsutil -m cp "${gs_current}/*" \
+        gsutil -m rsync -d "${gs_current}/" \
             "${FLAGS_legacy_storage}/${FLAGS_board}/beta/"
     fi
 fi

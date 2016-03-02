@@ -22,6 +22,10 @@ DEFAULT_GROUP=developer
 # Developer-visible flags.
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build an image for."
+DEFINE_boolean getbinpkg "${FLAGS_FALSE}" \
+  "Download binary packages from remote repository."
+DEFINE_string getbinpkgver "" \
+  "Use binary packages from a specific version."
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
 DEFINE_boolean enable_verity ${FLAGS_FALSE} \
@@ -84,6 +88,12 @@ switch_to_strict_mode
 
 check_gsutil_opts
 
+# If downloading packages is enabled ensure the board is configured properly.
+if [[ ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
+  "${SRC_ROOT}/scripts/setup_board" --board="${FLAGS_board}" \
+      --getbinpkgver="${FLAGS_getbinpkgver}" --regen_configs_only
+fi
+
 # N.B.  Ordering matters for some of the libraries below, because
 # some of the files contain initialization used by later files.
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
@@ -105,18 +115,11 @@ for arg in "$@"; do
   esac
 done
 
-eclean-$BOARD -d packages
-
 # Check that the build root is sane.
 if [[ ${skip_test_build_root} -ne 1 ]]; then
   info "Checking build root"
   test_image_content "${BOARD_ROOT}"
 fi
-
-# Hack to fix bug where x86_64 CHOST line gets incorrectly added.
-# ToDo(msb): remove this hack.
-PACKAGES_FILE="${BOARD_ROOT}/packages/Packages"
-sudo sed -e "s/CHOST: x86_64-pc-linux-gnu//" -i "${PACKAGES_FILE}"
 
 # Handle existing directory.
 if [[ -e "${BUILD_DIR}" ]]; then
@@ -187,7 +190,7 @@ tee "${BUILD_DIR}/version.txt" <<EOF
 COREOS_BUILD=${SPLIT[0]}
 COREOS_BRANCH=${SPLIT[1]}
 COREOS_PATCH=${SPLIT[2]}
-COREOS_VERSION=${COREOS_VERSION_STRING}
+COREOS_VERSION=${COREOS_VERSION}
 COREOS_VERSION_ID=${COREOS_VERSION_ID}
 COREOS_BUILD_ID="${COREOS_BUILD_ID}"
 COREOS_SDK_VERSION=${COREOS_SDK_VERSION}

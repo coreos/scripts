@@ -171,10 +171,15 @@ CLOUD_CONFIG="${CLOUD_CONFIG/<HOSTNAME>/${HNAME}}"
 
 echo "$CLOUD_CONFIG" > "$CONFIG_FILE"
 
-mkisofs -R -V config-2 -o $CONFIGDRIVE_FILE $WORKDIR
+mkisofs -R -V config-2 -o "$CONFIGDRIVE_FILE" "$WORKDIR"
 
-echo
-echo
-echo "Success! The config-drive image was created on ${CONFIGDRIVE_FILE}"
-
+if [ "$?" -eq 0 ] ; then
+    echo
+    echo
+    echo "Success! The config-drive image was created on ${CONFIGDRIVE_FILE}"
+else
+    echo
+    echo
+    echo "Failure! The config-drive image was not created on ${CONFIGDRIVE_FILE}"
+fi
 # vim: ts=4 et

@@ -11,6 +11,7 @@ VALID_IMG_TYPES=(
     pxe
     iso
     openstack
+    openstack_mini
     qemu
     qemu_uefi
     qemu_uefi_secure
@@ -210,6 +211,11 @@ IMG_openstack_DISK_LAYOUT=vm
 IMG_openstack_OEM_PACKAGE=oem-ec2-compat
 IMG_openstack_OEM_USE=openstack
 
+## openstack but without a resized root partition for more flexibility
+IMG_openstack_mini_DISK_FORMAT=qcow2
+IMG_openstack_mini_OEM_PACKAGE=oem-ec2-compat
+IMG_openstack_mini_OEM_USE=openstack
+
 ## brightbox, supports ec2's metadata format so use oem-ec2-compat
 IMG_brightbox_DISK_FORMAT=qcow2
 IMG_brightbox_DISK_LAYOUT=vm
@@ -334,7 +340,7 @@ set_vm_paths() {
     VM_TMP_ROOT="${VM_TMP_DIR}/rootfs"
     local dst_vm="$(_src_to_dst_name "${src_name}" ".$(_vm_ext)")"
     VM_DST_VM="${dst_dir}/${dst_vm}"
-    VM_NAME="$(_src_to_dst_name "${src_name}" "")-${COREOS_VERSION_STRING}"
+    VM_NAME="$(_src_to_dst_name "${src_name}" "")-${COREOS_VERSION}"
     VM_README="${dst_dir}/$(_src_to_dst_name "${src_name}" ".README")"
 
     # Make VM_NAME safe for use as a hostname
@@ -448,9 +454,24 @@ install_oem_package() {
         return 0
     fi
 
+    # Split into two steps because we want to always install $oem_pkg from
+    # the ebuild (build_packages doesn't handle it) *but* we never want to
+    # build anything else from source here. emerge doesn't have a way to
+    # enforce this in a single command.
+    info "Building ${oem_pkg}"
+    USE="${oem_use}" emerge-${BOARD} --root="${oem_tmp}" \
+        --nodeps --buildpkgonly --usepkg n \
+        --quiet "${oem_pkg}"
+
+    local getbinpkg
+    if [[ ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
+        getbinpkg=--getbinpkg
+    fi
+
     info "Installing ${oem_pkg} to OEM partition"
     USE="${oem_use}" emerge-${BOARD} --root="${oem_tmp}" \
-        --root-deps=rdeps --usepkg --quiet "${oem_pkg}"
+        --root-deps=rdeps --usepkgonly ${getbinpkg} \
+        --quiet --jobs=2 "${oem_pkg}"
     sudo rsync -a "${oem_tmp}/usr/share/oem/" "${VM_TMP_ROOT}/usr/share/oem/"
     sudo rm -rf "${oem_tmp}"
 }
@@ -1227,7 +1248,7 @@ vm_upload() {
         cp "${digests}.asc" "${legacy_digests}.asc"
     fi
 
-    local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION_STRING}"
+    local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION}"
     upload_files "$(_dst_name)" "${def_upload_path}" "" "${legacy_uploads[@]}"
 }
 

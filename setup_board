@@ -35,6 +35,10 @@ DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
   "Don't update toolchain automatically."
 DEFINE_boolean skip_chroot_upgrade "${FLAGS_FALSE}" \
   "Don't run the chroot upgrade automatically; use with care."
+DEFINE_boolean regen_configs "${FLAGS_FALSE}" \
+  "Regenerate all config files (useful for modifying profiles w/out rebuild)."
+DEFINE_boolean regen_configs_only "${FLAGS_FALSE}" \
+  "Regenerate all config files and nothing else, even if nothing else is installed."
 
 FLAGS_HELP="usage: $(basename $0) [flags]
 
@@ -53,8 +57,6 @@ DEFINE_boolean quiet $FLAGS_FALSE \
   "Don't print warnings when board already exists."
 DEFINE_string variant "" \
   "Board variant."
-DEFINE_boolean regen_configs ${FLAGS_FALSE} \
-  "Regenerate all config files (useful for modifying profiles w/out rebuild)."
 
 
 # builds wrappers like equery-arm-generic.
@@ -148,6 +150,39 @@ fi
 
 get_board_and_variant $FLAGS_board $FLAGS_variant
 
+# Locations we will need
+COREOS_OVERLAY="${REPO_ROOT}/src/third_party/coreos-overlay"
+COREOS_CONFIG="${COREOS_OVERLAY}/coreos/config"
+BOARD_ROOT="/build/${BOARD_VARIANT}"
+BOARD_ETC="${BOARD_ROOT}/etc"
+BOARD_ARCH=$(get_board_arch "$BOARD")
+BOARD_CHOST=$(get_board_chost ${BOARD})
+PORTAGE_PROFILE=$(get_board_profile "$BOARD")
+BOARD_BINHOST=$(generate_binhost_list)
+
+if [[ ${FLAGS_regen_configs_only} -eq ${FLAGS_TRUE} ]]; then
+  FLAGS_regen_configs=${FLAGS_TRUE}
+  FLAGS_skip_chroot_upgrade=${FLAGS_TRUE}
+elif [[ -d "${BOARD_ROOT}" ]]; then
+  if [[ ${FLAGS_force} -eq ${FLAGS_TRUE} ]]; then
+    info "--force set.  Re-creating ${BOARD_ROOT}..."
+    # Removal takes long. Make it asynchronous.
+    TEMP_DIR=`mktemp -d`
+    sudo mv "${BOARD_ROOT}" "${TEMP_DIR}"
+    sudo rm -rf "${TEMP_DIR}" &
+  elif [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
+    if [[ ${FLAGS_quiet} -eq ${FLAGS_FALSE} ]]; then
+      warn "Board output directory '$BOARD_ROOT' already exists."
+      warn "Not setting up board root. "
+      warn "Use --force to clobber the board root and start again."
+    fi
+    exit 0
+  fi
+else
+  # Missing board root and --regen_configs_only wasn't used.
+  FLAGS_regen_configs=${FLAGS_FALSE}
+fi
+
 # Before we can run any tools, we need to update chroot
 UPDATE_ARGS="--toolchain_boards=${BOARD}"
 if [ "${FLAGS_usepkg}" -eq "${FLAGS_TRUE}" ]; then
@@ -173,48 +208,6 @@ if [ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_TRUE}" ]; then
 fi
 if [ "${FLAGS_skip_chroot_upgrade}" -eq "${FLAGS_FALSE}" ] ; then
   "${SRC_ROOT}/scripts"/update_chroot ${UPDATE_ARGS}
-fi
-
-case "$BOARD" in
-  *-host)
-    die_notrace "host boards not supported by setup_board"
-    ;;
-  arm64-usr)
-    # Set grub use flags to build arm64.
-    [[ ! -d /etc/portage/package.use ]] && sudo mkdir /etc/portage/package.use
-    sudo_clobber "/etc/portage/package.use/grub" <<EOF
-sys-boot/grub grub_platforms_arm64
-EOF
-    ;;
-esac
-# Locations we will need
-COREOS_OVERLAY="${REPO_ROOT}/src/third_party/coreos-overlay"
-COREOS_CONFIG="${COREOS_OVERLAY}/coreos/config"
-BOARD_ROOT="/build/${BOARD_VARIANT}"
-BOARD_ETC="${BOARD_ROOT}/etc"
-BOARD_ARCH=$(get_board_arch "$BOARD")
-BOARD_CHOST=$(get_board_chost ${BOARD})
-PORTAGE_PROFILE=$(get_board_profile "$BOARD")
-BOARD_BINHOST=$(generate_binhost_list)
-
-if [ -d "${BOARD_ROOT}" ]; then
-  if [[ ${FLAGS_force} -eq ${FLAGS_TRUE} ]]; then
-    info "--force set.  Re-creating ${BOARD_ROOT}..."
-    # Removal takes long. Make it asynchronous.
-    TEMP_DIR=`mktemp -d`
-    sudo mv "${BOARD_ROOT}" "${TEMP_DIR}"
-    sudo rm -rf "${TEMP_DIR}" &
-  elif [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
-    if [[ ${FLAGS_quiet} -eq ${FLAGS_FALSE} ]]; then
-      warn "Board output directory '$BOARD_ROOT' already exists."
-      warn "Not setting up board root. "
-      warn "Use --force to clobber the board root and start again."
-    fi
-    exit 0
-  fi
-else
-  # Regenerating configs w/out a board root doesn't make sense.
-  FLAGS_regen_configs=${FLAGS_FALSE}
 fi
 
 # Migrate board roots that were created before the package location
@@ -278,6 +271,9 @@ EOF
 
 sudo cp /etc/portage/repos.conf/* "${BOARD_ETC}"/portage/repos.conf/
 
+# required when using --regen_configs_only
+sudo mkdir -p --mode=01777 "${BOARD_ROOT}"{/tmp,/var/tmp}
+
 # make it easy to find debug symbols
 sudo mkdir -p /usr/lib/debug/build
 sudo ln -sfT ${BOARD_ROOT}/usr/lib/debug /usr/lib/debug/${BOARD_ROOT}
@@ -322,6 +318,9 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
       ${EMERGE_TOOLCHAIN_FLAGS} "${TOOLCHAIN_PKGS[@]}"
 fi
 
+# Setup BOARD_ROOT for QEMU user emulation.
+setup_qemu_static "${BOARD_ROOT}"
+
 if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then
   echo $BOARD_VARIANT > "$GCLIENT_ROOT/src/scripts/.default_board"
 fi
@@ -338,6 +337,3 @@ if [ -n "${WORKING_ON}" ]; then
   info "Currently working on the following ebuilds for this board:"
   info "${WORKING_ON}"
 fi
-
-# Setup BOARD_ROOT for QEMU user emulation.
-setup_qemu_static "${BOARD_ROOT}"
