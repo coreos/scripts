@@ -14,7 +14,7 @@ DEFINE_string board "amd64-usr" \
     "Board type of the image"
 DEFINE_string payload "coreos_production_update.gz" \
     "Path to the update payload"
-DEFINE_string version "${COREOS_VERSION_STRING}" \
+DEFINE_string version "${COREOS_VERSION}" \
     "Version number of this build."
 DEFINE_string app_id "e96281a6-d1af-4bde-9a0a-97b76e56dc57" \
     "CoreOS AppId in roller."

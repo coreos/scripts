@@ -158,14 +158,14 @@ fi
 
 info "Updating chroot:"
 info " chroot version: $OLDVER"
-info " CoreOS version: $COREOS_VERSION_STRING"
+info " CoreOS version: $COREOS_VERSION"
 
 # Updates should be of the form 1.2.3_desc.sh
 for update_script in ${SCRIPTS_DIR}/sdk_lib/updates/*.sh; do
   update_name="${update_script##*/}"
   update_ver="${update_name%%_*}"
   # Run newer updates but don't pass our current version
-  if ! cmp_ver le "$update_ver" "$COREOS_VERSION_STRING"; then
+  if ! cmp_ver le "$update_ver" "$COREOS_VERSION"; then
       warn "Skipping update from the future: $update_name"
       warn "Perhaps it is time to run a repo sync?"
   elif ! cmp_ver ge "$OLDVER" "$update_ver"; then
@@ -222,6 +222,17 @@ if [[ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" && \
   for cross_chost in "${CROSS_CHOSTS[@]}"; do
     info "Updating cross ${cross_chost} toolchain"
     install_cross_toolchain "${cross_chost}" --quiet ${EMERGE_FLAGS}
+
+    # Set grub for arm64, not enabled by default since it requires the above
+    # cross toolchain which isn't in the SDK by default.
+    if [[ "${cross_chost}" == aarch64-* ]]; then
+      if [[ ! -d /etc/portage/package.use ]]; then
+        sudo mkdir /etc/portage/package.use
+      fi
+      sudo_clobber "/etc/portage/package.use/grub" \
+          <<<"sys-boot/grub grub_platforms_arm64"
+      sudo -E emerge --changed-use sys-boot/grub
+    fi
   done
 fi
 
