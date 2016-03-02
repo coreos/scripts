@@ -160,7 +160,7 @@ def check_usr():
 def is_exe(path):
     # just check other, assuming root or group only commands are not scripts.
     perms = stat.S_IROTH|stat.S_IXOTH
-    mode = os.stat(path).st_mode
+    mode = os.lstat(path).st_mode
     return stat.S_ISREG(mode) and mode&perms == perms
 
 def check_shebang():
