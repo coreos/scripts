@@ -90,9 +90,6 @@ download_mirror() {
 }
 
 if [[ ${FLAGS_download} -eq ${FLAGS_TRUE} ]]; then
-    if [[ ! -f "$HOME/.boto" ]]; then
-        die_notrace "Please run gsutil config to create ~/.boto"
-    fi
     for repo in "$@"; do
         download_mirror "$repo"
     done
@@ -111,9 +108,6 @@ if [[ ${FLAGS_dry_run} == ${FLAGS_TRUE} ]]; then
 fi
 
 if [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]]; then
-    if [[ ! -f "$HOME/.boto" ]]; then
-        die_notrace "Please run gsutil config to create ~/.boto"
-    fi
     for repo in "$@"; do
         upload_mirror "$repo"
     done
