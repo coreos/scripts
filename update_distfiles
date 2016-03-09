@@ -33,6 +33,8 @@ if [[ ${FLAGS_parallel} -eq ${FLAGS_TRUE} ]]; then
     GSUTIL_OPTS="-m"
 fi
 
+EXIT_CODE=0
+
 
 update_local_mirror() {
     local repo_name="$1"
@@ -46,6 +48,7 @@ update_local_mirror() {
         info "Starting distfiles update for $repo_name"
     fi
 
+    rm -rf "${repo_mirror}/log" # clear old logs
     mkdir -p "${repo_mirror}/"{distfiles,info,log,tmp}
     emirrordist --mirror --verbose $extra_flags \
         --jobs=${NUM_JOBS} --repo="${repo_name}" \
@@ -58,6 +61,25 @@ update_local_mirror() {
         --restrict-mirror-exemptions="gentoo" \
         --temp-dir="${repo_mirror}/tmp" \
         --verify-existing-digest
+
+    if [[ ! -s "${repo_mirror}/log/failure.log" ]]; then
+        info "Completed distfiles update for $repo_name without error"
+        return
+    fi
+
+    # report what went wrong :(
+    local lastpkg pkg file error
+    while read pkg file error; do
+        local log="${repo_mirror}/log/${file}.log"
+        if [[ "${pkg}" != "${lastpkg}" ]]; then
+            error "${pkg} failed:"
+            lastpkg="${pkg}"
+        fi
+        error " ${file} ${error}"
+        [[ -s "${log}" ]] && cat "${log}"
+    done <"${repo_mirror}/log/failure.log"
+
+    EXIT_CODE=1
 }
 upload_mirror() {
     local repo_name="$1"
@@ -112,4 +134,5 @@ if [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]]; then
     done
 fi
 
-info "Done!"
+command_completed
+exit $EXIT_CODE
