@@ -68,10 +68,11 @@ upload_mirror() {
     local remote_mirror="${UPLOAD_ROOT}/$repo_name"
 
     info "Uploading public distfiles for $repo_name"
-    gsutil ${GSUTIL_OPTS} cp -n \
-        "${local_mirror}/distfiles/*" "${remote_mirror}/distfiles"
+    gsutil ${GSUTIL_OPTS} rsync -c \
+        "${local_mirror}/distfiles/" "${remote_mirror}/distfiles"
 
     info "Uploading private metadata for $repo_name"
+    # uses cp instead of rsync in order to provide acl
     gsutil ${GSUTIL_OPTS} cp -a project-private \
         "${local_mirror}/info/*" "${remote_mirror}/info"
 }
@@ -82,11 +83,12 @@ download_mirror() {
 
     info "Downloading public distfiles for $repo_name"
     mkdir -p "${local_mirror}/"{distfiles,info}
-    gsutil ${GSUTIL_OPTS} cp -n \
-        "${remote_mirror}/distfiles/*" "${local_mirror}/distfiles"
+    gsutil ${GSUTIL_OPTS} rsync -c -d \
+        "${remote_mirror}/distfiles/" "${local_mirror}/distfiles"
 
     info "Downloading private metadata for $repo_name"
-    gsutil ${GSUTIL_OPTS} cp "${remote_mirror}/info/*" "${local_mirror}/info"
+    gsutil ${GSUTIL_OPTS} rsync -c -d \
+        "${remote_mirror}/info/" "${local_mirror}/info"
 }
 
 if [[ ${FLAGS_download} -eq ${FLAGS_TRUE} ]]; then
