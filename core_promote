@@ -87,13 +87,6 @@ if [[ ${FLAGS_do_roller} -eq ${FLAGS_TRUE} ]]; then
         --publish=true
 fi
 
-if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]]; then
-    # note: do not use the delete (-d) flag here since this script uploads
-    # coreos_production_gce.txt to $gs_release but not $gs_build.
-    # TODO: maybe fix that ;-)
-    gsutil -m rsync "${gs_build}/" "${gs_release}/"
-fi
-
 if [[ ${FLAGS_do_gce} -eq ${FLAGS_TRUE} ]]; then
     gce_name="coreos-${lower_channel}-${FLAGS_version//./-}-v$(date -u +%Y%m%d)"
     # description must be of the format "Vendor, OS, Version, Description"
@@ -108,7 +101,7 @@ if [[ ${FLAGS_do_gce} -eq ${FLAGS_TRUE} ]]; then
     gce_temp=$(mktemp --suffix=.txt)
     trap "rm -f '${gce_temp}'" EXIT
     echo "${gce_path}" > "${gce_temp}"
-    gsutil cp "${gce_temp}" "${gs_release}/coreos_production_gce.txt"
+    gsutil cp "${gce_temp}" "${gs_build}/coreos_production_gce.txt"
     rm -f "${gce_temp}"
     trap - EXIT
 
@@ -127,7 +120,8 @@ if [[ ${FLAGS_do_gce} -eq ${FLAGS_TRUE} ]]; then
 fi
 
 if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]]; then
-    gsutil -m rsync -d "${gs_release}/" "${gs_current}/"
+    gsutil -m rsync -d "${gs_build}/" "${gs_release}/"
+    gsutil -m rsync -d "${gs_build}/" "${gs_current}/"
 fi
 
 if [[ ${FLAGS_do_storage} -eq ${FLAGS_TRUE} ]] && \
