@@ -16,6 +16,74 @@
   <VirtualSystem ovf:id="@@NAME@@">
     <Info>A virtual machine</Info>
     <Name>@@NAME@@</Name>
+    <ProductSection ovf:required="false">
+      <Info>CoreOS Virtual Appliance</Info>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.hostname" ovf:value="">
+        <Label>Hostname</Label>
+        <Description>Hostname</Description>
+      </Property>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.coreos.config.data" ovf:value="">
+        <Label>CoreOS config data</Label>
+        <Description>Inline cloud-config data</Description>
+      </Property>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.coreos.config.url" ovf:value="">
+        <Label>CoreOS config url</Label>
+        <Description>URL to cloud-config data</Description>
+      </Property>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.coreos.config.data.encoding" ovf:value="">
+        <Label>CoreOS config data encoding</Label>
+        <Description>Encoding for cloud-config data</Description>
+      </Property>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.interface.0.name" ovf:value="">
+        <Label>Name for network interface 0</Label>
+        <Description>Name for network interface 0</Description>
+      </Property>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.interface.0.mac" ovf:value="">
+        <Label>MAC for network interface 0</Label>
+        <Description>MAC for network interface 0</Description>
+      </Property>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.interface.0.dhcp" ovf:value="yes">
+        <Label>DHCP support for network interface 0</Label>
+        <Description>DHCP support for network interface 0</Description>
+      </Property>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.interface.0.role" ovf:value="public">
+        <Label>Role for network interface 0</Label>
+        <Description>Role for network interface 0</Description>
+      </Property>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.interface.0.ip.0.address" ovf:value="">
+        <Label>Main IP for network interface 0</Label>
+        <Description>Main IP for network interface 0</Description>
+      </Property>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.interface.0.route.0.gateway" ovf:value="">
+        <Label>Main route gateway for network interface 0</Label>
+        <Description>Main route gateway for network interface 0</Description>
+      </Property>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.interface.0.route.0.destination" ovf:value="">
+        <Label>Main route destination for network interface 0</Label>
+        <Description>Main route destination for network interface 0</Description>
+      </Property>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.dns.server.0" ovf:value="">
+        <Label>Primary DNS</Label>
+        <Description>Primary DNS</Description>
+      </Property>
+      <Property ovf:userConfigurable="true" ovf:type="string"
+                ovf:key="guestinfo.dns.server.1" ovf:value="">
+        <Label>Secondary DNS</Label>
+        <Description>Secondary DNS</Description>
+      </Property>
+    </ProductSection>
     <OperatingSystemSection ovf:id="100" vmw:osType="other26xLinux64Guest">
       <Info>The kind of installed guest operating system</Info>
     </OperatingSystemSection>
