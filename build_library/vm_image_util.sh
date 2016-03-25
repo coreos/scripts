@@ -645,15 +645,19 @@ _write_castle_installer_disk() {
     local iso_target="${VM_TMP_DIR}/rootiso"
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
-    local src_image_compressed=${VM_SRC_IMG%.bin}.bin.bz2
+    local src_image_compressed=${VM_SRC_IMG%.bin}.bin.gz
 
     mkdir "${iso_target}"
     pushd "${iso_target}" >/dev/null
     mkdir isolinux syslinux coreos
     _write_cpio_common "$1" "${iso_target}/coreos/cpio.gz"
     cp "${base_dir}"/boot/vmlinuz "${iso_target}/coreos/vmlinuz"
-    lbzip2 --compress --keep -f "${VM_SRC_IMG}"
+    gzip --keep -f "${VM_SRC_IMG}"
     mv "${src_image_compressed}" "${iso_target}/coreos/"
+    cat<<EOF > "${iso_target}/coreos/version"
+COREOS_CHANNEL=${VM_GROUP}
+COREOS_VERSION=${COREOS_VERSION_ID}
+EOF
 
     cp -R /usr/share/syslinux/* isolinux/
     cat<<EOF > isolinux/isolinux.cfg
