@@ -91,6 +91,9 @@ create_prod_image() {
   sudo rm -rf ${root_fs_dir}/etc/env.d
   sudo rm -rf ${root_fs_dir}/var/db/pkg
 
+  sudo mv ${root_fs_dir}/etc/profile.env \
+      ${root_fs_dir}/usr/share/baselayout/profile.env
+
   # Move the ld.so configs into /usr so they can be symlinked from /
   sudo mv ${root_fs_dir}/etc/ld.so.conf ${root_fs_dir}/usr/lib
   sudo mv ${root_fs_dir}/etc/ld.so.conf.d ${root_fs_dir}/usr/lib
