@@ -149,6 +149,25 @@ do
     [ "${r}" == "${region}" ] && continue
     do_copy "$r" pv "$AMI" &
     WAIT_PIDS+=( $! )
+done
+
+# wait for each subshell individually to report errors
+WAIT_FAILED=0
+for wait_pid in "${WAIT_PIDS[@]}"; do
+    if ! wait ${wait_pid}; then
+        : $(( WAIT_FAILED++ ))
+    fi
+done
+
+if [[ ${WAIT_FAILED} -ne 0 ]]; then
+    echo "${WAIT_FAILED} jobs failed :(" >&2
+    exit ${WAIT_FAILED}
+fi
+
+WAIT_PIDS=()
+for r in "${REGIONS[@]}"
+do
+    [ "${r}" == "${region}" ] && continue
     if [[ -n "$HVM" ]]; then
         do_copy "$r" hvm "$HVM" &
         WAIT_PIDS+=( $! )
