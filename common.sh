@@ -260,8 +260,8 @@ load_environment_var() {
   shift
   for name in "$@"; do
     value=$(grep "^${name}=" "${file}")
-    export "${value}"
-  done
+    [[ -z ${value} ]] || export "${value}"
+ done
 }
 
 # Find root of source tree
@@ -319,9 +319,8 @@ readonly COREOS_EPOCH=1372636800
 TODAYS_VERSION=$(( (`date +%s` - ${COREOS_EPOCH}) / 86400 ))
 
 # Download URL prefix for SDK and board binary packages
-: ${COREOS_DEV_BUILDS:=http://builds.developer.core-os.net}
+: ${COREOS_DEV_BUILDS:=http://s3.amazonaws.com/coreos-builds}
 
-# Load developer's custom settings.  Default location is in scripts dir,
 # since that's available both inside and outside the chroot.  By convention,
 # settings from this file are variables starting with 'CHROMEOS_'
 : ${CHROMEOS_DEV_SETTINGS:=${SCRIPTS_DIR}/.chromeos_dev}

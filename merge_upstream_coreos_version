@@ -1,0 +1,92 @@
+#!/bin/bash
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+DEFINE_string url "https://github.com/coreos/manifest.git" "The officeial CoreOS manifest git URL."
+DEFINE_string version "" "CoreOS release version. Major release only, e.g. 891"
+DEFINE_boolean push ${FLAGS_FALSE} "Push the repositories."
+
+# Parse flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+switch_to_strict_mode
+
+if [[ -z ${FLAGS_version} ]]; then
+    die_notrace "CoreOS release version required."
+fi
+
+# retrieve the manifest
+tmpdir=$(mktemp -d /tmp/manifest.XXXXXXXXXX)
+function cleanup {
+    rm -fr ${tmpdir}
+}
+trap cleanup EXIT
+
+info "Retrieving the manifest for CoreOS release build ${FLAGS_version}"
+git clone -b build-"${FLAGS_version}" --depth=1 --single-branch ${FLAGS_url} ${tmpdir} &>/dev/null
+
+SOURCE=/mnt/host/source
+
+merge_from_upstream() {
+    local repo=$1
+    local our_repo=$2
+    local path=$3
+    local commit_hash gitcmd branch
+
+    commit_hash=$(xmllint --xpath "string(/manifest/project[@name=\"${repo}\"]/@revision)" ${tmpdir}/release.xml)
+    if [[ -z ${commit_hash} ]]; then
+        die_notrace "Unable to retrieve the commit hash for repo ${repo} from the manifest."
+    fi
+
+    info "CoreOS version ${FLAGS_version} uses commit hash ${commit_hash} for ${repo}"
+
+    gitcmd="git --git-dir=${SOURCE}/${path}/.git --work-tree=${SOURCE}/${path}"
+
+    [[ -z $(${gitcmd} status -s) ]] || die_notrace "You have changes in ${path}."
+
+    info "Running repo sync on ${our_repo}."
+    repo sync -d ${our_repo}
+
+    if ${gitcmd} remote | grep -q coreos; then
+        ${gitcmd} remote remove coreos
+    fi
+
+    if ! ${gitcmd} remote | grep -q coreos; then
+        info "Adding remote coreos in repo ${repo}."
+        ${gitcmd} remote add coreos https://github.com/${repo}
+    fi
+
+    info "Fetching from all remotes in ${repo}."
+    ${gitcmd} fetch --all
+
+    if ${gitcmd} rev-list HEAD | grep -q ${commit_hash}; then
+      info "Commit hash ${commit_hash} already merged. skipping."
+    else
+      branch=merge-coreos-build-${FLAGS_version}
+    
+      info "Creating and checking out branch ${branch} in ${repo}."
+      ${gitcmd} branch -f ${branch}
+      ${gitcmd} checkout ${branch}
+
+      info "Merging commit hash ${commit_hash}. You might need to resolve conflicts."
+      ${gitcmd} merge ${commit_hash} -m "Merging upstream CoreOS build-${FLAGS_version}"
+      
+      if [[ ${FLAGS_push} -eq ${FLAGS_TRUE} ]]; then
+        info "Pushing changes in branch ${branch} to github."
+        ${gitcmd} push -f github ${branch}
+      fi
+    fi
+
+}
+
+merge_from_upstream coreos/coreos-overlay quantum/coreos-overlay src/third_party/coreos-overlay
+merge_from_upstream coreos/portage-stable quantum/coreos-portage-stable src/third_party/portage-stable
+merge_from_upstream coreos/scripts quantum/coreos-scripts src/scripts
+merge_from_upstream coreos/mantle quantum/coreos-mantle src/third_party/mantle
+
+cleanup
+
+info "Upstream CoreOS version ${FLAGS_version} merged into new branches."
+
+command_completed

@@ -16,7 +16,7 @@ VERSION="master"
 BOARD="amd64-usr"
 GROUP="alpha"
 IMAGE="coreos_production_ami_image.bin.bz2"
-GS_URL="gs://builds.release.core-os.net"
+GS_URL="s3://coreos-release-builds"
 IMG_URL=""
 IMG_PATH=""
 
@@ -65,7 +65,7 @@ else
     if [[ -z "$IMG_URL" ]]; then
         IMG_URL="$GS_URL/$GROUP/boards/$BOARD/$VERSION/$IMAGE"
     fi
-    if [[ "$IMG_URL" == gs://* ]]; then
+    if [[ "$IMG_URL" == gs://* ]] || [[ "$IMG_URL" == s3://* ]]; then
         if ! gsutil -q stat "$IMG_URL"; then
             echo "$0: Image URL unavailable: $IMG_URL" >&2
             exit 1
@@ -133,7 +133,7 @@ if [[ -n "$IMG_PATH" ]]; then
     else
         sudo dd if="$IMG_PATH" of=$dev bs=1M
     fi
-elif [[ "$IMG_URL" == gs://* ]]; then
+elif [[ "$IMG_URL" == gs://* ]] || [[ "$IMG_URL" == s3://* ]]; then
     gsutil cat "$IMG_URL" | bunzip2 | sudo dd of=$dev bs=1M
 else
     curl --fail "$IMG_URL" | bunzip2 | sudo dd of=$dev bs=1M

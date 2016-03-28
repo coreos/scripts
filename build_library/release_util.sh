@@ -41,7 +41,7 @@ check_gsutil_opts() {
     fi
 
     if [[ -n "${FLAGS_upload_root}" ]]; then
-        if [[ "${FLAGS_upload_root}" != gs://* ]]; then
+        if [[ "${FLAGS_upload_root}" != gs://* ]] && [[ "${FLAGS_upload_root}" != s3://* ]]; then
             die_notrace "--upload_root must be a gs:// URL"
         fi
         # Make sure the path doesn't end with a slash
@@ -49,7 +49,7 @@ check_gsutil_opts() {
     fi
 
     if [[ -n "${FLAGS_upload_path}" ]]; then
-        if [[ "${FLAGS_upload_path}" != gs://* ]]; then
+        if [[ "${FLAGS_upload_root}" != gs://* ]] && [[ "${FLAGS_upload_root}" != s3://* ]]; then
             die_notrace "--upload_path must be a gs:// URL"
         fi
         # Make sure the path doesn't end with a slash
@@ -205,11 +205,11 @@ download_image_url() {
     local download_path
     if [[ -n "${FLAGS_download_path}" ]]; then
         download_path="${FLAGS_download_path%%/}"
-    elif [[ "${download_root}" = *release.core-os.net* ]]; then
+    elif [[ "${download_root}" = *coreos-release/* ]]; then
         # Official release download paths don't include the boards directory
-        download_path="${download_root%%/}/${BOARD}/${COREOS_VERSION}"
+        download_path="${download_root%%/}/${BOARD}/${COREOS_VERSION/\+/%2B}"
     else
-        download_path="${download_root%%/}/boards/${BOARD}/${COREOS_VERSION}"
+        download_path="${download_root%%/}/boards/${BOARD}/${COREOS_VERSION/\+/%2B}"
     fi
 
     # Just in case download_root was set from UPLOAD_ROOT

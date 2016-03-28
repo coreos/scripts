@@ -77,6 +77,7 @@ export MAKEOPTS='--jobs=${NUM_JOBS} --load-average=${load}'
 export EMERGE_DEFAULT_OPTS="\$MAKEOPTS"
 export PORTAGE_USERNAME=portage
 export PORTAGE_GRPNAME=portage
+export ac_cv_posix_semaphores_enabled=yes
 EOF
 }
 

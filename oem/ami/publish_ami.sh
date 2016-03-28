@@ -18,7 +18,7 @@ This script must be run from an ec2 host with the ec2 tools installed.
 "
 
 IMAGE="coreos_production_ami"
-GS_URL="gs://builds.release.core-os.net"
+GS_URL="s3://coreos-release-builds"
 AMI=
 VER=
 BOARD="amd64-usr"
