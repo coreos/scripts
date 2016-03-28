@@ -26,7 +26,7 @@ ROOT_FS_DIR="$FLAGS_root"
 [ -d "$ROOT_FS_DIR" ] || die "Root FS does not exist? ($ROOT_FS_DIR)"
 
 OS_NAME="CoreOS"
-OS_CODENAME="Coeur Rouge"
+OS_CODENAME="MoreOS"
 OS_ID="${OS_NAME,,}" # lower case for os-release
 OS_PRETTY_NAME="$OS_NAME $COREOS_VERSION (${OS_CODENAME})"
 
