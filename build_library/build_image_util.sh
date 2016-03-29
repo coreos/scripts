@@ -285,6 +285,9 @@ finish_image() {
   local install_grub=0
 
   local disk_img="${BUILD_DIR}/${image_name}"
+  local pcr_policy="${image_name%.bin}_pcr_policy.zip"
+  local pcr_dir="${BUILD_DIR}/pcrs"
+  mkdir -p "${pcr_dir}"
 
   # Copy kernel to support dm-verity boots
   sudo mkdir -p "${root_fs_dir}/boot/coreos"
@@ -361,6 +364,7 @@ finish_image() {
 	   "${root_fs_dir}/boot/coreos/vmlinuz-a"
   fi
 
+  ${BUILD_LIBRARY_DIR}/generate_kernel_hash.sh "${root_fs_dir}/boot/coreos/vmlinuz-a" ${COREOS_VERSION} >${pcr_dir}/kernel.config
   rm -rf "${BUILD_DIR}"/configroot
   cleanup_mounts "${root_fs_dir}"
   trap - EXIT
@@ -381,5 +385,9 @@ finish_image() {
             --target="${target}" --disk_image="${disk_img}" --noverity
       fi
     done
+    ${BUILD_LIBRARY_DIR}/generate_grub_hashes.py ${disk_img} /usr/lib/grub/ ${pcr_dir} ${COREOS_VERSION}
   fi
+  pushd ${BUILD_DIR}
+  zip -r -9 $pcr_policy pcrs
+  popd
 }
