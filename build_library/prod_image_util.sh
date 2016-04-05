@@ -107,6 +107,9 @@ create_prod_image() {
 L+  /etc/ld.so.conf     -   -   -   -   ../usr/lib/ld.so.conf
 EOF
 
+  # Move the PAM configuration into /usr
+  sudo mv ${root_fs_dir}/etc/pam.d ${root_fs_dir}/usr/lib
+
   finish_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${image_contents}"
 
   upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \
