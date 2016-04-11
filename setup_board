@@ -278,6 +278,9 @@ sudo mkdir -p --mode=01777 "${BOARD_ROOT}"{/tmp,/var/tmp}
 sudo mkdir -p /usr/lib/debug/build
 sudo ln -sfT ${BOARD_ROOT}/usr/lib/debug /usr/lib/debug/${BOARD_ROOT}
 
+# remove bogus pkg-config wrapper
+sudo rm -f "${BOARD_ROOT}/build/bin/${BOARD_CHOST}-pkg-config"
+
 generate_all_wrappers
 
 # Unclear why this is required but it doesn't happen automatically
