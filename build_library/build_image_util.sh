@@ -277,6 +277,38 @@ start_image() {
     --board="${BOARD}"
 }
 
+do_verity_and_sign() {
+  # We only need to disable rw and apply dm-verity in prod with a /usr partition
+  if [ "${PROD_IMAGE}" -eq 1 ] && mountpoint -q "${root_fs_dir}/usr"; then
+    local disable_read_write=${FLAGS_enable_rootfs_verification}
+
+    # Unmount /usr partition
+    sudo umount --recursive "${root_fs_dir}/usr" || exit 1
+
+    # Make the filesystem un-mountable as read-write and setup verity.
+    if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
+      "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" verity \
+        --root_hash="${BUILD_DIR}/${image_name%.bin}_verity.txt" \
+        "${BUILD_DIR}/${image_name}"
+
+      # Magic alert! Root hash injection works by replacing a seldom-used rdev
+      # error message in the uncompressed section of the kernel that happens to
+      # be exactly SHA256-sized. Our modified GRUB extracts it to the cmdline.
+      printf %s "$(cat ${BUILD_DIR}/${image_name%.bin}_verity.txt)" | \
+        sudo dd of="${root_fs_dir}/boot/coreos/vmlinuz-a" conv=notrunc seek=64 count=64 bs=1
+    fi
+  fi
+
+  # Sign the kernel after /usr is in a consistent state and verity is calculated
+  if [[ ${COREOS_OFFICIAL:-0} -ne 1 ]]; then
+      sudo sbsign --key /usr/share/sb_keys/DB.key \
+	   --cert /usr/share/sb_keys/DB.crt \
+	   "${root_fs_dir}/boot/coreos/vmlinuz-a"
+      sudo mv "${root_fs_dir}/boot/coreos/vmlinuz-a.signed" \
+	   "${root_fs_dir}/boot/coreos/vmlinuz-a"
+  fi
+}
+
 finish_image() {
   local image_name="$1"
   local disk_layout="$2"
@@ -334,34 +366,10 @@ finish_image() {
       sudo chroot "${root_fs_dir}" bash -c "cd /usr/share/selinux/mcs && semodule -s mcs -i *.pp"
   fi
 
-  # We only need to disable rw and apply dm-verity in prod with a /usr partition
-  if [ "${PROD_IMAGE}" -eq 1 ] && mountpoint -q "${root_fs_dir}/usr"; then
-    local disable_read_write=${FLAGS_enable_rootfs_verification}
-
-    # Unmount /usr partition
-    sudo umount --recursive "${root_fs_dir}/usr" || exit 1
-
-    # Make the filesystem un-mountable as read-write and setup verity.
-    if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
-      "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" verity \
-        --root_hash="${BUILD_DIR}/${image_name%.bin}_verity.txt" \
-        "${BUILD_DIR}/${image_name}"
-
-      # Magic alert! Root hash injection works by replacing a seldom-used rdev
-      # error message in the uncompressed section of the kernel that happens to
-      # be exactly SHA256-sized. Our modified GRUB extracts it to the cmdline.
-      printf %s "$(cat ${BUILD_DIR}/${image_name%.bin}_verity.txt)" | \
-        sudo dd of="${root_fs_dir}/boot/coreos/vmlinuz-a" conv=notrunc seek=64 count=64 bs=1
-    fi
-  fi
-
-  # Sign the kernel after /usr is in a consistent state and verity is calculated
-  if [[ ${COREOS_OFFICIAL:-0} -ne 1 ]]; then
-      sudo sbsign --key /usr/share/sb_keys/DB.key \
-	   --cert /usr/share/sb_keys/DB.crt \
-	   "${root_fs_dir}/boot/coreos/vmlinuz-a"
-      sudo mv "${root_fs_dir}/boot/coreos/vmlinuz-a.signed" \
-	   "${root_fs_dir}/boot/coreos/vmlinuz-a"
+  # Compute usr verity hash and sign kernel.
+  # Currently broken for arm64, since there's no space in the PE header for the verity hash.
+  if [[ ${BOARD} != "arm64-usr" ]]; then
+    do_verity_and_sign
   fi
 
   ${BUILD_LIBRARY_DIR}/generate_kernel_hash.sh "${root_fs_dir}/boot/coreos/vmlinuz-a" ${COREOS_VERSION} >${pcr_dir}/kernel.config
