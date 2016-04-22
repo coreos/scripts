@@ -610,18 +610,13 @@ _write_qemu_common() {
     checkbashisms --posix "${script}" || die
     chmod +x "${script}"
 
-    arm64_msg=""
-    if [[ ${BOARD} == "arm64-usr" ]]; then
-        arm64_msg="-bios QEMU_EFI.fd"
-    fi
-
     cat >"${VM_README}" <<EOF
 If you have qemu installed (or in the SDK), you can start the image with:
   cd path/to/image
-  ./$(basename "${script}") -curses ${arm64_msg}
+  ./$(basename "${script}") -curses
 
 If you need to use a different ssh key or different ssh port:
-  ./$(basename "${script}") -a ~/.ssh/authorized_keys -p 2223 -- -curses ${arm64_msg}
+  ./$(basename "${script}") -a ~/.ssh/authorized_keys -p 2223 -- -curses
 
 If you rather you can use the -nographic option instad of -curses. In this
 mode you can switch from the vm to the qemu monitor console with: Ctrl-a c
@@ -630,14 +625,6 @@ See the qemu man page for more details on the monitor console.
 SSH into that host with:
   ssh 127.0.0.1 -p 2222
 EOF
-
-    if [[ ${BOARD} == "arm64-usr" ]]; then
-        cat >>"${VM_README}" <<EOF
-
-A prebuilt QEMU EFI firmware can be downloaded at the following link:
-http://snapshots.linaro.org/components/kernel/leg-virt-tianocore-edk2-upstream/latest/QEMU-AARCH64/RELEASE_GCC48/QEMU_EFI.fd
-EOF
-    fi
 
     VM_GENERATED_FILES+=( "${script}" "${VM_README}" )
 }
@@ -652,27 +639,40 @@ _write_qemu_conf() {
 
 _write_qemu_uefi_conf() {
     local script="$(_dst_dir)/$(_dst_name ".sh")"
-    local ovmf_ro="$(_dst_name "_ovmf_code.fd")"
-    local ovmf_rw="$(_dst_name "_ovmf_vars.fd")"
 
     _write_qemu_conf
-    cp "/usr/share/edk2-ovmf/OVMF_CODE.fd" "$(_dst_dir)/${ovmf_ro}"
-    cp "/usr/share/edk2-ovmf/OVMF_VARS.fd" "$(_dst_dir)/${ovmf_rw}"
-    sed -e "s%^VM_PFLASH_RO=.*%VM_PFLASH_RO='${ovmf_ro}'%" \
-        -e "s%^VM_PFLASH_RW=.*%VM_PFLASH_RW='${ovmf_rw}'%" -i "${script}"
-    VM_GENERATED_FILES+=( "$(_dst_dir)/${ovmf_ro}" "$(_dst_dir)/${ovmf_rw}" )
+
+    local flash_ro="$(_dst_name "_efi_code.fd")"
+    local flash_rw="$(_dst_name "_efi_vars.fd")"
+
+    case $BOARD in
+        amd64-usr)
+            cp "/usr/share/edk2-ovmf/OVMF_CODE.fd" "$(_dst_dir)/${flash_ro}"
+            cp "/usr/share/edk2-ovmf/OVMF_VARS.fd" "$(_dst_dir)/${flash_rw}"
+            ;;
+        arm64-usr)
+            # this bit of magic comes from http://tech.donghao.org/2014/12/18/running-fedora-21-on-qemu-system-aarch64/
+            cat "/build/${BOARD}/usr/share/edk2-armvirt/QEMU_EFI.fd" /dev/zero | \
+                dd iflag=fullblock bs=1M count=64 of="$(_dst_dir)/${flash_ro}"
+            dd if=/dev/zero bs=1M count=64 of="$(_dst_dir)/${flash_rw}"
+            ;;
+    esac
+
+    sed -e "s%^VM_PFLASH_RO=.*%VM_PFLASH_RO='${flash_ro}'%" \
+        -e "s%^VM_PFLASH_RW=.*%VM_PFLASH_RW='${flash_rw}'%" -i "${script}"
+    VM_GENERATED_FILES+=( "$(_dst_dir)/${flash_ro}" "$(_dst_dir)/${flash_rw}" )
 }
 
 _write_qemu_uefi_secure_conf() {
-    local ovmf_rw="$(_dst_name "_ovmf_vars.fd")"
+    local flash_rw="$(_dst_name "_efi_vars.fd")"
 
     _write_qemu_uefi_conf
     cert-to-efi-sig-list "/usr/share/sb_keys/PK.crt" "${VM_TMP_DIR}/PK.esl"
     cert-to-efi-sig-list "/usr/share/sb_keys/KEK.crt" "${VM_TMP_DIR}/KEK.esl"
     cert-to-efi-sig-list "/usr/share/sb_keys/DB.crt" "${VM_TMP_DIR}/DB.esl"
-    flash-var "$(_dst_dir)/${ovmf_rw}" "PK" "${VM_TMP_DIR}/PK.esl"
-    flash-var "$(_dst_dir)/${ovmf_rw}" "KEK" "${VM_TMP_DIR}/KEK.esl"
-    flash-var "$(_dst_dir)/${ovmf_rw}" "db" "${VM_TMP_DIR}/DB.esl"
+    flash-var "$(_dst_dir)/${flash_rw}" "PK" "${VM_TMP_DIR}/PK.esl"
+    flash-var "$(_dst_dir)/${flash_rw}" "KEK" "${VM_TMP_DIR}/KEK.esl"
+    flash-var "$(_dst_dir)/${flash_rw}" "db" "${VM_TMP_DIR}/DB.esl"
 }
 
 _write_qemu_xen_conf() {

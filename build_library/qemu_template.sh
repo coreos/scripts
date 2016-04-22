@@ -205,7 +205,6 @@ case "${VM_BOARD}" in
         ;;
     arm64-usr)
         qemu-system-aarch64 -nographic \
-            -bios QEMU_EFI.fd \
             -name "$VM_NAME" \
             -m ${VM_MEMORY} \
             -netdev user,id=eth0,hostfwd=tcp::"${SSH_PORT}"-:22,hostname="${VM_NAME}" \
