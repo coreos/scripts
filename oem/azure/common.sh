@@ -18,6 +18,10 @@ REGIONS=(
 	"Central India"
 	"West India"
 	"South India"
+	"Canada Central"
+	"Canada East"
+	"UK North"
+	"UK South 2"
 )
 
 getManagementEndpoint() {
