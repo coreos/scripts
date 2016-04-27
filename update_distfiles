@@ -18,6 +18,7 @@ DEFINE_boolean download ${FLAGS_FALSE} \
 
 MIRROR_ROOT="${DEFAULT_BUILD_ROOT}/mirror"
 UPLOAD_ROOT="gs://storage.core-os.net/mirror"
+SECOND_ROOT="gs://coreos-net-storage/mirror"
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -84,7 +85,7 @@ update_local_mirror() {
 upload_mirror() {
     local repo_name="$1"
     local local_mirror="${MIRROR_ROOT}/$repo_name"
-    local remote_mirror="${UPLOAD_ROOT}/$repo_name"
+    local remote_mirror="$2/$repo_name"
 
     info "Uploading public distfiles for $repo_name"
     gsutil ${GSUTIL_OPTS} rsync -c \
@@ -130,7 +131,8 @@ fi
 
 if [[ ${FLAGS_upload} -eq ${FLAGS_TRUE} ]]; then
     for repo in "$@"; do
-        upload_mirror "$repo"
+        upload_mirror "$repo" "$UPLOAD_ROOT"
+        upload_mirror "$repo" "$SECOND_ROOT"
     done
 fi
 
