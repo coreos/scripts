@@ -137,6 +137,8 @@ fi
 mkdir -p "${BUILD_DIR}"
 
 DISK_LAYOUT="${FLAGS_disk_layout:-base}"
+DEV_DISK_LAYOUT="${FLAGS_disk_layout:-devel}"
+
 CONTAINER_LAYOUT="${FLAGS_disk_layout:-container}"
 
 if [[ -n "${FLAGS_developer_data}" ]]; then
@@ -159,9 +161,9 @@ fi
 fix_mtab
 
 if [[ "${DEV_IMAGE}" -eq 1 ]]; then
-  create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group} ${FLAGS_base_dev_pkg}
+  create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DEV_DISK_LAYOUT} ${FLAGS_group} ${FLAGS_base_dev_pkg}
   if [[ ${FLAGS_extract_update} -eq ${FLAGS_TRUE} ]]; then
-    extract_update "${COREOS_DEVELOPER_IMAGE_NAME}" "${DISK_LAYOUT}"
+    extract_update "${COREOS_DEVELOPER_IMAGE_NAME}" "${DEV_DISK_LAYOUT}"
   fi
 fi
 

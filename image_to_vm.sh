@@ -115,6 +115,10 @@ trap vm_cleanup EXIT
 
 fix_mtab
 
+if [[ "${FLAGS_prod_image}" -eq "${FLAGS_FALSE}" && "${FLAGS_disk_layout}" == "" ]]; then
+    FLAGS_disk_layout=devel
+fi
+
 # Setup new (raw) image, possibly resizing filesystems
 setup_disk_image "${FLAGS_disk_layout}"
 
