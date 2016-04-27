@@ -70,6 +70,29 @@
         "mount":"/"
       }
     },
+    "devel": {
+      "3":{
+        "label":"USR-A",
+        "uuid":"7130c94a-213a-4e5a-8e26-6cce9662f132",
+        "type":"coreos-rootfs",
+	"blocks":"4194304",
+	"fs_blocks":"520188",
+        "fs_type":"ext2",
+        "mount":"/usr",
+        "features": ["prioritize", "verity"]
+      },
+      "4":{
+        "label":"USR-B",
+        "uuid":"e03dd35c-7c2d-4a47-b3fe-27f15780a57c",
+        "type":"coreos-rootfs",
+	"blocks":"4194304",
+	"fs_blocks":"520188"
+      },
+      "9":{
+        "label":"ROOT",
+        "blocks":"12943360"
+      }
+    },
     "vm":{
       "9":{
         "label":"ROOT",
