@@ -23,7 +23,6 @@ SCRIPTS_DIR = os.environ['SCRIPTS_DIR']
 STATIC_FILES = ['%s/version.txt' % REPO_MANIFESTS_DIR,
                 '%s/common.sh' % SCRIPTS_DIR,
                 '%s/core_pre_alpha' % SCRIPTS_DIR,
-                '%s/core_promote' % SCRIPTS_DIR,
                 '%s/core_roller_upload' % SCRIPTS_DIR,
                 '%s/core_sign_update' % SCRIPTS_DIR,
                 ]
