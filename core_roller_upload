@@ -25,7 +25,7 @@ DEFINE_string api_key "" \
     "API key for roller."
 DEFINE_string endpoint "https://public.update.core-os.net" \
     "Roller endpoint to update."
-DEFINE_string storage "gs://update-storage.core-os.net" \
+DEFINE_string storage "gs://coreos-update" \
     "Google Storage location to host the payload."
 
 FLAGS_HELPS="usage: $SCRIPTNAME [flags]
