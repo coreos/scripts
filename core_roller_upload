@@ -27,13 +27,15 @@ DEFINE_string endpoint "https://public.update.core-os.net" \
     "Roller endpoint to update."
 DEFINE_string storage "gs://coreos-update" \
     "Google Storage location to host the payload."
+DEFINE_string download "https://update.release.core-os.net" \
+    "HTTPS location users will download payload from."
 
 FLAGS_HELPS="usage: $SCRIPTNAME [flags]
 
 Setting everything up for use\n
 
-1) Run 'gsutil config' and use project id coreos.com:core-update-storage\n
-2) Ensure rollerctl is installed in your path\n
+1) Run 'gsutil config' and use project id coreos-net-storage\n
+2) Ensure updateservicectl is installed in your path\n
 "
 
 # Parse flags
@@ -48,7 +50,7 @@ switch_to_strict_mode
 FLAGS_storage="${FLAGS_storage%%/}"
 
 GS_URL="${FLAGS_storage}/${FLAGS_board}/${FLAGS_version}/update.gz"
-HTTP_URL="https://commondatastorage.googleapis.com/${GS_URL#gs://}"
+HTTP_URL="${FLAGS_download}/${FLAGS_board}/${FLAGS_version}/update.gz"
 gsutil cp "${FLAGS_payload}" "${GS_URL}"
 
 updateservicectl \
