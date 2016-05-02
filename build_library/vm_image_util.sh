@@ -551,13 +551,15 @@ _write_cpio_common() {
 # The cpio "disk" is a bit special,
 # consists of a kernel+initrd not a block device
 _write_cpio_disk() {
-    local base_dir="${VM_TMP_ROOT}/usr"
+    local base_dir="${VM_TMP_ROOT}"
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
+    local grub_name="$(_dst_name "_grub.efi")"
     _write_cpio_common $@
-    # Pull the kernel out of the filesystem
-    cp "${base_dir}"/boot/vmlinuz "${dst_dir}/${vmlinuz_name}"
-    VM_GENERATED_FILES+=( "${dst_dir}/${vmlinuz_name}" )
+    # Pull the kernel and loader out of the filesystem
+    cp "${base_dir}"/boot/coreos/vmlinuz-a "${dst_dir}/${vmlinuz_name}"
+    cp "${base_dir}"/boot/coreos/grub/x86_64-efi/core.efi "${dst_dir}/${grub_name}"
+    VM_GENERATED_FILES+=( "${dst_dir}/${vmlinuz_name}" "${dst_dir}/${grub_name}" )
 }
 
 _write_iso_disk() {
