@@ -54,6 +54,11 @@ EOF
 catalyst_stage_default
 }
 
+# Switch to HTTP because early boostrap stages do not have SSL support.
+GENTOO_MIRRORS=$(portageq envvar GENTOO_MIRRORS)
+GENTOO_MIRRORS="${GENTOO_MIRRORS//https:\/\//http://}"
+export GENTOO_MIRRORS
+
 catalyst_init "$@"
 check_gsutil_opts
 
