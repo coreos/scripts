@@ -15,7 +15,7 @@ release=${1:-"alpha"}
 
 # If the argument is in the form http* allow for watching an arbitrary location
 if [[ $1 != http* ]]; then
-  url="http://storage.core-os.net/coreos/amd64-usr/$release/version.txt"
+  url="https://${release}.release.core-os.net/amd64-usr/current/version.txt"
 else
   url=$1
   release=$(echo ${url} | sed -e 's/http:\/\///1' -e 's/\//-/g' )
