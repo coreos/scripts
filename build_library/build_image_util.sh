@@ -335,7 +335,7 @@ finish_image() {
   fi
 
   # We only need to disable rw and apply dm-verity in prod with a /usr partition
-  if [ "${PROD_IMAGE}" -eq 1 ] && mountpoint -q "${root_fs_dir}/usr"; then
+  if [ "${IMAGE_BUILD_TYPE}" = "prod" ] && mountpoint -q "${root_fs_dir}/usr"; then
     local disable_read_write=${FLAGS_enable_rootfs_verification}
 
     # Unmount /usr partition
@@ -377,7 +377,7 @@ finish_image() {
       target_list="arm64-efi"
     fi
     for target in ${target_list}; do
-      if [[ "${PROD_IMAGE}" -eq 1 && ${FLAGS_enable_verity} -eq ${FLAGS_TRUE} ]]; then
+      if [[ "${IMAGE_BUILD_TYPE}" = "prod" && ${FLAGS_enable_verity} -eq ${FLAGS_TRUE} ]]; then
         ${BUILD_LIBRARY_DIR}/grub_install.sh \
             --target="${target}" --disk_image="${disk_img}" --verity
       else

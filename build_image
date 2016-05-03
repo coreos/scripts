@@ -166,6 +166,7 @@ fi
 fix_mtab
 
 if [[ "${DEV_IMAGE}" -eq 1 ]]; then
+  IMAGE_BUILD_TYPE="dev"
   create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DEV_DISK_LAYOUT} ${FLAGS_group} ${FLAGS_base_dev_pkg}
   if [[ ${FLAGS_extract_update} -eq ${FLAGS_TRUE} ]]; then
     extract_update "${COREOS_DEVELOPER_IMAGE_NAME}" "${DEV_DISK_LAYOUT}"
@@ -173,10 +174,12 @@ if [[ "${DEV_IMAGE}" -eq 1 ]]; then
 fi
 
 if [[ "${CONTAINER}" -eq 1 ]]; then
+  IMAGE_BUILD_TYPE="container"
   create_dev_image "${COREOS_DEVELOPER_CONTAINER_NAME}" "${CONTAINER_LAYOUT}" "${FLAGS_group}" ${FLAGS_base_dev_pkg}
 fi
 
 if [[ "${PROD_IMAGE}" -eq 1 ]]; then
+  IMAGE_BUILD_TYPE="prod"
   create_prod_image ${COREOS_PRODUCTION_IMAGE_NAME} ${DISK_LAYOUT} ${FLAGS_group} ${FLAGS_base_pkg}
   if [[ ${FLAGS_generate_update} -eq ${FLAGS_TRUE} ]]; then
     generate_update "${COREOS_PRODUCTION_IMAGE_NAME}" ${DISK_LAYOUT}
