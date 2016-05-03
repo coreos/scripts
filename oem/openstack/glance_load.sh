@@ -14,13 +14,13 @@ set -e -o pipefail
 
 release=${1:-"alpha"}
 if [[ "$1" != http* ]]; then
-  baseurl="http://${release}.release.core-os.net/amd64-usr/current"
+  baseurl="https://${release}.release.core-os.net/amd64-usr/current"
 else
   # for this convoluded trick, we take an arbitrary URL, chop it up, and try
   # to turn it into usable input for the rest of the script.
 
   # this is based on urls of the form:
-  # http://storage.core-os.net/coreos/amd64-usr/master/version.txt 
+  # https://storage.core-os.net/coreos/amd64-usr/master/version.txt
   # where the following sed expression extracts the "master" portion
   baseurl="${1%/*}"
   release="${baseurl##*/}"

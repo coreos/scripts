@@ -57,10 +57,10 @@ IMAGE_NAME="${RAW_IMAGE_NAME}.bz2"
 DIGESTS_NAME="${IMAGE_NAME}.DIGESTS.asc"
 
 case ${VERSION_ID}  in
-    stable) BASE_URL="http://stable.release.core-os.net/amd64-usr/current" ;;
-    alpha) BASE_URL="http://alpha.release.core-os.net/amd64-usr/current" ;;
-    beta) BASE_URL="http://beta.release.core-os.net/amd64-usr/current" ;;
-    *) BASE_URL="http://storage.core-os.net/coreos/amd64-usr/${VERSION_ID}" ;;
+    stable) BASE_URL="https://stable.release.core-os.net/amd64-usr/current" ;;
+    alpha) BASE_URL="https://alpha.release.core-os.net/amd64-usr/current" ;;
+    beta) BASE_URL="https://beta.release.core-os.net/amd64-usr/current" ;;
+    *) BASE_URL="https://alpha.release.core-os.net/amd64-usr/${VERSION_ID}" ;;
 esac
 
 IMAGE_URL="${BASE_URL}/${IMAGE_NAME}"
