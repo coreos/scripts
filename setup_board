@@ -321,8 +321,10 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
       ${EMERGE_TOOLCHAIN_FLAGS} "${TOOLCHAIN_PKGS[@]}"
 fi
 
-# Setup BOARD_ROOT for QEMU user emulation.
-setup_qemu_static "${BOARD_ROOT}"
+if [[ ${FLAGS_regen_configs_only} -eq ${FLAGS_FALSE} ]]; then
+  # Setup BOARD_ROOT for QEMU user emulation.
+  setup_qemu_static "${BOARD_ROOT}"
+fi
 
 if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then
   echo $BOARD_VARIANT > "$GCLIENT_ROOT/src/scripts/.default_board"
