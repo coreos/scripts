@@ -379,10 +379,16 @@ finish_image() {
     for target in ${target_list}; do
       if [[ "${PROD_IMAGE}" -eq 1 && ${FLAGS_enable_verity} -eq ${FLAGS_TRUE} ]]; then
         ${BUILD_LIBRARY_DIR}/grub_install.sh \
-            --target="${target}" --disk_image="${disk_img}" --verity
+            --board="${BOARD}" \
+            --target="${target}" \
+            --disk_image="${disk_img}" \
+            --verity
       else
         ${BUILD_LIBRARY_DIR}/grub_install.sh \
-            --target="${target}" --disk_image="${disk_img}" --noverity
+            --board="${BOARD}" \
+            --target="${target}" \
+            --disk_image="${disk_img}" \
+            --noverity
       fi
     done
     ${BUILD_LIBRARY_DIR}/generate_grub_hashes.py ${disk_img} /usr/lib/grub/ ${pcr_dir} ${COREOS_VERSION}

@@ -14,10 +14,10 @@ SCRIPT_ROOT=$(readlink -f $(dirname "$0")/..)
 assert_inside_chroot
 
 # Flags.
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "The name of the board"
 DEFINE_string target "" \
   "The GRUB target to install such as i386-pc or x86_64-efi"
-DEFINE_string esp_dir "" \
-  "Path to EFI System partition mount point."
 DEFINE_string disk_image "" \
   "The disk image containing the EFI System partition."
 DEFINE_boolean verity ${FLAGS_FALSE} \
@@ -28,14 +28,25 @@ FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 switch_to_strict_mode
 
+# must be sourced after flags are parsed.
+. "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
+
 # Our GRUB lives under coreos/grub so new pygrub versions cannot find grub.cfg
 GRUB_DIR="coreos/grub/${FLAGS_target}"
+
+# GRUB install location inside the SDK
+GRUB_SRC="/usr/lib/grub/${FLAGS_target}"
 
 # Modules required to boot a standard CoreOS configuration
 CORE_MODULES=( normal search test fat part_gpt search_fs_uuid gzio search_part_label terminal gptprio configfile memdisk tar echo )
 
 # Name of the core image, depends on target
 CORE_NAME=
+
+# Whether the SDK's grub or the board root's grub is used. Once amd64 is
+# fixed up the board root's grub will always be used.
+BOARD_GRUB=0
 
 case "${FLAGS_target}" in
     i386-pc)
@@ -52,11 +63,19 @@ case "${FLAGS_target}" in
     arm64-efi)
         CORE_MODULES+=( serial efi_gop getenv smbios efinet verify http )
         CORE_NAME="core-arm64.efi"
+        BOARD_GRUB=1
         ;;
     *)
         die_notrace "Unknown GRUB target ${FLAGS_target}"
         ;;
 esac
+
+if [[ $BOARD_GRUB -eq 1 ]]; then
+    info "Updating GRUB in ${BOARD_ROOT}"
+    emerge-${BOARD} --nodeps --select -qugKN sys-boot/grub
+    GRUB_SRC="${BOARD_ROOT}/usr/lib/grub/${FLAGS_target}"
+fi
+[[ -d "${GRUB_SRC}" ]] || die "GRUB not installed at ${GRUB_SRC}"
 
 # In order for grub-setup-bios to properly detect the layout of the disk
 # image it expects a normal partitioned block device. For most of the build
@@ -109,7 +128,7 @@ sudo mount -t vfat "${LOOP_DEV}p1" "${ESP_DIR}"
 sudo mkdir -p "${ESP_DIR}/${GRUB_DIR}"
 
 info "Compressing modules in ${GRUB_DIR}"
-for file in "/usr/lib/grub/${FLAGS_target}"/*{.lst,.mod}; do
+for file in "${GRUB_SRC}"/*{.lst,.mod}; do
     out="${ESP_DIR}/${GRUB_DIR}/${file##*/}"
     gzip --best --stdout "${file}" | sudo_clobber "${out}"
 done
@@ -151,7 +170,7 @@ info "Generating ${GRUB_DIR}/${CORE_NAME}"
 sudo grub-mkimage \
     --compression=auto \
     --format "${FLAGS_target}" \
-    --prefix "(,gpt1)/coreos/grub" \
+    --directory "${GRUB_SRC}" \
     --config "${ESP_DIR}/${GRUB_DIR}/load.cfg" \
     --memdisk "${ESP_DIR}/coreos/grub/grub.cfg.tar" \
     --output "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}" \
@@ -161,7 +180,7 @@ sudo grub-mkimage \
 case "${FLAGS_target}" in
     i386-pc)
         info "Installing MBR and the BIOS Boot partition."
-        sudo cp "/usr/lib/grub/i386-pc/boot.img" "${ESP_DIR}/${GRUB_DIR}"
+        sudo cp "${GRUB_SRC}/boot.img" "${ESP_DIR}/${GRUB_DIR}"
         sudo grub-bios-setup --device-map=/dev/null \
             --directory="${ESP_DIR}/${GRUB_DIR}" "${LOOP_DEV}"
         # boot.img gets manipulated by grub-bios-setup so it alone isn't

@@ -219,17 +219,6 @@ if [[ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" && \
   for cross_chost in "${CROSS_CHOSTS[@]}"; do
     info "Updating cross ${cross_chost} toolchain"
     install_cross_toolchain "${cross_chost}" --quiet ${EMERGE_FLAGS}
-
-    # Set grub for arm64, not enabled by default since it requires the above
-    # cross toolchain which isn't in the SDK by default.
-    if [[ "${cross_chost}" == aarch64-* ]]; then
-      if [[ ! -d /etc/portage/package.use ]]; then
-        sudo mkdir /etc/portage/package.use
-      fi
-      sudo_clobber "/etc/portage/package.use/grub" \
-          <<<"sys-boot/grub grub_platforms_arm64"
-      sudo -E emerge --changed-use sys-boot/grub
-    fi
   done
 fi
 
