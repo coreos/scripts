@@ -16,8 +16,6 @@ assert_inside_chroot
 # Flags.
 DEFINE_string target "" \
   "The GRUB target to install such as i386-pc or x86_64-efi"
-DEFINE_string esp_dir "" \
-  "Path to EFI System partition mount point."
 DEFINE_string disk_image "" \
   "The disk image containing the EFI System partition."
 DEFINE_boolean verity ${FLAGS_FALSE} \
