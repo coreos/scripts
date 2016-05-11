@@ -19,7 +19,6 @@ fi
 DEFINE_integer major ${DEFAULT_MAJOR} "Branch major version (aka 'build')"
 DEFINE_integer minor ${DEFAULT_MINOR} "Branch revision or minor version"
 DEFINE_integer patch 0 "Branch patch id, normally 0"
-DEFINE_string track "dev-channel" "Set the given track to this new branch"
 DEFINE_string sdk_version "${COREOS_VERSION_ID}" \
     "Set the SDK version to use. (current: ${COREOS_SDK_VERSION})"
 DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
@@ -74,17 +73,9 @@ git branch -f "${BRANCH_NAME}"
 git tag -m "CoreOS ${TAG_NAME}" "${TAG_NAME}"
 
 
-PUSH_TRACK=
-if [[ -n "${FLAGS_track}" ]]; then
-    git branch -f "${FLAGS_track}"
-    info "Updating track ${FLAGS_track}"
-    PUSH_TRACK=1
-fi
-
 if [[ ${FLAGS_push} -eq ${FLAGS_TRUE} ]]; then
     git push "${FLAGS_remote}" \
         "HEAD:refs/heads/master" \
         "refs/heads/${BRANCH_NAME}" \
-        ${PUSH_TRACK:+"+refs/heads/${FLAGS_track}"} \
         "refs/tags/${TAG_NAME}"
 fi
