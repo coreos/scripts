@@ -62,7 +62,7 @@ case "${FLAGS_target}" in
         ;;
     arm64-efi)
         CORE_MODULES+=( serial efi_gop getenv smbios efinet verify http )
-        CORE_NAME="core-arm64.efi"
+        CORE_NAME="core.efi"
         BOARD_GRUB=1
         ;;
     *)
