@@ -558,7 +558,14 @@ _write_cpio_disk() {
     _write_cpio_common $@
     # Pull the kernel and loader out of the filesystem
     cp "${base_dir}"/boot/coreos/vmlinuz-a "${dst_dir}/${vmlinuz_name}"
-    cp "${base_dir}"/boot/coreos/grub/x86_64-efi/core.efi "${dst_dir}/${grub_name}"
+
+    local grub_arch
+    case $BOARD in
+        amd64-usr) grub_arch="x86_64-efi" ;;
+        arm64-usr) grub_arch="arm64-efi" ;;
+    esac
+
+    cp "${base_dir}/boot/coreos/grub/${grub_arch}/core.efi" "${dst_dir}/${grub_name}"
     VM_GENERATED_FILES+=( "${dst_dir}/${vmlinuz_name}" "${dst_dir}/${grub_name}" )
 }
 
