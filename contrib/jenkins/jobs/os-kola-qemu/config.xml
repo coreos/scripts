@@ -1,0 +1,152 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <logRotator class="hudson.tasks.LogRotator">
+    <daysToKeep>30</daysToKeep>
+    <numToKeep>50</numToKeep>
+    <artifactDaysToKeep>-1</artifactDaysToKeep>
+    <artifactNumToKeep>-1</artifactNumToKeep>
+  </logRotator>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.14.0">
+      <projectUrl>os-kola-qemu/</projectUrl>
+    </com.coravy.hudson.plugins.github.GithubProjectProperty>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>BOARD</name>
+          <description>Target board to build</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>amd64-usr</string>
+              <string>arm64-usr</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_URL</name>
+          <description></description>
+          <defaultValue>https://github.com/coreos/manifest-builds.git</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_REF</name>
+          <description></description>
+          <defaultValue>refs/tags/</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_NAME</name>
+          <description></description>
+          <defaultValue>release.xml</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>COREOS_OFFICIAL</name>
+          <description></description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>0</string>
+              <string>1</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.25">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <assignedNode>coreos &amp;&amp; kvm</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>true</concurrentBuild>
+  <builders>
+    <hudson.plugins.copyartifact.CopyArtifact plugin="copyartifact@1.37">
+      <project>os-mantle</project>
+      <filter></filter>
+      <target></target>
+      <excludes></excludes>
+      <selector class="hudson.plugins.copyartifact.StatusBuildSelector"/>
+      <doNotFingerprintArtifacts>false</doNotFingerprintArtifacts>
+    </hudson.plugins.copyartifact.CopyArtifact>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -ex
+
+# build may not be started without a ref value
+[[ -n &quot;${MANIFEST_REF#refs/tags/}&quot; ]]
+
+enter() {
+  ./bin/cork enter --experimental -- &quot;$@&quot;
+}
+
+script() {
+  local script=&quot;/mnt/host/source/src/scripts/${1}&quot;; shift
+  enter &quot;${script}&quot; &quot;$@&quot;
+}
+
+./bin/cork update --create --downgrade-replace --verify --verbose \
+                  --manifest-url &quot;${MANIFEST_URL}&quot; \
+                  --manifest-branch &quot;${MANIFEST_REF}&quot; \
+                  --manifest-name &quot;${MANIFEST_NAME}&quot;
+source .repo/manifests/version.txt
+
+if [[ &quot;${COREOS_OFFICIAL}&quot; -eq 1 ]]; then
+  root=&quot;gs://builds.release.core-os.net/stable&quot;
+else
+  root=&quot;gs://builds.developer.core-os.net&quot;
+fi
+
+mkdir -p tmp
+./bin/cork download-image --root=&quot;${root}/boards/${BOARD}/${COREOS_VERSION}&quot; \
+                          --json-key=&quot;${GOOGLE_APPLICATION_CREDENTIALS}&quot; \
+                          --cache-dir=./tmp \
+                          --platform=qemu
+enter lbunzip2 -k -f /mnt/host/source/tmp/coreos_production_image.bin.bz2
+
+if [[ &quot;${BOARD}&quot; == arm64* ]]; then
+  script setup_board --board=${BOARD} \
+                     --getbinpkgver=&quot;${COREOS_VERSION}&quot; \
+                     --regen_configs_only
+  enter emerge-arm64-usr --nodeps -qugKN sys-firmware/edk2-armvirt
+fi
+
+enter sudo kola run --board=&quot;${BOARD}&quot; \
+                    --parallel=2 \
+                    --qemu-image=&quot;/mnt/host/source/tmp/coreos_production_image.bin&quot; \
+                    --tapfile=&quot;/mnt/host/source/tmp/${JOB_NAME##*/}.tap&quot;</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <org.tap4j.plugin.TapPublisher plugin="tap@1.24">
+      <testResults>tmp/*.tap</testResults>
+      <failIfNoResults>true</failIfNoResults>
+      <failedTestsMarkBuildAsFailure>true</failedTestsMarkBuildAsFailure>
+      <outputTapToConsole>true</outputTapToConsole>
+      <enableSubtests>true</enableSubtests>
+      <discardOldReports>false</discardOldReports>
+      <todoIsFailure>false</todoIsFailure>
+      <includeCommentDiagnostics>true</includeCommentDiagnostics>
+      <validateNumberOfTests>true</validateNumberOfTests>
+      <planRequired>true</planRequired>
+      <verbose>true</verbose>
+    </org.tap4j.plugin.TapPublisher>
+    <hudson.tasks.Fingerprinter>
+      <targets>tmp/*,chroot/var/lib/portage/pkgs/*/*.tbz2</targets>
+    </hudson.tasks.Fingerprinter>
+  </publishers>
+  <buildWrappers>
+    <org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper plugin="credentials-binding@1.5">
+      <bindings>
+        <org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+          <credentialsId>9de82aed-ae50-4233-989f-d454b0449b96</credentialsId>
+          <variable>GOOGLE_APPLICATION_CREDENTIALS</variable>
+        </org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+      </bindings>
+    </org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper>
+  </buildWrappers>
+</project>

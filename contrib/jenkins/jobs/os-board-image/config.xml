@@ -1,0 +1,179 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <logRotator class="hudson.tasks.LogRotator">
+    <daysToKeep>30</daysToKeep>
+    <numToKeep>50</numToKeep>
+    <artifactDaysToKeep>-1</artifactDaysToKeep>
+    <artifactNumToKeep>-1</artifactNumToKeep>
+  </logRotator>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>BOARD</name>
+          <description>Target board to build</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>amd64-usr</string>
+              <string>arm64-usr</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_URL</name>
+          <description></description>
+          <defaultValue>https://github.com/coreos/manifest-builds.git</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_REF</name>
+          <description></description>
+          <defaultValue>refs/tags/</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_NAME</name>
+          <description></description>
+          <defaultValue>release.xml</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>COREOS_OFFICIAL</name>
+          <description></description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>0</string>
+              <string>1</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.25">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <assignedNode>coreos</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>true</concurrentBuild>
+  <builders>
+    <hudson.plugins.copyartifact.CopyArtifact plugin="copyartifact@1.37">
+      <project>os-mantle</project>
+      <filter></filter>
+      <target></target>
+      <excludes></excludes>
+      <selector class="hudson.plugins.copyartifact.StatusBuildSelector"/>
+      <doNotFingerprintArtifacts>false</doNotFingerprintArtifacts>
+    </hudson.plugins.copyartifact.CopyArtifact>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -ex
+
+# build may not be started without a ref value
+[[ -n &quot;${MANIFEST_REF#refs/tags/}&quot; ]]
+
+# first thing, clear out old images
+sudo rm -rf src/build
+
+script() {
+  local script=&quot;/mnt/host/source/src/scripts/${1}&quot;; shift
+  ./bin/cork enter --experimental -- &quot;${script}&quot; &quot;$@&quot;
+}
+
+./bin/cork update --create --downgrade-replace --verify --verbose \
+                  --manifest-url &quot;${MANIFEST_URL}&quot; \
+                  --manifest-branch &quot;${MANIFEST_REF}&quot; \
+                  --manifest-name &quot;${MANIFEST_NAME}&quot;
+
+source .repo/manifests/version.txt
+export COREOS_BUILD_ID
+
+# Set up GPG for signing images
+export GNUPGHOME=&quot;${PWD}/.gnupg&quot;
+rm -rf &quot;${GNUPGHOME}&quot;
+trap &quot;rm -rf &apos;${GNUPGHOME}&apos;&quot; EXIT
+mkdir --mode=0700 &quot;${GNUPGHOME}&quot;
+gpg --import &quot;${GPG_SECRET_KEY_FILE}&quot;
+
+script setup_board --board=${BOARD} \
+                   --getbinpkgver=&quot;${COREOS_VERSION}&quot; \
+                   --regen_configs_only
+
+if [[ &quot;${COREOS_OFFICIAL}&quot; -eq 1 ]]; then
+  GROUP=stable
+  UPLOAD=gs://builds.release.core-os.net/stable
+  script set_official --board=${BOARD} --official
+else
+  GROUP=developer
+  UPLOAD=gs://builds.developer.core-os.net
+  script set_official --board=${BOARD} --noofficial
+fi
+
+script build_image --board=${BOARD} \
+                   --group=${GROUP} \
+                   --getbinpkg \
+                   --getbinpkgver=&quot;${COREOS_VERSION}&quot; \
+                   --sign=buildbot@coreos.com \
+                   --sign_digests=buildbot@coreos.com \
+                   --upload_root=${UPLOAD} \
+                   --upload prod container
+
+if [[ &quot;${COREOS_OFFICIAL}&quot; -eq 1 ]]; then
+  script image_set_group --board=${BOARD} \
+                         --group=alpha \
+                         --sign=buildbot@coreos.com \
+                         --sign_digests=buildbot@coreos.com \
+                         --upload_root=gs://builds.release.core-os.net/alpha \
+                         --upload
+  script image_set_group --board=${BOARD} \
+                         --group=beta \
+                         --sign=buildbot@coreos.com \
+                         --sign_digests=buildbot@coreos.com \
+                         --upload_root=gs://builds.release.core-os.net/beta \
+                         --upload
+fi</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.test.AggregatedTestResultPublisher plugin="junit@1.9">
+      <includeFailedBuilds>false</includeFailedBuilds>
+    </hudson.tasks.test.AggregatedTestResultPublisher>
+    <hudson.tasks.Fingerprinter>
+      <targets>chroot/build/${BOARD}/var/lib/portage/pkgs/*/*.tbz2,chroot/var/lib/portage/pkgs/*/*.tbz2,src/build/images/${BOARD}/latest/*</targets>
+    </hudson.tasks.Fingerprinter>
+    <hudson.plugins.parameterizedtrigger.BuildTrigger plugin="parameterized-trigger@2.30">
+      <configs>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs>
+            <hudson.plugins.parameterizedtrigger.CurrentBuildParameters/>
+            <hudson.plugins.parameterizedtrigger.matrix.MatrixSubsetBuildParameters>
+              <filter>BOARD==&quot;${BOARD}&quot;</filter>
+            </hudson.plugins.parameterizedtrigger.matrix.MatrixSubsetBuildParameters>
+          </configs>
+          <projects>os-board-vm-matrix,os-kola-qemu</projects>
+          <condition>UNSTABLE_OR_BETTER</condition>
+          <triggerWithNoParameters>false</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+      </configs>
+    </hudson.plugins.parameterizedtrigger.BuildTrigger>
+  </publishers>
+  <buildWrappers>
+    <org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper plugin="credentials-binding@1.5">
+      <bindings>
+        <org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+          <credentialsId>9de82aed-ae50-4233-989f-d454b0449b96</credentialsId>
+          <variable>GOOGLE_APPLICATION_CREDENTIALS</variable>
+        </org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+        <org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+          <credentialsId>12e071a3-694f-40e8-8595-489236d943cc</credentialsId>
+          <variable>GPG_SECRET_KEY_FILE</variable>
+        </org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+      </bindings>
+    </org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper>
+  </buildWrappers>
+</project>

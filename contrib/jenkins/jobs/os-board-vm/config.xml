@@ -1,0 +1,209 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <logRotator class="hudson.tasks.LogRotator">
+    <daysToKeep>30</daysToKeep>
+    <numToKeep>50</numToKeep>
+    <artifactDaysToKeep>-1</artifactDaysToKeep>
+    <artifactNumToKeep>-1</artifactNumToKeep>
+  </logRotator>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>BOARD</name>
+          <description>Target board to build</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>amd64-usr</string>
+              <string>arm64-usr</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>GROUP</name>
+          <description>Update group the image should use</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>developer</string>
+              <string>alpha</string>
+              <string>beta</string>
+              <string>stable</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>FORMAT</name>
+          <description>VM platform or image type to generate.</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>qemu</string>
+              <string>qemu_uefi</string>
+              <string>ami</string>
+              <string>ami_vmdk</string>
+              <string>pxe</string>
+              <string>iso</string>
+              <string>openstack</string>
+              <string>qemu_uefi</string>
+              <string>rackspace</string>
+              <string>rackspace_onmetal</string>
+              <string>rackspace_vhd</string>
+              <string>vagrant</string>
+              <string>vagrant_vmware_fusion</string>
+              <string>virtualbox</string>
+              <string>vmware</string>
+              <string>vmware_ova</string>
+              <string>vmware_insecure</string>
+              <string>xen</string>
+              <string>gce</string>
+              <string>brightbox</string>
+              <string>cloudstack</string>
+              <string>cloudstack_vhd</string>
+              <string>digitalocean</string>
+              <string>exoscale</string>
+              <string>azure</string>
+              <string>hyperv</string>
+              <string>niftycloud</string>
+              <string>cloudsigma</string>
+              <string>packet</string>
+              <string>interoute</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_URL</name>
+          <description></description>
+          <defaultValue>https://github.com/coreos/manifest-builds.git</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_REF</name>
+          <description></description>
+          <defaultValue>refs/tags/</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_NAME</name>
+          <description></description>
+          <defaultValue>release.xml</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>COREOS_OFFICIAL</name>
+          <description></description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>0</string>
+              <string>1</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.25">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <com.synopsys.arc.jenkinsci.plugins.jobrestrictions.jobs.JobRestrictionProperty plugin="job-restrictions@0.4"/>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <assignedNode>coreos</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>true</concurrentBuild>
+  <builders>
+    <hudson.plugins.copyartifact.CopyArtifact plugin="copyartifact@1.37">
+      <project>os-mantle</project>
+      <filter></filter>
+      <target></target>
+      <excludes></excludes>
+      <selector class="hudson.plugins.copyartifact.StatusBuildSelector"/>
+      <doNotFingerprintArtifacts>false</doNotFingerprintArtifacts>
+    </hudson.plugins.copyartifact.CopyArtifact>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -ex
+
+# build may not be started without a ref value
+[[ -n &quot;${MANIFEST_REF#refs/tags/}&quot; ]]
+
+# check that the matrix didn&apos;t go bananas
+if [[ &quot;${COREOS_OFFICIAL}&quot; -eq 1 ]]; then
+  [[ &quot;${GROUP}&quot; != developer ]]
+else
+  [[ &quot;${GROUP}&quot; == developer ]]
+fi
+
+script() {
+  local script=&quot;/mnt/host/source/src/scripts/${1}&quot;; shift
+  ./bin/cork enter --experimental -- &quot;${script}&quot; &quot;$@&quot;
+}
+
+enter() {
+  ./bin/cork enter --experimental -- &quot;$@&quot;
+}
+
+./bin/cork update --create --downgrade-replace --verify --verbose \
+                  --manifest-url &quot;${MANIFEST_URL}&quot; \
+                  --manifest-branch &quot;${MANIFEST_REF}&quot; \
+                  --manifest-name &quot;${MANIFEST_NAME}&quot;
+
+source .repo/manifests/version.txt
+export COREOS_BUILD_ID
+
+# Set up GPG for signing images
+export GNUPGHOME=&quot;${PWD}/.gnupg&quot;
+rm -rf &quot;${GNUPGHOME}&quot;
+trap &quot;rm -rf &apos;${GNUPGHOME}&apos;&quot; EXIT
+mkdir --mode=0700 &quot;${GNUPGHOME}&quot;
+gpg --import &quot;${GPG_SECRET_KEY_FILE}&quot;
+
+if [[ &quot;${GROUP}&quot; == developer ]]; then
+  root=&quot;gs://builds.developer.core-os.net&quot;
+  dlroot=&quot;&quot;
+else
+  root=&quot;gs://builds.release.core-os.net/${GROUP}&quot;
+  dlroot=&quot;--download_root https://${GROUP}.release.core-os.net&quot;
+fi
+
+mkdir -p tmp
+./bin/cork download-image --root=&quot;${root}/boards/${BOARD}/${COREOS_VERSION}&quot; \
+                          --json-key=&quot;${GOOGLE_APPLICATION_CREDENTIALS}&quot; \
+                          --cache-dir=./tmp \
+                          --platform=qemu
+enter lbunzip2 -k -f /mnt/host/source/tmp/coreos_production_image.bin.bz2
+
+script image_to_vm.sh --board=${BOARD} \
+                      --format=${FORMAT} \
+                      --prod_image \
+                      --getbinpkg \
+                      --getbinpkgver=${COREOS_VERSION} \
+                      --from=/mnt/host/source/tmp/ \
+                      --to=/mnt/host/source/tmp/ \
+                      --sign=buildbot@coreos.com \
+                      --sign_digests=buildbot@coreos.com \
+                      --upload_root=&quot;${root}&quot; \
+                      --upload ${dlroot}</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.Fingerprinter>
+      <targets>chroot/build/${BOARD}/var/lib/portage/pkgs/*/*.tbz2,chroot/var/lib/portage/pkgs/*/*.tbz2,tmp/*</targets>
+    </hudson.tasks.Fingerprinter>
+  </publishers>
+  <buildWrappers>
+    <org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper plugin="credentials-binding@1.5">
+      <bindings>
+        <org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+          <credentialsId>9de82aed-ae50-4233-989f-d454b0449b96</credentialsId>
+          <variable>GOOGLE_APPLICATION_CREDENTIALS</variable>
+        </org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+        <org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+          <credentialsId>12e071a3-694f-40e8-8595-489236d943cc</credentialsId>
+          <variable>GPG_SECRET_KEY_FILE</variable>
+        </org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+      </bindings>
+    </org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper>
+  </buildWrappers>
+</project>

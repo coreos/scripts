@@ -1,0 +1,132 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<matrix-project plugin="matrix-project@1.6">
+  <actions/>
+  <description>Shim of a job to build all production VM variants. This is independent from os-board-vm because I&apos;m still figuring this stuff out</description>
+  <logRotator class="hudson.tasks.LogRotator">
+    <daysToKeep>30</daysToKeep>
+    <numToKeep>50</numToKeep>
+    <artifactDaysToKeep>-1</artifactDaysToKeep>
+    <artifactNumToKeep>-1</artifactNumToKeep>
+  </logRotator>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_URL</name>
+          <description></description>
+          <defaultValue>https://github.com/coreos/manifest-builds.git</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_REF</name>
+          <description></description>
+          <defaultValue>refs/tags/</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_NAME</name>
+          <description></description>
+          <defaultValue>release.xml</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>COREOS_OFFICIAL</name>
+          <description></description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>0</string>
+              <string>1</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.25">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>true</concurrentBuild>
+  <axes>
+    <hudson.matrix.TextAxis>
+      <name>FORMAT</name>
+      <values>
+        <string>qemu</string>
+        <string>qemu_uefi</string>
+        <string>ami</string>
+        <string>ami_vmdk</string>
+        <string>pxe</string>
+        <string>iso</string>
+        <string>openstack</string>
+        <string>rackspace</string>
+        <string>rackspace_onmetal</string>
+        <string>rackspace_vhd</string>
+        <string>vagrant</string>
+        <string>vagrant_vmware_fusion</string>
+        <string>virtualbox</string>
+        <string>vmware</string>
+        <string>vmware_ova</string>
+        <string>vmware_insecure</string>
+        <string>xen</string>
+        <string>gce</string>
+        <string>brightbox</string>
+        <string>cloudstack</string>
+        <string>cloudstack_vhd</string>
+        <string>digitalocean</string>
+        <string>exoscale</string>
+        <string>azure</string>
+        <string>hyperv</string>
+        <string>niftycloud</string>
+        <string>cloudsigma</string>
+        <string>packet</string>
+        <string>interoute</string>
+      </values>
+    </hudson.matrix.TextAxis>
+    <hudson.matrix.TextAxis>
+      <name>GROUP</name>
+      <values>
+        <string>developer</string>
+        <string>alpha</string>
+        <string>beta</string>
+        <string>stable</string>
+      </values>
+    </hudson.matrix.TextAxis>
+    <hudson.matrix.TextAxis>
+      <name>BOARD</name>
+      <values>
+        <string>amd64-usr</string>
+        <string>arm64-usr</string>
+      </values>
+    </hudson.matrix.TextAxis>
+  </axes>
+  <combinationFilter>(BOARD == &quot;amd64-usr&quot; || ( BOARD == &quot;arm64-usr&quot; &amp;&amp; (FORMAT == &quot;qemu_uefi&quot; || FORMAT == &quot;pxe&quot;) )) &amp;&amp; ((COREOS_OFFICIAL == &quot;0&quot; &amp;&amp; GROUP == &quot;developer&quot;) || (COREOS_OFFICIAL == &quot;1&quot; &amp;&amp; GROUP != &quot;developer&quot;))</combinationFilter>
+  <builders>
+    <hudson.plugins.parameterizedtrigger.TriggerBuilder plugin="parameterized-trigger@2.30">
+      <configs>
+        <hudson.plugins.parameterizedtrigger.BlockableBuildTriggerConfig>
+          <configs>
+            <hudson.plugins.parameterizedtrigger.CurrentBuildParameters/>
+            <hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
+              <properties>FORMAT=${FORMAT}
+GROUP=${GROUP}
+BOARD=${BOARD}</properties>
+            </hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
+          </configs>
+          <projects>os-board-vm</projects>
+          <condition>ALWAYS</condition>
+          <triggerWithNoParameters>false</triggerWithNoParameters>
+          <buildAllNodesWithLabel>false</buildAllNodesWithLabel>
+        </hudson.plugins.parameterizedtrigger.BlockableBuildTriggerConfig>
+      </configs>
+    </hudson.plugins.parameterizedtrigger.TriggerBuilder>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+  <executionStrategy class="hudson.matrix.DefaultMatrixExecutionStrategyImpl">
+    <runSequentially>false</runSequentially>
+  </executionStrategy>
+</matrix-project>
