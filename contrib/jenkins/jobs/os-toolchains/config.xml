@@ -1,0 +1,162 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Build cross compilers for all target boards.</description>
+  <logRotator class="hudson.tasks.LogRotator">
+    <daysToKeep>30</daysToKeep>
+    <numToKeep>50</numToKeep>
+    <artifactDaysToKeep>3</artifactDaysToKeep>
+    <artifactNumToKeep>3</artifactNumToKeep>
+  </logRotator>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.BooleanParameterDefinition>
+          <name>USE_CACHE</name>
+          <description>Enable use of any binary packages cached locally from previous builds.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_URL</name>
+          <description></description>
+          <defaultValue>https://github.com/coreos/manifest-builds.git</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_REF</name>
+          <description></description>
+          <defaultValue>refs/tags/</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_NAME</name>
+          <description></description>
+          <defaultValue>release.xml</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>COREOS_OFFICIAL</name>
+          <description></description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>0</string>
+              <string>1</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.25">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <assignedNode>coreos</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.plugins.copyartifact.CopyArtifact plugin="copyartifact@1.37">
+      <project>os-mantle</project>
+      <filter></filter>
+      <target></target>
+      <excludes></excludes>
+      <selector class="hudson.plugins.copyartifact.TriggeredBuildSelector">
+        <fallbackToLastSuccessful>true</fallbackToLastSuccessful>
+        <upstreamFilterStrategy>UseGlobalSetting</upstreamFilterStrategy>
+        <allowUpstreamDependencies>true</allowUpstreamDependencies>
+      </selector>
+      <doNotFingerprintArtifacts>false</doNotFingerprintArtifacts>
+    </hudson.plugins.copyartifact.CopyArtifact>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -ex
+
+# build may not be started without a ref value
+[[ -n &quot;${MANIFEST_REF#refs/tags/}&quot; ]]
+
+enter() {
+  ./bin/cork enter --experimental -- &quot;$@&quot;
+}
+
+# hack because catalyst leaves things chowned as root
+[[ -d .cache/sdks ]] &amp;&amp; sudo chown -R $USER .cache/sdks
+
+./bin/cork update --create --downgrade-replace --verify --verbose \
+                  --manifest-url &quot;${MANIFEST_URL}&quot; \
+                  --manifest-branch &quot;${MANIFEST_REF}&quot; \
+                  --manifest-name &quot;${MANIFEST_NAME}&quot;
+
+source .repo/manifests/version.txt
+export COREOS_BUILD_ID
+
+# Set up GPG for signing images
+export GNUPGHOME=&quot;${PWD}/.gnupg&quot;
+rm -rf &quot;${GNUPGHOME}&quot;
+trap &quot;rm -rf &apos;${GNUPGHOME}&apos;&quot; EXIT
+mkdir --mode=0700 &quot;${GNUPGHOME}&quot;
+gpg --import &quot;${GPG_SECRET_KEY_FILE}&quot;
+
+# Wipe all of catalyst or just clear out old tarballs taking up space
+if [ &quot;$USE_CACHE&quot; = false ]; then
+  sudo rm -rf src/build/catalyst
+fi
+sudo rm -rf src/build/catalyst/builds
+
+S=/mnt/host/source/src/scripts
+enter sudo emerge -uv --jobs=2 catalyst
+enter sudo ${S}/build_toolchains \
+  --sign buildbot@coreos.com --sign_digests buildbot@coreos.com \
+  --upload --upload_root gs://builds.developer.core-os.net</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.test.AggregatedTestResultPublisher plugin="junit@1.9">
+      <includeFailedBuilds>false</includeFailedBuilds>
+    </hudson.tasks.test.AggregatedTestResultPublisher>
+    <hudson.tasks.Fingerprinter>
+      <targets>src/build/catalyst/packages/coreos-toolchains/**/*.tbz2,chroot/var/lib/portage/pkgs/*/*.tbz2</targets>
+    </hudson.tasks.Fingerprinter>
+    <hudson.plugins.parameterizedtrigger.BuildTrigger plugin="parameterized-trigger@2.30">
+      <configs>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs>
+            <hudson.plugins.parameterizedtrigger.CurrentBuildParameters/>
+            <hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
+              <properties>BOARD=amd64-usr</properties>
+            </hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
+          </configs>
+          <projects>os-board-packages</projects>
+          <condition>UNSTABLE_OR_BETTER</condition>
+          <triggerWithNoParameters>false</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs>
+            <hudson.plugins.parameterizedtrigger.CurrentBuildParameters/>
+            <hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
+              <properties>BOARD=arm64-usr</properties>
+            </hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
+          </configs>
+          <projects>os-board-packages</projects>
+          <condition>UNSTABLE_OR_BETTER</condition>
+          <triggerWithNoParameters>false</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+      </configs>
+    </hudson.plugins.parameterizedtrigger.BuildTrigger>
+  </publishers>
+  <buildWrappers>
+    <org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper plugin="credentials-binding@1.5">
+      <bindings>
+        <org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+          <credentialsId>12e071a3-694f-40e8-8595-489236d943cc</credentialsId>
+          <variable>GPG_SECRET_KEY_FILE</variable>
+        </org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+        <org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+          <credentialsId>9de82aed-ae50-4233-989f-d454b0449b96</credentialsId>
+          <variable>GOOGLE_APPLICATION_CREDENTIALS</variable>
+        </org.jenkinsci.plugins.credentialsbinding.impl.FileBinding>
+      </bindings>
+    </org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper>
+  </buildWrappers>
+</project>

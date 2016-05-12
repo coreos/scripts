@@ -1,0 +1,214 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <logRotator class="hudson.tasks.LogRotator">
+    <daysToKeep>30</daysToKeep>
+    <numToKeep>50</numToKeep>
+    <artifactDaysToKeep>-1</artifactDaysToKeep>
+    <artifactNumToKeep>-1</artifactNumToKeep>
+  </logRotator>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.14.0">
+      <projectUrl>https://github.com/coreos/manifest/</projectUrl>
+    </com.coravy.hudson.plugins.github.GithubProjectProperty>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>MANIFEST_REF</name>
+          <description>Branch or tag to build</description>
+          <defaultValue>master</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.TextParameterDefinition>
+          <name>LOCAL_MANIFEST</name>
+          <description>Amend the checked in manifest
+
+https://wiki.cyanogenmod.org/w/Doc:_Using_manifests#The_local_manifest</description>
+          <defaultValue></defaultValue>
+        </hudson.model.TextParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    <hudson.plugins.copyartifact.CopyArtifactPermissionProperty plugin="copyartifact@1.37">
+      <projectNameList>
+        <string>os-*</string>
+      </projectNameList>
+    </hudson.plugins.copyartifact.CopyArtifactPermissionProperty>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.25">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <com.synopsys.arc.jenkinsci.plugins.jobrestrictions.jobs.JobRestrictionProperty plugin="job-restrictions@0.4"/>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@2.4.0">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <name>origin</name>
+        <url>https://github.com/coreos/manifest.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${MANIFEST_REF}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <browser class="hudson.plugins.git.browser.GithubWeb">
+      <url>https://github.com/coreos/manifest</url>
+    </browser>
+    <submoduleCfg class="list"/>
+    <extensions>
+      <hudson.plugins.git.extensions.impl.RelativeTargetDirectory>
+        <relativeTargetDir>manifest</relativeTargetDir>
+      </hudson.plugins.git.extensions.impl.RelativeTargetDirectory>
+      <hudson.plugins.git.extensions.impl.CleanBeforeCheckout/>
+    </extensions>
+  </scm>
+  <assignedNode>coreos</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.plugins.copyartifact.CopyArtifact plugin="copyartifact@1.37">
+      <project>os-mantle</project>
+      <filter></filter>
+      <target></target>
+      <excludes></excludes>
+      <selector class="hudson.plugins.copyartifact.TriggeredBuildSelector">
+        <fallbackToLastSuccessful>true</fallbackToLastSuccessful>
+        <upstreamFilterStrategy>UseGlobalSetting</upstreamFilterStrategy>
+        <allowUpstreamDependencies>true</allowUpstreamDependencies>
+      </selector>
+      <doNotFingerprintArtifacts>false</doNotFingerprintArtifacts>
+    </hudson.plugins.copyartifact.CopyArtifact>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -ex
+
+COREOS_OFFICIAL=0
+
+finish() {
+  local tag=&quot;$1&quot;
+  git -C &quot;${WORKSPACE}/manifest&quot; push \
+    &quot;ssh://git@github.com/coreos/manifest-builds.git&quot; \
+    &quot;refs/tags/${tag}:refs/tags/${tag}&quot;
+  tee &quot;${WORKSPACE}/manifest.properties&quot; &lt;&lt;EOF
+MANIFEST_URL = https://github.com/coreos/manifest-builds.git
+MANIFEST_REF = refs/tags/${tag}
+MANIFEST_NAME = release.xml
+COREOS_OFFICIAL = ${COREOS_OFFICIAL:-0}
+EOF
+}
+
+# Branches are of the form remote-name/branch-name. Tags are just tag-name.
+# If we have a release tag use it, for branches we need to make a tag.
+if [[ &quot;${GIT_BRANCH}&quot; != */* ]]; then
+  COREOS_OFFICIAL=1
+  finish &quot;${GIT_BRANCH}&quot;
+  exit
+fi
+
+MANIFEST_BRANCH=&quot;${GIT_BRANCH##*/}&quot;
+MANIFEST_NAME=&quot;${MANIFEST_BRANCH}.xml&quot;
+[[ -f &quot;manifest/${MANIFEST_NAME}&quot; ]]
+
+source manifest/version.txt
+export COREOS_BUILD_ID=&quot;${MANIFEST_BRANCH}-${BUILD_NUMBER}&quot;
+
+# hack to get repo to set things up using the manifest repo we already have
+# (amazing that it tolerates this considering it usually is so intolerant)
+mkdir -p .repo
+ln -sfT ../manifest .repo/manifests
+ln -sfT ../manifest/.git .repo/manifests.git
+
+# Cleanup/setup local manifests
+rm -rf .repo/local_manifests
+if [[ -n &quot;${LOCAL_MANIFEST}&quot; ]]; then
+  mkdir -p .repo/local_manifests
+  cat &gt;.repo/local_manifests/local.xml &lt;&lt;&lt;&quot;${LOCAL_MANIFEST}&quot;
+fi
+
+./bin/cork update --create --downgrade-replace --verbose \
+                  --manifest-url &quot;${GIT_URL}&quot; \
+                  --manifest-branch &quot;${GIT_COMMIT}&quot; \
+                  --manifest-name &quot;${MANIFEST_NAME}&quot; \
+                  --new-version &quot;${COREOS_VERSION}&quot; \
+                  --sdk-version &quot;${COREOS_SDK_VERSION}&quot;
+
+./bin/cork enter --experimental -- sh -c \
+  &quot;pwd; repo manifest -r &gt; &apos;/mnt/host/source/manifest/${COREOS_BUILD_ID}.xml&apos;&quot;
+
+cd manifest
+git add &quot;${COREOS_BUILD_ID}.xml&quot; 
+
+ln -sf &quot;${COREOS_BUILD_ID}.xml&quot; default.xml
+ln -sf &quot;${COREOS_BUILD_ID}.xml&quot; release.xml
+git add default.xml release.xml
+
+tee version.txt &lt;&lt;EOF
+COREOS_VERSION=${COREOS_VERSION_ID}+${COREOS_BUILD_ID}
+COREOS_VERSION_ID=${COREOS_VERSION_ID}
+COREOS_BUILD_ID=${COREOS_BUILD_ID}
+COREOS_SDK_VERSION=${COREOS_SDK_VERSION}
+EOF
+git add version.txt
+
+EMAIL=&quot;jenkins@jenkins.coreos.systems&quot;
+GIT_AUTHOR_NAME=&quot;CoreOS Jenkins&quot;
+GIT_COMMITTER_NAME=&quot;${GIT_AUTHOR_NAME}&quot;
+export EMAIL GIT_AUTHOR_NAME GIT_COMMITTER_NAME
+git commit \
+  -m &quot;${COREOS_BUILD_ID}: add build manifest&quot; \
+  -m &quot;Based on ${GIT_URL} branch ${MANIFEST_BRANCH}&quot; \
+  -m &quot;${BUILD_URL}&quot;
+git tag -m &quot;${COREOS_BUILD_ID}&quot; &quot;${COREOS_BUILD_ID}&quot; HEAD
+
+# assert that what we just did will work, update symlink because verify doesn&apos;t have a --manifest-name option yet
+cd &quot;${WORKSPACE}&quot;
+ln -sf &quot;manifests/${COREOS_BUILD_ID}.xml&quot; .repo/manifest.xml
+./bin/cork verify
+
+finish &quot;${COREOS_BUILD_ID}&quot;</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.test.AggregatedTestResultPublisher plugin="junit@1.9">
+      <includeFailedBuilds>true</includeFailedBuilds>
+    </hudson.tasks.test.AggregatedTestResultPublisher>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>manifest.properties</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+    </hudson.tasks.ArtifactArchiver>
+    <hudson.plugins.parameterizedtrigger.BuildTrigger plugin="parameterized-trigger@2.30">
+      <configs>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs>
+            <hudson.plugins.parameterizedtrigger.FileBuildParameters>
+              <propertiesFile>manifest.properties</propertiesFile>
+              <failTriggerOnMissing>true</failTriggerOnMissing>
+              <useMatrixChild>false</useMatrixChild>
+              <onlyExactRuns>false</onlyExactRuns>
+            </hudson.plugins.parameterizedtrigger.FileBuildParameters>
+          </configs>
+          <projects>os-toolchains,os-sdk</projects>
+          <condition>UNSTABLE_OR_BETTER</condition>
+          <triggerWithNoParameters>false</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+      </configs>
+    </hudson.plugins.parameterizedtrigger.BuildTrigger>
+  </publishers>
+  <buildWrappers>
+    <com.cloudbees.jenkins.plugins.sshagent.SSHAgentBuildWrapper plugin="ssh-agent@1.8">
+      <credentialIds>
+        <string>8b41f1e0-1ea9-4dc5-b64f-9b3b883b78c2</string>
+      </credentialIds>
+      <ignoreMissing>false</ignoreMissing>
+    </com.cloudbees.jenkins.plugins.sshagent.SSHAgentBuildWrapper>
+  </buildWrappers>
+</project>
