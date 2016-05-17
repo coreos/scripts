@@ -2,6 +2,26 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+GLSA_WHITELIST=("201412-09")
+
+glsa_image() {
+  VULNS=()
+  GLSAS=`glsa-check-$BOARD -t all`
+  for GLSA in $GLSAS; do
+    if [[ " ${GLSA_WHITELIST[@]} " =~ " ${GLSA} " ]]; then
+      continue
+    else
+      VULNS+=($GLSA)
+    fi
+  done
+  if [[ ${#VULNS[@]} != 0 ]]; then
+    echo "The following GLSAs apply: $VULNS"
+    return 1
+  fi
+
+  return 0
+}
+
 test_image_content() {
   local root="$1"
   local returncode=0
@@ -43,6 +63,10 @@ test_image_content() {
     # offending scripts.
     #error "test_image_content: Failed #! check"
     #returncode=1
+  fi
+
+  if ! glsa_image; then
+      returncode=1
   fi
 
   return $returncode
