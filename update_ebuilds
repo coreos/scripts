@@ -49,7 +49,7 @@ cd "$FLAGS_portage_stable"
 for pkg in "$@"; do
     # Only allow packages, not categories or the whole tree
     if [[ ! "$pkg" =~ ^[a-z0-9-][a-z0-9-]*\/[a-zA-Z0-9-][a-zA-Z0-9_-]*$ ]] &&
-       [[ ! "$pkg" =~ ^(eclass|licenses|profiles|scripts) ]]; then
+       [[ ! "$pkg" =~ ^(eclass|licenses|profiles|scripts|metadata/glsa) ]]; then
         die "Invalid name $pkg, must be category/package or special dir."
     fi
 
@@ -72,7 +72,7 @@ for pkg in "$@"; do
     git add -A "$pkg"
 
     # Sync up the ebuild metadata cache
-    if [[ $FLAGS_regencache -eq $FLAGS_TRUE && "$pkg" == */* ]]; then
+    if [[ $FLAGS_regencache -eq $FLAGS_TRUE && "$pkg" == */* && "$pkg" != metadata/glsa ]]; then
         egencache --repo=portage-stable --update "$pkg"
         git add -A "metadata/md5-cache/${pkg}-*"
     fi
