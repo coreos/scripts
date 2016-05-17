@@ -80,7 +80,8 @@ exec sudo -E ${command} ${extra_args} "\$@"
 EOF
   # Note: parent will process these.
   wrappers+=( "${target}" )
-  eval ${command^^}_WRAPPER="${target}" # ${foo^^} returns toupper($foo)
+  upper=${command^^}
+  eval ${upper/-/_}_WRAPPER="${target}" # ${foo^^} returns toupper($foo)
 }
 
 generate_all_wrappers() {
@@ -90,7 +91,7 @@ generate_all_wrappers() {
   info "Generating wrapper scripts"
 
   for wrapper in 'emerge --root-deps' ebuild eclean equery portageq \
-                 qcheck qfile qlist emaint; do
+                 qcheck qfile qlist emaint glsa-check; do
     _generate_wrapper ${wrapper}
   done
 
