@@ -2,20 +2,11 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-GLSA_WHITELIST=("201412-09")
+GLSA_WHITELIST="201412-09"
 
 glsa_image() {
-  VULNS=()
-  GLSAS=`glsa-check-$BOARD -t all`
-  for GLSA in $GLSAS; do
-    if [[ " ${GLSA_WHITELIST[@]} " =~ " ${GLSA} " ]]; then
-      continue
-    else
-      VULNS+=($GLSA)
-    fi
-  done
-  if [[ ${#VULNS[@]} != 0 ]]; then
-    echo "The following GLSAs apply: $VULNS"
+  if glsa-check-$BOARD -t all | grep -v "$GLSA_WHITELIST"; then
+    echo "The above GLSAs apply to $ROOT"
     return 1
   fi
 
@@ -65,7 +56,7 @@ test_image_content() {
     #returncode=1
   fi
 
-  if ! glsa_image; then
+  if ! ROOT="$root" glsa_image; then
       returncode=1
   fi
 
