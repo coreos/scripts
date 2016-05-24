@@ -99,6 +99,9 @@ sudo_clobber "/etc/portage/repos.conf/coreos.conf" <<EOF
 [DEFAULT]
 main-repo = portage-stable
 
+[gentoo]
+disabled = true
+
 [coreos]
 location = ${COREOS_OVERLAY}
 
