@@ -394,7 +394,11 @@ CHROOT_PASSTHRU=(
 # Add the whitelisted environment variables to CHROOT_PASSTHRU.
 load_environment_whitelist
 for var in "${ENVIRONMENT_WHITELIST[@]}" ; do
-  [ "${!var+set}" = "set" ] && CHROOT_PASSTHRU+=( "${var}=${!var}" )
+  # skip empty/unset values
+  [[ "${!var+set}" == "set" ]] || continue
+  # skip values that aren't actually exported
+  [[ $(declare -p "${var}") == "declare -x ${var}="* ]] || continue
+  CHROOT_PASSTHRU+=( "${var}=${!var}" )
 done
 
 # Set up GIT_PROXY_COMMAND so git:// URLs automatically work behind a proxy.
