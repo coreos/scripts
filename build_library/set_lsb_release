@@ -30,6 +30,13 @@ OS_CODENAME="MoreOS"
 OS_ID="${OS_NAME,,}" # lower case for os-release
 OS_PRETTY_NAME="$OS_NAME $COREOS_VERSION (${OS_CODENAME})"
 
+# temporarily point arm at a different appid until update support
+# is completed in update_engine and the CoreUpdate service.
+COREOS_APPID="{e96281a6-d1af-4bde-9a0a-97b76e56dc57}"
+if [[ "${FLAGS_board}" == arm64-* ]]; then
+  COREOS_APPID="{103867da-e3a2-4c92-b0b3-7fbd7f7d8b71}"
+fi
+
 # DISTRIB_* are the standard lsb-release names
 sudo mkdir -p "${ROOT_FS_DIR}/usr/share/coreos" "${ROOT_FS_DIR}/etc/coreos"
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/lsb-release" <<EOF
@@ -60,6 +67,7 @@ sudo ln -sf "../../lib/os-release" "${ROOT_FS_DIR}/usr/share/coreos/os-release"
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/release" <<EOF
 COREOS_RELEASE_VERSION=$COREOS_VERSION
 COREOS_RELEASE_BOARD=$FLAGS_board
+COREOS_RELEASE_APPID=$COREOS_APPID
 EOF
 
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/update.conf" <<EOF
