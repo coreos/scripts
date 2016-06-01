@@ -7,22 +7,47 @@
 SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
-if [[ "$1" == "-v" ]]; then
-    shift
-    if [[ $# -ge 1 ]] && [[ "$1" != [-+]* ]]; then
-        v="$1"
+USAGE="USAGE: $0 [-v] [date flags]
+
+This script calculates the date given the CoreOS major version or calculates
+the version given a date.
+
+Examples:
+
+  $0 -v 1000
+  Sun Mar 27 00:00:00 UTC 2016
+
+  $0 -v 1000 --iso-8601
+  2016-03-27
+
+  $0 --date 'Jun 1, 2016'
+  1066
+"
+
+case "$1" in
+    "-h")
+        echo "$USAGE"
+        ;;
+
+    "-v")
         shift
-    else
-        v="${COREOS_VERSION}"
-    fi
+        if [[ $# -ge 1 ]] && [[ "$1" != [-+]* ]]; then
+            v="$1"
+            shift
+        else
+            v="${COREOS_VERSION}"
+        fi
 
-    # strip of a v prefix or .0.0 suffix
-    v="${v#v}"
-    v="${v%%.*}"
+        # strip of a v prefix or .0.0 suffix
+        v="${v#v}"
+        v="${v%%.*}"
 
-    export TZ=${TZ:=UTC}
-    date -d @$(( (v * 86400) + COREOS_EPOCH )) "$@"
-else
-    t=$(date +%s "$@")
-    echo $(( (t - COREOS_EPOCH) / 86400 ))
-fi
+        export TZ=${TZ:=UTC}
+        date -d @$(( (v * 86400) + COREOS_EPOCH )) "$@"
+        ;;
+
+    *)
+        t=$(date +%s "$@")
+        echo $(( (t - COREOS_EPOCH) / 86400 ))
+        ;;
+esac
