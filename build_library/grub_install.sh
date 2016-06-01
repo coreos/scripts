@@ -54,14 +54,14 @@ case "${FLAGS_target}" in
         CORE_NAME="core.img"
         ;;
     x86_64-efi)
-	CORE_MODULES+=( serial linuxefi efi_gop getenv smbios efinet verify http )
+	CORE_MODULES+=( serial linuxefi efi_gop getenv smbios efinet verify http iso9660 )
         CORE_NAME="core.efi"
         ;;
     x86_64-xen)
         CORE_NAME="core.elf"
         ;;
     arm64-efi)
-        CORE_MODULES+=( serial efi_gop getenv smbios efinet verify http )
+        CORE_MODULES+=( serial linux efi_gop getenv smbios efinet verify http iso9660 )
         CORE_NAME="core.efi"
         BOARD_GRUB=1
         ;;
@@ -134,12 +134,8 @@ for file in "${GRUB_SRC}"/*{.lst,.mod}; do
 done
 
 info "Generating ${GRUB_DIR}/load.cfg"
-# Include a small initial config in the core image to search for the ESP
-# by filesystem ID in case the platform doesn't provide the boot disk.
-# The existing $root value is given as a hint so it is searched first.
-ESP_FSID=$(sudo grub-probe -t fs_uuid -d "${LOOP_DEV}p1")
+# Include a small initial config to set prefix and dump variables.
 sudo_clobber "${ESP_DIR}/${GRUB_DIR}/load.cfg" <<EOF
-search.fs_uuid ${ESP_FSID} root \$root
 set prefix=(memdisk)
 set
 EOF
@@ -147,6 +143,7 @@ EOF
 # Generate a memdisk containing the appropriately generated grub.cfg. Doing
 # this because we need conflicting default behaviors between verity and
 # non-verity images.
+ESP_FSID=$(sudo grub-probe -t fs_uuid -d "${LOOP_DEV}p1")
 GRUB_TEMP_DIR=$(mktemp -d)
 if [[ ! -f "${ESP_DIR}/coreos/grub/grub.cfg.tar" ]]; then
     info "Generating grub.cfg memdisk"
@@ -161,6 +158,9 @@ if [[ ! -f "${ESP_DIR}/coreos/grub/grub.cfg.tar" ]]; then
       cat "${BUILD_LIBRARY_DIR}/grub.cfg" | \
         sed 's/@@MOUNTUSR@@/mount.usr/' > "${GRUB_TEMP_DIR}/grub.cfg"
     fi
+
+    # fix up ESP UUID for PC boot. EFI boot will be able to provide the disk to grub.
+    sed --in-place --expression "s/@@ESP_FSID@@/${ESP_FSID}/" "${GRUB_TEMP_DIR}/grub.cfg"
 
     sudo tar cf "${ESP_DIR}/coreos/grub/grub.cfg.tar" \
 	 -C "${GRUB_TEMP_DIR}" "grub.cfg"
