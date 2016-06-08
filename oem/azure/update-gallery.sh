@@ -23,11 +23,16 @@ git checkout -b "${LGROUP}-${VERSION}" origin/master
 
 input=$(ls CoreOS_*_${LGROUP}.json)
 output="CoreOS_${VERSION}_${LGROUP}.json"
-display_name="CoreOS ${UGROUP} (${VERSION})"
 media_name="${MEDIA_PREFIX}__CoreOS-${UGROUP}-${VERSION}"
+publish_date="$(date +'%m/%d/%Y')"
 
 jq --raw-output \
-	".displayName = \"${display_name}\" | .MediaName = \"${media_name}\"" \
+	".mediaReferences.PublicAzure.imageVersions |= [{ \
+		version: \"${VERSION}\", \
+		publishedDate: \"${publish_date}\", \
+		mediaName: \"${media_name}\" \
+	}] + .[0:4] | \
+	.mediaReferences.PublicAzure.mediaName = \"${media_name}\"" \
 	< "${input}" > "${output}"
 
 git rm "${input}"
