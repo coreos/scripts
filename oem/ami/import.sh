@@ -127,7 +127,7 @@ fi
 export EC2_URL="https://ec2.${region}.amazonaws.com"
 echo "Building AMI in zone ${EC2_IMPORT_ZONE}"
 
-tmpdir=$(mktemp -d)
+tmpdir=$(mktemp --directory --tmpdir=/var/tmp)
 trap "rm -rf '${tmpdir}'" EXIT
 
 # if it is on the local fs, just use it, otherwise try to download it

@@ -11,7 +11,7 @@ DIR=$(dirname $0)
 
 set -e
 
-WORKDIR=$(mktemp --directory)
+WORKDIR=$(mktemp --directory --tmpdir=/var/tmp)
 trap "rm --force --recursive ${WORKDIR}" SIGINT SIGTERM EXIT
 
 IMAGE_PATH="${WORKDIR}/coreos_production_azure_image.vhd"
