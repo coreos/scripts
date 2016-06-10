@@ -27,7 +27,7 @@ fi
 
 requestBody="<ReplicationInput xmlns=\"http://schemas.microsoft.com/windowsazure\">
 	<TargetLocations>"
-for region in "${REGIONS[@]}"; do
+for region in $(getRegions); do
 	requestBody+="\n\t\t<Region>$region</Region>"
 done
 requestBody+="
