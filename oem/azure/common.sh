@@ -1,4 +1,3 @@
-AZURE_ENVIRONMENT=AzureCloud
 REGIONS=(
 	"West Europe"
 	"North Europe"
@@ -24,9 +23,23 @@ REGIONS=(
 	"UK South 2"
 )
 
+getAzureEnvironment() {
+	azure account show --json | \
+		jq '.[0].environmentName' --raw-output
+}
+
 getManagementEndpoint() {
-	azure account env show --environment=$AZURE_ENVIRONMENT --json | \
+	azure account env show --environment=$(getAzureEnvironment) --json | \
 		jq '.managementEndpointUrl' --raw-output
+}
+
+getStorageEndpointPrefix() {
+	azure account env show --environment=$(getAzureEnvironment) --json | \
+		jq '.storageEndpointSuffix' --raw-output
+}
+
+getBlobStorageEndpoint() {
+	echo "blob$(getStorageEndpointPrefix)"
 }
 
 getSubscriptionId() {
