@@ -61,7 +61,7 @@ azure storage blob copy start \
 
 echo "Creating Azure image from blob..."
 azure vm image create \
-	--blob-url="https://coreos.blob.core.windows.net/publish/coreos-${VERSION}-${LGROUP}.vhd" \
+	--blob-url="https://coreos.$(getBlobStorageEndpoint)/publish/coreos-${VERSION}-${LGROUP}.vhd" \
 	--os="linux" \
 	--label="CoreOS ${UGROUP}" \
 	"CoreOS-${UGROUP}-${VERSION}"
