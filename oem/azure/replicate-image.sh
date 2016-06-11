@@ -25,6 +25,7 @@ if [ -z $subscription_id ]; then
 	subscription_id=$(getSubscriptionId)
 fi
 
+IFS=$'\n'
 requestBody="<ReplicationInput xmlns=\"http://schemas.microsoft.com/windowsazure\">
 	<TargetLocations>"
 for region in $(getRegions); do
@@ -38,6 +39,7 @@ requestBody+="
 		<Version>${VERSION}</Version>
 	</ComputeImageAttributes>
 </ReplicationInput>"
+unset IFS
 
 url="$(getManagementEndpoint)/${subscription_id}/services/images/${image_name}/replicate"
 

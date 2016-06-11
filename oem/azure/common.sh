@@ -9,12 +9,13 @@ getManagementEndpoint() {
 }
 
 getStorageEndpointPrefix() {
-	azure account env show --environment=$(getAzureEnvironment) --json | \
-		jq '.storageEndpointSuffix' --raw-output
+	prefix=$(azure account env show --environment=$(getAzureEnvironment) --json | \
+		jq '.storageEndpointSuffix' --raw-output)
+	echo "${prefix##.}"
 }
 
 getBlobStorageEndpoint() {
-	echo "blob$(getStorageEndpointPrefix)"
+	echo "blob.$(getStorageEndpointPrefix)"
 }
 
 getSubscriptionId() {
