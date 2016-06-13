@@ -108,7 +108,9 @@ L+  /etc/ld.so.conf     -   -   -   -   ../usr/lib/ld.so.conf
 EOF
 
   # Move the PAM configuration into /usr
-  sudo mv ${root_fs_dir}/etc/pam.d ${root_fs_dir}/usr/lib
+  sudo mkdir -p ${root_fs_dir}/usr/lib/pam.d
+  sudo mv -n ${root_fs_dir}/etc/pam.d/* ${root_fs_dir}/usr/lib/pam.d/
+  sudo rmdir ${root_fs_dir}/etc/pam.d
 
   finish_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${image_contents}"
 
