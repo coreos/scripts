@@ -718,7 +718,7 @@ make_digests() {
 # Usage: verify_digests [-d file.DIGESTS] file1 [file2...]
 # If -d is not specified file1.DIGESTS will be used
 verify_digests() {
-    local digests
+    local digests filename hash_type status
     if [[ "$1" == "-d" ]]; then
         [[ -n "$2" ]] || die "-d requires an argument"
         digests="$(readlink -f "$2")"
@@ -735,7 +735,9 @@ verify_digests() {
             grep -A1 -i "^# ${hash_type} HASH$" "${digests}" | \
                 grep "$filename$" | ${hash_type}sum -c - --strict || return 1
             # Also check that none of the greps failed in the above pipeline
-            [[ -z ${PIPESTATUS[*]#0} ]] || return 1
+            for status in ${PIPESTATUS[@]}; do
+                [[ $status -eq 0 ]] || return 1
+            done
         done
     done
     popd >/dev/null

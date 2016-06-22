@@ -383,9 +383,13 @@ install_cross_libs() {
 gcc_get_latest_profile() {
     local prefix="${1}-"
     local suffix="${2+-$2}"
+    local status
     gcc-config -l | cut -d' ' -f3 | grep "^${prefix}[0-9\\.]*${suffix}$" | tail -n1
+
     # return 1 if anything in the above pipe failed
-    [[ -z ${PIPESTATUS[*]#0} ]] || return 1
+    for status in ${PIPESTATUS[@]}; do
+        [[ $status -eq 0 ]] || return 1
+    done
 }
 
 # Update to the latest GCC profile for a given CHOST if required
