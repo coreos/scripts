@@ -80,7 +80,8 @@ exec sudo -E ${command} ${extra_args} "\$@"
 EOF
   # Note: parent will process these.
   wrappers+=( "${target}" )
-  eval ${command^^}_WRAPPER="${target}" # ${foo^^} returns toupper($foo)
+  upper=${command^^}
+  eval ${upper/-/_}_WRAPPER="${target}" # ${foo^^} returns toupper($foo)
 }
 
 generate_all_wrappers() {
@@ -90,7 +91,7 @@ generate_all_wrappers() {
   info "Generating wrapper scripts"
 
   for wrapper in 'emerge --root-deps' ebuild eclean equery portageq \
-                 qcheck qfile qlist emaint; do
+                 qcheck qfile qlist emaint glsa-check; do
     _generate_wrapper ${wrapper}
   done
 
@@ -277,6 +278,9 @@ sudo mkdir -p --mode=01777 "${BOARD_ROOT}"{/tmp,/var/tmp}
 # make it easy to find debug symbols
 sudo mkdir -p /usr/lib/debug/build
 sudo ln -sfT ${BOARD_ROOT}/usr/lib/debug /usr/lib/debug/${BOARD_ROOT}
+
+# remove bogus pkg-config wrapper
+sudo rm -f "${BOARD_ROOT}/build/bin/${BOARD_CHOST}-pkg-config"
 
 generate_all_wrappers
 

@@ -9,9 +9,19 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 
 DEFAULT_MAJOR=${TODAYS_VERSION}
 DEFAULT_MINOR=0
+DEFAULT_BRANCH=${FLAGS_FALSE}
 
-# Increment $MINOR if we already are on a version from today
 CURRENT_VERSION=( ${COREOS_VERSION_ID//./ } )
+
+# Detect if we are on a branch or still tracking master.
+DEFAULT_MANIFEST=$(readlink "${REPO_MANIFESTS_DIR}/default.xml") \
+    || die "Failed to read default manifest link"
+if [[ "${DEFAULT_MANIFEST}" != master.xml ]]; then
+    DEFAULT_MAJOR=${CURRENT_VERSION[0]}
+    DEFAULT_BRANCH=${FLAGS_TRUE}
+fi
+
+# Increment $MINOR if we already made a major release.
 if [[ ${DEFAULT_MAJOR} -eq ${CURRENT_VERSION[0]} ]]; then
     DEFAULT_MINOR=$((${CURRENT_VERSION[1]} + 1))
 fi
@@ -19,9 +29,9 @@ fi
 DEFINE_integer major ${DEFAULT_MAJOR} "Branch major version (aka 'build')"
 DEFINE_integer minor ${DEFAULT_MINOR} "Branch revision or minor version"
 DEFINE_integer patch 0 "Branch patch id, normally 0"
-DEFINE_string track "dev-channel" "Set the given track to this new branch"
 DEFINE_string sdk_version "${COREOS_VERSION_ID}" \
     "Set the SDK version to use. (current: ${COREOS_SDK_VERSION})"
+DEFINE_boolean branch ${DEFAULT_BRANCH} "Release branch, diverge from master"
 DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
 DEFINE_string remote "origin" "Remote name or URL to push to."
 
@@ -29,6 +39,16 @@ DEFINE_string remote "origin" "Remote name or URL to push to."
 FLAGS "$@" || exit 1
 eval set -- "${FLAGS_ARGV}"
 switch_to_strict_mode
+
+# Easy to mix up versions when tagging a branch, so double check.
+if [[ ${FLAGS_branch} -eq ${FLAGS_TRUE} ]]; then
+    if [[ ${FLAGS_major} -ne ${CURRENT_VERSION[0]} ]]; then
+        die_notrace "Branch major should be ${CURRENT_VERSION[0]}"
+    fi
+    if [[ ${FLAGS_minor} -le ${CURRENT_VERSION[1]} ]]; then
+        die_notrace "Branch minor should be greater than ${CURRENT_VERSION[1]}"
+    fi
+fi
 
 BRANCH_NAME="build-${FLAGS_major}"
 BRANCH_VERSION="${FLAGS_major}.${FLAGS_minor}.${FLAGS_patch}"
@@ -56,35 +76,47 @@ if [[ -n "${OLD_BRANCHES}" ]]; then
     git rm -f ${OLD_BRANCHES}
 fi
 
-repo manifest -o "${BRANCH_NAME}.xml" -r
+# transitional, now a file but used to be a symlink.
+if [[ -L release.xml ]]; then
+    rm release.xml
+fi
+
+# Generate a release manifest with all revisions pinned
+repo manifest -o release.xml -r
+# double check because repo may not exit with non-zero on failure
+[[ -s release.xml ]] || die "repo failed to generate release.xml"
+git add release.xml
+
+# Generate a branch manifest, unpinning any branched projects.
+# OW! Don't hit me! I'll write this for real in Go soon I swear!
+sed -e "s%revision=.*upstream=\"refs/heads/${BRANCH_NAME}\"%revision=\"refs/heads/${BRANCH_NAME}\"%" release.xml > "${BRANCH_NAME}.xml"
+git add "${BRANCH_NAME}.xml"
+
+if [[ ${FLAGS_branch} -eq ${FLAGS_TRUE} ]]; then
+    ln -sf "${BRANCH_NAME}.xml" default.xml
+    git add default.xml
+fi
+
 tee version.txt <<EOF
-COREOS_BUILD=${FLAGS_major}
-COREOS_BRANCH=${FLAGS_minor}
-COREOS_PATCH=${FLAGS_patch}
 COREOS_VERSION=${BRANCH_VERSION}
 COREOS_VERSION_ID=${BRANCH_VERSION}
 COREOS_BUILD_ID=""
 COREOS_SDK_VERSION=${FLAGS_sdk_version}
 EOF
-ln -sf "${BRANCH_NAME}.xml" release.xml
-git add "${BRANCH_NAME}.xml" release.xml version.txt
+git add version.txt
+
 info "Creating ${BRANCH_NAME} and tag ${TAG_NAME}"
-git commit -m "add(${BRANCH_NAME}): Add manifest for ${TAG_NAME}"
+git commit -m "${BRANCH_NAME}: release ${TAG_NAME}"
 git branch -f "${BRANCH_NAME}"
 git tag -m "CoreOS ${TAG_NAME}" "${TAG_NAME}"
 
-
-PUSH_TRACK=
-if [[ -n "${FLAGS_track}" ]]; then
-    git branch -f "${FLAGS_track}"
-    info "Updating track ${FLAGS_track}"
-    PUSH_TRACK=1
-fi
-
 if [[ ${FLAGS_push} -eq ${FLAGS_TRUE} ]]; then
-    git push "${FLAGS_remote}" \
-        "HEAD:refs/heads/master" \
+    master="HEAD:refs/heads/master"
+    if [[ ${FLAGS_branch} -eq ${FLAGS_TRUE} ]]; then
+        master=""
+    fi
+
+    git push "${FLAGS_remote}" $master \
         "refs/heads/${BRANCH_NAME}" \
-        ${PUSH_TRACK:+"+refs/heads/${FLAGS_track}"} \
         "refs/tags/${TAG_NAME}"
 fi

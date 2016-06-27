@@ -2,6 +2,17 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+GLSA_WHITELIST="201412-09"
+
+glsa_image() {
+  if glsa-check-$BOARD -t all | grep -v "$GLSA_WHITELIST"; then
+    echo "The above GLSAs apply to $ROOT"
+    return 1
+  fi
+
+  return 0
+}
+
 test_image_content() {
   local root="$1"
   local returncode=0
@@ -43,6 +54,10 @@ test_image_content() {
     # offending scripts.
     #error "test_image_content: Failed #! check"
     #returncode=1
+  fi
+
+  if ! ROOT="$root" glsa_image; then
+      returncode=1
   fi
 
   return $returncode
