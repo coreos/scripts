@@ -570,16 +570,17 @@ _write_cpio_disk() {
 }
 
 _write_iso_disk() {
-    local base_dir="${VM_TMP_ROOT}/usr"
+    local base_dir="${VM_TMP_ROOT}"
     local iso_target="${VM_TMP_DIR}/rootiso"
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
+    local efi_img="isolinux/efi.img"
 
     mkdir "${iso_target}"
     pushd "${iso_target}" >/dev/null
     mkdir isolinux syslinux coreos
     _write_cpio_common "$1" "${iso_target}/coreos/cpio.gz"
-    cp "${base_dir}"/boot/vmlinuz "${iso_target}/coreos/vmlinuz"
+    cp "${base_dir}/boot/coreos/vmlinuz-a" "${iso_target}/coreos/vmlinuz"
     cp -R /usr/share/syslinux/* isolinux/
     cat<<EOF > isolinux/isolinux.cfg
 INCLUDE /syslinux/syslinux.cfg
@@ -594,8 +595,59 @@ label coreos
   kernel /coreos/vmlinuz
   append initrd=/coreos/cpio.gz coreos.autologin
 EOF
-    mkisofs -v -l -r -J -o $2 -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table .
-    isohybrid $2
+
+
+    # this weird dance is here because isolinux and isohybrid work for amd64,
+    # but not arm64. also, a bare FAT partition works for amd64 in QEMU/OVMF,
+    # but not for arm64 in QEMU/ArmVirtPkg. however, a full GPT image with an
+    # ESP inside *does* work for QEMU/ArmVirtPkg.
+    case $BOARD in
+        amd64-usr)
+	    mformat -i "${efi_img}" -C -v COREOS -f 2880
+
+            mmd -i "${efi_img}" EFI
+            mmd -i "${efi_img}" EFI/BOOT
+        
+            mcopy -i "${efi_img}" -o "${base_dir}"/boot/EFI/boot/* "::EFI/BOOT/"
+
+            mkisofs -v -l -r -J -o $2 \
+                -eltorito-boot isolinux/isolinux.bin \
+                -eltorito-catalog isolinux/boot.cat \
+                -no-emul-boot \
+                -boot-load-size 4 \
+                -boot-info-table \
+                -eltorito-alt-boot \
+                -eltorito-platform efi \
+                -eltorito-boot "${efi_img}" \
+                -no-emul-boot \
+                .
+
+            isohybrid --uefi $2
+        ;;
+        arm64-usr)
+            dd if=/dev/zero of="${efi_img}" bs=1MiB count=3
+            sgdisk --zap-all "${efi_img}"
+            sgdisk --largest-new=1 "${efi_img}"
+            sgdisk --typecode=1:EF00 "${efi_img}"
+            sgdisk --change-name=1:COREOS "${efi_img}"
+            sgdisk --verify "${efi_img}"
+        
+            mformat -i "${efi_img}"@@1M -v COREOS -f 2880
+        
+            mmd -i "${efi_img}"@@1M EFI
+            mmd -i "${efi_img}"@@1M EFI/BOOT
+        
+            mcopy -i "${efi_img}"@@1M -o "${base_dir}"/boot/EFI/boot/* "::EFI/BOOT/"
+
+            mkisofs -v -l -r -J -o $2 \
+                -eltorito-platform efi \
+                -eltorito-boot "${efi_img}" \
+                -boot-info-table \
+                -no-emul-boot \
+                .
+        ;;
+    esac
+
     popd >/dev/null
 }
 
