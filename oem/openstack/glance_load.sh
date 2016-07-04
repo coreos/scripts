@@ -51,7 +51,7 @@ curl --fail -s -L ${image_url} |  bunzip2 > ${coreosimg}
 # perform actual image creation
 #  here we set the os_release, os_verison, os_family, and os_distro variables
 #  for intelligent consumption of images by scripts
-glance image-create --name CoreOS-${release}-v${COREOS_VERSION} --progress \
+glance --os-image-api-version 1 image-create --name CoreOS-${release}-v${COREOS_VERSION} --progress \
   --is-public true --property os_distro=coreos --property os_family=coreos \
   --property os_version=${COREOS_VERSION} \
   --disk-format qcow2 --container-format bare --min-disk 6 --file $coreosimg
