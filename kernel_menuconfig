@@ -17,7 +17,7 @@ DEFINE_string board "${DEFAULT_BOARD}" \
   "Board to use for kernel source and architecture."
 DEFINE_string overlay "coreos" \
   "Portage repo containing the kernel ebuild."
-DEFINE_string package "sys-kernel/coreos-kernel" \
+DEFINE_string package "sys-kernel/coreos-modules" \
   "Portage ebuild name for the kernel."
 
 # Parse command line
