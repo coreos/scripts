@@ -61,7 +61,7 @@ case "${FLAGS_target}" in
         CORE_NAME="core.elf"
         ;;
     arm64-efi)
-        CORE_MODULES+=( serial efi_gop getenv smbios efinet verify http tftp )
+        CORE_MODULES+=( serial linux efi_gop getenv smbios efinet verify http tftp )
         CORE_NAME="core.efi"
         BOARD_GRUB=1
         ;;
