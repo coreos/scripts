@@ -82,9 +82,12 @@ if [[ -L release.xml ]]; then
 fi
 
 # Generate a release manifest with all revisions pinned
-repo manifest -o release.xml -r
+tmp=$(mktemp --suffix repo)
+trap "rm --force ${tmp}" EXIT
+repo manifest -o ${tmp} -r
 # double check because repo may not exit with non-zero on failure
-[[ -s release.xml ]] || die "repo failed to generate release.xml"
+[[ -s ${tmp} ]] || die "repo failed to generate release.xml (${tmp})"
+mv ${tmp} release.xml
 git add release.xml
 
 # Generate a branch manifest, unpinning any branched projects.
