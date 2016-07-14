@@ -237,7 +237,7 @@ sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" "$@"
 info "Removing obsolete packages"
 sudo -E "${EMERGE_CMD[@]}" --quiet --depclean @unavailable
 
-if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
+if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_FALSE}" ]]; then
   if "portageq-${BOARD}" list_preserved_libs "${BOARD_ROOT}" >/dev/null; then
     sudo -E "${EMERGE_CMD[@]}" "${REBUILD_FLAGS[@]}" @preserved-rebuild
   fi
