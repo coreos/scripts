@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# Copyright (c) 2016 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+# Script must run inside the chroot
+restart_in_chroot_if_needed "$@"
+
+assert_not_root_user
+
+# Developer-visible flags.
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "The board to build packages for."
+DEFINE_integer jobs "${NUM_JOBS}" \
+  "How many packages to build in parallel."
+
+# include upload options
+. "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
+
+# Parse flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+switch_to_strict_mode
+
+if [[ -z "${FLAGS_board}" ]]; then
+  echo "Error: --board is required."
+  exit 1
+fi
+
+check_gsutil_opts
+
+# set BOARD and BOARD_ROOT
+. "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
+
+declare -A repo_paths
+for repo_name in $(portageq-$BOARD get_repos "${BOARD_ROOT}"); do
+    repo_paths[$repo_name]=$(portageq-$BOARD \
+        get_repo_path "${BOARD_ROOT}" "$repo_name")
+done
+
+rebuild_atoms=()
+
+# a crazy format I can eval inside the loop
+list_format='cp="$cp";cpv="$cpv";repo="$repo"'
+for pkg_info in $(equery-$BOARD list --format="${list_format}" '*'); do
+    eval "$pkg_info"
+    pvr="${cpv#*/}"
+    pkg_ebuild="${BOARD_ROOT}/var/db/pkg/${cpv}/${pvr}.ebuild"
+    repo_ebuild="${repo_paths[$repo]}/${cp}/${pvr}.ebuild"
+
+    if [[ ! -f "${pkg_ebuild}" ]]; then
+        die "${pvr} installed but ${pkg_ebuild} is missing!!!"
+    fi
+
+    if [[ ! -f "${repo_ebuild}" ]]; then
+        error "${pvr} is installed but ${repo_ebuild} is missing."
+        error "Perhaps run build_packages --board=$BOARD"
+        exit 1
+    fi
+
+    if cmp -s "${pkg_ebuild}" "${repo_ebuild}"; then
+        continue
+    fi
+
+    info "${pvr}.ebuild has changed"
+    rebuild_atoms+=( "=${cpv}" )
+done
+
+if [[ "${#rebuild_atoms[@]}" -eq 0 ]]; then
+    info "No ebuild changes detected"
+else
+    info "Rebuilding ${#rebuild_atoms[@]} packages..."
+    emerge-$BOARD --jobs=${FLAGS_jobs} "${rebuild_atoms[@]}"
+
+    info "Checking build root"
+    test_image_content "${BOARD_ROOT}"
+
+    # upload packages if enabled
+    upload_packages
+fi
+
+command_completed
