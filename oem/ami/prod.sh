@@ -20,4 +20,4 @@ $DIR/copy_ami.sh -l 477645798544 ${args}
 source $DIR/ami-builder-us-gov-auth.sh
 $DIR/import.sh ${args}
 
-update_json.sh ${args}
+$DIR/update_json.sh ${args}
