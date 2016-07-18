@@ -10,6 +10,7 @@ USAGE="Usage: $0 -V 100.0.0
     -V VERSION  Find AMI by CoreOS version. (required)
     -b BOARD    Set to the board name, default is amd64-usr
     -g GROUP    Set the update group, default is alpha
+    -s STORAGE  GS URL for Google storage to upload to.
     -h          this ;-)
     -v          Verbose, see all the things!
 
@@ -17,6 +18,7 @@ This script must be run from an ec2 host with the ec2 tools installed.
 "
 
 IMAGE="coreos_production_ami"
+GS_URL="gs://builds.release.core-os.net"
 AMI=
 VER=
 BOARD="amd64-usr"
@@ -32,6 +34,7 @@ do
         V) VER="$OPTARG";;
         b) BOARD="$OPTARG";;
         g) GROUP="$OPTARG";;
+        s) GS_URL="$OPTARG";;
         h) echo "$USAGE"; exit;;
         v) set -x;;
         *) exit 1;;
@@ -75,41 +78,57 @@ for r in "${ALL_REGIONS[@]}"; do
     HVM_AMIS[${r}]=$HVM
 done
 
+# ignore this crap: /usr/lib64/python2.6/site-packages/Crypto/Util/number.py:57: PowmInsecureWarning: Not using mpz_powm_sec.  You should rebuild using libgmp >= 5 to avoid timing attack vulnerability.
+upload_file() {
+    local name="$1"
+    local content="$2"
+    url="$GS_URL/$GROUP/boards/$BOARD/$VER/${IMAGE}_${name}"
+    echo -e "$content" \
+        | python -W "ignore:Not using mpz_powm_sec" \
+        `which gsutil` cp - "$url"
+    echo "OK, ${url}=${content}"
+}
+
 publish_ami() {
     local r="$1"
     local virt_type="$2"
     local r_amiid="$3"
 
-    if [[ "${r}" == "us-gov-west-1" ]]; then
-        source $DIR/ami-builder-us-gov-auth.sh
-    else
-        source $DIR/marineam-auth.sh
+    # compatibility name from before addition of hvm
+    if [[ "${virt_type}" == "pv" ]]; then
+        upload_file "${r}.txt" "$r_amiid"
     fi
 
-    # Only required for publishing to the marketplace
-    if [[ "$r" == "us-east-1" ]]; then
-        local r_snapshotid=$(ec2-describe-images --region="$r" "$r_amiid" \
-            | grep -E '^BLOCKDEVICEMAPPING.*/dev/(xv|s)da' | cut -f5) || true
-
-        if [[ -z "${r_snapshotid}" ]]; then
-            echo "$0: Cannot find snapshot id for $r_amiid in $r" >&2
-            return 1
-        fi
-
-        echo "Sharing snapshot $r_snapshotid in $r with Amazon"
-        ec2-modify-snapshot-attribute --region "$r" \
-            "$r_snapshotid" -c --add 679593333241
-    fi
-
-    echo "Making $r_amiid in $r public"
-    ec2-modify-image-attribute --region "$r" \
-        "$r_amiid" --launch-permission -a all
+    upload_file "${virt_type}_${r}.txt" "$r_amiid"
 }
 
+PV_ALL=""
 for r in "${!AMIS[@]}"; do
     publish_ami "$r" pv "${AMIS[$r]}"
+    PV_ALL+="|${r}=${AMIS[$r]}"
 done
+PV_ALL="${PV_ALL#|}"
 
+HVM_ALL=""
 for r in "${!HVM_AMIS[@]}"; do
     publish_ami "$r" hvm "${HVM_AMIS[$r]}"
+    HVM_ALL+="|${r}=${HVM_AMIS[$r]}"
 done
+HVM_ALL="${HVM_ALL#|}"
+
+AMI_ALL="{\n  \"amis\": ["
+for r in "${ALL_REGIONS[@]}"; do
+	AMI_ALL+="\n    {"
+	AMI_ALL+="\n      \"name\": \"${r}\","
+	AMI_ALL+="\n      \"pv\":   \"${AMIS[$r]}\","
+	AMI_ALL+="\n      \"hvm\":  \"${HVM_AMIS[$r]}\""
+	AMI_ALL+="\n    },"
+done
+AMI_ALL="${AMI_ALL%,}"
+AMI_ALL+="\n  ]\n}"
+
+upload_file "all.txt" "${PV_ALL}"
+upload_file "pv.txt" "${PV_ALL}"
+upload_file "hvm.txt" "${HVM_ALL}"
+upload_file "all.json" "${AMI_ALL}"
+echo "Done"
