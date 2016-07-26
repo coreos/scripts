@@ -20,3 +20,13 @@ MAIN_REGIONS=( "${!ALL_AKIS[@]}" )
 ALL_AKIS["us-gov-west-1"]=aki-1de98d3e
 
 ALL_REGIONS=( "${!ALL_AKIS[@]}" )
+
+# One other region-specific detail:
+#   http://docs.aws.amazon.com/AWSEC2/latest/CommandLineReference/CLTRG-ami-bundle-image.html
+# The us-gov-west-1 and cn-north-1 regions use a non-default public key certificate and the path to that certificate must be specified with this option.
+declare -A EC2_MANIFEST_CERT_PATH
+for region in ${!ALL_AKIS[@]}; do
+  EC2_MANIFEST_CERT_PATH[$region]=$EC2_AMITOOL_HOME/etc/ec2/amitools/cert-ec2.pem
+done
+EC2_MANIFEST_CERT_PATH["us-gov-west-1"]=$EC2_AMITOOL_HOME/etc/ec2/amitools/cert-ec2-gov.pem
+EC2_MANIFEST_CERT_PATH["cn-north-1"]=$EC2_AMITOOL_HOME/etc/ec2/amitools/cert-ec2-cn-north-1.pem
