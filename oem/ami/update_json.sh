@@ -53,7 +53,7 @@ if [[ ! -n "$VER" ]]; then
 fi
 
 search_name=$(clean_version "CoreOS-$GROUP-$VER")
-declare -A AMIS HVM_AMIS
+declare -A PV_AMIS HVM_AMIS IS_PV_AMIS IS_HVM_AMIS
 for r in "${ALL_REGIONS[@]}"; do
     # Hacky but avoids writing an indirection layer to handle auth...
     if [[ "${r}" == "us-gov-west-1" ]]; then
@@ -62,20 +62,37 @@ for r in "${ALL_REGIONS[@]}"; do
         source $DIR/marineam-auth.sh
     fi
 
-    AMI=$(ec2-describe-images --region=${r} -F name="${search_name}" \
+    AMI=$(ec2-describe-images --region=${r} -F name="${search_name}-pv" \
         | grep -m1 ^IMAGE | cut -f2) || true
     if [[ -z "$AMI" ]]; then
-        echo "$0: Cannot find an AMI named ${search_name} in ${r}" >&2
+        echo "$0: Cannot find an AMI named ${search_name}-pv in ${r}" >&2
         exit 1
     fi
-    AMIS[${r}]=$AMI
-    HVM=$(ec2-describe-images --region=${r} -F name="${search_name}-hvm" \
+    PV_AMIS[${r}]=$AMI
+    
+    AMI=$(ec2-describe-images --region=${r} -F name="${search_name}-hvm" \
         | grep -m1 ^IMAGE | cut -f2) || true
-    if [[ -z "$HVM" ]]; then
+    if [[ -z "$AMI" ]]; then
         echo "$0: Cannot find an AMI named ${search_name}-hvm in ${r}" >&2
         exit 1
     fi
-    HVM_AMIS[${r}]=$HVM
+    HVM_AMIS[${r}]=$AMI
+    
+    AMI=$(ec2-describe-images --region=${r} -F name="${search_name}-is-pv" \
+        | grep -m1 ^IMAGE | cut -f2) || true
+    if [[ -z "$AMI" ]]; then
+        echo "$0: Cannot find an AMI named ${search_name}-is-pv in ${r}" >&2
+        exit 1
+    fi
+    IS_PV_AMIS[${r}]=$AMI
+    
+    AMI=$(ec2-describe-images --region=${r} -F name="${search_name}-is-hvm" \
+        | grep -m1 ^IMAGE | cut -f2) || true
+    if [[ -z "$AMI" ]]; then
+        echo "$0: Cannot find an AMI named ${search_name}-is-hvm in ${r}" >&2
+        exit 1
+    fi
+    IS_HVM_AMIS[${r}]=$AMI
 done
 
 # ignore this crap: /usr/lib64/python2.6/site-packages/Crypto/Util/number.py:57: PowmInsecureWarning: Not using mpz_powm_sec.  You should rebuild using libgmp >= 5 to avoid timing attack vulnerability.
@@ -103,9 +120,9 @@ publish_ami() {
 }
 
 PV_ALL=""
-for r in "${!AMIS[@]}"; do
-    publish_ami "$r" pv "${AMIS[$r]}"
-    PV_ALL+="|${r}=${AMIS[$r]}"
+for r in "${!PV_AMIS[@]}"; do
+    publish_ami "$r" pv "${PV_AMIS[$r]}"
+    PV_ALL+="|${r}=${PV_AMIS[$r]}"
 done
 PV_ALL="${PV_ALL#|}"
 
@@ -116,12 +133,28 @@ for r in "${!HVM_AMIS[@]}"; do
 done
 HVM_ALL="${HVM_ALL#|}"
 
+IS_PV_ALL=""
+for r in "${!IS_PV_AMIS[@]}"; do
+    publish_ami "$r" is_pv "${IS_PV_AMIS[$r]}"
+    IS_PV_ALL+="|${r}=${IS_PV_AMIS[$r]}"
+done
+IS_PV_ALL="${IS_PV_ALL#|}"
+
+IS_HVM_ALL=""
+for r in "${!IS_HVM_AMIS[@]}"; do
+    publish_ami "$r" is_hvm "${IS_HVM_AMIS[$r]}"
+    IS_HVM_ALL+="|${r}=${IS_HVM_AMIS[$r]}"
+done
+IS_HVM_ALL="${IS_HVM_ALL#|}"
+
 AMI_ALL="{\n  \"amis\": ["
 for r in "${ALL_REGIONS[@]}"; do
 	AMI_ALL+="\n    {"
-	AMI_ALL+="\n      \"name\": \"${r}\","
-	AMI_ALL+="\n      \"pv\":   \"${AMIS[$r]}\","
-	AMI_ALL+="\n      \"hvm\":  \"${HVM_AMIS[$r]}\""
+	AMI_ALL+="\n      \"name\":   \"${r}\","
+	AMI_ALL+="\n      \"pv\":     \"${PV_AMIS[$r]}\","
+	AMI_ALL+="\n      \"hvm\":    \"${HVM_AMIS[$r]}\","
+	AMI_ALL+="\n      \"is_pv\":  \"${IS_PV_AMIS[$r]}\","
+	AMI_ALL+="\n      \"is_hvm\": \"${IS_HVM_AMIS[$r]}\""
 	AMI_ALL+="\n    },"
 done
 AMI_ALL="${AMI_ALL%,}"
@@ -130,5 +163,7 @@ AMI_ALL+="\n  ]\n}"
 upload_file "all.txt" "${PV_ALL}"
 upload_file "pv.txt" "${PV_ALL}"
 upload_file "hvm.txt" "${HVM_ALL}"
+upload_file "is_pv.txt" "${IS_PV_ALL}"
+upload_file "is_hvm.txt" "${IS_HVM_ALL}"
 upload_file "all.json" "${AMI_ALL}"
 echo "Done"

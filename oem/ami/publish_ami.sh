@@ -50,7 +50,7 @@ if [[ ! -n "$VER" ]]; then
 fi
 
 search_name=$(clean_version "CoreOS-$GROUP-$VER")
-declare -A AMIS HVM_AMIS
+declare -A PV_AMIS HVM_AMIS IS_PV_AMIS IS_HVM_AMIS
 for r in "${ALL_REGIONS[@]}"; do
     # Hacky but avoids writing an indirection layer to handle auth...
     if [[ "${r}" == "us-gov-west-1" ]]; then
@@ -59,25 +59,42 @@ for r in "${ALL_REGIONS[@]}"; do
         source $DIR/marineam-auth.sh
     fi
 
-    AMI=$(ec2-describe-images --region=${r} -F name="${search_name}" \
+    AMI=$(ec2-describe-images --region=${r} -F name="${search_name}-pv" \
         | grep -m1 ^IMAGE | cut -f2) || true
     if [[ -z "$AMI" ]]; then
-        echo "$0: Cannot find an AMI named ${search_name} in ${r}" >&2
+        echo "$0: Cannot find an AMI named ${search_name}-pv in ${r}" >&2
         exit 1
     fi
-    AMIS[${r}]=$AMI
-    HVM=$(ec2-describe-images --region=${r} -F name="${search_name}-hvm" \
+    PV_AMIS[${r}]=$AMI
+    
+    AMI=$(ec2-describe-images --region=${r} -F name="${search_name}-hvm" \
         | grep -m1 ^IMAGE | cut -f2) || true
-    if [[ -z "$HVM" ]]; then
+    if [[ -z "$AMI" ]]; then
         echo "$0: Cannot find an AMI named ${search_name}-hvm in ${r}" >&2
         exit 1
     fi
-    HVM_AMIS[${r}]=$HVM
+    HVM_AMIS[${r}]=$AMI
+    
+    AMI=$(ec2-describe-images --region=${r} -F name="${search_name}-is-pv" \
+        | grep -m1 ^IMAGE | cut -f2) || true
+    if [[ -z "$AMI" ]]; then
+        echo "$0: Cannot find an AMI named ${search_name}-is-pv in ${r}" >&2
+        exit 1
+    fi
+    IS_PV_AMIS[${r}]=$AMI
+    
+    AMI=$(ec2-describe-images --region=${r} -F name="${search_name}-is-hvm" \
+        | grep -m1 ^IMAGE | cut -f2) || true
+    if [[ -z "$AMI" ]]; then
+        echo "$0: Cannot find an AMI named ${search_name}-is-hvm in ${r}" >&2
+        exit 1
+    fi
+    IS_HVM_AMIS[${r}]=$AMI
 done
 
 publish_ami() {
     local r="$1"
-    local virt_type="$2"
+    local root_type="$2"
     local r_amiid="$3"
 
     if [[ "${r}" == "us-gov-west-1" ]]; then
@@ -86,8 +103,8 @@ publish_ami() {
         source $DIR/marineam-auth.sh
     fi
 
-    # Only required for publishing to the marketplace
-    if [[ "$r" == "us-east-1" ]]; then
+    # Only required for publishing EBS images to the marketplace
+    if [[ "$r" == "us-east-1" && "$root_type" == "ebs" ]]; then
         local r_snapshotid=$(ec2-describe-images --region="$r" "$r_amiid" \
             | grep -E '^BLOCKDEVICEMAPPING.*/dev/(xv|s)da' | cut -f5) || true
 
@@ -106,10 +123,18 @@ publish_ami() {
         "$r_amiid" --launch-permission -a all
 }
 
-for r in "${!AMIS[@]}"; do
-    publish_ami "$r" pv "${AMIS[$r]}"
+for r in "${!PV_AMIS[@]}"; do
+    publish_ami "$r" ebs "${PV_AMIS[$r]}"
 done
 
 for r in "${!HVM_AMIS[@]}"; do
-    publish_ami "$r" hvm "${HVM_AMIS[$r]}"
+    publish_ami "$r" ebs "${HVM_AMIS[$r]}"
+done
+
+for r in "${!IS_PV_AMIS[@]}"; do
+    publish_ami "$r" is "${IS_PV_AMIS[$r]}"
+done
+
+for r in "${!IS_HVM_AMIS[@]}"; do
+    publish_ami "$r" is "${IS_HVM_AMIS[$r]}"
 done
