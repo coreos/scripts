@@ -39,7 +39,7 @@ GRUB_DIR="coreos/grub/${FLAGS_target}"
 GRUB_SRC="/usr/lib/grub/${FLAGS_target}"
 
 # Modules required to boot a standard CoreOS configuration
-CORE_MODULES=( normal search test fat part_gpt search_fs_uuid gzio search_part_label terminal gptprio configfile memdisk tar echo )
+CORE_MODULES=( normal search test fat part_gpt search_fs_uuid gzio search_part_label terminal gptprio configfile memdisk tar echo read )
 
 # Name of the core image, depends on target
 CORE_NAME=
