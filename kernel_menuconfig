@@ -74,10 +74,12 @@ OVERLAY=$(portageq get_repo_path / "${FLAGS_overlay}")
 FILESDIR="${OVERLAY}/${FLAGS_package}/files"
 DEFCONFIG_NAME="${ARCH}_defconfig-${KERNEL_MAJOR}.${KERNEL_MINOR}"
 DEFCONFIG_PATH="${FILESDIR}/${DEFCONFIG_NAME}"
+COMMONCONFIG_NAME="commonconfig-${KERNEL_MAJOR}.${KERNEL_MINOR}"
+COMMONCONFIG_PATH="${FILESDIR}/${COMMONCONFIG_NAME}"
 
-cp "${DEFCONFIG_PATH}" "${KERNEL_BUILD}/build/.config"
+cat "${DEFCONFIG_PATH}" "${COMMONCONFIG_PATH}" > "${KERNEL_BUILD}/build/.config"
 kmake olddefconfig
+cp "${KERNEL_BUILD}/build/.config" "${KERNEL_BUILD}/build/.config.bak"
 kmake menuconfig
 kmake savedefconfig
-cp "${KERNEL_BUILD}/build/defconfig" "${DEFCONFIG_PATH}"
-git -C "${OVERLAY}" --no-pager diff "${FLAGS_package}"
+diff -u "${KERNEL_BUILD}/build/.config.bak" "${KERNEL_BUILD}/build/.config" || true
