@@ -41,7 +41,7 @@ check_gsutil_opts() {
     fi
 
     if [[ -n "${FLAGS_upload_root}" ]]; then
-        if [[ "${FLAGS_upload_root}" != gs://* ]]; then
+        if [[ "${FLAGS_upload_root}" != gs://* ]] && [[ "${FLAGS_upload_root}" != s3://* ]]; then
             die_notrace "--upload_root must be a gs:// URL"
         fi
         # Make sure the path doesn't end with a slash
@@ -49,7 +49,7 @@ check_gsutil_opts() {
     fi
 
     if [[ -n "${FLAGS_upload_path}" ]]; then
-        if [[ "${FLAGS_upload_path}" != gs://* ]]; then
+        if [[ "${FLAGS_upload_root}" != gs://* ]] && [[ "${FLAGS_upload_root}" != s3://* ]]; then
             die_notrace "--upload_path must be a gs:// URL"
         fi
         # Make sure the path doesn't end with a slash
