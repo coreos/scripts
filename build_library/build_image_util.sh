@@ -80,6 +80,7 @@ zip_update_tools() {
 generate_update() {
   local image_name="$1"
   local disk_layout="$2"
+  local image_kernel="${BUILD_DIR}/${image_name%.bin}.vmlinuz"
   local update_prefix="${image_name%_image.bin}_update"
   local update="${BUILD_DIR}/${update_prefix}"
   local devkey="/usr/share/update_engine/update-payload-key.key.pem"
@@ -87,8 +88,11 @@ generate_update() {
   echo "Generating update payload, signed with a dev key"
   "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" \
     extract "${BUILD_DIR}/${image_name}" "USR-A" "${update}.bin"
-  delta_generator -private_key "${devkey}" \
-    -new_image "${update}.bin" -out_file "${update}.gz"
+  delta_generator \
+      -private_key "${devkey}" \
+      -new_image "${update}.bin" \
+      -new_kernel "${image_kernel}" \
+      -out_file "${update}.gz"
 
   upload_image -d "${update}.DIGESTS" "${update}".{bin,gz,zip}
 }
