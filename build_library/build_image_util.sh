@@ -282,6 +282,7 @@ finish_image() {
   local disk_layout="$2"
   local root_fs_dir="$3"
   local image_contents="$4"
+  local image_kernel="$5"
   local install_grub=0
 
   local disk_img="${BUILD_DIR}/${image_name}"
@@ -362,6 +363,13 @@ finish_image() {
 	   "${root_fs_dir}/boot/coreos/vmlinuz-a"
       sudo mv "${root_fs_dir}/boot/coreos/vmlinuz-a.signed" \
 	   "${root_fs_dir}/boot/coreos/vmlinuz-a"
+  fi
+
+  if [[ -n "${image_kernel}" ]]; then
+    # copying kernel from vfat so ignore the permissions
+    cp --no-preserve=mode \
+        "${root_fs_dir}/boot/coreos/vmlinuz-a" \
+        "${BUILD_DIR}/${image_kernel}"
   fi
 
   ${BUILD_LIBRARY_DIR}/generate_kernel_hash.sh "${root_fs_dir}/boot/coreos/vmlinuz-a" ${COREOS_VERSION} >${pcr_dir}/kernel.config
