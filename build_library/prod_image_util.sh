@@ -113,7 +113,13 @@ EOF
   sudo mv -n ${root_fs_dir}/etc/pam.d/* ${root_fs_dir}/usr/lib/pam.d/
   sudo rmdir ${root_fs_dir}/etc/pam.d
 
-  finish_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${image_contents}" "${image_kernel}"
+  finish_image \
+      "${image_name}" \
+      "${disk_layout}" \
+      "${root_fs_dir}" \
+      "${image_contents}" \
+      "${image_kernel}" \
+      "${image_pcr_policy}"
 
   upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \
       "${BUILD_DIR}/${image_contents}" \
