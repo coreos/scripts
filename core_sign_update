@@ -15,7 +15,8 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 export GCLIENT_ROOT=$(readlink -f "${SCRIPT_ROOT}/../../")
 . "${SCRIPT_ROOT}/common.sh" || exit 1
 
-DEFINE_string image "" "The image that should be sent to clients."
+DEFINE_string image "" "The filesystem image of /usr"
+DEFINE_string kernel "" "The kernel image"
 DEFINE_string output "" "Output file"
 DEFINE_string private_keys "" "Path to private key in .pem format."
 DEFINE_string public_keys "" "Path to public key in .pem format."
@@ -39,6 +40,7 @@ trap cleanup INT TERM EXIT
 
 delta_generator \
     -new_image "$FLAGS_image" \
+    -new_kernel "$FLAGS_kernel" \
     -out_file update
 
 IFS=: read -a private_keys <<< "$FLAGS_private_keys"
