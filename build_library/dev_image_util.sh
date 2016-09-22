@@ -91,7 +91,6 @@ create_dev_image() {
   local image_contents="${image_name%.bin}_contents.txt"
   local image_packages="${image_name%.bin}_packages.txt"
   local image_licenses="${image_name%.bin}_licenses.txt"
-  local image_pcr_policy="${image_name%.bin}_pcr_policy.zip"
 
   start_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
@@ -126,6 +125,5 @@ EOF
   upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \
       "${BUILD_DIR}/${image_contents}" \
       "${BUILD_DIR}/${image_packages}" \
-      "${BUILD_DIR}/${image_name}" \
-      "${BUILD_DIR}/${image_pcr_policy}"
+      "${BUILD_DIR}/${image_name}"
 }
