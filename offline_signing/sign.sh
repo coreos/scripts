@@ -5,10 +5,9 @@ DATA_DIR="$(readlink -f "$1")"
 KEYS_DIR="$(readlink -f "$(dirname "$0")")"
 
 gpg2 --verify "${DATA_DIR}/coreos_production_update.bin.bz2.sig"
-gpg2 --verify "${DATA_DIR}/coreos_production_image.vmlinuz.bz2.sig"
+gpg2 --verify "${DATA_DIR}/coreos_production_image.vmlinuz.sig"
 gpg2 --verify "${DATA_DIR}/coreos_production_update.zip.sig"
 bunzip2 --keep "${DATA_DIR}/coreos_production_update.bin.bz2"
-bunzip2 --keep "${DATA_DIR}/coreos_production_image.vmlinuz.bz2"
 unzip "${DATA_DIR}/coreos_production_update.zip" -d "${DATA_DIR}"
 
 export PATH="${DATA_DIR}:${PATH}"
