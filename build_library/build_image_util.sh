@@ -292,6 +292,11 @@ finish_image() {
   local install_grub=0
   local disk_img="${BUILD_DIR}/${image_name}"
 
+  local disable_read_write="${FLAGS_FALSE}"
+  if [[ "${IMAGE_BUILD_TYPE}" == "prod" ]]; then
+    disable_read_write="${FLAGS_enable_rootfs_verification}"
+  fi
+
   # Copy kernel to support dm-verity boots
   sudo mkdir -p "${root_fs_dir}/boot/coreos"
   sudo cp "${root_fs_dir}/usr/boot/vmlinuz" \
@@ -337,25 +342,20 @@ finish_image() {
       sudo chroot "${root_fs_dir}" bash -c "cd /usr/share/selinux/mcs && semodule -s mcs -i *.pp"
   fi
 
-  # We only need to disable rw and apply dm-verity in prod with a /usr partition
-  if [ "${IMAGE_BUILD_TYPE}" = "prod" ] && mountpoint -q "${root_fs_dir}/usr"; then
-    local disable_read_write=${FLAGS_enable_rootfs_verification}
-
+  # Make the filesystem un-mountable as read-write and setup verity.
+  if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
     # Unmount /usr partition
     sudo umount --recursive "${root_fs_dir}/usr" || exit 1
 
-    # Make the filesystem un-mountable as read-write and setup verity.
-    if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
-      "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" verity \
+    "${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${disk_layout}" verity \
         --root_hash="${BUILD_DIR}/${image_name%.bin}_verity.txt" \
         "${BUILD_DIR}/${image_name}"
 
-      # Magic alert! Root hash injection works by replacing a seldom-used rdev
-      # error message in the uncompressed section of the kernel that happens to
-      # be exactly SHA256-sized. Our modified GRUB extracts it to the cmdline.
-      printf %s "$(cat ${BUILD_DIR}/${image_name%.bin}_verity.txt)" | \
+    # Magic alert! Root hash injection works by replacing a seldom-used rdev
+    # error message in the uncompressed section of the kernel that happens to
+    # be exactly SHA256-sized. Our modified GRUB extracts it to the cmdline.
+    printf %s "$(cat ${BUILD_DIR}/${image_name%.bin}_verity.txt)" | \
         sudo dd of="${root_fs_dir}/boot/coreos/vmlinuz-a" conv=notrunc seek=64 count=64 bs=1
-    fi
   fi
 
   # Sign the kernel after /usr is in a consistent state and verity is calculated
@@ -393,7 +393,7 @@ finish_image() {
       target_list="arm64-efi"
     fi
     for target in ${target_list}; do
-      if [[ "${IMAGE_BUILD_TYPE}" = "prod" && ${FLAGS_enable_verity} -eq ${FLAGS_TRUE} ]]; then
+      if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
         ${BUILD_LIBRARY_DIR}/grub_install.sh \
             --board="${BOARD}" \
             --target="${target}" \
