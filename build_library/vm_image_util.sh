@@ -216,6 +216,7 @@ IMG_iso_CONF_FORMAT=iso
 IMG_gce_DISK_LAYOUT=vm
 IMG_gce_CONF_FORMAT=gce
 IMG_gce_OEM_PACKAGE=oem-gce
+IMG_gce_OEM_ACI=gce
 
 ## rackspace
 IMG_rackspace_OEM_PACKAGE=oem-rackspace
