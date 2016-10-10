@@ -76,6 +76,7 @@ create_prod_image() {
   extract_prod_gcc "${root_fs_dir}"
   emerge_to_image "${root_fs_dir}" "${base_pkg}"
   run_ldconfig "${root_fs_dir}"
+  run_localedef "${root_fs_dir}"
   write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
   write_licenses "${root_fs_dir}" "${BUILD_DIR}/${image_licenses}"
   extract_docs "${root_fs_dir}"
@@ -112,6 +113,9 @@ EOF
   sudo mkdir -p ${root_fs_dir}/usr/lib/pam.d
   sudo mv -n ${root_fs_dir}/etc/pam.d/* ${root_fs_dir}/usr/lib/pam.d/
   sudo rmdir ${root_fs_dir}/etc/pam.d
+
+  # Remove source locale data, only need to ship the compiled archive.
+  sudo rm -rf ${root_fs_dir}/usr/share/i18n/
 
   finish_image \
       "${image_name}" \
