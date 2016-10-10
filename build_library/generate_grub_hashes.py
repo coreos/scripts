@@ -40,7 +40,7 @@ with open(os.path.join(outputdir, "grub_modules.config"), "w") as f:
     f.write(json.dumps({"9": {"binaryvalues": [{"prefix": "grub_module", "values": hashvalues}]}}))
 
 with open(os.path.join(outputdir, "kernel_cmdline.config"), "w") as f:
-    f.write(json.dumps({"8": {"asciivalues": [{"prefix": "grub_kernel_cmdline", "values": [{"value": "rootflags=rw mount.usrflags=ro BOOT_IMAGE=/coreos/vmlinuz-[ab] mount.usr=/dev/mapper/usr verity.usr=PARTUUID=\S{36} rootflags=rw mount.usrflags=ro consoleblank=0 root=LABEL=ROOT (console=\S+)? (coreos.autologin=\S+)? verity.usrhash=\\S{64}", "description": "CoreOS kernel command line %s" % version}]}]}}))
+    f.write(json.dumps({"8": {"asciivalues": [{"prefix": "grub_kernel_cmdline", "values": [{"value": "rootflags=rw mount.usrflags=ro BOOT_IMAGE=/coreos/vmlinuz-[ab] mount.usr=PARTUUID=\S{36} rootflags=rw mount.usrflags=ro consoleblank=0 root=LABEL=ROOT (console=\S+)? (coreos.autologin=\S+)? verity.usrhash=\\S{64}", "description": "CoreOS kernel command line %s" % version}]}]}}))
 
 commands = [{"value": '\[.*\]', "description": "CoreOS Grub configuration %s" % version},
             {"value": 'gptprio.next -d usr -u usr_uuid', "description": "CoreOS Grub configuration %s" % version},
