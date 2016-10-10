@@ -393,7 +393,7 @@ finish_image() {
       target_list="arm64-efi"
     fi
     for target in ${target_list}; do
-      if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
+      if [[ ${disable_read_write} -eq ${FLAGS_TRUE} && ${FLAGS_enable_verity} -eq ${FLAGS_TRUE} ]]; then
         ${BUILD_LIBRARY_DIR}/grub_install.sh \
             --board="${BOARD}" \
             --target="${target}" \
