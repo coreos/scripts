@@ -61,4 +61,4 @@ updateservicectl \
         --app-id="${FLAGS_app_id}" \
         --file="${FLAGS_payload}" \
         --url="${HTTP_URL}" \
-	--version="${FLAGS_version}"
+        --version="${FLAGS_version}"
