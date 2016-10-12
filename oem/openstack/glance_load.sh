@@ -7,24 +7,48 @@
 #
 # You will need to source your glance credentials before using this script
 #
-# By default we retrieve the alpha image, set to  a different value to retrieve
-# that release
+# By default we retrieve the amd64-usr alpha image, set different values to
+# retrieve a specific release
 
 set -e -o pipefail
 
-release=${1:-"alpha"}
-if [[ "$1" != http* ]]; then
-  baseurl="https://${release}.release.core-os.net/amd64-usr/current"
-else
-  # for this convoluded trick, we take an arbitrary URL, chop it up, and try
-  # to turn it into usable input for the rest of the script.
+: ${board:="amd64-usr"}
+: ${release:="alpha"}
 
-  # this is based on urls of the form:
-  # https://storage.core-os.net/coreos/amd64-usr/master/version.txt
-  # where the following sed expression extracts the "master" portion
-  baseurl="${1%/*}"
-  release="${baseurl##*/}"
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	http*)
+		# For this convoluded trick, we take an arbitrary URL, chop it
+		# up, and try to turn it into usable input for the rest of the
+		# script. This is based on urls of the form:
+		# https://storage.core-os.net/coreos/amd64-usr/master/version.txt
+		# where the following sed expression extracts the "master"
+		# portion
+		baseurl="${1%/*}"
+		release="${baseurl##*/}"
+		break
+		;;
+	alpha|beta|stable)
+		release="$1"
+		;;
+	amd64|amd64-usr)
+		board="amd64-usr"
+		;;
+	arm64|arm64-usr)
+		board="arm64-usr"
+		;;
+	*)
+		echo "Error: Unknown arg: $1"
+		exit 1
+		;;
+	esac
+	shift
+done
+
+if [[ -z "${baseurl}" ]]; then
+  baseurl="https://${release}.release.core-os.net/${board}/current"
 fi
+
 version_url="${baseurl}/version.txt"
 image_url="${baseurl}/coreos_production_openstack_image.img.bz2"
 
