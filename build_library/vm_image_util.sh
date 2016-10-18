@@ -216,6 +216,7 @@ IMG_iso_CONF_FORMAT=iso
 IMG_gce_DISK_LAYOUT=vm
 IMG_gce_CONF_FORMAT=gce
 IMG_gce_OEM_PACKAGE=oem-gce
+IMG_gce_OEM_ACI=gce
 
 ## rackspace
 IMG_rackspace_OEM_PACKAGE=oem-rackspace
@@ -442,6 +443,34 @@ install_oem_package() {
         --quiet --jobs=2 "${oem_pkg}"
     sudo rsync -a "${oem_tmp}/usr/share/oem/" "${VM_TMP_ROOT}/usr/share/oem/"
     sudo rm -rf "${oem_tmp}"
+}
+
+# Write the OEM ACI file into the OEM partition.
+install_oem_aci() {
+    local oem_aci=$(_get_vm_opt OEM_ACI)
+    local aci_dir="${FLAGS_to}/oem-${oem_aci}-aci"
+    local aci_path="${aci_dir}/coreos-oem-${oem_aci}.aci"
+    local binpkgflags=(--nogetbinpkg)
+
+    [ -n "${oem_aci}" ] || return 0
+
+    [ "${FLAGS_getbinpkg}" = "${FLAGS_TRUE}" ] &&
+    binpkgflags=(--getbinpkg --getbinpkgver="${FLAGS_getbinpkgver}")
+
+    # Build an OEM ACI if necessary, supplying build environment flags.
+    [ -e "${aci_path}" ] &&
+    info "ACI ${aci_path} exists; reusing it" ||
+    "${SCRIPT_ROOT}/build_oem_aci" \
+        --board="${BOARD}" \
+        --build_dir="${aci_dir}" \
+        "${binpkgflags[@]}" \
+        "${oem_aci}"
+
+    info "Installing ${oem_aci} OEM ACI"
+    sudo install -Dpm 0644 \
+        "${aci_path}" \
+        "${VM_TMP_ROOT}/usr/share/oem/coreos-oem-${oem_aci}.aci" ||
+    die "Could not install ${oem_aci} OEM ACI"
 }
 
 # Any other tweaks required?
