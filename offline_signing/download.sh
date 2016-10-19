@@ -1,10 +1,11 @@
 #!/bin/bash
 
 set -ex
-VERSION="$1"
-GS="gs://builds.release.core-os.net/stable/boards/amd64-usr/$VERSION"
+BOARD="$1"
+VERSION="$2"
+GS="gs://builds.release.core-os.net/stable/boards/$BOARD/$VERSION"
 
-cd "${2:-.}"
+cd "${3:-.}"
 
 gsutil cp \
     "${GS}/coreos_production_image.vmlinuz" \
