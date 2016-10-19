@@ -4,6 +4,7 @@
 
 declare -A ALL_AKIS
 ALL_AKIS["us-east-1"]=aki-919dcaf8
+ALL_AKIS["us-east-2"]=aki-da055ebf
 ALL_AKIS["us-west-1"]=aki-880531cd
 ALL_AKIS["us-west-2"]=aki-fc8f11cc
 ALL_AKIS["eu-west-1"]=aki-52a34525
