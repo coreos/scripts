@@ -28,7 +28,7 @@ DEFINE_string getbinpkgver "" \
   "Use binary packages from a specific version."
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
-DEFINE_boolean enable_verity ${FLAGS_FALSE} \
+DEFINE_boolean enable_verity ${FLAGS_TRUE} \
   "Default GRUB to use dm-verity-enabled boot arguments"
 DEFINE_string base_pkg "coreos-base/coreos" \
   "The base portage package to base the build off of (only applies to prod images)"
