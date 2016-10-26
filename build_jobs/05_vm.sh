@@ -48,9 +48,6 @@ set -ex
 rm -f gce.properties
 sudo rm -rf tmp
 
-# build may not be started without a ref value
-[[ -n "${MANIFEST_REF#refs/tags/}" ]]
-
 # check that the matrix didn't go bananas
 if [[ "${COREOS_OFFICIAL}" -eq 1 ]]; then
   [[ "${GROUP}" != developer ]]
@@ -66,11 +63,6 @@ script() {
 enter() {
   ./bin/cork enter --experimental -- "$@"
 }
-
-./bin/cork update --create --downgrade-replace --verify --verbose \
-                  --manifest-url "${MANIFEST_URL}" \
-                  --manifest-branch "${MANIFEST_REF}" \
-                  --manifest-name "${MANIFEST_NAME}"
 
 source .repo/manifests/version.txt
 export COREOS_BUILD_ID

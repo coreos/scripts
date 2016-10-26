@@ -34,20 +34,9 @@
 
 set -ex
 
-# build may not be started without a ref value
-[[ -n "${MANIFEST_REF#refs/tags/}" ]]
-
 enter() {
   ./bin/cork enter --experimental -- "$@"
 }
-
-# hack because catalyst leaves things chowned as root
-[[ -d .cache/sdks ]] && sudo chown -R $USER .cache/sdks
-
-./bin/cork update --create --downgrade-replace --verify --verbose \
-                  --manifest-url "${MANIFEST_URL}" \
-                  --manifest-branch "${MANIFEST_REF}" \
-                  --manifest-name "${MANIFEST_NAME}"
 
 source .repo/manifests/version.txt
 export COREOS_BUILD_ID

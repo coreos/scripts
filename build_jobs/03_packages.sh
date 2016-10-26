@@ -30,9 +30,6 @@
 
 set -ex
 
-# build may not be started without a ref value
-[[ -n "${MANIFEST_REF#refs/tags/}" ]]
-
 # use a ccache dir that persists across sdk recreations
 # XXX: alternatively use a ccache dir that is usable by all jobs on a given node.
 mkdir -p .cache/ccache
@@ -47,12 +44,6 @@ script() {
   local script="/mnt/host/source/src/scripts/${1}"; shift
   enter "${script}" "$@"
 }
-
-./bin/cork update --create --downgrade-replace --verify --verbose \
-                  --manifest-url "${MANIFEST_URL}" \
-                  --manifest-branch "${MANIFEST_REF}" \
-                  --manifest-name "${MANIFEST_NAME}" \
-                  -- --toolchain_boards=${BOARD}
 
 source .repo/manifests/version.txt
 export COREOS_BUILD_ID
