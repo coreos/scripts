@@ -38,9 +38,6 @@
 
 set -ex
 
-# build may not be started without a ref value
-[[ -n "${MANIFEST_REF#refs/tags/}" ]]
-
 # first thing, clear out old images
 sudo rm -rf src/build
 
@@ -48,11 +45,6 @@ script() {
   local script="/mnt/host/source/src/scripts/${1}"; shift
   ./bin/cork enter --experimental -- "${script}" "$@"
 }
-
-./bin/cork update --create --downgrade-replace --verify --verbose \
-                  --manifest-url "${MANIFEST_URL}" \
-                  --manifest-branch "${MANIFEST_REF}" \
-                  --manifest-name "${MANIFEST_NAME}"
 
 source .repo/manifests/version.txt
 export COREOS_BUILD_ID
