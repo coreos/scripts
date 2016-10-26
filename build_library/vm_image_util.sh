@@ -20,11 +20,13 @@ VALID_IMG_TYPES=(
     rackspace_onmetal
     rackspace_vhd
     vagrant
+    vagrant_parallels
     vagrant_vmware_fusion
     virtualbox
     vmware
     vmware_ova
     vmware_insecure
+    parallels
     xen
     gce
     brightbox
@@ -159,6 +161,14 @@ IMG_vagrant_vmware_fusion_DISK_LAYOUT=vagrant
 IMG_vagrant_vmware_fusion_CONF_FORMAT=vagrant_vmware_fusion
 IMG_vagrant_vmware_fusion_OEM_PACKAGE=oem-vagrant
 
+## vagrant_parallels
+IMG_vagrant_parallels_FS_HOOK=box
+IMG_vagrant_parallels_BUNDLE_FORMAT=box
+IMG_vagrant_parallels_DISK_FORMAT=hdd
+IMG_vagrant_parallels_DISK_LAYOUT=vagrant
+IMG_vagrant_parallels_CONF_FORMAT=vagrant_parallels
+IMG_vagrant_parallels_OEM_PACKAGE=oem-vagrant
+
 ## vmware
 IMG_vmware_DISK_FORMAT=vmdk_scsi
 IMG_vmware_DISK_LAYOUT=vm
@@ -177,6 +187,12 @@ IMG_vmware_insecure_DISK_FORMAT=vmdk_scsi
 IMG_vmware_insecure_DISK_LAYOUT=vm
 IMG_vmware_insecure_CONF_FORMAT=vmware_zip
 IMG_vmware_insecure_OEM_PACKAGE=oem-vagrant-key
+
+## parallels
+IMG_parallels_BUNDLE_FORMAT=pvm_tgz
+IMG_parallels_DISK_FORMAT=hdd
+IMG_parallels_DISK_LAYOUT=vm
+IMG_parallels_CONF_FORMAT=pvs
 
 ## ami
 IMG_ami_OEM_PACKAGE=oem-ec2-compat
@@ -370,6 +386,7 @@ _disk_ext() {
         vmdk_ide) echo vmdk;;
         vmdk_scsi) echo vmdk;;
         vmdk_stream) echo vmdk;;
+        hdd) echo hdd;;
         secure_demo) echo bin;;
         *) echo "${disk_format}";;
     esac
@@ -486,6 +503,7 @@ _run_box_fs_hook() {
     # Copy basic Vagrant configs from OEM
     mkdir -p "${VM_TMP_DIR}/box"
     cp -R "${VM_TMP_ROOT}/usr/share/oem/box/." "${VM_TMP_DIR}/box"
+    sudo rm -fr "${VM_TMP_ROOT}/usr/share/oem/box"
 }
 
 # Write the vm disk image to the target directory in the proper format
@@ -527,6 +545,13 @@ _write_vmdk_ide_disk() {
 _write_vmdk_scsi_disk() {
     qemu-img convert -f raw "$1" -O vmdk -o adapter_type=lsilogic "$2"
     assert_image_size "$2" vmdk
+}
+
+_write_hdd_disk() {
+    "${BUILD_LIBRARY_DIR}/write_hdd.sh" \
+        --input_disk_image "$1" \
+        --input_disk_format "raw" \
+        --output_disk "${2}"
 }
 
 _write_vmdk_stream_disk() {
@@ -948,10 +973,6 @@ _write_vagrant_conf() {
             --memory_size "$vm_mem" \
             --output_ovf "$ovf" \
             --output_vagrant "$mac"
-
-    cat > "${VM_TMP_DIR}"/box/metadata.json <<EOF
-{"provider": "virtualbox"}
-EOF
 }
 
 _write_vagrant_vmware_fusion_conf() {
@@ -961,10 +982,29 @@ _write_vagrant_vmware_fusion_conf() {
     mkdir -p "${VM_TMP_DIR}/box"
     _write_vmx_conf ${vm_mem}
     mv "${vmx}" "${VM_TMP_DIR}/box"
+}
 
-    cat > "${VM_TMP_DIR}"/box/metadata.json <<EOF
-{"provider": "vmware_fusion"}
-EOF
+_write_vagrant_parallels_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local pvs=$(_dst_path ".pvs")
+
+    "${BUILD_LIBRARY_DIR}/parallels_pvs.sh" \
+            --vm_name "$VM_NAME" \
+            --disk_image "$VM_DST_IMG" \
+            --memory_size "$vm_mem" \
+            --output_pvs "$pvs" \
+            --template
+}
+
+_write_pvs_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local pvs=$(_dst_path ".pvs")
+
+    "${BUILD_LIBRARY_DIR}/parallels_pvs.sh" \
+            --vm_name "$VM_NAME" \
+            --disk_image "$VM_DST_IMG" \
+            --memory_size "$vm_mem" \
+            --output_pvs "$pvs"
 }
 
 _write_gce_conf() {
@@ -1047,14 +1087,25 @@ write_vm_bundle() {
 _write_box_bundle() {
     local box=$(_dst_path ".box")
     local json=$(_dst_path ".json")
-
-    mv "${VM_DST_IMG}" "${VM_TMP_DIR}/box"
-    tar -czf "${box}" -C "${VM_TMP_DIR}/box" .
-
+    local image=${VM_DST_IMG}
     local provider="virtualbox"
+
     if [[ "${VM_IMG_TYPE}" == vagrant_vmware_fusion ]]; then
         provider="vmware_fusion"
+    elif [[ "${VM_IMG_TYPE}" == vagrant_parallels ]]; then
+        provider="parallels"
+        image="${VM_TMP_DIR}/tmp.pvm"
+        mkdir -p "${image}"
+        mv "${VM_DST_IMG}" "${image}"
+        mv "$(_dst_path ".pvs")" "${image}"/config.pvs
     fi
+
+    cat > "${VM_TMP_DIR}"/box/metadata.json <<EOF
+{"provider": "${provider}"}
+EOF
+
+    mv "${image}" "${VM_TMP_DIR}/box"
+    tar -czf "${box}" -C "${VM_TMP_DIR}/box" .
 
     cat >"${json}" <<EOF
 {
@@ -1088,6 +1139,19 @@ _write_ova_bundle() {
     tar -cf $(_dst_path ".ova") -C "${VM_TMP_DIR}" "${ovf}" "${mf}" "${vmdk}"
 
     VM_GENERATED_FILES+=( $(_dst_path ".ova") "${VM_DST_IMG}" )
+}
+
+_write_pvm_tgz_bundle() {
+    local pvm="${VM_TMP_DIR}/tmp.pvm"
+    local tgz=$(_dst_path ".tgz")
+
+    mkdir -p "${pvm}"
+    mv "${VM_DST_IMG}" "${pvm}"
+    mv "$(_dst_path ".pvs")" "${pvm}"/config.pvs
+
+    tar -czf "${tgz}" -C "${pvm}" .
+
+    VM_GENERATED_FILES+=( "${tgz}" )
 }
 
 _write_secure_demo_disk() {
