@@ -49,11 +49,6 @@ script() {
 source .repo/manifests/version.txt
 export COREOS_BUILD_ID
 
-if [[ "${COREOS_VERSION}" == 1010.* && "${BOARD}" == arm64-usr ]]; then
-  echo "SKIPPING ARM"
-  exit 0
-fi
-
 # Set up GPG for signing images
 export GNUPGHOME="${PWD}/.gnupg"
 rm -rf "${GNUPGHOME}"
