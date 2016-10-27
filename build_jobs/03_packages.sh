@@ -48,11 +48,6 @@ script() {
 source .repo/manifests/version.txt
 export COREOS_BUILD_ID
 
-if [[ "${COREOS_VERSION}" == 1010.* && "${BOARD}" == arm64-usr ]]; then
-  echo "SKIPPING ARM"
-  exit 0
-fi
-
 # figure out if ccache is doing us any good in this scheme
 enter ccache --zero-stats
 
