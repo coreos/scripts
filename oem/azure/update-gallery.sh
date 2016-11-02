@@ -31,22 +31,7 @@ media_name_mooncake="${MEDIA_PREFIX_MOONCAKE}__CoreOS-${UGROUP}-${VERSION}"
 publish_date="$(date +'%m/%d/%Y')"
 
 jq --raw-output \
-	".mediaReferences.PublicAzure.imageVersions |= [{ \
-		version: \"${VERSION}\", \
-		publishedDate: \"${publish_date}\", \
-		mediaName: \"${media_name_publicazure}\" \
-	}] + .[0:4] | \
-	.mediaReferences.Blackforest.imageVersions |= [{ \
-		version: \"${VERSION}\", \
-		publishedDate: \"${publish_date}\", \
-		mediaName: \"${media_name_blackforest}\" \
-	}] + .[0:4] | \
-	.mediaReferences.Mooncake.imageVersions |= [{ \
-		version: \"${VERSION}\", \
-		publishedDate: \"${publish_date}\", \
-		mediaName: \"${media_name_mooncake}\" \
-	}] + .[0:4] | \
-	.mediaReferences.PublicAzure.mediaName = \"${media_name_publicazure}\" |
+	".mediaReferences.PublicAzure.mediaName = \"${media_name_publicazure}\" |
 	.mediaReferences.Blackforest.mediaName = \"${media_name_blackforest}\" |
 	.mediaReferences.Mooncake.mediaName = \"${media_name_mooncake}\"" \
 	< "${input}" > "${output}"
