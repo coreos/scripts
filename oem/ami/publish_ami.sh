@@ -86,20 +86,17 @@ publish_ami() {
         source $DIR/marineam-auth.sh
     fi
 
-    # Only required for publishing to the marketplace
-    if [[ "$r" == "us-east-1" ]]; then
-        local r_snapshotid=$(ec2-describe-images --region="$r" "$r_amiid" \
-            | grep -E '^BLOCKDEVICEMAPPING.*/dev/(xv|s)da' | cut -f5) || true
+    local r_snapshotid=$(ec2-describe-images --region="$r" "$r_amiid" \
+        | grep -E '^BLOCKDEVICEMAPPING.*/dev/(xv|s)da' | cut -f5) || true
 
-        if [[ -z "${r_snapshotid}" ]]; then
-            echo "$0: Cannot find snapshot id for $r_amiid in $r" >&2
-            return 1
-        fi
-
-        echo "Sharing snapshot $r_snapshotid in $r with Amazon"
-        ec2-modify-snapshot-attribute --region "$r" \
-            "$r_snapshotid" -c --add 679593333241
+    if [[ -z "${r_snapshotid}" ]]; then
+        echo "$0: Cannot find snapshot id for $r_amiid in $r" >&2
+        return 1
     fi
+
+    echo "Making $r_snapshotid in $r public"
+    ec2-modify-snapshot-attribute --region "$r" \
+        "$r_snapshotid" --create-volume-permission --add all
 
     echo "Making $r_amiid in $r public"
     ec2-modify-image-attribute --region "$r" \
