@@ -228,15 +228,6 @@ write_licenses() {
     done > "$2"
 }
 
-extract_docs() {
-    local root_fs_dir="$1"
-
-    info "Extracting docs"
-    tar --create --auto-compress --file="${BUILD_DIR}/doc.tar.bz2" \
-        --directory="${root_fs_dir}/usr/share/coreos" doc
-    sudo rm --recursive --force "${root_fs_dir}/usr/share/coreos/doc"
-}
-
 # Add an entry to the image's package.provided
 package_provided() {
     local p profile="${BUILD_DIR}/configroot/etc/portage/profile"    
