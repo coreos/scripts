@@ -34,7 +34,6 @@ create_oem_aci_image() {
     run_ldconfig "${root_fs_dir}"
     write_packages "${root_fs_dir}" "${BUILD_DIR}/${image_packages}"
     write_licenses "${root_fs_dir}" "${BUILD_DIR}/${image_licenses}"
-    extract_docs "${root_fs_dir}" || :  # This is allowed to fail.
 
     # clean-ups of things we do not need
     sudo rm ${root_fs_dir}/etc/csh.env
