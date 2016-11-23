@@ -14,11 +14,13 @@ VM_PFLASH_RW=
 VM_NCPUS="`grep -c ^processor /proc/cpuinfo`"
 SSH_PORT=2222
 SSH_KEYS=""
-CONFIG_FILE=""
+CLOUD_CONFIG_FILE=""
+IGNITION_CONFIG_FILE=""
 CONFIG_IMAGE=""
 SAFE_ARGS=0
 USAGE="Usage: $0 [-a authorized_keys] [--] [qemu options...]
 Options:
+    -i FILE     File containing an Ignition config
     -u FILE     Cloudinit user-data as either a cloud config or script.
     -c FILE     Config drive as an iso or fat filesystem image.
     -a FILE     SSH public keys for login access. [~/.ssh/id_{dsa,rsa}.pub]
@@ -38,7 +40,7 @@ used as an explicit separator. See the qemu(1) man page for more details.
 "
 
 check_conflict() {
-    if [ -n "${CONFIG_FILE}${CONFIG_IMAGE}${SSH_KEYS}" ]; then
+    if [ -n "${CLOUD_CONFIG_FILE}${CONFIG_IMAGE}${SSH_KEYS}" ]; then
         echo "The -u -c and -a options cannot be combined!" >&2
         exit 1
     fi
@@ -46,9 +48,12 @@ check_conflict() {
 
 while [ $# -ge 1 ]; do
     case "$1" in
+        -i|-ignition-config)
+            IGNITION_CONFIG_FILE="$2"
+            shift 2 ;;
         -u|-user-data)
             check_conflict
-            CONFIG_FILE="$2"
+            CLOUD_CONFIG_FILE="$2"
             shift 2 ;;
         -c|-config-drive)
             check_conflict
@@ -120,10 +125,10 @@ if [ -z "${CONFIG_IMAGE}" ]; then
         fi
         echo "$SSH_KEYS_TEXT" | write_ssh_keys > \
             "${CONFIG_DRIVE}/openstack/latest/user_data"
-    elif [ -n "${CONFIG_FILE}" ]; then
-        cp "${CONFIG_FILE}" "${CONFIG_DRIVE}/openstack/latest/user_data"
+    elif [ -n "${CLOUD_CONFIG_FILE}" ]; then
+        cp "${CLOUD_CONFIG_FILE}" "${CONFIG_DRIVE}/openstack/latest/user_data"
         if [ $? -ne 0 ]; then
-            echo "$0: Failed to copy cloudinit file from $CONFIG_FILE" >&2
+            echo "$0: Failed to copy cloudinit file from $CLOUD_CONFIG_FILE" >&2
             exit 1
         fi
     else
@@ -191,6 +196,10 @@ if [ -n "${VM_PFLASH_RO}" ] && [ -n "${VM_PFLASH_RW}" ]; then
     set -- \
         -drive if=pflash,file="${SCRIPT_DIR}/${VM_PFLASH_RO}",format=raw,readonly \
         -drive if=pflash,file="${SCRIPT_DIR}/${VM_PFLASH_RW}",format=raw "$@"
+fi
+
+if [ -n "${IGNITION_CONFIG_FILE}" ]; then
+    set -- -fw_cfg name=opt/com.coreos/config,file="${IGNITION_CONFIG_FILE}" "$@"
 fi
 
 case "${VM_BOARD}" in
