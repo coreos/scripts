@@ -533,7 +533,7 @@ _write_qcow2_disk() {
 }
 
 _write_vhd_disk() {
-    qemu-img convert -f raw "$1" -O vpc "$2"
+    qemu-img convert -f raw "$1" -O vpc -o force_size "$2"
     assert_image_size "$2" vpc
 }
 
