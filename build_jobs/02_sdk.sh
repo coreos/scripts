@@ -8,7 +8,7 @@
 #     Enable use of any binary packages cached locally from previous builds.
 #     Currently not safe to enable, particularly bad with multiple branches.
 #
-#   MANIFEST_URL=https://github.com/coreos/manifest-builds.git
+#   MANIFEST_URL=ssh://git@github.com/coreos-inc/manifest-builds.git
 #   MANIFEST_REF=refs/tags/
 #   MANIFEST_NAME=release.xml
 #     Git URL, tag, and manifest file for this build.

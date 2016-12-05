@@ -18,7 +18,7 @@
 # Git:
 #
 #   github.com/coreos/manifest checked out to $WORKSPACE/manifest
-#   SSH push access to github.com/coreos/manifest-builds
+#   SSH push access to github.com/coreos-inc/manifest-builds
 #
 # Output:
 #
@@ -32,10 +32,10 @@ export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
 finish() {
   local tag="$1"
   git -C "${WORKSPACE}/manifest" push \
-    "ssh://git@github.com/coreos/manifest-builds.git" \
+    "ssh://git@github.com/coreos-inc/manifest-builds.git" \
     "refs/tags/${tag}:refs/tags/${tag}"
   tee "${WORKSPACE}/manifest.properties" <<EOF
-MANIFEST_URL = https://github.com/coreos/manifest-builds.git
+MANIFEST_URL = ssh://git@github.com/coreos-inc/manifest-builds.git
 MANIFEST_REF = refs/tags/${tag}
 MANIFEST_NAME = release.xml
 COREOS_OFFICIAL = ${COREOS_OFFICIAL:-0}
