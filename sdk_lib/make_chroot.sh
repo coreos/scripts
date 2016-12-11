@@ -21,7 +21,7 @@ fi
 
 # Check if the host machine architecture is supported.
 ARCHITECTURE="$(uname -m)"
-if [[ "$ARCHITECTURE" != "x86_64" ]]; then
+if [[ "$ARCHITECTURE" != "x86_64" && "$ARCHITECTURE" != "ppc64le" ]]; then
   echo "$SCRIPT_NAME: $ARCHITECTURE is not supported as a host machine architecture."
   exit 1
 fi
