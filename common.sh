@@ -1041,6 +1041,7 @@ setup_qemu_static() {
   local root_fs_dir="$1"
   case "${BOARD}" in
     amd64-usr) return 0;;
+    ppc64le-usr) return 0;;
     arm64-usr)
       if [[ -f "${root_fs_dir}/sbin/ldconfig" ]]; then
         sudo cp /usr/bin/qemu-aarch64 "${root_fs_dir}"/usr/bin/qemu-aarch64-static
@@ -1056,6 +1057,7 @@ clean_qemu_static() {
   local root_fs_dir="$1"
   case "${BOARD}" in
     amd64-usr) return 0;;
+    ppc64le-usr) return 0;;
     arm64-usr)
       if [[ -f "${root_fs_dir}/usr/bin/qemu-aarch64-static" ]]; then
         sudo rm "${root_fs_dir}"/usr/bin/qemu-aarch64-static
