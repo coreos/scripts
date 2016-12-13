@@ -304,7 +304,13 @@ finish_image() {
   local install_grub=0
   local disk_img="${BUILD_DIR}/${image_name}"
 
+  # Only enable rootfs verification on prod builds.
   if [[ "${IMAGE_BUILD_TYPE}" != "prod" ]]; then
+    FLAGS_enable_rootfs_verification=${FLAGS_FALSE}
+  fi
+
+  # Only enable rootfs verification on supported boards.
+  if [[ "${FLAGS_board}" != amd64-usr ]]; then
     FLAGS_enable_rootfs_verification=${FLAGS_FALSE}
   fi
 

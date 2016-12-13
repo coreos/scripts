@@ -86,11 +86,6 @@ switch_to_strict_mode
 
 check_gsutil_opts
 
-# Inserting the verity hash into the kernel assumes x86_64
-if [[ "${FLAGS_board}" != amd64-usr ]]; then
-  FLAGS_enable_rootfs_verification=${FLAGS_FALSE}
-fi
-
 # If downloading packages is enabled ensure the board is configured properly.
 if [[ ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
   "${SRC_ROOT}/scripts/setup_board" --board="${FLAGS_board}" \
