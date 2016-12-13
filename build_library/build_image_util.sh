@@ -310,9 +310,11 @@ finish_image() {
   fi
 
   # Only enable rootfs verification on supported boards.
-  if [[ "${FLAGS_board}" != amd64-usr ]]; then
-    FLAGS_enable_rootfs_verification=${FLAGS_FALSE}
-  fi
+  case "${FLAGS_board}" in
+    amd64-usr) verity_offset=64 ;;
+    arm64-usr) verity_offset=512 ;;
+    *) FLAGS_enable_rootfs_verification=${FLAGS_FALSE} ;;
+  esac
 
   # Copy kernel to support dm-verity boots
   sudo mkdir -p "${root_fs_dir}/boot/coreos"
@@ -368,11 +370,14 @@ finish_image() {
         --root_hash="${BUILD_DIR}/${image_name%.bin}_verity.txt" \
         "${BUILD_DIR}/${image_name}"
 
-    # Magic alert! Root hash injection works by replacing a seldom-used rdev
-    # error message in the uncompressed section of the kernel that happens to
-    # be exactly SHA256-sized. Our modified GRUB extracts it to the cmdline.
+    # Magic alert!  Root hash injection works by writing the hash value to a
+    # known unused SHA256-sized location in the kernel image.
+    # For amd64 the rdev error message is used.
+    # For arm64 an area between the EFI headers and the kernel text is used.
+    # Our modified GRUB extracts the hash and adds it to the cmdline.
     printf %s "$(cat ${BUILD_DIR}/${image_name%.bin}_verity.txt)" | \
-        sudo dd of="${root_fs_dir}/boot/coreos/vmlinuz-a" conv=notrunc seek=64 count=64 bs=1
+        sudo dd of="${root_fs_dir}/boot/coreos/vmlinuz-a" conv=notrunc \
+        seek=${verity_offset} count=64 bs=1
   fi
 
   # Sign the kernel after /usr is in a consistent state and verity is calculated
