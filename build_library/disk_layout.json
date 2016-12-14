@@ -188,6 +188,59 @@
         "label":"ROOT",
         "blocks":"33845248"
       }
+    },
+    "ppc64le":{
+      "1":{
+        "label":"EFI-SYSTEM",
+        "type":"efi",
+        "blocks":"1048576",
+        "fs_type":"vfat",
+        "mount":"/boot",
+        "features": ["none"]
+      },
+      "2":{
+        "label":"PReP Boot partition",
+	"uuid":"9E1A2D38-C612-4316-AA26-8B49521E5A8B",
+	"type":"9E1A2D38-C612-4316-AA26-8B49521E5A8B",
+        "blocks":"4096"
+      }
+    },
+    "ppc64le-devel": {
+      "1":{
+        "label":"EFI-SYSTEM",
+        "type":"efi",
+        "blocks":"1048576",
+        "fs_type":"vfat",
+        "mount":"/boot",
+        "features": ["none"]
+      },
+      "2":{
+        "label":"PReP Boot partition",
+	"uuid":"9E1A2D38-C612-4316-AA26-8B49521E5A8B",
+	"type":"9E1A2D38-C612-4316-AA26-8B49521E5A8B",
+        "blocks":"4096"
+      },
+      "3":{
+        "label":"USR-A",
+        "uuid":"7130c94a-213a-4e5a-8e26-6cce9662f132",
+        "type":"coreos-rootfs",
+	"blocks":"4194304",
+	"fs_blocks":"520188",
+        "fs_type":"ext2",
+        "mount":"/usr",
+        "features": ["prioritize", "verity"]
+      },
+      "4":{
+        "label":"USR-B",
+        "uuid":"e03dd35c-7c2d-4a47-b3fe-27f15780a57c",
+        "type":"coreos-rootfs",
+	"blocks":"4194304",
+	"fs_blocks":"520188"
+      },
+      "9":{
+        "label":"ROOT",
+        "blocks":"12943360"
+      }
     }
   }
 }

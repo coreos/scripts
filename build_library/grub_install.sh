@@ -65,6 +65,11 @@ case "${FLAGS_target}" in
         CORE_NAME="core.efi"
         BOARD_GRUB=1
         ;;
+    powerpc-ieee1275)
+        CORE_MODULES=( normal search test fat part_gpt search_fs_uuid gzio search_label \
+	 terminal gptsync configfile memdisk tar echo read disk serial verify http tftp)
+        CORE_NAME="core.img"
+        ;;
     *)
         die_notrace "Unknown GRUB target ${FLAGS_target}"
         ;;
@@ -187,6 +192,13 @@ case "${FLAGS_target}" in
         # sufficient to restore the MBR boot code if it gets corrupted.
         sudo dd bs=448 count=1 if="${LOOP_DEV}" \
             of="${ESP_DIR}/${GRUB_DIR}/mbr.bin"
+        ;;
+    powerpc-ieee1275)
+        info "Installing grub powerpc-ieee1275 bootloader"
+	sudo grub-install --no-nvram --no-bootsect \
+	    --boot-directory="${ESP_DIR}/boot" "${LOOP_DEV}p2"
+	sudo cp "${BUILD_LIBRARY_DIR}/grub-ppc64le.cfg" \
+	                "${ESP_DIR}/boot/grub/grub.cfg"
         ;;
     x86_64-efi)
         info "Installing default x86_64 UEFI bootloader."
