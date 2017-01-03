@@ -25,9 +25,9 @@ ROOT_FS_DIR="$FLAGS_root"
 [ -n "$ROOT_FS_DIR" ] || die "--root is required."
 [ -d "$ROOT_FS_DIR" ] || die "Root FS does not exist? ($ROOT_FS_DIR)"
 
-OS_NAME="CoreOS"
-OS_CODENAME="MoreOS"
-OS_ID="${OS_NAME,,}" # lower case for os-release
+OS_NAME="Container Linux by CoreOS"
+OS_CODENAME="Ladybug"
+OS_ID="coreos"
 OS_PRETTY_NAME="$OS_NAME $COREOS_VERSION (${OS_CODENAME})"
 
 # temporarily point arm at a different appid until update support
@@ -50,13 +50,13 @@ sudo ln -sf "../usr/share/coreos/lsb-release" "${ROOT_FS_DIR}/etc/lsb-release"
 # And the new standard, os-release
 # https://www.freedesktop.org/software/systemd/man/os-release.html
 sudo_clobber "${ROOT_FS_DIR}/usr/lib/os-release" <<EOF
-NAME=$OS_NAME
+NAME="$OS_NAME"
 ID=$OS_ID
 VERSION=$COREOS_VERSION
 VERSION_ID=$COREOS_VERSION_ID
 BUILD_ID=$COREOS_BUILD_ID
 PRETTY_NAME="$OS_PRETTY_NAME"
-ANSI_COLOR="1;32"
+ANSI_COLOR="38;5;75"
 HOME_URL="https://coreos.com/"
 BUG_REPORT_URL="https://github.com/coreos/bugs/issues"
 EOF
