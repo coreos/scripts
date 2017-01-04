@@ -23,11 +23,11 @@ cd "${GALLERY_PATH}"
 git fetch origin
 git checkout -b "${LGROUP}-${VERSION}" origin/master
 
-input=$(ls CoreOS_*_${LGROUP}.json)
-output="CoreOS_${VERSION}_${LGROUP}.json"
-media_name_publicazure="${MEDIA_PREFIX_PUBLICAZURE}__CoreOS-${UGROUP}-${VERSION}"
-media_name_blackforest="${MEDIA_PREFIX_BLACKFOREST}__CoreOS-${UGROUP}-${VERSION}"
-media_name_mooncake="${MEDIA_PREFIX_MOONCAKE}__CoreOS-${UGROUP}-${VERSION}"
+input=$(ls Container_Linux_*_${LGROUP}.json)
+output="Container_Linux_${VERSION}_${LGROUP}.json"
+media_name_publicazure="${MEDIA_PREFIX_PUBLICAZURE}__Container-Linux-${UGROUP}-${VERSION}"
+media_name_blackforest="${MEDIA_PREFIX_BLACKFOREST}__Container-Linux-${UGROUP}-${VERSION}"
+media_name_mooncake="${MEDIA_PREFIX_MOONCAKE}__Container-Linux-${UGROUP}-${VERSION}"
 publish_date="$(date +'%m/%d/%Y')"
 
 jq --raw-output \
@@ -38,4 +38,4 @@ jq --raw-output \
 
 git rm "${input}"
 git add "${output}"
-git commit --message="CoreOS: Add ${UGROUP} ${VERSION}"
+git commit --message="CoreOS: Add Container Linux ${UGROUP} ${VERSION}"
