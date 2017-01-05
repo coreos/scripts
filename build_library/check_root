@@ -177,9 +177,22 @@ def check_shebang():
                 line = fd.readline(80)
                 if not line.startswith(b"#!"):
                     continue
-                cmd = line[2:].rstrip().split(None,1)[0]
+                args = line[2:].rstrip().split(None, 2)
+                cmd = args.pop(0)
+                if cmd in ('/usr/bin/env', '/bin/env') and args:
+                    prog = args.pop(0)
+                    if prog.startswith('-') and args:
+                        prog = args.pop(0)
+                    cmd = '(env)/%s' % prog
                 if cmd not in cache:
-                    cache[cmd] = os.path.exists(root+cmd)
+                    if cmd.startswith('(env)'):
+                        cache[cmd] = False
+                        for bindir in (root+'/usr/bin', root+'/usr/sbin'):
+                            if os.path.exists(os.path.join(bindir, prog)):
+                                cache[cmd] = True
+                                break
+                    else:
+                        cache[cmd] = os.path.exists(root+cmd)
                 if not cache[cmd]:
                     relpath = path[len(root):]
                     error("%s: %s does not exist", relpath, cmd)
