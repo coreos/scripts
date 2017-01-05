@@ -60,7 +60,7 @@ container - Developer image with single filesystem, bootable by nspawn.
 
 Examples:
 
-build_image --board=<board> dev prod - builds developer and production images.
+build_image --board=<board> [dev] [prod] [container] - builds developer and production images.
 ...
 "
 show_help_if_requested "$@"
