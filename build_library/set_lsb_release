@@ -40,7 +40,7 @@ fi
 # DISTRIB_* are the standard lsb-release names
 sudo mkdir -p "${ROOT_FS_DIR}/usr/share/coreos" "${ROOT_FS_DIR}/etc/coreos"
 sudo_clobber "${ROOT_FS_DIR}/usr/share/coreos/lsb-release" <<EOF
-DISTRIB_ID=$OS_NAME
+DISTRIB_ID="$OS_NAME"
 DISTRIB_RELEASE=$COREOS_VERSION
 DISTRIB_CODENAME="$OS_CODENAME"
 DISTRIB_DESCRIPTION="$OS_PRETTY_NAME"
