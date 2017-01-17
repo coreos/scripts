@@ -80,6 +80,8 @@ IGNORE_SHEBANG = (
     b"*/usr/lib64/modules/*/source/scripts/*",
     b"*/usr/share/nova-agent/*/etc/gentoo/nova-agent",
     b"*/tmp/*",
+    b"*/Documentation/*",
+    b"*/doc/*",
 )
 
 def provided_sonames():
