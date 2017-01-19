@@ -200,6 +200,21 @@ image_packages() {
     local profile="${BUILD_DIR}/configroot/etc/portage/profile"    
     ROOT="$1" PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
         equery --no-color list --format '$cpv::$repo' '*'
+    # We also want to list packages that only exist in the initramfs.
+    # Approximate this by listing build dependencies of coreos-kernel that
+    # are specified with the "=" slot operator, excluding those already
+    # reported above.
+    local vdb=$(portageq-${BOARD} vdb_path)
+    local kernel_pkg=$(ROOT="$1" PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
+        equery --no-color list --format '$cpv' sys-kernel/coreos-kernel)
+    local depend_path="$vdb/$kernel_pkg/DEPEND"
+    local pkg
+    for pkg in $(awk 'BEGIN {RS=" "} /=$/ {print}' "$depend_path"); do
+        if ! ROOT="$1" PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
+                equery -q list "$pkg" >/dev/null ; then
+            equery-${BOARD} --no-color list --format '$cpv::$repo' "$pkg"
+        fi
+    done
     # In production images GCC libraries are extracted manually.
     if [[ -f "${profile}/package.provided" ]]; then
         xargs --arg-file="${profile}/package.provided" \
