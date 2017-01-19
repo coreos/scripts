@@ -45,7 +45,7 @@ def LoadPartitionConfig(options):
   valid_layout_keys = set((
       '_comment', 'type', 'num', 'label', 'blocks', 'block_size', 'fs_blocks',
       'fs_block_size', 'fs_type', 'features', 'uuid', 'part_alignment', 'mount',
-      'binds', 'fs_subvolume', 'fs_bytes_per_inode', 'fs_inode_size'))
+      'binds', 'fs_subvolume', 'fs_bytes_per_inode', 'fs_inode_size', 'fs_label'))
   integer_layout_keys = set((
       'blocks', 'block_size', 'fs_blocks', 'fs_block_size', 'part_alignment',
       'fs_bytes_per_inode', 'fs_inode_size'))
@@ -388,9 +388,10 @@ def FormatBtrfs(part, device):
     part: dict defining the partition
     device: name of the block device to format
   """
-  Sudo(['mkfs.btrfs', '--byte-count', part['fs_bytes'],
-                      '--label', part['label'],
-                      device])
+  cmd = ['mkfs.btrfs', '--byte-count', part['fs_bytes']]
+  if 'fs_label' in part:
+    cmd += ['--label', part['fs_label']]
+  Sudo(cmd + [device])
 
   if part.get('fs_subvolume', None):
     btrfs_mount = tempfile.mkdtemp()
@@ -420,7 +421,10 @@ def FormatExt(part, device):
                   device,
                   part['fs_blocks']])
 
-  tune_cmd = ['tune2fs', '-L', part['label'], '-e', 'remount-ro']
+  tune_cmd = ['tune2fs', '-e', 'remount-ro']
+
+  if 'fs_label' in part:
+    tune_cmd += ['-L', part['fs_label']]
 
   if part['type'] == 'coreos-usr':
     tune_cmd += ['-U', 'clear',
@@ -442,10 +446,10 @@ def FormatFat(part, device):
   vfat_block_size = 1024
   vfat_blocks = part['bytes'] // vfat_block_size
 
-  Sudo(['mkfs.vfat', '-n', part['label'],
-                     device,
-                     vfat_blocks],
-                     stdout_null=True)
+  cmd = ['mkfs.vfat']
+  if 'fs_label' in part:
+    cmd += ['-n', part['fs_label']]
+  Sudo(cmd + [device, vfat_blocks], stdout_null=True)
 
   if 'syslinux' in part.get('features', []):
     # Install using extlinux so we can operate on the mounted filesystem and

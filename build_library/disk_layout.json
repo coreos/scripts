@@ -11,6 +11,7 @@
     "base":{
       "1":{
         "label":"EFI-SYSTEM",
+        "fs_label":"EFI-SYSTEM",
         "type":"efi",
         "blocks":"262144",
         "fs_type":"vfat",
@@ -47,6 +48,7 @@
       },
       "6":{
         "label":"OEM",
+        "fs_label":"OEM",
         "type":"data",
         "blocks":"262144",
         "fs_type":"ext4",
@@ -64,6 +66,7 @@
       },
       "9":{
         "label":"ROOT",
+        "fs_label":"ROOT",
         "type":"coreos-resize",
         "blocks":"4427776",
         "fs_type":"ext4",
@@ -75,8 +78,8 @@
         "label":"USR-A",
         "uuid":"7130c94a-213a-4e5a-8e26-6cce9662f132",
         "type":"coreos-rootfs",
-	"blocks":"4194304",
-	"fs_blocks":"520188",
+        "blocks":"4194304",
+        "fs_blocks":"520188",
         "fs_type":"ext2",
         "mount":"/usr",
         "features": ["prioritize", "verity"]
@@ -85,35 +88,40 @@
         "label":"USR-B",
         "uuid":"e03dd35c-7c2d-4a47-b3fe-27f15780a57c",
         "type":"coreos-rootfs",
-	"blocks":"4194304",
-	"fs_blocks":"520188"
+        "blocks":"4194304",
+        "fs_blocks":"520188"
       },
       "9":{
         "label":"ROOT",
+        "fs_label":"ROOT",
         "blocks":"12943360"
       }
     },
     "vm":{
       "9":{
         "label":"ROOT",
+        "fs_label":"ROOT",
         "blocks":"12943360"
       }
     },
     "azure":{
       "9":{
         "label":"ROOT",
+        "fs_label":"ROOT",
         "blocks":"58875904"
       }
     },
     "vagrant":{
       "9":{
         "label":"ROOT",
+        "fs_label":"ROOT",
         "blocks":"33845248"
       }
     },
     "onmetal":{
       "7":{
         "label":"config-2",
+        "fs_label":"config-2",
         "type":"data",
         "fs_type":"ext2"
       }
@@ -145,6 +153,7 @@
       },
       "9":{
         "label":"ROOT",
+        "fs_label":"ROOT",
         "type":"4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
         "blocks":"6291456"
       }
@@ -152,6 +161,7 @@
     "secure_demo":{
       "1":{
         "label":"EFI-SYSTEM",
+        "fs_label":"EFI-SYSTEM",
         "type":"efi",
         "blocks":"2097152",
         "fs_type":"vfat",
@@ -186,6 +196,7 @@
     "interoute":{
       "9":{
         "label":"ROOT",
+        "fs_label":"ROOT",
         "blocks":"33845248"
       }
     }
