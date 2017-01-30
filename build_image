@@ -28,8 +28,6 @@ DEFINE_string getbinpkgver "" \
   "Use binary packages from a specific version."
 DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
   "Default all bootloaders to use kernel-based root fs integrity checking."
-DEFINE_boolean enable_verity ${FLAGS_TRUE} \
-  "Default GRUB to use dm-verity-enabled boot arguments"
 DEFINE_string base_pkg "coreos-base/coreos" \
   "The base portage package to base the build off of (only applies to prod images)"
 DEFINE_string base_dev_pkg "coreos-base/coreos-dev" \
@@ -87,11 +85,6 @@ eval set -- "${FLAGS_ARGV:-dev}"
 switch_to_strict_mode
 
 check_gsutil_opts
-
-# Inserting the verity hash into the kernel assumes x86_64
-if [[ "${FLAGS_board}" != amd64-usr ]]; then
-  FLAGS_enable_rootfs_verification=${FLAGS_FALSE}
-fi
 
 # If downloading packages is enabled ensure the board is configured properly.
 if [[ ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
