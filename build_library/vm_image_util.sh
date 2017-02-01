@@ -25,6 +25,7 @@ VALID_IMG_TYPES=(
     virtualbox
     vmware
     vmware_ova
+    vmware_raw
     vmware_insecure
     parallels
     xen
@@ -181,6 +182,9 @@ IMG_vmware_ova_DISK_LAYOUT=vm
 IMG_vmware_ova_OEM_PACKAGE=oem-vmware
 IMG_vmware_ova_CONF_FORMAT=ovf_vmware
 IMG_vmware_ova_BUNDLE_FORMAT=ova
+
+## vmware_raw
+IMG_vmware_raw_OEM_PACKAGE=oem-vmware
 
 ## vmware_insecure
 IMG_vmware_insecure_DISK_FORMAT=vmdk_scsi
