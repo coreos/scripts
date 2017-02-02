@@ -22,6 +22,10 @@ DEFINE_string disk_image "" \
   "The disk image containing the EFI System partition."
 DEFINE_boolean verity ${FLAGS_FALSE} \
   "Indicates that boot commands should enable dm-verity."
+DEFINE_string copy_efi_grub "" \
+  "Copy the EFI GRUB image to the specified path."
+DEFINE_string copy_shim "" \
+  "Copy the shim image to the specified path."
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -208,6 +212,15 @@ case "${FLAGS_target}" in
             sudo cp "/usr/lib/shim/shim.efi" \
                 "${ESP_DIR}/EFI/boot/bootx64.efi"
 	fi
+        # copying from vfat so ignore permissions
+        if [[ -n "${FLAGS_copy_efi_grub}" ]]; then
+            cp --no-preserve=mode "${ESP_DIR}/EFI/boot/grub.efi" \
+                "${FLAGS_copy_efi_grub}"
+        fi
+        if [[ -n "${FLAGS_copy_shim}" ]]; then
+            cp --no-preserve=mode "${ESP_DIR}/EFI/boot/bootx64.efi" \
+                "${FLAGS_copy_shim}"
+        fi
         ;;
     x86_64-xen)
         info "Installing default x86_64 Xen bootloader."
@@ -223,6 +236,11 @@ case "${FLAGS_target}" in
         #FIXME(andrejro): shim not ported to aarch64
         sudo cp "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}" \
             "${ESP_DIR}/EFI/boot/bootaa64.efi"
+        if [[ -n "${FLAGS_copy_efi_grub}" ]]; then
+            # copying from vfat so ignore permissions
+            cp --no-preserve=mode "${ESP_DIR}/EFI/boot/bootaa64.efi" \
+                "${FLAGS_copy_efi_grub}"
+        fi
         ;;
 esac
 

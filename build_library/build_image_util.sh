@@ -315,6 +315,8 @@ finish_image() {
   local image_contents="$4"
   local image_kernel="$5"
   local pcr_policy="$6"
+  local image_grub="$7"
+  local image_shim="$8"
 
   local install_grub=0
   local disk_img="${BUILD_DIR}/${image_name}"
@@ -430,20 +432,24 @@ finish_image() {
     if [[ ${BOARD} == "arm64-usr" ]]; then
       target_list="arm64-efi"
     fi
+    local grub_args=()
+    if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
+      grub_args+=(--verity)
+    else
+      grub_args+=(--noverity)
+    fi
+    if [[ -n "${image_grub}" && -n "${image_shim}" ]]; then
+      grub_args+=(
+        --copy_efi_grub="${BUILD_DIR}/${image_grub}"
+        --copy_shim="${BUILD_DIR}/${image_shim}"
+      )
+    fi
     for target in ${target_list}; do
-      if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
-        ${BUILD_LIBRARY_DIR}/grub_install.sh \
-            --board="${BOARD}" \
-            --target="${target}" \
-            --disk_image="${disk_img}" \
-            --verity
-      else
-        ${BUILD_LIBRARY_DIR}/grub_install.sh \
-            --board="${BOARD}" \
-            --target="${target}" \
-            --disk_image="${disk_img}" \
-            --noverity
-      fi
+      ${BUILD_LIBRARY_DIR}/grub_install.sh \
+          --board="${BOARD}" \
+          --target="${target}" \
+          --disk_image="${disk_img}" \
+          "${grub_args[@]}"
     done
   fi
 
