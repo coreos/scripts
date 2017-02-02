@@ -320,8 +320,9 @@ finish_image() {
   local disk_img="${BUILD_DIR}/${image_name}"
 
   # Only enable rootfs verification on prod builds.
-  if [[ "${IMAGE_BUILD_TYPE}" != "prod" ]]; then
-    FLAGS_enable_rootfs_verification=${FLAGS_FALSE}
+  local disable_read_write="${FLAGS_FALSE}"
+  if [[ "${IMAGE_BUILD_TYPE}" == "prod" ]]; then
+    disable_read_write="${FLAGS_enable_rootfs_verification}"
   fi
 
   # Only enable rootfs verification on supported boards.
@@ -377,7 +378,7 @@ finish_image() {
   fi
 
   # Make the filesystem un-mountable as read-write and setup verity.
-  if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
+  if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
     # Unmount /usr partition
     sudo umount --recursive "${root_fs_dir}/usr" || exit 1
 
@@ -430,7 +431,7 @@ finish_image() {
       target_list="arm64-efi"
     fi
     for target in ${target_list}; do
-      if [[ ${FLAGS_enable_rootfs_verification} -eq ${FLAGS_TRUE} ]]; then
+      if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
         ${BUILD_LIBRARY_DIR}/grub_install.sh \
             --board="${BOARD}" \
             --target="${target}" \
