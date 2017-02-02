@@ -52,75 +52,9 @@ if [[ -z "${FLAGS_group}" ]] ; then
   die_notrace "--group is required."
 fi
 
-# Default to the most recent image
-if [[ -z "${FLAGS_from}" ]] ; then
-  FLAGS_from="$(${SCRIPT_ROOT}/get_latest_image.sh --board=${FLAGS_board})"
-else
-  FLAGS_from="$(readlink -f "${FLAGS_from}")"
-fi
+. "${BUILD_LIBRARY_DIR}/modify_image_util.sh"
 
-SRC_IMAGE="${FLAGS_from}/${COREOS_PRODUCTION_IMAGE_NAME}"
-if [[ ! -f "${SRC_IMAGE}" ]]; then
-  die_notrace "Source image does not exist: ${SRC_IMAGE}"
-fi
-
-# Source should include version.txt, switch to its version information
-if [[ ! -f "${FLAGS_from}/version.txt" ]]; then
-  die_notrace "Source version info does not exist: ${FLAGS_from}/version.txt"
-fi
-source "${FLAGS_from}/version.txt"
-COREOS_VERSION_STRING="${COREOS_VERSION}"
-
-# Load after version.txt to set the correct output paths
-. "${BUILD_LIBRARY_DIR}/toolchain_util.sh"
-. "${BUILD_LIBRARY_DIR}/board_options.sh"
-. "${BUILD_LIBRARY_DIR}/build_image_util.sh"
-
-# Handle existing directory.
-if [[ -e "${BUILD_DIR}" ]]; then
-  if [[ ${FLAGS_replace} -eq ${FLAGS_TRUE} ]]; then
-    sudo rm -rf "${BUILD_DIR}"
-  else
-    error "Directory ${BUILD_DIR} already exists."
-    error "Use --build_attempt option to specify an unused attempt."
-    error "Or use --replace if you want to overwrite this directory."
-    die "Unwilling to overwrite ${BUILD_DIR}."
-  fi
-fi
-
-# Create the output directory and temporary mount points.
-DST_IMAGE="${BUILD_DIR}/${COREOS_PRODUCTION_IMAGE_NAME}"
-ROOT_FS_DIR="${BUILD_DIR}/rootfs"
-mkdir -p "${ROOT_FS_DIR}"
-
-info "Copying from ${FLAGS_from}"
-cp "${SRC_IMAGE}" "${DST_IMAGE}"
-
-# Copy all extra useful things, these do not need to be modified.
-UPDATE_PREFIX="${COREOS_PRODUCTION_IMAGE_NAME%_image.bin}_update"
-PRODUCTION_PREFIX="${COREOS_PRODUCTION_IMAGE_NAME%.bin}"
-CONTAINER_PREFIX="${COREOS_DEVELOPER_CONTAINER_NAME%.bin}"
-PCR_DATA="${COREOS_PRODUCTION_IMAGE_NAME%.bin}_pcr_policy.zip"
-EXTRA_FILES=(
-    "version.txt"
-    "${UPDATE_PREFIX}.bin"
-    "${UPDATE_PREFIX}.zip"
-    "${PCR_DATA}"
-    "${PRODUCTION_PREFIX}_contents.txt"
-    "${PRODUCTION_PREFIX}_packages.txt"
-    "${COREOS_DEVELOPER_CONTAINER_NAME}"
-    "${CONTAINER_PREFIX}_contents.txt"
-    "${CONTAINER_PREFIX}_packages.txt"
-    )
-for filename in "${EXTRA_FILES[@]}"; do
-    if [[ -e "${FLAGS_from}/${filename}" ]]; then
-        cp "${FLAGS_from}/${filename}" "${BUILD_DIR}/${filename}"
-    fi
-done
-
-"${BUILD_LIBRARY_DIR}/disk_util" --disk_layout="${FLAGS_disk_layout}" \
-      mount "${DST_IMAGE}" "${ROOT_FS_DIR}"
-trap "cleanup_mounts '${ROOT_FS_DIR}'" EXIT
+start_modify_image
 
 info "Replacing /etc/coreos/update.conf"
 sudo mkdir -p "${ROOT_FS_DIR}/etc/coreos"
@@ -128,24 +62,5 @@ sudo_clobber "${ROOT_FS_DIR}/etc/coreos/update.conf" <<EOF
 GROUP=${FLAGS_group}
 EOF
 
-cleanup_mounts "${ROOT_FS_DIR}"
-trap - EXIT
-
-upload_image "${DST_IMAGE}"
-for filename in "${EXTRA_FILES[@]}"; do
-    if [[ -e "${BUILD_DIR}/${filename}" ]]; then
-        upload_image "${BUILD_DIR}/${filename}"
-    fi
-done
-
-set_build_symlinks "${FLAGS_group}-latest"
-
-info "Done. Updated image is in ${BUILD_DIR}"
-cat << EOF
-To convert it to a virtual machine image, use:
-  ./image_to_vm.sh --from=${OUTSIDE_OUTPUT_DIR} --board=${BOARD} --prod_image
-
-The default type is qemu, see ./image_to_vm.sh --help for other options.
-EOF
-
+finish_modify_image
 command_completed
