@@ -310,16 +310,20 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
   else
     # When binary packages are disabled we need to make sure the cross
     # sysroot includes any build dependencies for the toolchain.
-    info "Installing toolchain build dependencies"
-    install_cross_libs "${BOARD_CHOST}" ${EMERGE_FLAGS} --buildpkg=n
+    if [[ "${BOARD}" != "ppc64le-usr" ]]; then
+       info "Installing toolchain build dependencies"
+       install_cross_libs "${BOARD_CHOST}" ${EMERGE_FLAGS} --buildpkg=n
+    fi
   fi
 
   info "Installing baselayout"
   "${EMERGE_WRAPPER}" ${EMERGE_FLAGS} --nodeps sys-apps/baselayout
 
-  info "Installing toolchain"
-  SYSROOT="/usr/${BOARD_CHOST}" "${EMERGE_WRAPPER}" \
-      ${EMERGE_TOOLCHAIN_FLAGS} "${TOOLCHAIN_PKGS[@]}"
+  if [[ "${BOARD}" != "ppc64le-usr" ]]; then
+      info "Installing toolchain"
+      SYSROOT="/usr/${BOARD_CHOST}" "${EMERGE_WRAPPER}" \
+          ${EMERGE_TOOLCHAIN_FLAGS} "${TOOLCHAIN_PKGS[@]}"
+  fi
 fi
 
 if [[ ${FLAGS_regen_configs_only} -eq ${FLAGS_FALSE} ]]; then

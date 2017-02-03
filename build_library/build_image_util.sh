@@ -105,7 +105,7 @@ run_ldconfig() {
   case ${ARCH} in
   arm64)
     sudo qemu-aarch64 "${root_fs_dir}"/usr/sbin/ldconfig -r "${root_fs_dir}";;
-  x86|amd64)
+  x86|amd64|ppc64)
     sudo ldconfig -r "${root_fs_dir}";;
   *)
     die "Unable to run ldconfig for ARCH ${ARCH}"
@@ -119,6 +119,9 @@ run_localedef() {
     loader=( qemu-aarch64 -L "${root_fs_dir}" );;
   amd64)
     loader=( "${root_fs_dir}/usr/lib64/ld-linux-x86-64.so.2" \
+               --library-path "${root_fs_dir}/usr/lib64" );;
+  ppc64)
+    loader=( "${root_fs_dir}/lib64/ld-2.22.so" \
                --library-path "${root_fs_dir}/usr/lib64" );;
   *)
     die "Unable to run localedev for ARCH ${ARCH}";;
@@ -429,6 +432,9 @@ finish_image() {
     local target_list="i386-pc x86_64-efi x86_64-xen"
     if [[ ${BOARD} == "arm64-usr" ]]; then
       target_list="arm64-efi"
+    fi
+    if [[ ${BOARD} == "ppc64le-usr" ]]; then
+      target_list="powerpc-ieee1275"
     fi
     for target in ${target_list}; do
       if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then

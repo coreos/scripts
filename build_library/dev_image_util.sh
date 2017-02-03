@@ -5,15 +5,28 @@
 configure_dev_portage() {
     # Need profiles at the bare minimum
     local repo
-    for repo in portage-stable coreos-overlay; do
-        sudo mkdir -p "$1/var/lib/portage/${repo}"
-        sudo rsync -rtl --exclude=md5-cache \
-            "${SRC_ROOT}/third_party/${repo}/metadata" \
-            "${SRC_ROOT}/third_party/${repo}/profiles" \
-            "$1/var/lib/portage/${repo}"
-    done
+    if [[ "${BOARD}" != "ppc64le-usr" ]]; then
+        for repo in portage-stable coreos-overlay; do
+            sudo mkdir -p "$1/var/lib/portage/${repo}"
+            sudo rsync -rtl --exclude=md5-cache \
+                "${SRC_ROOT}/third_party/${repo}/metadata" \
+                "${SRC_ROOT}/third_party/${repo}/profiles" \
+                "$1/var/lib/portage/${repo}"
+        done
+    else
+        for repo in portage-stable coreos-overlay ppc64le-overlay; do
+            sudo mkdir -p "$1/var/lib/portage/${repo}"
+            sudo rsync -rtl --exclude=md5-cache \
+                "${SRC_ROOT}/third_party/${repo}/metadata" \
+                "${SRC_ROOT}/third_party/${repo}/profiles" \
+                "$1/var/lib/portage/${repo}"
+        done
+
+    fi
 
     sudo mkdir -p "$1/etc/portage/repos.conf"
+
+if [[ "${BOARD}" != "ppc64le-usr" ]]; then
     sudo_clobber "$1/etc/portage/make.conf" <<EOF
 # make.conf for CoreOS dev images
 ARCH=$(get_board_arch $BOARD)
@@ -47,11 +60,59 @@ sync-type = git
 sync-uri = https://github.com/coreos/portage-stable.git
 EOF
 
+else # Add ppc64le-overlay
+    sudo_clobber "$1/etc/portage/make.conf" <<EOF
+# make.conf for CoreOS dev images
+ARCH=$(get_board_arch $BOARD)
+CHOST=$(get_board_chost $BOARD)
+BOARD_USE="$BOARD"
+
+# Use /var/lib/portage instead of /usr/portage
+DISTDIR="/var/lib/portage/distfiles"
+PKGDIR="/var/lib/portage/pkgs"
+PORT_LOGDIR="/var/log/portage"
+PORTDIR="/var/lib/portage/portage-stable"
+PORTDIR_OVERLAY="/var/lib/portage/coreos-overlay /var/lib/portage/ppc64le-overlay"
+PORTAGE_BINHOST="$(get_board_binhost $BOARD $COREOS_VERSION_ID)"
+EOF
+
+sudo_clobber "$1/etc/portage/repos.conf/coreos.conf" <<EOF
+[DEFAULT]
+main-repo = portage-stable
+
+[gentoo]
+disabled = true
+
+[ppc64le]
+location = /var/lib/portage/ppc64le-overlay
+sync-type = git
+sync-uri = https://anongit.gentoo.org/git/repo/proj/ppc64le.git
+
+[coreos]
+location = /var/lib/portage/coreos-overlay
+sync-type = git
+sync-uri = https://github.com/coreos/coreos-overlay.git
+
+[portage-stable]
+location = /var/lib/portage/portage-stable
+sync-type = git
+sync-uri = https://github.com/coreos/portage-stable.git
+EOF
+
+fi # endof ppc64le-overlay
+
     # Now set the correct profile
+if [[ "${BOARD}" != "ppc64le-usr" ]]; then
     sudo PORTAGE_CONFIGROOT="$1" ROOT="$1" \
         PORTDIR="$1/var/lib/portage/portage-stable" \
         PORTDIR_OVERLAY="$1/var/lib/portage/coreos-overlay" \
         eselect profile set --force $(get_board_profile $BOARD)/dev
+else
+    sudo PORTAGE_CONFIGROOT="$1" ROOT="$1" \
+        PORTDIR="$1/var/lib/portage/portage-stable" \
+        PORTDIR_OVERLAY="$1/var/lib/portage/coreos-overlay $1/var/lib/portage/ppc64le-overlay" \
+        eselect profile set --force $(get_board_profile $BOARD)/dev
+fi
 }
 
 detect_dev_url() {
