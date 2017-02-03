@@ -329,7 +329,7 @@ finish_image() {
   case "${FLAGS_board}" in
     amd64-usr) verity_offset=64 ;;
     arm64-usr) verity_offset=512 ;;
-    *) FLAGS_enable_rootfs_verification=${FLAGS_FALSE} ;;
+    *) disable_read_write=${FLAGS_FALSE} ;;
   esac
 
   # Copy kernel to support dm-verity boots
