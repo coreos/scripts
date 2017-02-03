@@ -29,7 +29,7 @@ set_build_symlinks() {
 }
 
 cleanup_mounts() {
-  echo "Cleaning up mounts"
+  info "Cleaning up mounts"
   "${BUILD_LIBRARY_DIR}/disk_util" umount "$1" || true
 }
 

@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# Copyright (c) 2014 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+SCRIPT_ROOT=$(dirname "$(readlink -f "$0")")
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+# Script must run inside the chroot
+restart_in_chroot_if_needed "$@"
+
+assert_not_root_user
+
+DEFAULT_GROUP=developer
+
+# Flags
+DEFINE_string kernel_path "" \
+    "Path to the kernel to inject."
+DEFINE_string efi_grub_path "" \
+    "Path to the EFI GRUB image to inject."
+DEFINE_string shim_path "" \
+    "Path to the shim image to inject."
+DEFINE_string group "${DEFAULT_GROUP}" \
+    "The update group."
+DEFINE_string board "${DEFAULT_BOARD}" \
+    "Board for which the image was built"
+DEFINE_string disk_layout "base" \
+    "The disk layout type to use for this image."
+DEFINE_string from "" \
+    "Directory containing ${COREOS_PRODUCTION_IMAGE_NAME}"
+DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
+    "Directory in which to place image result directories (named by version)"
+DEFINE_boolean replace ${FLAGS_FALSE} \
+    "Overwrite existing output, if any."
+
+# include upload options
+. "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
+
+show_help_if_requested "$@"
+
+# Usually unneeded, so just leave this option hidden.
+DEFINE_integer build_attempt 1 \
+    "The build attempt for this image build."
+
+# Parse command line
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Die on any errors.
+switch_to_strict_mode
+
+check_gsutil_opts
+
+if [[ -z "${FLAGS_kernel_path}" && -z "${FLAGS_efi_grub_path}" &&
+        -z "${FLAGS_shim_path}" ]]; then
+    die_notrace "Specify at least one of --kernel_path, --efi_grub_path, --shim_path"
+fi
+
+. "${BUILD_LIBRARY_DIR}/modify_image_util.sh"
+
+do_copy() {
+    local src="$1"
+    local dst="$2"
+
+    if [[ ! -f "${ROOT_FS_DIR}/${dst}" ]]; then
+        # We should only be overwriting existing files.
+        die "${dst} doesn't exist in image; refusing to create it"
+    fi
+    info "Replacing ${dst}"
+    sudo cp "${src}" "${ROOT_FS_DIR}/${dst}"
+}
+
+start_modify_image
+
+if [[ -n "${FLAGS_kernel_path}" ]]; then
+    do_copy "${FLAGS_kernel_path}" "/boot/coreos/vmlinuz-a"
+fi
+
+# FIXME(bgilbert): no shim on arm64
+if [[ -n "${FLAGS_efi_grub_path}" ]]; then
+    case "${BOARD}" in
+    amd64-usr) image_name="grub.efi" ;;
+    arm64-usr) image_name="bootaa64.efi" ;;
+    *) die "GRUB filename not known for this board" ;;
+    esac
+
+    do_copy "${FLAGS_efi_grub_path}" "/boot/EFI/boot/${image_name}"
+fi
+
+if [[ -n "${FLAGS_shim_path}" ]]; then
+    case "${BOARD}" in
+    amd64-usr) image_name="bootx64.efi" ;;
+    *) die "Shim filename not known for this board" ;;
+    esac
+
+    do_copy "${FLAGS_shim_path}" "/boot/EFI/boot/${image_name}"
+fi
+
+finish_modify_image
+command_completed
