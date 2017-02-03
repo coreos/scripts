@@ -68,6 +68,8 @@ create_prod_image() {
   local image_licenses="${image_name%.bin}_licenses.txt"
   local image_kernel="${image_name%.bin}.vmlinuz"
   local image_pcr_policy="${image_name%.bin}_pcr_policy.zip"
+  local image_grub="${image_name%.bin}.grub"
+  local image_shim="${image_name%.bin}.shim"
 
   start_image "${image_name}" "${disk_layout}" "${root_fs_dir}" "${update_group}"
 
@@ -122,12 +124,22 @@ EOF
       "${root_fs_dir}" \
       "${image_contents}" \
       "${image_kernel}" \
-      "${image_pcr_policy}"
+      "${image_pcr_policy}" \
+      "${image_grub}" \
+      "${image_shim}"
 
-  upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \
-      "${BUILD_DIR}/${image_contents}" \
-      "${BUILD_DIR}/${image_packages}" \
-      "${BUILD_DIR}/${image_name}" \
-      "${BUILD_DIR}/${image_kernel}" \
-      "${BUILD_DIR}/${image_pcr_policy}"
+  # Upload
+  local to_upload=(
+    "${BUILD_DIR}/${image_contents}"
+    "${BUILD_DIR}/${image_packages}"
+    "${BUILD_DIR}/${image_name}"
+    "${BUILD_DIR}/${image_kernel}"
+    "${BUILD_DIR}/${image_pcr_policy}"
+    "${BUILD_DIR}/${image_grub}"
+  )
+  # FIXME(bgilbert): no shim on arm64
+  if [[ -f "${BUILD_DIR}/${image_shim}" ]]; then
+    to_upload+=("${BUILD_DIR}/${image_shim}")
+  fi
+  upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" "${to_upload[@]}"
 }
