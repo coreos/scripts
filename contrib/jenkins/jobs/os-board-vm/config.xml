@@ -69,6 +69,7 @@
               <string>cloudsigma</string>
               <string>packet</string>
               <string>interoute</string>
+              <string>sakuracloud</string>
             </a>
           </choices>
         </hudson.model.ChoiceParameterDefinition>

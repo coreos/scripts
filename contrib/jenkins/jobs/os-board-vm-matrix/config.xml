@@ -84,6 +84,7 @@
         <string>cloudsigma</string>
         <string>packet</string>
         <string>interoute</string>
+        <string>sakuracloud</string>
       </values>
     </hudson.matrix.TextAxis>
     <hudson.matrix.TextAxis>

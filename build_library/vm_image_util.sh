@@ -42,6 +42,7 @@ VALID_IMG_TYPES=(
     cloudsigma
     packet
     interoute
+    sakuracloud
 )
 
 #list of oem package names, minus the oem- prefix
@@ -63,6 +64,7 @@ VALID_OEM_PACKAGES=(
     cloudsigma
     packet
     interoute
+    sakuracloud
 )
 
 # Set at runtime to one of the above types
@@ -293,6 +295,9 @@ IMG_interoute_DISK_LAYOUT=interoute
 IMG_interoute_CONF_FORMAT=interoute
 IMG_interoute_OEM_PACKAGE=oem-interoute
 IMG_interoute_BUNDLE_FORMAT=ova
+
+## sakuracloud
+IMG_sakuracloud_OEM_PACKAGE=oem-sakuracloud
 
 ###########################################################
 
