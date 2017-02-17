@@ -84,6 +84,22 @@ IGNORE_SHEBANG = (
     b"*/doc/*",
 )
 
+IGNORE_SYMLINK = (
+    # symlinks to sdk chroot
+    b"/build/*",
+    b"/var/tmp/portage/*",
+    b"/etc/portage/*",
+
+    # symlinks to /run
+    b"/usr/share/baselayout/motd",
+    b"/etc/issue",
+    b"/etc/motd",
+
+    # Other
+    b"/etc/lsb-release" # set later in the build process
+)
+
+
 def provided_sonames():
     for cpv in VARDB.cpv_all():
         raw = VARDB.aux_get(cpv, ["PROVIDES"])[0]
@@ -201,6 +217,55 @@ def check_shebang():
                     ok = False
     return ok
 
+class chrooted():
+    """
+    chrooted provides a context so that it can be used via with.
+    For example:
+
+    with chrooted("/some/rootfs"):
+       do_operations_in_rootfs()
+    do_operations_not_in_rootfs()
+    """
+
+    def __init__(self, path):
+        self.path=path
+
+    def __enter__(self):
+        self.restore_fd=os.open(b"/", os.O_RDONLY)
+        self.working_dir=os.getcwd()
+
+        os.chroot(self.path)
+
+    def __exit__(self, type, value, traceback):
+        os.fchdir(self.restore_fd)
+        os.chroot(b".")
+        os.chdir(self.working_dir)
+        os.close(self.restore_fd)
+
+
+def check_symlink():
+    if os.getuid() != 0:
+       error("symlink check must be run as root (chroot)")
+       return False
+
+    ok = True
+    root = os.environ.get("ROOT", b"/")
+
+    with chrooted(root):
+        for parent, dirs, files in os.walk(b"/"):
+            for path in [os.path.join(parent, p) for p in files + dirs ]:
+                if any(fnmatch.fnmatchcase(path, i) for i in IGNORE_SYMLINK):
+                    continue
+
+                if os.path.islink(path) and not os.path.exists(path):
+                    ok = False
+                    error("broken link: %s", path)
+
+    return ok
+
+
+
+
 def error(fmt, *args):
     sys.stderr.write(output.red(fmt % args))
     sys.stderr.write("\n")
@@ -211,6 +276,7 @@ def main():
             "libs": check_libs,
             "usr": check_usr,
             "shebang": check_shebang,
+            "symlink": check_symlink,
     }
 
     if not sys.stderr.isatty():

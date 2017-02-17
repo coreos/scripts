@@ -56,6 +56,11 @@ test_image_content() {
     #returncode=1
   fi
 
+  if ! sudo ROOT="$root" "$check_root" symlink; then
+    error "test_image_content: Failed symlink check"
+    returncode=1
+  fi
+
   if ! ROOT="$root" glsa_image; then
       returncode=1
   fi
