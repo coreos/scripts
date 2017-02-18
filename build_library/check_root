@@ -96,7 +96,7 @@ IGNORE_SYMLINK = (
     b"/etc/motd",
 
     # Other
-    b"/etc/lsb-release" # set later in the build process
+    b"/etc/lsb-release"  # set later in the build process
 )
 
 
@@ -110,10 +110,12 @@ def provided_sonames():
     for atom in VARDB.settings.soname_provided:
         yield atom
 
+
 def ignore_sonames(cpv):
     for key in dep.match_to_list(cpv, IGNORE_MISSING.iterkeys()):
         for atom in IGNORE_MISSING[key]:
             yield atom
+
 
 def missing_sonames():
     provided = frozenset(provided_sonames())
@@ -124,6 +126,7 @@ def missing_sonames():
         missing = requires - provided - ignore
         if missing:
             yield (cpv, missing)
+
 
 def usr_conflicts():
     for cpv in VARDB.cpv_all():
@@ -157,6 +160,7 @@ def usr_conflicts():
         if conflicts:
             yield (cpv, conflicts)
 
+
 def check_libs():
     ok = True
     for cpv, sonames in missing_sonames():
@@ -165,6 +169,7 @@ def check_libs():
             error("\t%s", soname)
         ok = False
     return ok
+
 
 def check_usr():
     ok = True
@@ -175,11 +180,13 @@ def check_usr():
         ok = False
     return ok
 
+
 def is_exe(path):
     # just check other, assuming root or group only commands are not scripts.
-    perms = stat.S_IROTH|stat.S_IXOTH
+    perms = stat.S_IROTH | stat.S_IXOTH
     mode = os.lstat(path).st_mode
-    return stat.S_ISREG(mode) and mode&perms == perms
+    return stat.S_ISREG(mode) and (mode & perms) == perms
+
 
 def check_shebang():
     ok = True
@@ -187,7 +194,7 @@ def check_shebang():
     root = os.environ.get("ROOT", b"/")
     for parent, _, files in os.walk(root):
         for path in [os.path.join(parent, f) for f in files]:
-            if any(fnmatch.fnmatchcase(path,i) for i in IGNORE_SHEBANG):
+            if any(fnmatch.fnmatchcase(path, i) for i in IGNORE_SHEBANG):
                 continue
             if not is_exe(path):
                 continue
@@ -217,6 +224,7 @@ def check_shebang():
                     ok = False
     return ok
 
+
 class chrooted():
     """
     chrooted provides a context so that it can be used via with.
@@ -228,11 +236,11 @@ class chrooted():
     """
 
     def __init__(self, path):
-        self.path=path
+        self.path = path
 
     def __enter__(self):
-        self.restore_fd=os.open(b"/", os.O_RDONLY)
-        self.working_dir=os.getcwd()
+        self.restore_fd = os.open(b"/", os.O_RDONLY)
+        self.working_dir = os.getcwd()
 
         os.chroot(self.path)
 
@@ -245,15 +253,15 @@ class chrooted():
 
 def check_symlink():
     if os.getuid() != 0:
-       error("symlink check must be run as root (chroot)")
-       return False
+        error("symlink check must be run as root (chroot)")
+        return False
 
     ok = True
     root = os.environ.get("ROOT", b"/")
 
     with chrooted(root):
         for parent, dirs, files in os.walk(b"/"):
-            for path in [os.path.join(parent, p) for p in files + dirs ]:
+            for path in [os.path.join(parent, p) for p in files + dirs]:
                 if any(fnmatch.fnmatchcase(path, i) for i in IGNORE_SYMLINK):
                     continue
 
@@ -264,11 +272,10 @@ def check_symlink():
     return ok
 
 
-
-
 def error(fmt, *args):
     sys.stderr.write(output.red(fmt % args))
     sys.stderr.write("\n")
+
 
 def main():
     ok = True
