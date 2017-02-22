@@ -408,7 +408,5 @@ gcc_set_latest_profile() {
         sudo="sudo -E"
     fi
 
-    if [[ "${latest}" != $(gcc-config -c "$1") ]]; then
-        $sudo gcc-config "${latest}"
-    fi
+    $sudo gcc-config "${latest}"
 }
