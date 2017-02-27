@@ -30,7 +30,7 @@ DEFINE_integer major ${DEFAULT_MAJOR} "Branch major version (aka 'build')"
 DEFINE_integer minor ${DEFAULT_MINOR} "Branch revision or minor version"
 DEFINE_integer patch 0 "Branch patch id, normally 0"
 DEFINE_string sdk_version "${COREOS_VERSION_ID}" \
-    "Set the SDK version to use. (current: ${COREOS_SDK_VERSION})"
+    "SDK version to use, or 'keep'. (current: ${COREOS_SDK_VERSION})"
 DEFINE_boolean branch ${DEFAULT_BRANCH} "Release branch, diverge from master"
 DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
 DEFINE_string remote "origin" "Remote name or URL to push to."
