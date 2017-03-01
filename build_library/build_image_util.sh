@@ -355,6 +355,12 @@ finish_image() {
     install_grub=1
     ${BUILD_LIBRARY_DIR}/configure_bootloaders.sh \
       --boot_dir="${root_fs_dir}"/usr/boot
+
+    # Create first-boot flag for grub and Ignition
+    info "Writing first-boot flag"
+    sudo_clobber "${root_fs_dir}/boot/coreos/first_boot" <<EOF
+If this file exists, Ignition will run and then delete the file.
+EOF
   fi
 
   if [[ -n "${FLAGS_developer_data}" ]]; then
