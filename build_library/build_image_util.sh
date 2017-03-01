@@ -159,6 +159,26 @@ emerge_to_image() {
       test_image_content "${root_fs_dir}"
 }
 
+# emerge_to_image without a rootfs check; you should use emerge_to_image unless
+# here's a good reason not to.
+emerge_to_image_unchecked() {
+  local root_fs_dir="$1"; shift
+
+  if [[ ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
+    set -- --getbinpkg "$@"
+  fi
+
+  sudo -E ROOT="${root_fs_dir}" \
+      PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
+      emerge --root-deps=rdeps --usepkgonly --jobs=$FLAGS_jobs -v "$@"
+
+  # Shortcut if this was just baselayout
+  [[ "$*" == *sys-apps/baselayout ]] && return
+
+  # Make sure profile.env has been generated
+  sudo -E ROOT="${root_fs_dir}" env-update --no-ldconfig
+}
+
 # Switch to the dev or prod sub-profile
 set_image_profile() {
   local suffix="$1"
