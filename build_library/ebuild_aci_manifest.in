@@ -1,0 +1,14 @@
+{
+  "acKind": "ImageManifest",
+  "acVersion": "0.8.6",
+  "name": "@ACI_NAME@",
+  "labels": [
+    {"name": "arch", "value": "@ACI_ARCH@"},
+    {"name": "os", "value": "linux"},
+    {"name": "version", "value": "@ACI_VERSION@"}
+  ],
+  "app": {
+    "user": "0",
+    "group": "0"
+  }
+}

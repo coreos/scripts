@@ -1,0 +1,91 @@
+#!/bin/bash
+
+# Copyright (c) 2016 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# This is a wrapper around the ebuild_aci_util.sh functions to set up the
+# necessary environment, similar to the build_image script.
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+# Script must run inside the chroot
+restart_in_chroot_if_needed "$@"
+
+assert_not_root_user
+
+# Developer-visible flags.
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "The board to build an image for."
+DEFINE_string build_dir "" \
+  "Directory in which to place image result directories (named by version)"
+DEFINE_boolean getbinpkg "${FLAGS_FALSE}" \
+  "Download binary packages from remote repository."
+DEFINE_string getbinpkgver "" \
+  "Use binary packages from a specific version."
+
+FLAGS_HELP="USAGE: build_docker_aci [flags] [docker version].
+This script is used to build a CoreOS docker-skim ACI.
+
+The version should identify an existent ebuild (i.e. app-emulation/docker-\$version).
+
+Examples:
+
+build_docker_aci --board=amd64-usr --build_dir=<build_dir> 1.12.6
+...
+"
+show_help_if_requested "$@"
+
+# The following options are advanced options, only available to those willing
+# to read the source code. They are not shown in help output, since they are
+# not needed for the typical developer workflow.
+DEFINE_integer build_attempt 1 \
+  "The build attempt for this image build."
+DEFINE_string group "docker-aci" \
+  "The update group (not used for actual updates here)"
+DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
+  "Directory in which to place image result directories (named by version)"
+DEFINE_string version "" \
+  "Overrides version number in name to this version."
+
+# Parse command line.
+FLAGS "$@" || exit 1
+[ -z "${FLAGS_ARGV}" ] && echo 'No version given' && exit 0
+eval set -- "${FLAGS_ARGV}"
+
+# Only now can we die on error.  shflags functions leak non-zero error codes,
+# so will die prematurely if 'switch_to_strict_mode' is specified before now.
+switch_to_strict_mode
+
+# If downloading packages is enabled ensure the board is configured properly.
+if [[ ${FLAGS_getbinpkg} -eq ${FLAGS_TRUE} ]]; then
+    "${SRC_ROOT}/scripts/setup_board" --board="${FLAGS_board}" \
+      --getbinpkgver="${FLAGS_getbinpkgver}" --regen_configs_only
+fi
+
+# N.B.  Ordering matters for some of the libraries below, because
+# some of the files contain initialization used by later files.
+. "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/prod_image_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/ebuild_aci_util.sh" || exit 1
+
+BUILD_DIR=${FLAGS_build_dir:-$BUILD_DIR}
+
+# TODO: this should be per-version; not all docker versions have the same binaries
+packaged_files=( 
+  "/usr/bin/docker"
+  "/usr/bin/dockerd"
+  "/usr/bin/docker-containerd"
+  "/usr/bin/docker-containerd-shim"
+  "/usr/bin/docker-proxy"
+  "/usr/bin/docker-runc"
+  "/usr/lib/coreos/dockerd"
+)
+
+for version; do
+    ebuild_aci_create "users.developer.core-os.net/skim/docker" "coreos_docker-${version}-${BOARD}" "app-emulation/docker" "${version}" "${packaged_files[@]}"
+done
