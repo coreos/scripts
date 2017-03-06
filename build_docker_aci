@@ -47,7 +47,7 @@ DEFINE_string group "docker-aci" \
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
 DEFINE_string version "" \
-  "Overrides version number in name to this version."
+  "Sets the docker version to build."
 
 # Parse command line.
 FLAGS "$@" || exit 1
@@ -75,17 +75,23 @@ fi
 
 BUILD_DIR=${FLAGS_build_dir:-$BUILD_DIR}
 
-# TODO: this should be per-version; not all docker versions have the same binaries
-packaged_files=( 
-  "/usr/bin/docker"
-  "/usr/bin/dockerd"
-  "/usr/bin/docker-containerd"
-  "/usr/bin/docker-containerd-shim"
-  "/usr/bin/docker-proxy"
-  "/usr/bin/docker-runc"
-  "/usr/lib/coreos/dockerd"
-)
-
 for version; do
-    ebuild_aci_create "users.developer.core-os.net/skim/docker" "coreos_docker-${version}-${BOARD}" "app-emulation/docker" "${version}" "${packaged_files[@]}"
+    case "${version}" in
+        1.12.[0-9]*)
+            packaged_files=( 
+                "/usr/bin/docker"
+                "/usr/bin/dockerd"
+                "/usr/bin/docker-containerd"
+                "/usr/bin/docker-containerd-shim"
+                "/usr/bin/docker-proxy"
+                "/usr/bin/docker-runc"
+                "/usr/lib/coreos/dockerd"
+            )
+            ebuild_aci_create "users.developer.core-os.net/skim/docker" "coreos_docker-${version}-${BOARD}" "app-emulation/docker" "${version}" "${packaged_files[@]}"
+            ;;
+        *)
+            1>&2 echo "Unrecognized version; please enter a supported version"
+            exit 1
+            ;;
+    esac
 done
