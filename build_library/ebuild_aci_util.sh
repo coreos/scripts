@@ -57,6 +57,7 @@ ebuild_aci_create() {
     local output_image="${1?No output file specified}"; shift
     local pkg="${1?No package given}"; shift
     local version="${1?No package version given}"; shift
+    local extra_version="${1?No extra version number given}"; shift
     local pkg_files=( "${@}" )
 
     local staging_image="coreos_pkg_staging_aci_stage.bin"
@@ -75,11 +76,10 @@ ebuild_aci_create() {
     trap "cleanup_mounts '${aciroot}/rootfs' && delete_prompt" EXIT
 
     # Substitute variables into the manifest to produce the final version.
-    # TODO: tag with the right version
     ebuild_aci_write_manifest \
         "${aciroot}/manifest" \
         "${aci_name}" \
-        "${version}"
+        "${version}_coreos.${extra_version}"
 
     local pkg_files_in_rootfs=( "${pkg_files[@]/#/rootfs}" )
 
