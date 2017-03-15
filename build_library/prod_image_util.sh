@@ -132,6 +132,7 @@ EOF
   local to_upload=(
     "${BUILD_DIR}/${image_contents}"
     "${BUILD_DIR}/${image_packages}"
+    "${BUILD_DIR}/${image_licenses}"
     "${BUILD_DIR}/${image_name}"
     "${BUILD_DIR}/${image_kernel}"
     "${BUILD_DIR}/${image_pcr_policy}"

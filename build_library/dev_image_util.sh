@@ -126,5 +126,6 @@ EOF
   upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" \
       "${BUILD_DIR}/${image_contents}" \
       "${BUILD_DIR}/${image_packages}" \
+      "${BUILD_DIR}/${image_licenses}" \
       "${BUILD_DIR}/${image_name}"
 }
