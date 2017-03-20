@@ -259,7 +259,7 @@ load_environment_var() {
   local file="$1" name value
   shift
   for name in "$@"; do
-    value=$(grep "^${name}=" "${file}")
+    value=$(grep "^${name}=" "${file}" | sed 's|"||g')
     export "${value}"
   done
 }
