@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script will update the Azure Gallery repo with the specified group and
 # version.

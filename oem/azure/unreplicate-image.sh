@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script will un-replicate the given image. It needs to be run in an
 # environment where the azure-xplat-cli has been installed and configured with

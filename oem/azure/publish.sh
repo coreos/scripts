@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script will copy the Azure image from the CoreOS build bucket into
 # Azure storage, create an Azure VM image, and replicate it to all regions. It

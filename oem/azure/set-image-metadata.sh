@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script will set the icon, recommended VM size, and optionally the
 # publication date for the specified OS image to the CoreOS logo. It needs to

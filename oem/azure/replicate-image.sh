@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script will replicate the given image into all Azure regions. It needs
 # to be run in an environment where the azure-xplat-cli has been installed and
