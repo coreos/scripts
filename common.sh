@@ -289,9 +289,14 @@ REPO_MANIFESTS_DIR="${REPO_ROOT}/.repo/manifests"
 
 # Source COREOS_VERSION_ID from manifest.
 if [[ -f "${REPO_MANIFESTS_DIR}/version.txt" ]]; then
-  load_environment_var "${REPO_MANIFESTS_DIR}/version.txt" \
-      COREOS_VERSION_ID COREOS_SDK_VERSION
   # The build id may be provided externally by the build system.
+  if [[ -n ${COREOS_BUILD_ID} ]]; then
+    load_environment_var "${REPO_MANIFESTS_DIR}/version.txt" \
+    COREOS_VERSION_ID COREOS_SDK_VERSION
+  else
+    load_environment_var "${REPO_MANIFESTS_DIR}/version.txt" \
+    COREOS_VERSION_ID COREOS_BUILD_ID COREOS_SDK_VERSION
+  fi
   : ${COREOS_BUILD_ID:=$(date +%Y-%m-%d-%H%M)}
 elif [[ -f "${SCRIPT_LOCATION}/version.txt" ]]; then
   # This only happens in update.zip where we must use the current build id.
