@@ -47,7 +47,7 @@ commands = [{"value": '\[.*\]', "description": "CoreOS Grub configuration %s" % 
             {"value": 'insmod all_video', "description": "CoreOS Grub configuration %s" % version},
             {"value": 'linux /coreos/vmlinuz-[ab] rootflags=rw mount.usrflags=ro consoleblank=0 root=LABEL=ROOT (console=\S+)? (coreos.autologin=\S+)?', "description": "CoreOS Grub configuration %s" % version},
             {"value": 'menuentry CoreOS \S+ --id=coreos\S* {', "description": "CoreOS Grub configuration %s" % version},
-            {"value": 'search --no-floppy --set first_boot --disk-uuid 00000000-0000-0000-0000-000000000001', "description": "CoreOS Grub configuration %s" % version},
+            {"value": 'search --no-floppy --set randomize_disk_guid --disk-uuid 00000000-0000-0000-0000-000000000001', "description": "CoreOS Grub configuration %s" % version},
             {"value": 'search --no-floppy --set oem --part-label OEM --hint hd0,gpt1', "description": "CoreOS Grub configuration %s" % version},
             {"value": 'set .+', "description": "CoreOS Grub configuration %s" % version},
             {"value": 'setparams CoreOS default', "description": "CoreOS Grub configuration %s" % version},
