@@ -110,6 +110,7 @@ sign_and_upload_files() {
     local sigs=()
     if [[ -n "${FLAGS_sign}" ]]; then
         local file
+        local sigfile
         local sigdir=$(mktemp --directory)
         trap "rm -rf ${sigdir}" RETURN
         for file in "$@"; do
@@ -117,10 +118,16 @@ sign_and_upload_files() {
                 continue
             fi
 
-            gpg --batch --local-user "${FLAGS_sign}" \
-                --output "${sigdir}/${file##*/}.sig" \
-                --detach-sign "${file}" || die "gpg failed"
-            sigs+=( "${sigdir}/${file##*/}.sig" )
+            for sigfile in $(find "${file}" ! -type d); do
+                mkdir -p "${sigdir}/${sigfile%/*}"
+                gpg --batch --local-user "${FLAGS_sign}" \
+                    --output "${sigdir}/${sigfile}.sig" \
+                    --detach-sign "${sigfile}" || die "gpg failed"
+            done
+
+            [ -d "${file}" ] &&
+            sigs+=( "${sigdir}/${file}" ) ||
+            sigs+=( "${sigdir}/${file}.sig" )
         done
     fi
 
