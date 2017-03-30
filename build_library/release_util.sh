@@ -140,7 +140,8 @@ upload_packages() {
 
     local board_packages="${1:-"${BOARD_ROOT}/packages"}"
     local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION}"
-    upload_files packages ${def_upload_path} "pkgs/" "${board_packages}"/*
+    sign_and_upload_files packages ${def_upload_path} "pkgs/" \
+        "${board_packages}"/*
 }
 
 # Upload a set of files (usually images) and digest, optionally w/ gpg sig
