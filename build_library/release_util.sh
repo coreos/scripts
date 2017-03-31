@@ -110,15 +110,24 @@ sign_and_upload_files() {
     local sigs=()
     if [[ -n "${FLAGS_sign}" ]]; then
         local file
+        local sigfile
+        local sigdir=$(mktemp --directory)
+        trap "rm -rf ${sigdir}" RETURN
         for file in "$@"; do
             if [[ "${file}" =~ \.(asc|gpg|sig)$ ]]; then
                 continue
             fi
 
-            rm -f "${file}.sig"
-            gpg --batch --local-user "${FLAGS_sign}" \
-                --detach-sign "${file}" || die "gpg failed"
-            sigs+=( "${file}.sig" )
+            for sigfile in $(find "${file}" ! -type d); do
+                mkdir -p "${sigdir}/${sigfile%/*}"
+                gpg --batch --local-user "${FLAGS_sign}" \
+                    --output "${sigdir}/${sigfile}.sig" \
+                    --detach-sign "${sigfile}" || die "gpg failed"
+            done
+
+            [ -d "${file}" ] &&
+            sigs+=( "${sigdir}/${file}" ) ||
+            sigs+=( "${sigdir}/${file}.sig" )
         done
     fi
 
@@ -131,7 +140,8 @@ upload_packages() {
 
     local board_packages="${1:-"${BOARD_ROOT}/packages"}"
     local def_upload_path="${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION}"
-    upload_files packages ${def_upload_path} "pkgs/" "${board_packages}"/*
+    sign_and_upload_files packages ${def_upload_path} "pkgs/" \
+        "${board_packages}"/*
 }
 
 # Upload a set of files (usually images) and digest, optionally w/ gpg sig
