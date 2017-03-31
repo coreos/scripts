@@ -95,7 +95,8 @@ if [[ "$STAGES" =~ stage4 ]]; then
     sign_and_upload_files "tarball" "${def_upload_path}" "" \
         "$BUILDS/${release_name}" \
         "$BUILDS/${release_name}.CONTENTS" "$BUILDS/${release_name}.DIGESTS"
-    upload_files "packages" "${def_upload_path}" "pkgs/" "${BINPKGS}"/*
+    sign_and_upload_files "packages" "${def_upload_path}" "pkgs/" \
+        "${BINPKGS}"/*
 fi
 
 command_completed
