@@ -39,13 +39,13 @@ cp "${BUILD_LIBRARY_DIR}/toolchain_util.sh" "${ROOT_OVERLAY}/tmp"
 catalyst_build
 
 def_upload_path="${UPLOAD_ROOT}/sdk/${ARCH}/${FLAGS_version}"
-upload_files "cross toolchain packages" "${def_upload_path}" \
+sign_and_upload_files "cross toolchain packages" "${def_upload_path}" \
     "toolchain/" "${BINPKGS}/crossdev"/*
 
 for board in $(get_board_list); do
     board_packages="${BINPKGS}/target/${board}"
     def_upload_path="${UPLOAD_ROOT}/boards/${board}/${FLAGS_version}"
-    upload_files "board toolchain packages" "${def_upload_path}" \
+    sign_and_upload_files "board toolchain packages" "${def_upload_path}" \
         "toolchain/" "${board_packages}"/*
 done
 
