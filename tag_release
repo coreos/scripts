@@ -34,6 +34,7 @@ DEFINE_string sdk_version "${COREOS_VERSION_ID}" \
 DEFINE_boolean branch ${DEFAULT_BRANCH} "Release branch, diverge from master"
 DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
 DEFINE_string remote "origin" "Remote name or URL to push to."
+DEFINE_string signer '' "Alternate GPG key ID used to sign the tag."
 
 # Parse flags
 FLAGS "$@" || exit 1
@@ -63,6 +64,11 @@ if [[ "${FLAGS_sdk_version}" == "${BRANCH_VERSION}" ]]; then
     die_notrace "SDK version must be different from the new tag's version!" \
         " Conflicting version: ${BRANCH_VERSION}" \
         "Try --sdk_version keep to use the existing SDK."
+fi
+
+sign_args=( -s )
+if [ -n "${FLAGS_signer}" ]; then
+    sign_args=( -u "${FLAGS_signer}" )
 fi
 
 cd "${REPO_MANIFESTS_DIR}"
@@ -108,10 +114,14 @@ COREOS_SDK_VERSION=${FLAGS_sdk_version}
 EOF
 git add version.txt
 
+# Help various pinentry programs find the tty.
+GPG_TTY=$(tty)
+export GPG_TTY
+
 info "Creating ${BRANCH_NAME} and tag ${TAG_NAME}"
 git commit -m "${BRANCH_NAME}: release ${TAG_NAME}"
 git branch -f "${BRANCH_NAME}"
-git tag -m "CoreOS ${TAG_NAME}" "${TAG_NAME}"
+git tag "${sign_args[@]}" -m "CoreOS ${TAG_NAME}" "${TAG_NAME}"
 
 if [[ ${FLAGS_push} -eq ${FLAGS_TRUE} ]]; then
     master="HEAD:refs/heads/master"
