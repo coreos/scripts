@@ -1,0 +1,3 @@
+[submodule "build_library/secure_demo/shim"]
+	path = build_library/secure_demo/shim
+	url = https://github.com/mjg59/shim
