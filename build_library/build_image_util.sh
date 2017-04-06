@@ -214,31 +214,50 @@ write_contents() {
     popd >/dev/null
 }
 
+# "equery list" a potentially uninstalled board package
+query_available_package() {
+    local pkg="$1"
+    local format="${2:-\$cpv::\$repo}"
+    # Ignore masked versions. Assumes that sort --version-sort uses the
+    # same ordering as Portage.
+    equery-${BOARD} --no-color list -po --format "\$mask|$format" "$pkg" | \
+            grep -E '^ +\|' | \
+            cut -f2- -d\| | \
+            sort --version-sort | \
+            tail -n 1
+}
+
 # Generate a list of packages installed in an image.
 # Usage: image_packages /image/root
 image_packages() {
     local profile="${BUILD_DIR}/configroot/etc/portage/profile"    
     ROOT="$1" PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
         equery --no-color list --format '$cpv::$repo' '*'
+
     # We also want to list packages that only exist in the initramfs.
     # Approximate this by listing build dependencies of coreos-kernel that
     # are specified with the "=" slot operator, excluding those already
     # reported above.
-    local vdb=$(portageq-${BOARD} vdb_path)
     local kernel_pkg=$(ROOT="$1" PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
         equery --no-color list --format '$cpv' sys-kernel/coreos-kernel)
-    local depend_path="$vdb/$kernel_pkg/DEPEND"
-    local pkg
-    for pkg in $(awk 'BEGIN {RS=" "} /=$/ {print}' "$depend_path"); do
-        if ! ROOT="$1" PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
-                equery -q list "$pkg" >/dev/null ; then
-            equery-${BOARD} --no-color list --format '$cpv::$repo' "$pkg"
-        fi
-    done
+    # OEM ACIs have no kernel package.
+    if [[ -n "${kernel_pkg}" ]]; then
+        local depend_path="$1/var/db/pkg/$kernel_pkg/DEPEND"
+        local pkg
+        for pkg in $(awk 'BEGIN {RS=" "} /=$/ {print}' "$depend_path"); do
+            if ! ROOT="$1" PORTAGE_CONFIGROOT="${BUILD_DIR}"/configroot \
+                    equery -q list "$pkg" >/dev/null ; then
+                query_available_package "$pkg"
+            fi
+        done
+    fi
+
     # In production images GCC libraries are extracted manually.
     if [[ -f "${profile}/package.provided" ]]; then
-        xargs --arg-file="${profile}/package.provided" \
-            equery-${BOARD} --no-color list --format '$cpv::$repo'
+        local pkg
+        while read pkg; do
+            query_available_package "${pkg}"
+        done < "${profile}/package.provided"
     fi
 }
 
@@ -253,13 +272,20 @@ write_packages() {
 #   sys-apps/systemd-212-r8::coreos GPL-2 LGPL-2.1 MIT public-domain
 write_licenses() {
     info "Writing ${2##*/}"
-    local vdb=$(portageq-${BOARD} vdb_path)
     local pkg lic
     for pkg in $(image_packages "$1" | sort); do
-        lic="$vdb/${pkg%%:*}/LICENSE"
+        lic="$1/var/db/pkg/${pkg%%:*}/LICENSE"
         if [[ -f "$lic" ]]; then
             echo "$pkg $(< "$lic")"
-	fi
+        else
+            # The package is not installed in $1 so get the license from
+            # its ebuild
+            lic=$(portageq-${BOARD} metadata "${BOARD_ROOT}" ebuild \
+                    "${pkg%%:*}" LICENSE 2>/dev/null ||:)
+            if [[ -n "$lic" ]]; then
+                echo "$pkg $lic"
+            fi
+        fi
     done > "$2"
 }
 
