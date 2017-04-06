@@ -296,6 +296,10 @@ if [[ -f "${REPO_MANIFESTS_DIR}/version.txt" ]]; then
   else
     load_environment_var "${REPO_MANIFESTS_DIR}/version.txt" \
     COREOS_VERSION_ID COREOS_BUILD_ID COREOS_SDK_VERSION
+    # Don't promote COREOS_BUILD_ID into an environment variable when it
+    # didn't start as one, since we don't want it leaking into the SDK
+    # chroot environment via ENVIRONMENT_WHITELIST.
+    declare +x COREOS_BUILD_ID
   fi
   : ${COREOS_BUILD_ID:=$(date +%Y-%m-%d-%H%M)}
 elif [[ -f "${SCRIPT_LOCATION}/version.txt" ]]; then
