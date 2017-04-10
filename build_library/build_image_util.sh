@@ -281,6 +281,11 @@ write_licenses() {
 
     local pkg pkg_sep
     for pkg in $(image_packages "$1" | sort); do
+        # Ignore virtual packages since they aren't licensed
+        if [[ "${pkg%%/*}" == "virtual" ]]; then
+            continue
+        fi
+
         local path="$1/var/db/pkg/${pkg%%:*}/LICENSE"
         local lic_str
         if [[ -f "$path" ]]; then
