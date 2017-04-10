@@ -269,24 +269,76 @@ write_packages() {
 }
 
 # Generate a list of packages w/ their licenses in the format:
-#   sys-apps/systemd-212-r8::coreos GPL-2 LGPL-2.1 MIT public-domain
+#   [
+#     {
+#       "project": "sys-apps/systemd-212-r8::coreos",
+#       "license": ["GPL-2", "LGPL-2.1", "MIT", "public-domain"]
+#     }
+#   ]
 write_licenses() {
     info "Writing ${2##*/}"
-    local pkg lic
+    echo -n "[" > "$2"
+
+    local pkg pkg_sep
     for pkg in $(image_packages "$1" | sort); do
-        lic="$1/var/db/pkg/${pkg%%:*}/LICENSE"
-        if [[ -f "$lic" ]]; then
-            echo "$pkg $(< "$lic")"
+        local path="$1/var/db/pkg/${pkg%%:*}/LICENSE"
+        local lic_str
+        if [[ -f "$path" ]]; then
+            lic_str="$(< $path)"
         else
             # The package is not installed in $1 so get the license from
             # its ebuild
-            lic=$(portageq-${BOARD} metadata "${BOARD_ROOT}" ebuild \
-                    "${pkg%%:*}" LICENSE 2>/dev/null ||:)
-            if [[ -n "$lic" ]]; then
-                echo "$pkg $lic"
+            lic_str=$(portageq-${BOARD} metadata "${BOARD_ROOT}" ebuild \
+                        "${pkg%%:*}" LICENSE 2>/dev/null ||:)
+            if [[ -z "$lic_str" ]]; then
+                warn "No license found for ${pkg}"
+                continue
             fi
         fi
-    done > "$2"
+
+        [[ -n $pkg_sep ]] && echo ","
+        [[ -z $pkg_sep ]] && echo
+        pkg_sep="true"
+
+        # Build a list of the required licenses vs the one-of licenses
+        # For example:
+        #   GPL-3+ LGPL-3+ || ( GPL-3+ libgcc libstdc++ ) FDL-1.3+
+        #   required: GPL-3+ LGPL-3+ FDL-1.3+
+        #   one-of: GPL-3+ libgcc libstdc++
+        local req_lics=($(sed 's/|| ([^)]*)//' <<< $lic_str))
+        local opt_lics=($(sed 's/.*|| (\([^)]*\)).*/\1/' <<< $lic_str))
+
+        # Pick one of the one-of licenses, preferring a GPL license. Otherwise,
+        # pick the first.
+        local opt_lic=""
+        local lic
+        for lic in ${opt_lics[*]}; do
+            if [[ $lic =~ "GPL" ]]; then
+                opt_lic=$lic;
+                break
+            fi;
+        done
+        if [[ -z $opt_lic ]]; then
+            opt_lic=${opt_lics[0]}
+        fi
+
+        # Remove duplicate licenses
+        local lics=$(tr ' ' '\n' <<< "${req_lics[*]} ${opt_lic}" | sort --unique | tr '\n' ' ')
+
+        echo -n "  {\"project\": \"${pkg}\", \"licenses\": ["
+
+        local lic_sep=""
+        for lic in ${lics[*]}; do
+            [[ -n $lic_sep ]] && echo -n ", "
+            lic_sep="true"
+
+            echo -n "\"${lic}\""
+        done
+
+        echo -n "]}"
+    done >> "$2"
+
+    echo -e "\n]" >> "$2"
 }
 
 # Add an entry to the image's package.provided
