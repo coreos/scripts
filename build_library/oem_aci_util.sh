@@ -22,7 +22,7 @@ create_oem_aci_image() {
     local root_fs_dir="${BUILD_DIR}/rootfs"
     local image_contents="${image_name%.bin}_contents.txt"
     local image_packages="${image_name%.bin}_packages.txt"
-    local image_licenses="${image_name%.bin}_licenses.txt"
+    local image_licenses="${image_name%.bin}_licenses.json"
 
     start_image \
         "${image_name}" "${disk_layout}" "${root_fs_dir}" "${update_group}"
