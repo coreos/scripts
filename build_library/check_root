@@ -28,6 +28,11 @@ IGNORE_MISSING = {
     "dev-lang/go-bootstrap":    [SonameAtom("x86_32", "libc.so.6"),
                                  SonameAtom("x86_64", "libc.so.6")],
 
+    # RPATHs and symlinks apparently confuse the perl-5.22 package
+    "dev-lang/perl":            [SonameAtom("arm_64", "libperl.so.5.22.3"),
+                                 SonameAtom("x86_32", "libperl.so.5.22.3"),
+                                 SonameAtom("x86_64", "libperl.so.5.22.3")],
+
     # https://bugs.gentoo.org/show_bug.cgi?id=554582
     "net-firewall/ebtables":    [SonameAtom("arm_64", "libebt_802_3.so"),
                                  SonameAtom("arm_64", "libebt_among.so"),
