@@ -189,7 +189,7 @@ case "${FLAGS_target}" in
             --directory="${ESP_DIR}/${GRUB_DIR}" "${LOOP_DEV}"
         # boot.img gets manipulated by grub-bios-setup so it alone isn't
         # sufficient to restore the MBR boot code if it gets corrupted.
-        sudo dd bs=448 count=1 if="${LOOP_DEV}" \
+        sudo dd bs=448 count=1 status=none if="${LOOP_DEV}" \
             of="${ESP_DIR}/${GRUB_DIR}/mbr.bin"
         ;;
     x86_64-efi)
