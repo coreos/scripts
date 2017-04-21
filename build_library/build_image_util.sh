@@ -504,7 +504,7 @@ EOF
     # Our modified GRUB extracts the hash and adds it to the cmdline.
     printf %s "$(cat ${BUILD_DIR}/${image_name%.bin}_verity.txt)" | \
         sudo dd of="${root_fs_dir}/boot/coreos/vmlinuz-a" conv=notrunc \
-        seek=${verity_offset} count=64 bs=1
+        seek=${verity_offset} count=64 bs=1 status=none
   fi
 
   # Sign the kernel after /usr is in a consistent state and verity is calculated
