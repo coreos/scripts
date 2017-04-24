@@ -58,7 +58,7 @@ BUILD_ID=$COREOS_BUILD_ID
 PRETTY_NAME="$OS_PRETTY_NAME"
 ANSI_COLOR="38;5;75"
 HOME_URL="https://coreos.com/"
-BUG_REPORT_URL="https://github.com/coreos/bugs/issues"
+BUG_REPORT_URL="https://issues.coreos.com"
 EOF
 sudo ln -sf "../usr/lib/os-release" "${ROOT_FS_DIR}/etc/os-release"
 sudo ln -sf "../../lib/os-release" "${ROOT_FS_DIR}/usr/share/coreos/os-release"
