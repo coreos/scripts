@@ -26,7 +26,7 @@ PKGDIR="/var/lib/portage/pkgs"
 PORT_LOGDIR="/var/log/portage"
 PORTDIR="/var/lib/portage/portage-stable"
 PORTDIR_OVERLAY="/var/lib/portage/coreos-overlay"
-PORTAGE_BINHOST="$(get_board_binhost $BOARD $COREOS_VERSION_ID)"
+PORTAGE_BINHOST="$(get_board_binhost $BOARD $COREOS_VERSION_ID | sed 's/^gs:/http:/')"
 EOF
 
 sudo_clobber "$1/etc/portage/repos.conf/coreos.conf" <<EOF
