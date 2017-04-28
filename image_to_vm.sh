@@ -31,7 +31,7 @@ DEFINE_string board "${DEFAULT_BOARD}" \
 DEFINE_string format "qemu" \
   "Output format, one of: ${VALID_IMG_TYPES[*]}"
 DEFINE_string from "" \
-  "Directory containing rootfs.image and mbr.image"
+  "Directory containing coreos_developer_image.bin or coreos_production_image.bin."
 DEFINE_string disk_layout "" \
   "The disk layout type to use for this image."
 DEFINE_integer mem "${DEFAULT_MEM}" \
