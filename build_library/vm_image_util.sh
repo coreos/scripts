@@ -296,6 +296,22 @@ IMG_interoute_BUNDLE_FORMAT=ova
 
 ###########################################################
 
+# Print the default vm type for the specified board
+get_default_vm_type() {
+    local board="$1"
+    case "$board" in
+    amd64-usr)
+        echo "qemu"
+        ;;
+    arm64-usr)
+        echo "qemu_uefi"
+        ;;
+    *)
+        return 1
+        ;;
+    esac
+}
+
 # Validate and set the vm type to use for the rest of the functions
 set_vm_type() {
     local vm_type="$1"

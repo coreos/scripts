@@ -100,6 +100,7 @@ fi
 . "${BUILD_LIBRARY_DIR}/prod_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/dev_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/vm_image_util.sh" || exit 1
 
 PROD_IMAGE=0
 DEV_IMAGE=0
@@ -216,7 +217,7 @@ print_image_to_vm() {
 To convert it to a virtual machine image, use:
   ./image_to_vm.sh --from=${OUTSIDE_OUTPUT_DIR} --board=${BOARD} ${flags}
 
-The default type is qemu, see ./image_to_vm.sh --help for other options.
+The default type is $(get_default_vm_type ${BOARD}), see ./image_to_vm.sh --help for other options.
 EOF
 }
 
