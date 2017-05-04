@@ -49,7 +49,7 @@
         <Description>MAC for network interface 0</Description>
       </Property>
       <Property ovf:userConfigurable="true" ovf:type="string"
-                ovf:key="guestinfo.interface.0.dhcp" ovf:value="yes">
+                ovf:key="guestinfo.interface.0.dhcp" ovf:value="no">
         <Label>DHCP support for network interface 0</Label>
         <Description>DHCP support for network interface 0</Description>
       </Property>
@@ -210,4 +210,4 @@
       <vmw:Config ovf:required="false" vmw:key="tools.toolsUpgradePolicy" vmw:value="manual"/>
     </VirtualHardwareSection>
   </VirtualSystem>
-</Envelope>                                 
+</Envelope>
