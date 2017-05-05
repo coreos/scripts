@@ -86,7 +86,7 @@ IMAGES_DIR="${DEFAULT_BUILD_ROOT}/images/${FLAGS_board}"
 if [ -z "${FLAGS_from}" ] ; then
   FLAGS_from="$(${SCRIPT_ROOT}/get_latest_image.sh --board=${FLAGS_board})"
 else
-  pushd "${FLAGS_from}" && FLAGS_from=`pwd` && popd
+  pushd "${FLAGS_from}" >/dev/null && FLAGS_from=`pwd` && popd >/dev/null
 fi
 if [ -z "${FLAGS_to}" ] ; then
   FLAGS_to="${FLAGS_from}"
