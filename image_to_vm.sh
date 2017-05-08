@@ -28,7 +28,7 @@ DEFINE_string board "${DEFAULT_BOARD}" \
 
 # We default to TRUE so the buildbot gets its image. Note this is different
 # behavior from image_to_usb.sh
-DEFINE_string format "qemu" \
+DEFINE_string format "" \
   "Output format, one of: ${VALID_IMG_TYPES[*]}"
 DEFINE_string from "" \
   "Directory containing coreos_developer_image.bin or coreos_production_image.bin."
@@ -58,6 +58,10 @@ eval set -- "${FLAGS_ARGV}"
 switch_to_strict_mode
 
 check_gsutil_opts
+
+if [[ -z "${FLAGS_format}" ]]; then
+    FLAGS_format="$(get_default_vm_type ${FLAGS_board})"
+fi
 
 if ! set_vm_type "${FLAGS_format}"; then
     die_notrace "Invalid format: ${FLAGS_format}"
