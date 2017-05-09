@@ -10,6 +10,7 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 DEFAULT_MAJOR=${TODAYS_VERSION}
 DEFAULT_MINOR=0
 DEFAULT_BRANCH=${FLAGS_FALSE}
+DEFAULT_BRANCH_PROJECTS=
 
 CURRENT_VERSION=( ${COREOS_VERSION_ID//./ } )
 
@@ -19,6 +20,8 @@ DEFAULT_MANIFEST=$(readlink "${REPO_MANIFESTS_DIR}/default.xml") \
 if [[ "${DEFAULT_MANIFEST}" != master.xml ]]; then
     DEFAULT_MAJOR=${CURRENT_VERSION[0]}
     DEFAULT_BRANCH=${FLAGS_TRUE}
+else
+    DEFAULT_BRANCH_PROJECTS='coreos-overlay portage-stable scripts'
 fi
 
 # Increment $MINOR if we already made a major release.
@@ -32,6 +35,8 @@ DEFINE_integer patch 0 "Branch patch id, normally 0"
 DEFINE_string sdk_version "${COREOS_VERSION_ID}" \
     "SDK version to use, or 'keep'. (current: ${COREOS_SDK_VERSION})"
 DEFINE_boolean branch ${DEFAULT_BRANCH} "Release branch, diverge from master"
+DEFINE_string branch_projects "${DEFAULT_BRANCH_PROJECTS}" \
+    "Branch the named projects (with a 'coreos/' prefix) in the manifest."
 DEFINE_boolean push ${FLAGS_FALSE} "Push to public manifest repository."
 DEFINE_string remote "origin" "Remote name or URL to push to."
 DEFINE_string signer '' "Alternate GPG key ID used to sign the tag."
@@ -123,12 +128,33 @@ git commit -m "${BRANCH_NAME}: release ${TAG_NAME}"
 git branch -f "${BRANCH_NAME}"
 git tag "${sign_args[@]}" -m "CoreOS ${TAG_NAME}" "${TAG_NAME}"
 
+# Unpin and branch the important projects, if requested and they are pinned.
+if [[ -n "${FLAGS_branch_projects}" ]]; then
+    sed -i -e "/ name=\"coreos\/\(${FLAGS_branch_projects// /\\|}\)\" /s%revision=.*upstream=.*\"%revision=\"refs/heads/${BRANCH_NAME}\"%" "${BRANCH_NAME}.xml"
+    ln -sf "${BRANCH_NAME}.xml" default.xml
+    git add default.xml "${BRANCH_NAME}.xml"
+    git commit -m "${BRANCH_NAME}: branch projects" -m "Branched: ${FLAGS_branch_projects}"
+    git branch -f "${BRANCH_NAME}"
+    git reset --hard HEAD^
+
+    # Create new branches in the projects' upstream repositories.
+    if [[ ${FLAGS_push} -eq ${FLAGS_TRUE} ]]; then
+        remote=$(sed -n '/<default /s/.* remote="\([^"]*\)".*/\1/p' release.xml)
+        for project in ${FLAGS_branch_projects}; do
+            info=$(sed -n 's,.* name="coreos/'${project}'".* path="\([^"]*\)".* revision="\([0-9A-Fa-f]*\)".*,\2 \1,p' release.xml)
+            info "Creating branch ${BRANCH_NAME} at ${info%% *} in ${project}"
+            git -C "${REPO_ROOT}/${info#* }" push "${remote}" "${info%% *}:refs/heads/${BRANCH_NAME}"
+        done
+    fi
+fi
+
 if [[ ${FLAGS_push} -eq ${FLAGS_TRUE} ]]; then
     master="HEAD:refs/heads/master"
     if [[ ${FLAGS_branch} -eq ${FLAGS_TRUE} ]]; then
         master=""
     fi
 
+    info 'Pushing manifest updates'
     git push "${FLAGS_remote}" $master \
         "refs/heads/${BRANCH_NAME}" \
         "refs/tags/${TAG_NAME}"
