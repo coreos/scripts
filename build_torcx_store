@@ -1,0 +1,174 @@
+#!/bin/bash
+
+# Copyright (c) 2017 The CoreOS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+. "$(dirname "$0")/common.sh" || exit 1
+
+# Script must run inside the chroot
+restart_in_chroot_if_needed "$@"
+
+assert_not_root_user
+
+# Developer-visible flags.
+DEFINE_string board "${DEFAULT_BOARD}" \
+  "The board to build packages for."
+DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/torcx" \
+  "Directory in which to place torcx stores (named by board/version)"
+
+# include upload options
+. "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
+
+FLAGS_HELP="usage: $(basename $0) [flags] [images]
+
+This script builds a collection of torcx images to be installed into a torcx
+store.  By default, all supported images are built, but a list of images can be
+given as command arguments.  Note that their order matters, since the version
+specified last will get the default reference symlink.
+"
+show_help_if_requested "$@"
+
+# The following options are advanced options, only available to those willing
+# to read the source code. They are not shown in help output, since they are
+# not needed for the typical developer workflow.
+DEFINE_integer build_attempt 1 \
+  "The build attempt for this image build."
+DEFINE_string group developer \
+  "The update group."
+DEFINE_string version '' \
+  "Overrides version number in name to this version."
+
+# Parse command line
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+# Only now can we die on error.  shflags functions leak non-zero error codes,
+# so will die prematurely if 'switch_to_strict_mode' is specified before now.
+switch_to_strict_mode
+
+# Define BUILD_DIR and set_build_symlinks.
+. "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
+
+# Print the first level of runtime dependencies for a torcx meta-package.
+function torcx_dependencies() (
+        pkg=${1:?}
+        ebuild=$(equery-${BOARD} w "${pkg}")
+        function inherit() { : ; }
+        . "${ebuild}"
+        echo ${RDEPEND}
+)
+
+# Build and install a package configured as part of a torcx image.
+function torcx_build() (
+        pkg=${2:?}
+        tmproot=${1:?}
+
+        export LDFLAGS=-Wl,-rpath,/ORIGIN/../lib
+        export PKGDIR="${tmproot}/var/lib/portage/pkgs"
+
+        # Allow the meta-package to install bashrc to customize the builds.
+        [ -s "${tmproot}/etc/portage/bashrc" ] &&
+        . "${tmproot}/etc/portage/bashrc"
+
+        emerge-${BOARD} \
+            --nodeps \
+            --oneshot \
+            --root="${tmproot}" \
+            --root-deps=rdeps \
+            "${pkg}"
+)
+
+# Create a torcx image from the given meta-package.
+function torcx_package() {
+        local pkg="app-torcx/${1##*/}"
+        local name=${pkg%-[0-9]*}
+        local version=${pkg:${#name}+1}
+        local deppkg file rpath tmproot
+        name=${name##*/}
+        version=${version%%-r*}
+
+        # Set up the base package layout to dump everything into /bin and /lib.
+        tmproot=$(sudo mktemp --tmpdir="${BUILD_DIR}" -d)
+        trap "sudo rm -rf '${tmproot}'" EXIT RETURN
+        sudo chmod 0755 "${tmproot}"
+        sudo mkdir -p "${tmproot}"/{.torcx,bin,lib,usr}
+        sudo ln -fns ../bin "${tmproot}/usr/bin"
+        sudo ln -fns ../lib "${tmproot}/usr/lib"
+        sudo ln -fns lib "${tmproot}/usr/lib64"
+        sudo ln -fns bin "${tmproot}/usr/sbin"
+        sudo ln -fns lib "${tmproot}/lib64"
+        sudo ln -fns bin "${tmproot}/sbin"
+
+        # Install the meta-package and its direct dependencies.
+        for deppkg in "=${pkg}" $(torcx_dependencies "${pkg}")
+        do
+                torcx_build "${tmproot}" "${deppkg}"
+        done
+
+        # Pluck out shared libraries and SONAME links.
+        sudo mv "${tmproot}"/{lib,tmplib}
+        sudo rm -fr "${tmproot}/tmplib/debug"
+        sudo find "${tmproot}/tmplib" -name 'lib*.so' -type l -delete
+        sudo mkdir -p "${tmproot}/lib"
+        sudo find "${tmproot}/tmplib" -name 'lib*.so*' \
+            -exec mv -t "${tmproot}/lib/" {} +
+
+        # Rewrite any units for transparent activation from the torcx root.
+        if [ -e "${tmproot}/tmplib/systemd/system" ]
+        then
+                sudo mkdir -p "${tmproot}/lib/systemd"
+                sudo mv "${tmproot}/tmplib/systemd/system" \
+                    "${tmproot}/lib/systemd/"
+                sudo find "${tmproot}/lib/systemd/system" -type f -exec sed -i \
+                    -e '/^\[Unit]/aRequires=torcx.target\nAfter=torcx.target' \
+                    -e '/^\[Service]/aEnvironmentFile=/run/metadata/torcx' \
+                    -e 's,/usr/s\?bin/,${TORCX_BINDIR}/,g' \
+                    -e 's,^\([^ ]*=\)\(.{TORCX_BINDIR}\)/,\1/usr/bin/env PATH=\2:${PATH} \2/,' {} +
+        fi
+
+        # Network configuration can be installed unmodified.
+        if [ -e "${tmproot}/tmplib/systemd/network" ]
+        then
+                sudo mkdir -p "${tmproot}/lib/systemd"
+                sudo mv "${tmproot}/tmplib/systemd/network" \
+                    "${tmproot}/lib/systemd/"
+        fi
+
+        # Rewrite RPATHs to use the real $ORIGIN value.
+        find -H "${tmproot}"/{bin,lib} -type f |
+        while read file
+        do
+                rpath=$(sudo patchelf --print-rpath "${file}" 2>/dev/null) &&
+                test "${rpath#/ORIGIN/}" != "${rpath}" &&
+                sudo patchelf --set-rpath "${rpath/#?/\$}" "${file}"
+                :  # Set $? to 0 or the pipeline fails and -e quits.
+        done
+
+        # Package the installed files.
+        file="${BUILD_DIR}/${name}:${version}.torcx.tgz"
+        tar --force-local -C "${tmproot}" -czf "${file}" .torcx bin lib
+        ln -fns "${file##*/}" "${BUILD_DIR}/${name}:com.coreos.cl.torcx.tgz"
+        trap - EXIT
+}
+
+# This list defines every torcx image that goes into the vendor store for the
+# current branch's release version.  Note that the default reference symlink
+# for each package will point at the last version specified.  This can handle
+# swapping default package versions for different OS releases by reordering.
+DEFAULT_IMAGES=(
+        =app-torcx/docker-17.05
+)
+
+mkdir -p "${BUILD_DIR}"
+for pkg in "${@:-${DEFAULT_IMAGES[@]}}" ; do torcx_package "${pkg#=}" ; done
+
+set_build_symlinks latest "${FLAGS_group}-latest"
+
+sign_and_upload_files \
+    'torcx images' \
+    "${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION}" \
+    torcx/ \
+    "${BUILD_DIR}"/*.torcx.tgz
