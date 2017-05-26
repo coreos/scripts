@@ -380,6 +380,15 @@ setup_env() {
     if [ -d "${gsutil_dir}" ]; then
       chown -R ${SUDO_UID}:${SUDO_GID} "${gsutil_dir}"
     fi
+
+    # The SDK should track mantle's master branch by default.
+    workon_dir="${FLAGS_trunk}/.config/cros_workon"
+    if [ ! -e "${workon_dir}" ]; then
+      mkdir -p "${workon_dir}"
+      echo '=coreos-devel/mantle-9999' > "${workon_dir}/host"
+      echo '<coreos-devel/mantle-9999' > "${workon_dir}/host.mask"
+      chown -R ${SUDO_UID}:${SUDO_GID} "${FLAGS_trunk}/.config"
+    fi
   ) 200>>"$LOCKFILE" || die "setup_env failed"
 }
 
