@@ -36,7 +36,6 @@ VALID_IMG_TYPES=(
     exoscale
     azure
     hyperv
-    secure_demo
     niftycloud
     cloudsigma
     packet
@@ -261,11 +260,6 @@ IMG_azure_OEM_PACKAGE=oem-azure
 IMG_hyperv_DISK_FORMAT=vhd
 IMG_hyperv_OEM_PACKAGE=oem-hyperv
 
-## secure boot demo
-IMG_secure_demo_PARTITIONED_IMG=0
-IMG_secure_demo_DISK_FORMAT=secure_demo
-IMG_secure_demo_CONF_FORMAT=qemu_uefi
-
 ## niftycloud
 IMG_niftycloud_DISK_FORMAT=vmdk_stream
 IMG_niftycloud_DISK_LAYOUT=vm
@@ -399,7 +393,6 @@ _disk_ext() {
         vmdk_scsi) echo vmdk;;
         vmdk_stream) echo vmdk;;
         hdd) echo hdd;;
-        secure_demo) echo bin;;
         *) echo "${disk_format}";;
     esac
 }
@@ -1151,54 +1144,6 @@ _write_pvm_tgz_bundle() {
     tar -czf "${tgz}" -C "${pvm}" .
 
     VM_GENERATED_FILES+=( "${tgz}" )
-}
-
-_write_secure_demo_disk() {
-    local dst_img="$2"
-    local tmp_esp="${VM_TMP_DIR}/esp"
-
-    grub-mkstandalone \
-        --output="${VM_TMP_DIR}/grub.efi" \
-        --format=x86_64-efi \
-        --modules=verify \
-        --pubkey="${BUILD_LIBRARY_DIR}/secure_demo/CoreOS-Grub-Singing-Key.gpg" \
-        "/boot/grub/grub.cfg=${BUILD_LIBRARY_DIR}/secure_demo/grub.cfg"
-    sbsign --key "${BUILD_LIBRARY_DIR}/secure_demo/CoreOS-Boot-Signer.key" \
-        --cert "${BUILD_LIBRARY_DIR}/secure_demo/CoreOS-Boot-Signer.crt" \
-        "${VM_TMP_DIR}/grub.efi"
-
-    cp "${VM_TMP_ROOT}/usr/boot/vmlinuz" "${VM_TMP_DIR}/vmlinuz"
-    sbsign --key "${BUILD_LIBRARY_DIR}/secure_demo/CoreOS-Boot-Signer.key" \
-        --cert "${BUILD_LIBRARY_DIR}/secure_demo/CoreOS-Boot-Signer.crt" \
-        "${VM_TMP_DIR}/vmlinuz"
-    gpg --detach-sign --local-user BA076BAA \
-        --output "${VM_TMP_DIR}/vmlinuz.sig" \
-        "${VM_TMP_DIR}/vmlinuz.signed"
-
-    _write_cpio_common "ignored" "${VM_TMP_DIR}/initrd"
-    gpg --detach-sign --local-user BA076BAA "${VM_TMP_DIR}/initrd"
-
-    "${BUILD_LIBRARY_DIR}/disk_util" \
-        --disk_layout="secure_demo" format "${dst_img}"
-    "${BUILD_LIBRARY_DIR}/disk_util" \
-        --disk_layout="secure_demo" mount "${dst_img}" "${tmp_esp}"
-
-    sudo mkdir -p "${tmp_esp}/EFI/boot"
-    sudo cp "${BUILD_LIBRARY_DIR}/secure_demo/bootx64.efi" \
-            "${BUILD_LIBRARY_DIR}/secure_demo/lockdown.efi" \
-            "${tmp_esp}/EFI/boot"
-    sudo cp "${VM_TMP_DIR}/grub.efi.signed" "${tmp_esp}/EFI/boot/grub.efi"
-
-    sudo mkdir -p "${tmp_esp}/coreos"
-    sudo cp "${VM_TMP_DIR}/vmlinuz.signed" "${tmp_esp}/coreos/vmlinuz"
-    sudo cp "${VM_TMP_DIR}/initrd"{,.sig} \
-        "${VM_TMP_DIR}/vmlinuz.sig" \
-        "${tmp_esp}/coreos"
-
-    "${BUILD_LIBRARY_DIR}/disk_util" \
-        --disk_layout="secure_demo" umount "${tmp_esp}"
-
-    VM_GENERATED_FILES+=( "${dst_img}" )
 }
 
 vm_cleanup() {
