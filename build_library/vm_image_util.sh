@@ -15,7 +15,6 @@ VALID_IMG_TYPES=(
     qemu
     qemu_uefi
     qemu_uefi_secure
-    qemu_xen
     rackspace
     rackspace_onmetal
     rackspace_vhd
@@ -55,7 +54,6 @@ VALID_OEM_PACKAGES=(
     hyperv
     rackspace
     rackspace-onmetal
-    xendom0
     vagrant
     vagrant-key
     vmware
@@ -131,12 +129,6 @@ IMG_qemu_uefi_CONF_FORMAT=qemu_uefi
 IMG_qemu_uefi_secure_DISK_FORMAT=qcow2
 IMG_qemu_uefi_secure_DISK_LAYOUT=vm
 IMG_qemu_uefi_secure_CONF_FORMAT=qemu_uefi_secure
-
-IMG_qemu_xen_DISK_FORMAT=qcow2
-IMG_qemu_xen_DISK_LAYOUT=vm
-IMG_qemu_xen_CONF_FORMAT=qemu_xen
-IMG_qemu_xen_OEM_PACKAGE=oem-xendom0
-IMG_qemu_xen_MEM=2048
 
 ## xen
 IMG_xen_CONF_FORMAT=xl
@@ -760,21 +752,6 @@ _write_qemu_uefi_secure_conf() {
     flash-var "$(_dst_dir)/${flash_rw}" "PK" "${VM_TMP_DIR}/PK.esl"
     flash-var "$(_dst_dir)/${flash_rw}" "KEK" "${VM_TMP_DIR}/KEK.esl"
     flash-var "$(_dst_dir)/${flash_rw}" "db" "${VM_TMP_DIR}/DB.esl"
-}
-
-_write_qemu_xen_conf() {
-    local script="$(_dst_dir)/$(_dst_name ".sh")"
-    local dst_name=$(basename "$VM_DST_IMG")
-    local vm_mem="$(_get_vm_opt MEM)"
-
-    sed -e "s%^VM_NAME=.*%VM_NAME='${VM_NAME}'%" \
-        -e "s%^VM_IMAGE=.*%VM_IMAGE='${dst_name}'%" \
-        -e "s%^VM_MEMORY=.*%VM_MEMORY='${vm_mem}'%" \
-        "${BUILD_LIBRARY_DIR}/qemu_xen.sh" > "${script}"
-    checkbashisms --posix "${script}" || die
-    chmod +x "${script}"
-
-    VM_GENERATED_FILES+=( "${script}" )
 }
 
 _write_pxe_conf() {
