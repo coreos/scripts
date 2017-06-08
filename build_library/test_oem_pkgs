@@ -29,9 +29,6 @@ oem_uses() {
 }
 
 for oem in "${VALID_OEM_PACKAGES[@]/#/oem-}"; do
-  # experimental thingy for testing, generally unused.
-  [[ "${oem}" == oem-xendom0 ]] && continue
-
   uses=( $(oem_uses "${oem}") )
   if [[ ${#uses} -eq 0 ]]; then
     uses=( "" )
