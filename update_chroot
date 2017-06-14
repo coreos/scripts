@@ -197,14 +197,6 @@ if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   REBUILD_FLAGS+=( "--jobs=${FLAGS_jobs}" )
 fi
 
-# Force rebuilding some misbehaving Perl modules for the 5.22 upgrade.
-if : || portageq has_version / '<dev-lang/perl-5.22'; then
-  EMERGE_FLAGS+=(
-    --reinstall-atoms='dev-perl/File-Slurp dev-perl/Locale-gettext perl-core/File-Temp'
-    --usepkg-exclude='dev-perl/File-Slurp dev-perl/Locale-gettext perl-core/File-Temp'
-  )
-fi
-
 # Perform an update of coreos-devel/sdk-depends and world in the chroot.
 EMERGE_CMD="emerge"
 
