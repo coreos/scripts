@@ -36,6 +36,8 @@ DEFINE_boolean skip_toolchain_update "${FLAGS_FALSE}" \
   "Don't update toolchain automatically."
 DEFINE_boolean skip_chroot_upgrade "${FLAGS_FALSE}" \
   "Don't run the chroot upgrade automatically; use with care."
+DEFINE_boolean skip_torcx_store "${FLAGS_FALSE}" \
+  "Don't build a new torcx store from the updated sysroot."
 
 # include upload options
 . "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
@@ -250,6 +252,11 @@ test_image_content "${BOARD_ROOT}"
 
 # upload packages if enabled
 upload_packages
+
+# Build a new torcx store with the updated packages, passing flags through.
+if [ "${FLAGS_skip_torcx_store}" -eq "${FLAGS_FALSE}" ]; then
+  "${SCRIPTS_DIR}"/build_torcx_store --board="${BOARD}"
+fi
 
 info "Builds complete"
 command_completed

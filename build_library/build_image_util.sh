@@ -424,6 +424,12 @@ finish_image() {
   local install_grub=0
   local disk_img="${BUILD_DIR}/${image_name}"
 
+  # Copy in a vendor torcx store if requested.
+  if [ -n "${FLAGS_torcx_store}" ]; then
+    sudo cp -dt "${root_fs_dir}"/usr/share/torcx/store \
+        "${FLAGS_torcx_store}"/*.torcx.tgz
+  fi
+
   # Only enable rootfs verification on prod builds.
   local disable_read_write="${FLAGS_FALSE}"
   if [[ "${IMAGE_BUILD_TYPE}" == "prod" ]]; then
