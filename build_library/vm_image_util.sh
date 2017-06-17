@@ -55,6 +55,8 @@ VALID_OEM_PACKAGES=(
     rackspace-onmetal
     vagrant
     vagrant-key
+    vagrant-virtualbox
+    virtualbox
     vmware
     niftycloud
     cloudsigma
@@ -136,6 +138,7 @@ IMG_xen_CONF_FORMAT=xl
 IMG_virtualbox_DISK_FORMAT=vmdk_ide
 IMG_virtualbox_DISK_LAYOUT=vm
 IMG_virtualbox_CONF_FORMAT=ovf_virtualbox
+IMG_virtualbox_OEM_PACKAGE=oem-virtualbox
 
 ## vagrant
 IMG_vagrant_FS_HOOK=box
@@ -143,7 +146,7 @@ IMG_vagrant_BUNDLE_FORMAT=box
 IMG_vagrant_DISK_FORMAT=vmdk_ide
 IMG_vagrant_DISK_LAYOUT=vagrant
 IMG_vagrant_CONF_FORMAT=vagrant
-IMG_vagrant_OEM_PACKAGE=oem-vagrant
+IMG_vagrant_OEM_PACKAGE=oem-vagrant-virtualbox
 
 ## vagrant_vmware
 IMG_vagrant_vmware_fusion_FS_HOOK=box
