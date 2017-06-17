@@ -18,7 +18,6 @@ configure_dev_portage() {
 # make.conf for CoreOS dev images
 ARCH=$(get_board_arch $BOARD)
 CHOST=$(get_board_chost $BOARD)
-BOARD_USE="$BOARD"
 
 # Use /var/lib/portage instead of /usr/portage
 DISTDIR="/var/lib/portage/distfiles"

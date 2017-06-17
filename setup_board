@@ -256,7 +256,6 @@ PORTAGE_USERNAME="$(portageq envvar PORTAGE_USERNAME)"
 # Board specific settings
 CHOST="${BOARD_CHOST}"
 ROOT="${BOARD_ROOT}/"
-BOARD_USE="${BOARD_VARIANT}"
 PKGDIR="${BOARD_ROOT}/var/lib/portage/pkgs"
 PORT_LOGDIR="${BOARD_ROOT}/var/log/portage"
 PORTAGE_TMPDIR="${BOARD_ROOT}/var/tmp"
