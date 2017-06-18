@@ -47,6 +47,9 @@ eval set -- "${FLAGS_ARGV}"
 # so will die prematurely if 'switch_to_strict_mode' is specified before now.
 switch_to_strict_mode
 
+# Initialize upload options
+check_gsutil_opts
+
 # Define BUILD_DIR and set_build_symlinks.
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
