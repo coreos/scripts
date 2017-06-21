@@ -577,25 +577,11 @@ _write_cpio_common() {
     local dst_dir=$(_dst_dir)
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
     local base_dir="${VM_TMP_ROOT}/usr"
-    local squashfs="usr.squashfs"
 
     sudo mkdir -p "${cpio_target}/etc"
 
-    # If not a /usr image pack up root instead
-    if ! mountpoint -q "${base_dir}"; then
-        base_dir="${VM_TMP_ROOT}"
-        squashfs="newroot.squashfs"
-
-        # The STATE partition and all of its bind mounts shouldn't be
-        # packed into the squashfs image. Just ROOT.
-        sudo umount --all-targets "${VM_TMP_ROOT}/media/state"
-
-        # Inject /usr/.noupdate into squashfs to disable update_engine
-        echo "/usr/.noupdate f 444 root root echo -n" >"${VM_TMP_DIR}/extra"
-    else
-        # Inject /usr/.noupdate into squashfs to disable update_engine
-        echo "/.noupdate f 444 root root echo -n" >"${VM_TMP_DIR}/extra"
-    fi
+    # Inject /usr/.noupdate into squashfs to disable update_engine
+    echo "/.noupdate f 444 root root echo -n" >"${VM_TMP_DIR}/extra"
 
     # Set correct group for PXE/ISO, which has no writeable /etc
     echo /usr/share/coreos/update.conf f 644 root root \
@@ -604,7 +590,7 @@ _write_cpio_common() {
 
     # Build the squashfs, embed squashfs into a gzipped cpio
     pushd "${cpio_target}" >/dev/null
-    sudo mksquashfs "${base_dir}" "./${squashfs}" -pf "${VM_TMP_DIR}/extra"
+    sudo mksquashfs "${base_dir}" "./usr.squashfs" -pf "${VM_TMP_DIR}/extra"
     find . | cpio -o -H newc | gzip > "$2"
     popd >/dev/null
 
