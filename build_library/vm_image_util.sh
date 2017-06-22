@@ -146,7 +146,15 @@ IMG_vagrant_BUNDLE_FORMAT=box
 IMG_vagrant_DISK_FORMAT=vmdk_ide
 IMG_vagrant_DISK_LAYOUT=vagrant
 IMG_vagrant_CONF_FORMAT=vagrant
-IMG_vagrant_OEM_PACKAGE=oem-vagrant-virtualbox
+IMG_vagrant_OEM_PACKAGE=oem-vagrant
+
+## vagrant_virtualbox
+IMG_vagrant_virtualbox_FS_HOOK=box
+IMG_vagrant_virtualbox_BUNDLE_FORMAT=box
+IMG_vagrant_virtualbox_DISK_FORMAT=vmdk_ide
+IMG_vagrant_virtualbox_DISK_LAYOUT=vagrant
+IMG_vagrant_virtualbox_CONF_FORMAT=vagrant
+IMG_vagrant_virtualbox_OEM_PACKAGE=oem-vagrant-virtualbox
 
 ## vagrant_vmware
 IMG_vagrant_vmware_fusion_FS_HOOK=box
