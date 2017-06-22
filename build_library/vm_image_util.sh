@@ -20,6 +20,7 @@ VALID_IMG_TYPES=(
     rackspace_vhd
     vagrant
     vagrant_parallels
+    vagrant_virtualbox
     vagrant_vmware_fusion
     virtualbox
     vmware
