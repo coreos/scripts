@@ -197,6 +197,12 @@ if [[ "${FLAGS_jobs}" -ne -1 ]]; then
   REBUILD_FLAGS+=( "--jobs=${FLAGS_jobs}" )
 fi
 
+# Force rebuilding some misbehaving Perl modules for the 5.24 upgrade.
+EMERGE_FLAGS+=(
+  --reinstall-atoms='dev-perl/File-Slurp dev-perl/Locale-gettext dev-perl/XML-Parser perl-core/File-Temp virtual/perl-File-Temp'
+  --usepkg-exclude='dev-perl/File-Slurp dev-perl/Locale-gettext dev-perl/XML-Parser perl-core/File-Temp virtual/perl-File-Temp'
+)
+
 # Perform an update of coreos-devel/sdk-depends and world in the chroot.
 EMERGE_CMD="emerge"
 
