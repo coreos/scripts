@@ -227,10 +227,10 @@ break_dep_loop() {
 
 if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_FALSE}" ]]; then
   # util-linux[udev] -> virtual->udev -> systemd -> util-linux
-  break_dep_loop sys-apps/util-linux udev,systemd sys-apps/systemd cryptsetup
+  break_dep_loop sys-apps/util-linux udev,systemd sys-apps/systemd cryptsetup app-crypt/gnupg smartcard
 
   # systemd[cryptsetup] -> cryptsetup -> lvm2 -> virtual/udev -> systemd
-  break_dep_loop sys-apps/systemd cryptsetup
+  break_dep_loop sys-apps/systemd cryptsetup app-crypt/gnupg smartcard
 fi
 
 info "Merging board packages now"
