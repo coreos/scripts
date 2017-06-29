@@ -12,7 +12,6 @@ enter() {
         sudo ln -f "${GS_DEVEL_CREDS}" chroot/etc/portage/gangue.json
         bin/cork enter --experimental -- env \
             COREOS_DEV_BUILDS="${DOWNLOAD_ROOT}" \
-            PORTAGE_SSH_OPTS= \
             {FETCH,RESUME}COMMAND_GS="/usr/bin/gangue get \
 --json-key=/etc/portage/gangue.json $verify_key \
 "'"${URI}" "${DISTDIR}/${FILE}"' \
@@ -22,8 +21,6 @@ enter() {
 script() {
         enter "/mnt/host/source/src/scripts/$@"
 }
-
-sudo cp bin/gangue chroot/usr/bin/gangue  # XXX: until SDK mantle has it
 
 source .repo/manifests/version.txt
 export COREOS_BUILD_ID
@@ -43,12 +40,10 @@ else
         script set_official --board="${BOARD}" --noofficial
 fi
 
-# Try to find the version's torcx store, but don't require it.
-torcx_store=
+# Retrieve this version's torcx vendor store.
 enter gsutil cp -r \
     "${DOWNLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION}/torcx" \
-    /mnt/host/source/ &&
-torcx_store=/mnt/host/source/torcx &&
+    /mnt/host/source/
 for image in torcx/*.torcx.tgz
 do
         gpg --verify "${image}.sig"
@@ -73,6 +68,6 @@ script build_image \
     --getbinpkgver="${COREOS_VERSION}" \
     --sign="${SIGNING_USER}" \
     --sign_digests="${SIGNING_USER}" \
-    ${torcx_store:+--torcx_store="${torcx_store}"} \
+    --torcx_store=/mnt/host/source/torcx \
     --upload_root="${UPLOAD_ROOT}" \
     --upload prod container
