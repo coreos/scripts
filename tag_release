@@ -71,6 +71,14 @@ if [[ "${FLAGS_sdk_version}" == "${BRANCH_VERSION}" ]]; then
         "Try --sdk_version keep to use the existing SDK."
 fi
 
+# Verify that the specified SDK version exists
+COREOS_SDK_VERSION="${FLAGS_sdk_version}"
+. "${SCRIPT_ROOT}/sdk_lib/sdk_util.sh"
+if ! curl --head --fail --silent "${COREOS_SDK_URL}" > /dev/null ; then
+    die_notrace "SDK version does not exist." \
+        "Try --sdk_version keep to use the existing SDK."
+fi
+
 sign_args=( -s )
 if [ -n "${FLAGS_signer}" ]; then
     sign_args=( -u "${FLAGS_signer}" )
