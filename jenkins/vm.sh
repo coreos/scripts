@@ -12,7 +12,6 @@ enter() {
         sudo ln -f "${GS_DEVEL_CREDS}" chroot/etc/portage/gangue.json
         bin/cork enter --experimental -- env \
             COREOS_DEV_BUILDS="${GS_DEVEL_ROOT}" \
-            PORTAGE_SSH_OPTS= \
             {FETCH,RESUME}COMMAND_GS="/usr/bin/gangue get \
 --json-key=/etc/portage/gangue.json $verify_key \
 "'"${URI}" "${DISTDIR}/${FILE}"' \
@@ -22,8 +21,6 @@ enter() {
 script() {
         enter "/mnt/host/source/src/scripts/$@"
 }
-
-sudo cp bin/gangue chroot/usr/bin/gangue  # XXX: until SDK mantle has it
 
 source .repo/manifests/version.txt
 export COREOS_BUILD_ID
