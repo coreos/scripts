@@ -16,7 +16,6 @@ enter() {
             CCACHE_DIR=/mnt/host/source/.cache/ccache \
             CCACHE_MAXSIZE=5G \
             COREOS_DEV_BUILDS="${DOWNLOAD_ROOT}" \
-            PORTAGE_SSH_OPTS= \
             {FETCH,RESUME}COMMAND_GS="/usr/bin/gangue get \
 --json-key=/etc/portage/gangue.json $verify_key \
 "'"${URI}" "${DISTDIR}/${FILE}"' \
@@ -26,8 +25,6 @@ enter() {
 script() {
         enter "/mnt/host/source/src/scripts/$@"
 }
-
-sudo cp bin/gangue chroot/usr/bin/gangue  # XXX: until SDK mantle has it
 
 source .repo/manifests/version.txt
 export COREOS_BUILD_ID
@@ -48,16 +45,6 @@ script build_packages \
     --board="${BOARD}" \
     --getbinpkgver=${RELEASE_BASE:-"${COREOS_VERSION}" --toolchainpkgonly} \
     --skip_chroot_upgrade \
-    $([ -x src/scripts/build_torcx_store ] && echo --skip_torcx_store) \
-    --sign="${SIGNING_USER}" \
-    --sign_digests="${SIGNING_USER}" \
-    --upload_root="${UPLOAD_ROOT}" \
-    --upload
-
-# Build and upload torcx images if this version supports it.
-[ -x src/scripts/build_torcx_store ] &&
-script build_torcx_store \
-    --board="${BOARD}" \
     --sign="${SIGNING_USER}" \
     --sign_digests="${SIGNING_USER}" \
     --upload_root="${UPLOAD_ROOT}" \
