@@ -43,10 +43,10 @@ delta_generator \
     -new_kernel "$FLAGS_kernel" \
     -out_file update
 
-IFS=: read -a private_keys <<< "$FLAGS_private_keys"
-IFS=: read -a public_keys <<< "$FLAGS_public_keys"
+IFS=+ read -a private_keys <<< "$FLAGS_private_keys"
+IFS=+ read -a public_keys <<< "$FLAGS_public_keys"
 
-if [ ${#private_keys} -ne ${#public_keys} ]; then
+if [ ${#private_keys[@]} -ne ${#public_keys[@]} ]; then
 	echo "mismatch in count of private keys and public keys"
 	exit 1
 fi
@@ -64,13 +64,13 @@ delta_generator \
 	--in_file update \
 	--out_hash_file update.hash
 
-# The following is a standard PKCS1-v1_5 padding for SHA256 signatures, as
-# defined in RFC3447. It is prepended to the actual signature (32 bytes) to
-# form a sequence of 256 bytes (2048 bits) that is amenable to RSA signing. The
-# padded hash will look as follows:
+# The following is an ASN.1 header. It is prepended to the actual signature
+# (32 bytes) to form a sequence of 51 bytes. OpenSSL will add additional
+# PKCS#1 1.5 padding during the signing operation. The padded hash will look
+# as follows:
 #
-#    0x00 0x01 0xff ... 0xff 0x00  ASN1HEADER  SHA256HASH
-#   |--------------205-----------||----19----||----32----|
+#    ASN1HEADER  SHA256HASH
+#   |----19----||----32----|
 #
 # where ASN1HEADER is the ASN.1 description of the signed data. The complete 51
 # bytes of actual data (i.e. the ASN.1 header complete with the hash) are
@@ -83,13 +83,13 @@ delta_generator \
 #   }
 #   OCTET STRING(2+32) <actual signature bytes...>
 #  }
-echo "AAH/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////ADAxMA0GCWCGSAFlAwQCAQUABCA=" | base64 -d > padding
+echo "MDEwDQYJYIZIAWUDBAIBBQAEIA==" | base64 -d > padding
 cat padding update.hash > update.padhash
 
 i=1
 signature_sizes=""
 for key in "${private_keys[@]}"; do
-	openssl rsautl -raw -sign -inkey ${key} -in update.padhash -out update.sig.${i}
+	openssl rsautl -engine pkcs11 -pkcs -sign -inkey ${key} -keyform engine -in update.padhash -out update.sig.${i}
 	let "i += 1"
 done
 
