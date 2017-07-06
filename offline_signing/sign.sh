@@ -17,5 +17,5 @@ cd "${DATA_DIR}"
     --image "${DATA_DIR}/coreos_production_update.bin" \
     --kernel "${DATA_DIR}/coreos_production_image.vmlinuz" \
     --output "${DATA_DIR}/coreos_production_update.gz" \
-    --private_keys "${KEYS_DIR}/devel.key.pem+${KEYS_DIR}/prod-2.key.pem" \
+    --private_keys "${KEYS_DIR}/devel.key.pem+pkcs11:object=CoreOS_Update_Signing_Key;type=private" \
     --public_keys  "${KEYS_DIR}/devel.pub.pem+${KEYS_DIR}/prod-2.pub.pem"
