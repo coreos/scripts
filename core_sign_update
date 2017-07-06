@@ -29,9 +29,11 @@ set -e
 
 cleanup() {
 	rm -f padding
+	rm -f padding-pkcs11
 	rm -f update
 	rm -f update.hash
 	rm -f update.padhash
+	rm -f update.pkcs11-padhash
 	rm -f update.signed
 	rm -f update.sig.*
 }
@@ -64,6 +66,8 @@ delta_generator \
 	--in_file update \
 	--out_hash_file update.hash
 
+# padding for openssl rsautl -pkcs (smartcard keys)
+#
 # The following is an ASN.1 header. It is prepended to the actual signature
 # (32 bytes) to form a sequence of 51 bytes. OpenSSL will add additional
 # PKCS#1 1.5 padding during the signing operation. The padded hash will look
@@ -83,13 +87,42 @@ delta_generator \
 #   }
 #   OCTET STRING(2+32) <actual signature bytes...>
 #  }
-echo "MDEwDQYJYIZIAWUDBAIBBQAEIA==" | base64 -d > padding
+echo "MDEwDQYJYIZIAWUDBAIBBQAEIA==" | base64 -d > padding-pkcs11
+cat padding-pkcs11 update.hash > update.pkcs11-padhash
+
+# Legacy padding for openssl -raw (non smartcard keys)
+#
+# The following is a standard PKCS1-v1_5 padding for SHA256 signatures, as
+# defined in RFC3447. It is prepended to the actual signature (32 bytes) to
+# form a sequence of 256 bytes (2048 bits) that is amenable to RSA signing. The
+# padded hash will look as follows:
+#
+#    0x00 0x01 0xff ... 0xff 0x00  ASN1HEADER  SHA256HASH
+#   |--------------205-----------||----19----||----32----|
+#
+# where ASN1HEADER is the ASN.1 description of the signed data. The complete 51
+# bytes of actual data (i.e. the ASN.1 header complete with the hash) are
+# packed as follows:
+#
+#  SEQUENCE(2+49) {
+#   SEQUENCE(2+13) {
+#    OBJECT(2+9) id-sha256
+#    NULL(2+0)
+#   }
+#   OCTET STRING(2+32) <actual signature bytes...>
+#  }
+echo "AAH/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////ADAxMA0GCWCGSAFlAwQCAQUABCA=" | base64 -d > padding
 cat padding update.hash > update.padhash
+
 
 i=1
 signature_sizes=""
 for key in "${private_keys[@]}"; do
-	openssl rsautl -engine pkcs11 -pkcs -sign -inkey ${key} -keyform engine -in update.padhash -out update.sig.${i}
+	if [[ "${key}" == pkcs11* ]]; then
+		openssl rsautl -engine pkcs11 -pkcs -sign -inkey ${key} -keyform engine -in update.pkcs11-padhash -out update.sig.${i}
+	else
+		openssl rsautl -raw -sign -inkey ${key} -in update.padhash -out update.sig.${i}
+	fi
 	let "i += 1"
 done
 
