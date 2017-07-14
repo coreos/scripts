@@ -55,7 +55,9 @@ else
   #If the version is found under another relase, make a hard link to it.
   else
      echo "Version found in another release"
-     ln ${tmplocation}/${something}/$COREOS_VERSION/coreos_production_pxe.vmlinuz ${releaselocation}/$COREOS_VERSION/coreos_production_pxe.vmlinuz
+     matchedlocation=`grep $COREOS_VERSION -l ${tmplocation}/*/versions | head -1 | sed 's/versions//g'`
+     mkdir -p ${releaselocation}/$COREOS_VERSION
+     ln ${matchedlocation}/$COREOS_VERSION/coreos_production_pxe.vmlinuz ${releaselocation}/$COREOS_VERSION/coreos_production_pxe.vmlinuz
   fi
   #Add version number to $release versions list
   echo $COREOS_VERSION >> versions
@@ -63,4 +65,3 @@ else
 fi
 
 popd > /dev/null 2>&1
-
