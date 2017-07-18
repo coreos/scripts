@@ -18,8 +18,9 @@ export GCLIENT_ROOT=$(readlink -f "${SCRIPT_ROOT}/../../")
 DEFINE_string image "" "The filesystem image of /usr"
 DEFINE_string kernel "" "The kernel image"
 DEFINE_string output "" "Output file"
-DEFINE_string private_keys "" "Path to private key in .pem format."
-DEFINE_string public_keys "" "Path to public key in .pem format."
+DEFINE_string private_keys "" "Path or pkcs11 URI to private keys."
+DEFINE_string public_keys "" "Path to public keys in .pem format."
+DEFINE string keys_separator ":" "Separator for the above keys"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -29,9 +30,11 @@ set -e
 
 cleanup() {
 	rm -f padding
+	rm -f padding-pkcs11
 	rm -f update
 	rm -f update.hash
 	rm -f update.padhash
+	rm -f update.pkcs11-padhash
 	rm -f update.signed
 	rm -f update.sig.*
 }
@@ -43,10 +46,11 @@ delta_generator \
     -new_kernel "$FLAGS_kernel" \
     -out_file update
 
-IFS=: read -a private_keys <<< "$FLAGS_private_keys"
-IFS=: read -a public_keys <<< "$FLAGS_public_keys"
+# The separator is configurable for backwards compatibility with old `sign.sh` scripts.
+IFS="${keys_separator}" read -a private_keys <<< "$FLAGS_private_keys"
+IFS="${keys_separator}" read -a public_keys <<< "$FLAGS_public_keys"
 
-if [ ${#private_keys} -ne ${#public_keys} ]; then
+if [ ${#private_keys[@]} -ne ${#public_keys[@]} ]; then
 	echo "mismatch in count of private keys and public keys"
 	exit 1
 fi
@@ -64,6 +68,32 @@ delta_generator \
 	--in_file update \
 	--out_hash_file update.hash
 
+# padding for openssl rsautl -pkcs (smartcard keys)
+#
+# The following is an ASN.1 header. It is prepended to the actual signature
+# (32 bytes) to form a sequence of 51 bytes. OpenSSL will add additional
+# PKCS#1 1.5 padding during the signing operation. The padded hash will look
+# as follows:
+#
+#    ASN1HEADER  SHA256HASH
+#   |----19----||----32----|
+#
+# where ASN1HEADER is the ASN.1 description of the signed data. The complete 51
+# bytes of actual data (i.e. the ASN.1 header complete with the hash) are
+# packed as follows:
+#
+#  SEQUENCE(2+49) {
+#   SEQUENCE(2+13) {
+#    OBJECT(2+9) id-sha256
+#    NULL(2+0)
+#   }
+#   OCTET STRING(2+32) <actual signature bytes...>
+#  }
+echo "MDEwDQYJYIZIAWUDBAIBBQAEIA==" | base64 -d > padding-pkcs11
+cat padding-pkcs11 update.hash > update.pkcs11-padhash
+
+# Legacy padding for openssl -raw (non smartcard keys)
+#
 # The following is a standard PKCS1-v1_5 padding for SHA256 signatures, as
 # defined in RFC3447. It is prepended to the actual signature (32 bytes) to
 # form a sequence of 256 bytes (2048 bits) that is amenable to RSA signing. The
@@ -86,10 +116,15 @@ delta_generator \
 echo "AAH/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////ADAxMA0GCWCGSAFlAwQCAQUABCA=" | base64 -d > padding
 cat padding update.hash > update.padhash
 
+
 i=1
 signature_sizes=""
 for key in "${private_keys[@]}"; do
-	openssl rsautl -raw -sign -inkey ${key} -in update.padhash -out update.sig.${i}
+	if [[ "${key}" == pkcs11* ]]; then
+		openssl rsautl -engine pkcs11 -pkcs -sign -inkey ${key} -keyform engine -in update.pkcs11-padhash -out update.sig.${i}
+	else
+		openssl rsautl -raw -sign -inkey ${key} -in update.padhash -out update.sig.${i}
+	fi
 	let "i += 1"
 done
 
