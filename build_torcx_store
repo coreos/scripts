@@ -162,7 +162,7 @@ function torcx_package() {
 # for each package will point at the last version specified.  This can handle
 # swapping default package versions for different OS releases by reordering.
 DEFAULT_IMAGES=(
-        =app-torcx/docker-17.05
+        =app-torcx/docker-1.12
 )
 
 mkdir -p "${BUILD_DIR}"
