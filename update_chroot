@@ -210,6 +210,7 @@ EMERGE_CMD="emerge"
 # can cause serious issues later.
 info "Updating basic system packages"
 sudo -E ${EMERGE_CMD} --quiet "${EMERGE_FLAGS[@]}" \
+    app-portage/gentoolkit \
     dev-util/ccache \
     sys-apps/portage \
     sys-devel/crossdev \
