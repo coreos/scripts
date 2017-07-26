@@ -721,11 +721,13 @@ _write_qemu_uefi_conf() {
             info "Updating edk2 in /build/${BOARD}"
             emerge-${BOARD} --nodeps --select -qugKN sys-firmware/edk2
             # Create 64MiB flash device image files.
-            cat "/build/${BOARD}/usr/share/edk2/QEMU_EFI.fd" /dev/zero | \
-                dd iflag=fullblock bs=1M count=64 of="$(_dst_dir)/${flash_ro}" \
-                    status=none
             dd if=/dev/zero bs=1M count=64 of="$(_dst_dir)/${flash_rw}" \
                 status=none
+            cp "/build/${BOARD}/usr/share/edk2/QEMU_EFI.fd" \
+                "$(_dst_dir)/${flash_ro}.work"
+            truncate --reference="$(_dst_dir)/${flash_rw}" \
+                "$(_dst_dir)/${flash_ro}.work"
+            mv "$(_dst_dir)/${flash_ro}.work" "$(_dst_dir)/${flash_ro}"
             ;;
     esac
 
