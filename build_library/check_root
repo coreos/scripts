@@ -80,7 +80,7 @@ IGNORE_MISSING = {
 USR_LINKS = ("/bin/", "/sbin/", "/lib/", "/lib32/", "/lib64/")
 
 IGNORE_SHEBANG = (
-    b"*/python2.7/cgi.py",
+    b"*/python[0-9].[0-9]/cgi.py",
     b"*/usr/lib64/modules/*/source/scripts/*",
     b"*/usr/share/nova-agent/*/etc/gentoo/nova-agent",
     b"*/tmp/*",
