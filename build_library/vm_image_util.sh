@@ -713,16 +713,17 @@ _write_qemu_uefi_conf() {
 
     case $BOARD in
         amd64-usr)
-            cp "/usr/share/edk2-ovmf/OVMF_CODE.fd" "$(_dst_dir)/${flash_ro}"
-            cp "/usr/share/edk2-ovmf/OVMF_VARS.fd" "$(_dst_dir)/${flash_rw}"
+            cp "/usr/share/edk2/OVMF_CODE.fd" "$(_dst_dir)/${flash_ro}"
+            cp "/usr/share/edk2/OVMF_VARS.fd" "$(_dst_dir)/${flash_rw}"
             ;;
         arm64-usr)
-            info "Updating edk2-armvirt in /build/${BOARD}"
-            emerge-${BOARD} --nodeps --select -qugKN sys-firmware/edk2-armvirt
-            # this bit of magic comes from http://tech.donghao.org/2014/12/18/running-fedora-21-on-qemu-system-aarch64/
-            cat "/build/${BOARD}/usr/share/edk2-armvirt/QEMU_EFI.fd" /dev/zero | \
+            # Get edk2 files into local build workspace.
+            info "Updating edk2 in /build/${BOARD}"
+            emerge-${BOARD} --nodeps --select -qugKN sys-firmware/edk2
+            # Create 64MiB flash device image files.
+            cat "/build/${BOARD}/usr/share/edk2/QEMU_EFI.fd" /dev/zero | \
                 dd iflag=fullblock bs=1M count=64 of="$(_dst_dir)/${flash_ro}" \
-                status=none
+                    status=none
             dd if=/dev/zero bs=1M count=64 of="$(_dst_dir)/${flash_rw}" \
                 status=none
             ;;
