@@ -10,12 +10,12 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 # Default RSYNC options emerge --sync uses
 RSYNC_OPTS="--recursive --links --safe-links --perms --times --compress --force --whole-file --delete --timeout=180"
 
-DEFINE_string portage "rsync" \
-    "Path to a local portage tree or 'rsync' or 'cvs' to fetch from remote."
+DEFINE_string portage "git" \
+    "Path to a local portage tree or 'rsync' or 'git' to fetch from remote."
 DEFINE_string portage_stable "${SRC_ROOT}/third_party/portage-stable" \
     "Path to the portage-stable git checkout."
-DEFINE_string cvsroot ":pserver:anonymous@anoncvs.gentoo.org:/var/cvsroot" \
-    "CVS location for gentoo-x86 to use with --portage=cvs"
+DEFINE_string git "https://github.com/gentoo/gentoo.git" \
+    "git location for the gentoo portage repo (for use with --portage=git)"
 DEFINE_string rsync "rsync://rsync.gentoo.org/gentoo-portage" \
     "Rsync location for gentoo-portage to use with --portage=rsync"
 DEFINE_boolean commit ${FLAGS_FALSE} \
@@ -43,7 +43,6 @@ if [[ "$*" == *eclass* ]]; then
     FLAGS_regencache=${FLAGS_FALSE}
 fi
 
-export CVSROOT="${FLAGS_cvsroot}"
 cd "$FLAGS_portage_stable"
 
 for pkg in "$@"; do
@@ -53,9 +52,14 @@ for pkg in "$@"; do
         die "Invalid name $pkg, must be category/package or special dir."
     fi
 
-    if [[ "$FLAGS_portage" == cvs ]]; then
+    if [[ "$FLAGS_portage" == git ]]; then
         rm -rf "$pkg"
-        cvs export -D now -d "$pkg" "gentoo-x86/$pkg"
+        if [[ "$(git remote get-url update_ebuilds)" != "${FLAGS_git}" ]]; then
+            git remote rm update_ebuilds || true
+            git remote add update_ebuilds "${FLAGS_git}"
+        fi
+        git fetch update_ebuilds
+        git checkout refs/remotes/update_ebuilds/master -- "$pkg"
     else
         if [[ "$FLAGS_portage" == rsync ]]; then
             FLAGS_portage="${FLAGS_rsync}"
