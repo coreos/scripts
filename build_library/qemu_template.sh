@@ -39,6 +39,11 @@ Any arguments after -a and -p will be passed through to qemu, -- may be
 used as an explicit separator. See the qemu(1) man page for more details.
 "
 
+die(){
+	echo "${1}"
+	exit 1
+}
+
 check_conflict() {
     if [ -n "${CLOUD_CONFIG_FILE}${CONFIG_IMAGE}${SSH_KEYS}" ]; then
         echo "The -u -c and -a options cannot be combined!" >&2
