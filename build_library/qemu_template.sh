@@ -39,6 +39,11 @@ Any arguments after -a and -p will be passed through to qemu, -- may be
 used as an explicit separator. See the qemu(1) man page for more details.
 "
 
+die(){
+	echo "${1}"
+	exit 1
+}
+
 check_conflict() {
     if [ -n "${CLOUD_CONFIG_FILE}${CONFIG_IMAGE}${SSH_KEYS}" ]; then
         echo "The -u -c and -a options cannot be combined!" >&2
@@ -142,14 +147,18 @@ if [ "${SAFE_ARGS}" -eq 1 ]; then
     # Disable KVM, for testing things like UEFI which don't like it
     set -- -machine accel=tcg "$@"
 else
-    case "${VM_BOARD}" in
-        amd64-usr)
+    case "${VM_BOARD}+$(uname -m)" in
+        amd64-usr+x86_64)
             # Emulate the host CPU closely in both features and cores.
             set -- -machine accel=kvm -cpu host -smp "${VM_NCPUS}" "$@" ;;
-        arm64-usr)
-            #FIXME(andrejro): tune the smp parameter
-            set -- -machine virt -cpu cortex-a57 -machine type=virt -smp 1 "$@" ;;
-        *) die "Unsupported arch" ;;
+        amd64-usr+*)
+            set -- -machine pc-q35-2.8 -cpu kvm64 -smp 1 -nographic "$@" ;;
+        arm64-usr+aarch64)
+            set -- -machine virt,accel=kvm,gic-version=3 -cpu host -smp "${VM_NCPUS}" -nographic "$@" ;;
+        arm64-usr+*)
+            set -- -machine virt -cpu cortex-a57 -smp 1 -nographic "$@" ;;
+        *)
+            die "Unsupported arch" ;;
     esac
 fi
 
@@ -213,7 +222,7 @@ case "${VM_BOARD}" in
             "$@"
         ;;
     arm64-usr)
-        qemu-system-aarch64 -nographic \
+        qemu-system-aarch64 \
             -name "$VM_NAME" \
             -m ${VM_MEMORY} \
             -netdev user,id=eth0,hostfwd=tcp::"${SSH_PORT}"-:22,hostname="${VM_NAME}" \
