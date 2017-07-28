@@ -11,7 +11,13 @@ VM_MEMORY=
 VM_CDROM=
 VM_PFLASH_RO=
 VM_PFLASH_RW=
-VM_NCPUS="`grep -c ^processor /proc/cpuinfo`"
+VM_NCPUS="`grep -c ^processor /proc/cpuinfo 2>/dev/null`"
+BSD=
+if [ -z "${VM_NCPUS}" ]; then
+  # BSD support
+  VM_NCPUS="`sysctl -n hw.ncpu`"
+  BSD=true
+fi
 SSH_PORT=2222
 SSH_KEYS=""
 CLOUD_CONFIG_FILE=""
@@ -44,6 +50,11 @@ check_conflict() {
         echo "The -u -c and -a options cannot be combined!" >&2
         exit 1
     fi
+}
+
+die() {
+  echo "$@"
+  exit 1
 }
 
 while [ $# -ge 1 ]; do
@@ -104,7 +115,7 @@ write_ssh_keys() {
 
 
 if [ -z "${CONFIG_IMAGE}" ]; then
-    CONFIG_DRIVE=$(mktemp -t -d coreos-configdrive.XXXXXXXXXX)
+    CONFIG_DRIVE=$(mktemp -d -t coreos-configdrive.XXXXXXXXXX)
     if [ $? -ne 0 ] || [ ! -d "$CONFIG_DRIVE" ]; then
         echo "$0: mktemp -d failed!" >&2
         exit 1
@@ -144,8 +155,13 @@ if [ "${SAFE_ARGS}" -eq 1 ]; then
 else
     case "${VM_BOARD}" in
         amd64-usr)
-            # Emulate the host CPU closely in both features and cores.
-            set -- -machine accel=kvm -cpu host -smp "${VM_NCPUS}" "$@" ;;
+            if [ -z "${BSD}" ]; then
+                # Emulate the host CPU closely in both features and cores.
+                set -- -machine accel=kvm -cpu host -smp "${VM_NCPUS}" "$@"
+            else
+                set -- -smp "${VM_NCPUS}" "$@"
+            fi
+            ;;
         arm64-usr)
             #FIXME(andrejro): tune the smp parameter
             set -- -machine virt -cpu cortex-a57 -machine type=virt -smp 1 "$@" ;;
@@ -154,10 +170,16 @@ else
 fi
 
 # ${CONFIG_DRIVE} or ${CONFIG_IMAGE} will be mounted in CoreOS as /media/configdrive
-if [ -n "${CONFIG_DRIVE}" ]; then
+if [ -n "${CONFIG_DRIVE}" ] && [ -z "${BSD}" ]; then
     set -- \
         -fsdev local,id=conf,security_model=none,readonly,path="${CONFIG_DRIVE}" \
         -device virtio-9p-pci,fsdev=conf,mount_tag=config-2 "$@"
+elif [ -n "${CONFIG_DRIVE}" ] && [ -n "${BSD}" ]; then
+    if ! which mkisofs >/dev/null; then
+        die "Plesae install 'cdrtools'"
+    fi
+    mkisofs -input-charset utf-8 -R -V config-2 -o "${CONFIG_DRIVE}/configdrive.iso" "${CONFIG_DRIVE}"
+    set -- -drive if=virtio,file="${CONFIG_DRIVE}/configdrive.iso" "$@"
 fi
 
 if [ -n "${CONFIG_IMAGE}" ]; then
