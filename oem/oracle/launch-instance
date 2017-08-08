@@ -1,0 +1,105 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+. common.sh
+
+# Initialize vars
+compartment=$(get_tenancy_id)
+availability_domain=$(get_availability_domain "${compartment}")
+image_id=$(get_an_image_id "${compartment}")
+subnet_id=$(get_subnet_id "${compartment}" "${availability_domain}")
+name=
+shape="BM.Standard1.36"
+ipxe=0
+ignition=
+baseurl="http://alpha.release.core-os.net/amd64-usr/current"
+bucket_base="users.developer.core-os.net/$USER/bmcs"
+
+# Parse args
+usage="Usage: $0 [args] -n name
+Options:
+    -c COMPARTMENT   Compartment ID (default: ${compartment})
+    -a AVAIL-DOMAIN  Availability domain ID (default: ${availability_domain})
+    -n NAME          Instance name
+    -s SHAPE         Instance shape (default: ${shape})
+    -S SUBNET-ID     Subnet ID to use (default: ${subnet_id})
+    -i IGNITION      Path to Ignition config
+    -p               Boot with iPXE
+    -I IMAGE-ID      Image ID to use; only relevant for non-iPXE (default: ${image_id})
+    -b BASEURL       URL to the image mirror; only relevant for iPXE (default: ${baseurl})
+    -B BUCKET-BASE   GS bucket and relative path for iPXE script (default: ${bucket_base})
+    -h               This ;-)
+"
+while getopts "c:a:n:s:S:i:pI:b:B:h" OPTION
+do
+    case "${OPTION}" in
+        c) compartment="${OPTARG}" ;;
+        a) availability_domain="${OPTARG}" ;;
+        n) name="${OPTARG}" ;;
+        s) shape="${OPTARG}" ;;
+        S) subnet_id="${OPTARG}" ;;
+        i) ignition="${OPTARG}" ;;
+        p) ipxe=1 ;;
+        I) image_id="${OPTARG}" ;;
+        b) baseurl="${OPTARG}" ;;
+        B) bucket_base="${OPTARG}" ;;
+        h) echo "${usage}"; exit 2 ;;
+        *) exit 2 ;;
+    esac
+done
+
+if [[ -z "${name}" ]]; then
+    echo "Instance name is required." >&2
+    exit 2
+fi
+
+launch_args=()
+
+if [[ "${ipxe}" = 1 ]]; then
+    # Make scratch dir
+    tmpdir=$(mktemp -d bmcs-XXXXXX)
+    trap "rm -rf '${tmpdir}'" EXIT
+
+    if [[ -n "${ignition}" ]]; then
+        # Generate OEM image
+        mkdir -p "${tmpdir}/usr/share/oem"
+        cp "${ignition}" "${tmpdir}/usr/share/oem/ign.ign"
+        pushd "${tmpdir}" >/dev/null
+        find usr | cpio -o -H newc --quiet | gzip -c > oem.cpio.gz
+        popd >/dev/null
+
+        # Upload it. Don't delete it afterward, since the instance could
+        # reboot at any point and need the OEM image again.
+        oempath="${bucket_base}/$(mktemp -u XXXXXXX)"
+        gsutil -q cp "${tmpdir}/oem.cpio.gz" "gs://${oempath}"
+
+        ignition_initrd_args="initrd=ignition coreos.config.url=oem:///ign.ign"
+        ignition_initrd_cmd="initrd --name ignition http://${oempath}"
+    fi
+
+    # Create iPXE script
+    cat >"${tmpdir}/ipxe" <<EOF
+#!ipxe
+
+kernel ${baseurl}/coreos_production_pxe.vmlinuz initrd=coreos_production_pxe_image.cpio.gz coreos.first_boot=1 ${ignition_initrd_args} console=ttyS0,9600
+initrd ${baseurl}/coreos_production_pxe_image.cpio.gz
+${ignition_initrd_cmd}
+boot
+EOF
+    launch_args+=("--ipxe-script-file" "${tmpdir}/ipxe")
+fi
+
+# Launch image
+if [[ -n "${ignition}" ]]; then
+    launch_args+=("--user-data-file" "${ignition}")
+fi
+bmcs compute instance launch \
+    --availability-domain "${availability_domain}" \
+    --compartment-id "${compartment}" \
+    --image-id "${image_id}" \
+    --shape "${shape}" \
+    --display-name "${name}" \
+    --hostname-label "${name}" \
+    --subnet-id "${subnet_id}" \
+    ${launch_args[@]}
