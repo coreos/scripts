@@ -15,6 +15,7 @@ ipxe=0
 ignition=
 baseurl="http://alpha.release.core-os.net/amd64-usr/current"
 bucket_base="users.developer.core-os.net/$USER/bmcs"
+kargs=
 
 # Parse args
 usage="Usage: $0 [args] -n name
@@ -29,9 +30,10 @@ Options:
     -I IMAGE-ID      Image ID to use; only relevant for non-iPXE (default: ${image_id})
     -b BASEURL       URL to the image mirror; only relevant for iPXE (default: ${baseurl})
     -B BUCKET-BASE   GS bucket and relative path for iPXE script (default: ${bucket_base})
+    -k ARGS          Additional kernel command line arguments for iPXE script
     -h               This ;-)
 "
-while getopts "c:a:n:s:S:i:pI:b:B:h" OPTION
+while getopts "c:a:n:s:S:i:pI:b:B:k:h" OPTION
 do
     case "${OPTION}" in
         c) compartment="${OPTARG}" ;;
@@ -44,6 +46,7 @@ do
         I) image_id="${OPTARG}" ;;
         b) baseurl="${OPTARG}" ;;
         B) bucket_base="${OPTARG}" ;;
+        k) kargs="${OPTARG}" ;;
         h) echo "${usage}"; exit 2 ;;
         *) exit 2 ;;
     esac
@@ -82,7 +85,7 @@ if [[ "${ipxe}" = 1 ]]; then
     cat >"${tmpdir}/ipxe" <<EOF
 #!ipxe
 
-kernel ${baseurl}/coreos_production_pxe.vmlinuz initrd=coreos_production_pxe_image.cpio.gz coreos.first_boot=1 ${ignition_initrd_args} console=ttyS0,9600
+kernel ${baseurl}/coreos_production_pxe.vmlinuz initrd=coreos_production_pxe_image.cpio.gz coreos.first_boot=1 ${ignition_initrd_args} console=ttyS0,9600 ${kargs}
 initrd ${baseurl}/coreos_production_pxe_image.cpio.gz
 ${ignition_initrd_cmd}
 boot
