@@ -58,11 +58,12 @@ trap 'bmcs os object delete \
     --force' EXIT
 
 # Initiate import
-image_id=$(bmcs compute image create \
+image_id=$(bmcs compute image import from-object \
     --compartment-id "${compartment}" \
     --display-name "${display_name}" \
-    --image-source-details "{\"objectName\": \"${object}\", \"bucketName\": \"${bucket}\", \"namespaceName\": \"${namespace}\", \"sourceType\": \"objectStorageTuple\"}" | \
-    jq -r .data.id)
+    --namespace "${namespace}" \
+    --bucket-name "${bucket}" \
+    --name "${object}" | jq -r .data.id)
 
 # Wait for import
 echo "Waiting for import..."
