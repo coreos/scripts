@@ -1,0 +1,35 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+# Parse args
+usage="Usage: $0 [args] -i instance-id
+Options:
+    -i INSTANCE-ID   Instance ID
+    -h               This ;-)
+"
+while getopts "i:h" OPTION
+do
+    case "${OPTION}" in
+        i) instance_id="${OPTARG}" ;;
+        h) echo "${usage}"; exit 2 ;;
+        *) exit 2 ;;
+    esac
+done
+
+if [[ -z "${instance_id}" ]]; then
+    echo "Instance ID is required." >&2
+    exit 2
+fi
+
+id=$(bmcs compute console-history capture --instance-id "${instance_id}" | jq -r .data.id)
+trap 'bmcs compute console-history delete --instance-console-history-id "${id}" --force' EXIT
+while true; do
+    state=$(bmcs compute console-history get --instance-console-history-id "${id}" | jq -r '.data["lifecycle-state"]')
+    if [[ "${state}" = SUCCEEDED ]]; then
+        break
+    fi
+    sleep 1
+done
+# Default length is 10 KB; maximum is 1 MB. Request at least that much.
+bmcs compute console-history get-content --instance-console-history-id "${id}" --file - --length 2000000

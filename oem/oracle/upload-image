@@ -1,0 +1,75 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+. common.sh
+
+compartment=$(get_tenancy_id)
+display_name=
+path=
+namespace=$(get_namespace_id)
+bucket="image-upload"
+
+# Parse args
+usage="Usage: $0 [args] -n name -f file
+Options:
+    -c COMPARTMENT   Compartment ID (default: ${compartment})
+    -n DISPLAY-NAME  Image display name
+    -f PATH          Image file
+    -N NAMESPACE     Object storage namespace (default: ${namespace})
+    -B BUCKET        Bucket name (default: ${bucket})
+    -h               This ;-)
+"
+while getopts "c:n:f:N:B:h" OPTION
+do
+    case "${OPTION}" in
+        c) compartment="${OPTARG}" ;;
+        n) display_name="${OPTARG}" ;;
+        f) path="${OPTARG}" ;;
+        N) namespace="${OPTARG}" ;;
+        B) bucket="${OPTARG}" ;;
+        h) echo "${usage}"; exit 2 ;;
+        *) exit 2 ;;
+    esac
+done
+
+if [[ -z "${display_name}" ]]; then
+    echo "Display name is required." >&2
+    exit 2
+fi
+
+if [[ -z "${path}" ]]; then
+    echo "Image file is required." >&2
+    exit 2
+fi
+
+object=$(mktemp -u XXXXXXXXXXXXXXXX)
+
+# Upload object
+bmcs os object put \
+    --namespace "${namespace}" \
+    --bucket-name "${bucket}" \
+    --file "${path}" \
+    --name "${object}"
+trap 'bmcs os object delete \
+    --namespace "${namespace}" \
+    --bucket-name "${bucket}" \
+    --name "${object}" \
+    --force' EXIT
+
+# Initiate import
+image_id=$(bmcs compute image import from-object \
+    --compartment-id "${compartment}" \
+    --display-name "${display_name}" \
+    --namespace "${namespace}" \
+    --bucket-name "${bucket}" \
+    --name "${object}" | jq -r .data.id)
+
+# Wait for import
+echo "Waiting for import..."
+state=IMPORTING
+while [[ "$state" = IMPORTING ]]; do
+    sleep 10
+    state=$(bmcs compute image get --image-id "${image_id}" | jq -r '.data["lifecycle-state"]')
+done
+echo "${state} ${image_id}"
