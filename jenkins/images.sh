@@ -1,7 +1,7 @@
 #!/bin/bash -ex
 
 # Clear out old images.
-sudo rm -rf chroot/build src/build torcx
+sudo rm -rf chroot/build src/build torcx torcx_default_vendor_images.txt*
 
 enter() {
         local verify_key=
@@ -50,6 +50,7 @@ do
 done
 
 # Work around the lack of symlink support in GCS.
+: > torcx_default_vendor_images.txt
 shopt -s nullglob
 for default in torcx/*:com.coreos.cl.torcx.tgz
 do
@@ -57,6 +58,7 @@ do
         do
                 [ "x${default}" != "x${image}" ] &&
                 cmp --silent -- "${default}" "${image}" &&
+                echo "${image##*/}" >> torcx_default_vendor_images.txt &&
                 ln -fns "${image##*/}" "${default}"
         done
 done
@@ -71,3 +73,12 @@ script build_image \
     --torcx_store=/mnt/host/source/torcx \
     --upload_root="${UPLOAD_ROOT}" \
     --upload prod container
+
+gpg --batch \
+    --local-user "${SIGNING_USER}" \
+    --output torcx_default_vendor_images.txt.sig \
+    --detach-sign torcx_default_vendor_images.txt
+enter gsutil cp \
+    /mnt/host/source/torcx_default_vendor_images.txt \
+    /mnt/host/source/torcx_default_vendor_images.txt.sig \
+    "${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION}/"
