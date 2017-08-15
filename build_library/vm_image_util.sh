@@ -150,11 +150,10 @@ IMG_vagrant_CONF_FORMAT=vagrant
 IMG_vagrant_OEM_PACKAGE=oem-vagrant
 
 ## vagrant_virtualbox
-IMG_vagrant_virtualbox_FS_HOOK=box
 IMG_vagrant_virtualbox_BUNDLE_FORMAT=box
 IMG_vagrant_virtualbox_DISK_FORMAT=vmdk_ide
 IMG_vagrant_virtualbox_DISK_LAYOUT=vagrant
-IMG_vagrant_virtualbox_CONF_FORMAT=vagrant
+IMG_vagrant_virtualbox_CONF_FORMAT=vagrant_virtualbox
 IMG_vagrant_virtualbox_OEM_PACKAGE=oem-vagrant-virtualbox
 
 ## vagrant_vmware
@@ -516,6 +515,7 @@ run_fs_hook() {
     fi
 }
 
+# FIXME(bgilbert): drop FS hooks once this is unused
 _run_box_fs_hook() {
     # Copy basic Vagrant configs from OEM
     mkdir -p "${VM_TMP_DIR}/box"
@@ -955,10 +955,30 @@ EOF
     VM_GENERATED_FILES+=( "$ovf" "${VM_README}" )
 }
 
+_setup_box_files() {
+    mkdir -p "${VM_TMP_DIR}/box"
+    cp -r "${BUILD_LIBRARY_DIR}/vagrant/." "${VM_TMP_DIR}/box"
+}
+
 _write_vagrant_conf() {
     local vm_mem="${1:-$(_get_vm_opt MEM)}"
     local ovf="${VM_TMP_DIR}/box/box.ovf"
     local mac="${VM_TMP_DIR}/box/base_mac.rb"
+
+    "${BUILD_LIBRARY_DIR}/virtualbox_ovf.sh" \
+            --vm_name "$VM_NAME" \
+            --disk_vmdk "${VM_DST_IMG}" \
+            --memory_size "$vm_mem" \
+            --output_ovf "$ovf" \
+            --output_vagrant "$mac"
+}
+
+_write_vagrant_virtualbox_conf() {
+    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local ovf="${VM_TMP_DIR}/box/box.ovf"
+    local mac="${VM_TMP_DIR}/box/base_mac.rb"
+
+    _setup_box_files
 
     "${BUILD_LIBRARY_DIR}/virtualbox_ovf.sh" \
             --vm_name "$VM_NAME" \
