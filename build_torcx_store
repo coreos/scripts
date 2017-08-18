@@ -81,6 +81,7 @@ function torcx_build() (
             --oneshot \
             --root="${tmproot}" \
             --root-deps=rdeps \
+            --quiet \
             "${pkg}"
 )
 
