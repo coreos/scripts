@@ -53,6 +53,15 @@ check_conflict() {
 
 while [ $# -ge 1 ]; do
     case "$1" in
+        -vm-name)
+            VM_NAME="$2"
+            shift 2 ;; 
+        -ncpus)
+            VM_NCPUS="$2"
+            shift 2 ;; 
+        -memory)
+            VM_MEMORY="$2"
+            shift 2 ;;
         -i|-ignition-config)
             IGNITION_CONFIG_FILE="$2"
             shift 2 ;;
