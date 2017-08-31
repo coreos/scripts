@@ -10,12 +10,17 @@ availability_domain=$(get_availability_domain "${compartment}")
 image_id=$(get_an_image_id "${compartment}")
 subnet_id=$(get_subnet_id "${compartment}" "${availability_domain}")
 name=
-shape="BM.Standard1.36"
+shape="VM.Standard1.1"
 ipxe=0
 ignition=
+keyfile="$HOME/.ssh/id_rsa.pub"
 baseurl="http://alpha.release.core-os.net/amd64-usr/current"
 bucket_base="users.developer.core-os.net/$USER/bmcs"
 kargs=
+
+if [[ ! -f "$keyfile" ]]; then
+    keyfile=""
+fi
 
 # Parse args
 usage="Usage: $0 [args] -n name
@@ -26,6 +31,7 @@ Options:
     -s SHAPE         Instance shape (default: ${shape})
     -S SUBNET-ID     Subnet ID to use (default: ${subnet_id})
     -i IGNITION      Path to Ignition config
+    -A SSH-KEYS      Path to SSH keys (default: ${keyfile})
     -p               Boot with iPXE
     -I IMAGE-ID      Image ID to use; only relevant for non-iPXE (default: ${image_id})
     -b BASEURL       URL to the image mirror; only relevant for iPXE (default: ${baseurl})
@@ -33,7 +39,7 @@ Options:
     -k ARGS          Additional kernel command line arguments for iPXE script
     -h               This ;-)
 "
-while getopts "c:a:n:s:S:i:pI:b:B:k:h" OPTION
+while getopts "c:a:n:s:S:i:A:pI:b:B:k:h" OPTION
 do
     case "${OPTION}" in
         c) compartment="${OPTARG}" ;;
@@ -42,6 +48,7 @@ do
         s) shape="${OPTARG}" ;;
         S) subnet_id="${OPTARG}" ;;
         i) ignition="${OPTARG}" ;;
+        A) keyfile="${OPTARG}" ;;
         p) ipxe=1 ;;
         I) image_id="${OPTARG}" ;;
         b) baseurl="${OPTARG}" ;;
@@ -96,6 +103,9 @@ fi
 # Launch image
 if [[ -n "${ignition}" ]]; then
     launch_args+=("--user-data-file" "${ignition}")
+fi
+if [[ -n "${keyfile}" ]]; then
+    launch_args+=("--ssh-authorized-keys-file" "${keyfile}")
 fi
 bmcs compute instance launch \
     --availability-domain "${availability_domain}" \
