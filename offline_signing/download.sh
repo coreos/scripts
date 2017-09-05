@@ -24,6 +24,6 @@ gsutil cp \
     "${GS}/coreos_production_update.zip" \
     "${GS}/coreos_production_update.zip.sig" ./
 
-gpg --verify "coreos_production_image.vmlinuz.sig"
-gpg --verify "coreos_production_update.bin.bz2.sig"
-gpg --verify "coreos_production_update.zip.sig"
+gpg2 --verify "coreos_production_image.vmlinuz.sig"
+gpg2 --verify "coreos_production_update.bin.bz2.sig"
+gpg2 --verify "coreos_production_update.zip.sig"
