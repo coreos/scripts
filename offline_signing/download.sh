@@ -2,28 +2,64 @@
 
 set -eux
 
-BOARD="${1?Must provide a board (e.g. amd64-usr)}"
-VERSION="${2?Must provide a version (e.g. 1234.0.0)}"
-CHANNEL="${3?Must provide a channel (e.g. alpha)}"
+download() {
+    local channel="$1"
+    local version="$2"
+    local board="$3"
 
-if ! [[ "${CHANNEL}" =~ alpha|beta|stable ]]; then
-    echo "Invalid channel ${CHANNEL}"
-    echo "Usage: $0 <BOARD> <VERSION> <CHANNEL> [OUTPUT DIR]"
+    local gs="gs://builds.release.core-os.net/${channel}/boards/${board}/${version}"
+    local dir="${BASEDIR}/${board}/${version}"
+    mkdir -p "${dir}"
+    pushd "${dir}" >/dev/null
+
+    gsutil cp \
+        "${gs}/coreos_production_image.vmlinuz" \
+        "${gs}/coreos_production_image.vmlinuz.sig" \
+        "${gs}/coreos_production_update.bin.bz2" \
+        "${gs}/coreos_production_update.bin.bz2.sig" \
+        "${gs}/coreos_production_update.zip" \
+        "${gs}/coreos_production_update.zip.sig" ./
+
+    gpg2 --verify "coreos_production_image.vmlinuz.sig"
+    gpg2 --verify "coreos_production_update.bin.bz2.sig"
+    gpg2 --verify "coreos_production_update.zip.sig"
+
+    popd >/dev/null
+}
+
+usage() {
+    echo "Usage: $0 <ARTIFACT-DIR> [{-a|-b|-s} <VERSION>]..." >&2
     exit 1
+}
+
+CMD=download
+
+BASEDIR="${1:-}"
+if [[ -z "${BASEDIR}" ]]; then
+    usage
 fi
+shift
 
-GS="gs://builds.release.core-os.net/${CHANNEL}/boards/$BOARD/$VERSION"
+# Walk argument pairs.
+while [[ $# > 0 ]]; do
+    c="$1"
+    v="${2?Must provide a version (e.g. 1234.0.0)}"
+    shift 2
 
-cd "${4:-.}"
-
-gsutil cp \
-    "${GS}/coreos_production_image.vmlinuz" \
-    "${GS}/coreos_production_image.vmlinuz.sig" \
-    "${GS}/coreos_production_update.bin.bz2" \
-    "${GS}/coreos_production_update.bin.bz2.sig" \
-    "${GS}/coreos_production_update.zip" \
-    "${GS}/coreos_production_update.zip.sig" ./
-
-gpg2 --verify "coreos_production_image.vmlinuz.sig"
-gpg2 --verify "coreos_production_update.bin.bz2.sig"
-gpg2 --verify "coreos_production_update.zip.sig"
+    case "${c}" in
+    -a)
+        $CMD "alpha" "${v}" "amd64-usr"
+        $CMD "alpha" "${v}" "arm64-usr"
+        ;;
+    -b)
+        $CMD "beta" "${v}" "amd64-usr"
+        $CMD "beta" "${v}" "arm64-usr"
+        ;;
+    -s)
+        $CMD "stable" "${v}" "amd64-usr"
+        ;;
+    *)
+        usage
+        ;;
+    esac
+done
