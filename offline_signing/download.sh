@@ -40,6 +40,11 @@ if [[ -z "${BASEDIR}" ]]; then
 fi
 shift
 
+if [[ -d "${BASEDIR}" && ! -O "${BASEDIR}" ]]; then
+    echo "Fixing ownership of ${BASEDIR}..."
+    sudo chown -R "${USER}" "${BASEDIR}"
+fi
+
 # Walk argument pairs.
 while [[ $# > 0 ]]; do
     c="$1"
