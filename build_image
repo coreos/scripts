@@ -33,7 +33,7 @@ DEFINE_string base_pkg "coreos-base/coreos" \
 DEFINE_string base_dev_pkg "coreos-base/coreos-dev" \
   "The base portage package to base the build off of (only applies to dev images)"
 DEFINE_string torcx_store "${DEFAULT_BUILD_ROOT}/torcx/${DEFAULT_BOARD}/latest" \
-  "Directory of torcx images to copy into the vendor store (or blank for none)"
+  "Directory containing a torcx manifest describing torcx packages for this image (or blank for none)"
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/images" \
   "Directory in which to place image result directories (named by version)"
 DEFINE_string disk_layout "" \
@@ -107,6 +107,7 @@ fi
 . "${BUILD_LIBRARY_DIR}/prod_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/dev_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/torcx_manifest.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/vm_image_util.sh" || exit 1
 
 PROD_IMAGE=0
