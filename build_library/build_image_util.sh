@@ -425,9 +425,9 @@ finish_image() {
   local disk_img="${BUILD_DIR}/${image_name}"
 
   # Copy in packages from the torcx store that are marked as being on disk
-  if [ -n "${FLAGS_torcx_store}" ]; then
+  if [ -n "${FLAGS_torcx_manifest}" ]; then
     sudo cp -dt "${root_fs_dir}"/usr/share/torcx/store \
-        "${FLAGS_torcx_store}"/*.torcx.tgz
+        "${FLAGS_torcx_manifest}"/*.torcx.tgz
   fi
 
   # Only enable rootfs verification on prod builds.
