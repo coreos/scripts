@@ -40,7 +40,7 @@ else
         script set_official --board="${BOARD}" --noofficial
 fi
 
-# Retrieve this version's torcx vendor store.
+# Retrieve this version's torcx vendor store and all referenced packages.
 enter gsutil cp -r \
     "${DOWNLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION}/torcx" \
     /mnt/host/source/

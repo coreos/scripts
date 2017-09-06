@@ -5,12 +5,14 @@
 GSUTIL_OPTS=
 UPLOAD_ROOT=
 UPLOAD_PATH=
+TORCX_UPLOAD_ROOT=
 UPLOAD_DEFAULT=${FLAGS_FALSE}
 
 # Default upload root can be overridden from the environment.
 _user="${USER}"
 [[ ${USER} == "root" ]] && _user="${SUDO_USER}"
 : ${COREOS_UPLOAD_ROOT:=gs://users.developer.core-os.net/${_user}}
+: ${COREOS_TORCX_UPLOAD_ROOT:=${COREOS_UPLOAD_ROOT}/torcx}
 unset _user
 
 IMAGE_ZIPPER="lbzip2 --compress --keep"
@@ -28,6 +30,12 @@ DEFINE_string download_root "" \
   "HTTP download prefix, board/version/etc will be appended."
 DEFINE_string download_path "" \
   "HTTP download path, overrides --download_root."
+DEFINE_string torcx_upload_root "${COREOS_TORCX_UPLOAD_ROOT}" \
+  "Tectonic torcx package and manifest Upload prefix. Must be a gs:// URL."
+DEFINE_string tectonic_torcx_download_root "" \
+  "HTTP download prefix for tectonic torcx packages and manifests."
+DEFINE_string tectonic_torcx_download_path "" \
+  "HTTP download path, overrides --tectonic_torcx_download_root."
 DEFINE_string sign "" \
   "Sign all files to be uploaded with the given GPG key."
 DEFINE_string sign_digests "" \
@@ -46,6 +54,14 @@ check_gsutil_opts() {
         fi
         # Make sure the path doesn't end with a slash
         UPLOAD_ROOT="${FLAGS_upload_root%%/}"
+    fi
+
+    if [[ -n "${FLAGS_torcx_upload_root}" ]]; then
+        if [[ "${FLAGS_torcx_upload_root}" != gs://* ]]; then
+            die_notrace "--torcx-upload_root must be a gs:// URL"
+        fi
+        # Make sure the path doesn't end with a slash
+        TORCX_UPLOAD_ROOT="${FLAGS_torcx_upload_root%%/}"
     fi
 
     if [[ -n "${FLAGS_upload_path}" ]]; then
@@ -220,6 +236,60 @@ download_image_url() {
         download_path="${download_root%%/}/${BOARD}/${COREOS_VERSION}"
     else
         download_path="${download_root%%/}/boards/${BOARD}/${COREOS_VERSION}"
+    fi
+
+    # Just in case download_root was set from UPLOAD_ROOT
+    if [[ "${download_path}" == gs://* ]]; then
+        download_path="http://${download_path#gs://}"
+    fi
+
+    echo "${download_path}/$1"
+}
+
+# Translate the configured upload URL to a download URL
+# Usage: download_image_url "path/suffix"
+download_image_url() {
+    if [[ ${FLAGS_upload} -ne ${FLAGS_TRUE} ]]; then
+        echo "$1"
+        return 0
+    fi
+
+    local download_root="${FLAGS_download_root:-${UPLOAD_ROOT}}"
+
+    local download_path
+    if [[ -n "${FLAGS_download_path}" ]]; then
+        download_path="${FLAGS_download_path%%/}"
+    elif [[ "${download_root}" = *release.core-os.net* ]]; then
+        # Official release download paths don't include the boards directory
+        download_path="${download_root%%/}/${BOARD}/${COREOS_VERSION}"
+    else
+        download_path="${download_root%%/}/boards/${BOARD}/${COREOS_VERSION}"
+    fi
+
+    # Just in case download_root was set from UPLOAD_ROOT
+    if [[ "${download_path}" == gs://* ]]; then
+        download_path="http://${download_path#gs://}"
+    fi
+
+    echo "${download_path}/$1"
+}
+
+# Translate the configured torcx upload URL to a download url
+# This is similar to the download_image_url, other than assuming the release
+# bucket is the tectonic_torcx one.
+download_tectonic_torcx_url() {
+    if [[ ${FLAGS_upload} -ne ${FLAGS_TRUE} ]]; then
+        echo "$1"
+        return 0
+    fi
+
+    local download_root="${FLAGS_tectonic_torcx_download_root:-${TORCX_UPLOAD_ROOT}}"
+
+    local download_path
+    if [[ -n "${FLAGS_tectonic_torcx_download_path}" ]]; then
+        download_path="${FLAGS_tectonic_torcx_download_path%%/}"
+    else
+        download_path="${download_root%%/}"
     fi
 
     # Just in case download_root was set from UPLOAD_ROOT
