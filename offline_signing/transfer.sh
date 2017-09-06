@@ -2,6 +2,10 @@
 
 set -eux
 
+declare -A APPID
+APPID[amd64-usr]=e96281a6-d1af-4bde-9a0a-97b76e56dc57
+APPID[arm64-usr]=103867da-e3a2-4c92-b0b3-7fbd7f7d8b71
+
 download() {
     local channel="$1"
     local version="$2"
@@ -38,14 +42,10 @@ upload() {
         exit 1
     fi
 
-    declare -A appid
-    appid[amd64-usr]=e96281a6-d1af-4bde-9a0a-97b76e56dc57
-    appid[arm64-usr]=103867da-e3a2-4c92-b0b3-7fbd7f7d8b71
-
     "$(dirname $0)/../core_roller_upload" \
         --user="${ROLLER_USERNAME}" \
         --api_key="${ROLLER_API_KEY}" \
-        --app_id="${appid[${board}]}" \
+        --app_id="${APPID[${board}]}" \
         --board="${board}" \
         --version="${version}" \
         --payload="${payload}"
@@ -58,7 +58,7 @@ upload() {
             --user="${ROLLER_USERNAME}" \
             --key="${ROLLER_API_KEY}" \
             channel update \
-            --app-id="${appid[${board}]}" \
+            --app-id="${APPID[${board}]}" \
             --channel="${canary_channel}" \
             --version="${version}"
     fi
