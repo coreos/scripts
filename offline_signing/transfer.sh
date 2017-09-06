@@ -49,6 +49,19 @@ upload() {
         --board="${board}" \
         --version="${version}" \
         --payload="${payload}"
+
+    # Update version in a canary channel if one is defined.
+    local -n canary_channel="ROLLER_CANARY_CHANNEL_${channel^^}"
+    if [[ -n "${canary_channel}" ]]; then
+        updateservicectl \
+            --server="https://public.update.core-os.net" \
+            --user="${ROLLER_USERNAME}" \
+            --key="${ROLLER_API_KEY}" \
+            channel update \
+            --app-id="${appid[${board}]}" \
+            --channel="${canary_channel}" \
+            --version="${version}"
+    fi
 }
 
 usage() {
