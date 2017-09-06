@@ -202,7 +202,7 @@ function torcx_package() {
                 pkg_locations+=("/usr/share/torcx/store/${name}:${version}.torcx.tgz")
         fi
         if [[ "${FLAGS_upload}" -eq ${FLAGS_TRUE} ]]; then
-                pkg_locations+=("$(download_tectonic_torcx_url "pkg/${BOARD}/${name}/${digest}/${name}:${version}.torcx.tgz")")
+                pkg_locations+=("$(download_tectonic_torcx_url "pkgs/${BOARD}/${name}/${digest}/${name}:${version}.torcx.tgz")")
         fi
         torcx_manifest::add_pkg "${manifest_path}" \
             "${name}" \
@@ -244,7 +244,7 @@ for pkg in $(torcx_manifest::get_pkg_names "${manifest_path}"); do
             # no need to sign; the manifest includes their shasum and is signed.
             upload_files \
                 'torcx pkg' \
-                "${TORCX_UPLOAD_ROOT}/pkg/${BOARD}/${pkg}/${digest}" \
+                "${TORCX_UPLOAD_ROOT}/pkgs/${BOARD}/${pkg}/${digest}" \
                 "" \
                 "${TORCX_CAS_ROOT}/${pkg}/${digest}"/*.torcx.tgz
       done
