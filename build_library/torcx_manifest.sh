@@ -89,9 +89,41 @@ function torcx_manifest::get_pkg_names() {
   jq -r '.value.packages[].name' < "${file}"
 }
 
+# local_store_path returns the in-container-linux store path a given package +
+# version combination should exist at. It returns the empty string if the
+# package shouldn't exist on disk.
+function torcx_manifest::local_store_path() {
+  local file="${1}"
+  local name="${2}"
+  local version="${3}"
+  jq -r ".value.packages[] | select(.name == \"${name}\") | .versions[] | select(.version == \"${version}\") | .locations[].path" < "${file}"
+}
+
+# get_digest returns the cas digest for a given package version
+function torcx_manifest::get_digest() {
+  local file="${1}"
+  local name="${2}"
+  local version="${3}"
+  jq -r ".value.packages[] | select(.name == \"${name}\") | .versions[] | select(.version == \"${version}\") | .casDigest" < "${file}"
+}
+
 # get_digests returns the list of digests for a given package. 
 function torcx_manifest::get_digests() {
   local file="${1}"
   local name="${2}"
   jq -r ".value.packages[] | select(.name == \"${name}\").versions[].casDigest" < "${file}"
+}
+
+# get_versions returns the list of versions for a given package. 
+function torcx_manifest::get_versions() {
+  local file="${1}"
+  local name="${2}"
+  jq -r ".value.packages[] | select(.name == \"${name}\").versions[].version" < "${file}"
+}
+
+# default_version returns the default version for a given package, or an empty string if there isn't one.
+function torcx_manifest::default_version() {
+  local file="${1}"
+  local name="${2}"
+  jq -r ".value.packages[] | select(.name == \"${name}\").defaultVersion" < "${file}"
 }
