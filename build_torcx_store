@@ -95,7 +95,7 @@ function torcx_package() {
         local version=${pkg:${#name}+1}
         local manifest_path="${2}"
         local type="${3}"
-        local deppkg digest file rpath sha512sum source_pkg tmproot tmppkgroot update_default
+        local deppkg digest file rpath sha512sum source_pkg rdepends tmproot tmppkgroot update_default
         local pkg_cas_file pkg_cas_root
         local pkg_locations=()
         local name=${name##*/}
@@ -120,11 +120,13 @@ function torcx_package() {
         # Install the meta-package and its direct dependencies.
         for deppkg in "=${pkg}" $(torcx_dependencies "${pkg}")
         do
-                # The first file in an app-torcx package is, by convention,
-                # considered the source package.
-                [ -z "${source_pkg}" ] && source_pkg="${deppkg#=}"
                 torcx_build "${tmproot}" "${deppkg}"
         done
+
+	# by convention, the first dependency in a torcx package is the primary
+	# source package
+	rdepends=($(torcx_dependencies "${pkg}"))
+	source_pkg="${rdepends[0]#=}"
 
         # Pluck out shared libraries and SONAME links.
         sudo mv "${tmproot}"/{lib,tmplib}
@@ -199,7 +201,9 @@ function torcx_package() {
                 update_default=true
                 pkg_locations+=("/usr/share/torcx/store/${name}:${version}.torcx.tgz")
         fi
-        # TODO: add upload bucket path to pkg_locations
+	if [[ "${FLAGS_upload}" -eq ${FLAGS_TRUE} ]]; then
+		pkg_locations+=("$(download_tectonic_torcx_url "pkg/${BOARD}/${name}/${digest}/${name}:${version}.torcx.tgz")")
+	fi
         torcx_manifest::add_pkg "${manifest_path}" \
             "${name}" \
             "${version}" \
@@ -236,20 +240,19 @@ set_build_symlinks latest "${FLAGS_group}-latest"
 
 # Upload the pkgs referenced by this manifest
 for pkg in $(torcx_manifest::get_pkg_names "${manifest_path}"); do
-        pkg_name="${pkgs[0]}"
         for digest in $(torcx_manifest::get_digests "${manifest_path}" "${pkg}"); do
             sign_and_upload_files \
                 'torcx pkg' \
-                "${UPLOAD_ROOT}/torcx/pkg/${BOARD}/${pkg_name}/${digest}" \
+                "${TORCX_UPLOAD_ROOT}/pkg/${BOARD}/${pkg}/${digest}" \
                 "" \
-                "${TORCX_CAS_ROOT}/${pkg_name}/${digest}"/*.torcx.tgz
+                "${TORCX_CAS_ROOT}/${pkg}/${digest}"/*.torcx.tgz
       done
 done
 
 # Upload the manifest
 sign_and_upload_files \
     'torcx manifest' \
-    "${UPLOAD_ROOT}/torcx/manifests/${BOARD}/${COREOS_VERSION}" \
+    "${TORCX_UPLOAD_ROOT}/manifests/${BOARD}/${COREOS_VERSION}" \
     "" \
     "${manifest_path}"
 
