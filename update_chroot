@@ -86,6 +86,7 @@ PORT_LOGDIR="/var/log/portage"
 PORTAGE_BINHOST="$(get_sdk_binhost)"
 PORTAGE_USERNAME="${PORTAGE_USERNAME}"
 MAKEOPTS="--jobs=${NUM_JOBS} --load-average=$((NUM_JOBS * 2))"
+CCACHE_UMASK="002"
 
 # Generally there isn't any need to add packages to @world by default.
 # You can use --select to override this.
