@@ -251,9 +251,16 @@ for pkg in $(torcx_manifest::get_pkg_names "${manifest_path}"); do
 done
 
 # Upload the manifest
+# Note: the manifest is uploaded to 'UPLOAD_ROOT' rather than
+# 'TORCX_UPLOAD_ROOT'.
+# For non-release builds, those two locations will be the same, so it usually
+# won't matter.
+# However, for release builds, torcx packages may be uploaded directly to their
+# final location, while the manifest still has to go through build bucket in
+# order to get signed.
 sign_and_upload_files \
     'torcx manifest' \
-    "${TORCX_UPLOAD_ROOT}/manifests/${BOARD}/${COREOS_VERSION}" \
+    "${UPLOAD_ROOT}/torcx/manifests/${BOARD}/${COREOS_VERSION}" \
     "" \
     "${manifest_path}"
 
