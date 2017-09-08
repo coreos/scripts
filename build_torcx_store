@@ -170,31 +170,28 @@ function torcx_package() {
         # Move anything we plan to package to its root
         sudo mv "${tmproot}"/{.torcx,bin,lib} "${tmppkgroot}"
 
-        # Create a reproducible digest by which this package will be uploaded
-        # and referred
-        digest=$(casync \
-                        --digest=sha512-256 \
-                        --without=selinux \
-                        --with=flag-noatime \
-                        --what=directory \
-                        digest "${tmppkgroot}")
+        tmpfile="${BUILD_DIR}/${name}:${version}.torcx.tgz"
+        tar --force-local -C "${tmppkgroot}" -czf "${tmpfile}" .
+        sha512sum=$(sha512sum "${tmpfile}" | awk '{print $1}')
+
+        # TODO(euank): this opaque digest, if it were reproducible, could save
+        # users from having to download things that haven't changed.
+        # For now, use the sha512sum of the final image.
+        # Ideally we should move to something more like a casync digest or tarsum.
+        # The reason this is currently not being done is because to do that we
+        # *MUST* ensure that a given pair of (digest, sha512sum) referenced in
+        # a previous torcx package remains correct.
+        # Because this code, as written, clobbers existing things with the same
+        # digest (but the sha512sum of the .torcx.tgz can differ, e.g. due to ctime)
+        # that property doesn't hold.
+        # To switch this back to a reprodicble digest, we *must* never clobber
+        # existing objects (and thus re-use their sha512sum here).
+        digest="${sha512sum}"
 
         pkg_cas_root="${TORCX_CAS_ROOT}/${name}/${digest}"
         pkg_cas_file="${pkg_cas_root}/${name}:${version}.torcx.tgz"
-
-        # Create the cas store if it doesn't exist
-        if [[ ! -d "${pkg_cas_root}" ]]; then
-                mkdir -p "${TORCX_CAS_ROOT}/${name}"
-                # Package the installed files.
-                tmpcas="${BUILD_DIR}/${digest}"
-                mkdir -p "${tmpcas}"
-                tmpfile="${tmpcas}/${name}:${version}.torcx.tgz"
-                tar --force-local -C "${tmppkgroot}" -czf "${tmpfile}" .
-                # atomically move the whole directory in place from a tmp locatoin
-                mv "${tmpcas}" "${pkg_cas_root}"
-        fi
-        [[ -f "${pkg_cas_file}" ]] || die "${pkg_cas_file} should exist but didn't"
-        sha512sum=$(sha512sum "${pkg_cas_file}" | awk '{print $1}')
+        mkdir -p "${pkg_cas_root}"
+        mv "${tmpfile}" "${pkg_cas_file}"
 
         update_default=false
         if [[ "${type}" == "default" ]]; then
