@@ -424,10 +424,25 @@ finish_image() {
   local install_grub=0
   local disk_img="${BUILD_DIR}/${image_name}"
 
-  # Copy in a vendor torcx store if requested.
-  if [ -n "${FLAGS_torcx_store}" ]; then
-    sudo cp -dt "${root_fs_dir}"/usr/share/torcx/store \
-        "${FLAGS_torcx_store}"/*.torcx.tgz
+  # Copy in packages from the torcx store that are marked as being on disk
+  if [ -n "${FLAGS_torcx_manifest}" ]; then
+    for pkg in $(torcx_manifest::get_pkg_names "${FLAGS_torcx_manifest}"); do
+      local default_version="$(torcx_manifest::default_version "${FLAGS_torcx_manifest}" "${pkg}")"
+      for version in $(torcx_manifest::get_versions "${FLAGS_torcx_manifest}" "${pkg}"); do
+        local on_disk_path="$(torcx_manifest::local_store_path "${FLAGS_torcx_manifest}" "${pkg}" "${version}")"
+        if [[ -n "${on_disk_path}" ]]; then
+          local casDigest="$(torcx_manifest::get_digest "${FLAGS_torcx_manifest}" "${pkg}" "${version}")"
+          sudo cp "${FLAGS_torcx_root}/pkgs/${BOARD}/${pkg}/${casDigest}/${pkg}:${version}.torcx.tgz" \
+            "${root_fs_dir}${on_disk_path}"
+
+          if [[ "${version}" == "${default_version}" ]]; then
+            # Create the default symlink for this package
+            sudo ln -fns "${on_disk_path##*/}" \
+              "${root_fs_dir}/${on_disk_path%/*}/${pkg}:com.coreos.cl.torcx.tgz"
+          fi
+        fi
+      done
+    done
   fi
 
   # Only enable rootfs verification on prod builds.

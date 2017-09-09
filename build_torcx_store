@@ -15,7 +15,7 @@ assert_not_root_user
 DEFINE_string board "${DEFAULT_BOARD}" \
   "The board to build packages for."
 DEFINE_string output_root "${DEFAULT_BUILD_ROOT}/torcx" \
-  "Directory in which to place torcx stores (named by board/version)"
+  "Directory in which to place torcx stores and manifests (named by board/version)"
 
 # include upload options
 . "${BUILD_LIBRARY_DIR}/release_util.sh" || exit 1
@@ -54,6 +54,9 @@ check_gsutil_opts
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/torcx_manifest.sh" || exit 1
+
+TORCX_CAS_ROOT="${FLAGS_output_root}/pkgs/${BOARD}"
 
 # Print the first level of runtime dependencies for a torcx meta-package.
 function torcx_dependencies() (
@@ -90,14 +93,22 @@ function torcx_package() {
         local pkg="app-torcx/${1##*/}"
         local name=${pkg%-[0-9]*}
         local version=${pkg:${#name}+1}
-        local deppkg file rpath tmproot
-        name=${name##*/}
-        version=${version%%-r*}
+        local manifest_path="${2}"
+        local type="${3}"
+        local deppkg digest file rpath sha512sum source_pkg rdepends tmproot tmppkgroot update_default
+        local pkg_cas_file pkg_cas_root
+        local pkg_locations=()
+        local name=${name##*/}
+        local version=${version%%-r*}
 
         # Set up the base package layout to dump everything into /bin and /lib.
+        # tmproot is what the packages are installed into.
+        # A subset of the files from tmproot are then moved into tmppkgroot,
+        # which is then archived and uploaded.
         tmproot=$(sudo mktemp --tmpdir="${BUILD_DIR}" -d)
-        trap "sudo rm -rf '${tmproot}'" EXIT RETURN
-        sudo chmod 0755 "${tmproot}"
+        tmppkgroot=$(sudo mktemp --tmpdir="${BUILD_DIR}" -d)
+        trap "sudo rm -rf '${tmproot}' '${tmppkgroot}'" EXIT RETURN
+        sudo chmod 0755 "${tmproot}" "${tmppkgroot}"
         sudo mkdir -p "${tmproot}"/{.torcx,bin,lib,usr}
         sudo ln -fns ../bin "${tmproot}/usr/bin"
         sudo ln -fns ../lib "${tmproot}/usr/lib"
@@ -111,6 +122,11 @@ function torcx_package() {
         do
                 torcx_build "${tmproot}" "${deppkg}"
         done
+
+        # by convention, the first dependency in a torcx package is the primary
+        # source package
+        rdepends=($(torcx_dependencies "${pkg}"))
+        source_pkg="${rdepends[0]#=}"
 
         # Pluck out shared libraries and SONAME links.
         sudo mv "${tmproot}"/{lib,tmplib}
@@ -151,10 +167,49 @@ function torcx_package() {
                 :  # Set $? to 0 or the pipeline fails and -e quits.
         done
 
-        # Package the installed files.
-        file="${BUILD_DIR}/${name}:${version}.torcx.tgz"
-        tar --force-local -C "${tmproot}" -czf "${file}" .torcx bin lib
-        ln -fns "${file##*/}" "${BUILD_DIR}/${name}:com.coreos.cl.torcx.tgz"
+        # Move anything we plan to package to its root
+        sudo mv "${tmproot}"/{.torcx,bin,lib} "${tmppkgroot}"
+
+        tmpfile="${BUILD_DIR}/${name}:${version}.torcx.tgz"
+        tar --force-local -C "${tmppkgroot}" -czf "${tmpfile}" .
+        sha512sum=$(sha512sum "${tmpfile}" | awk '{print $1}')
+
+        # TODO(euank): this opaque digest, if it were reproducible, could save
+        # users from having to download things that haven't changed.
+        # For now, use the sha512sum of the final image.
+        # Ideally we should move to something more like a casync digest or tarsum.
+        # The reason this is currently not being done is because to do that we
+        # *MUST* ensure that a given pair of (digest, sha512sum) referenced in
+        # a previous torcx package remains correct.
+        # Because this code, as written, clobbers existing things with the same
+        # digest (but the sha512sum of the .torcx.tgz can differ, e.g. due to ctime)
+        # that property doesn't hold.
+        # To switch this back to a reprodicble digest, we *must* never clobber
+        # existing objects (and thus re-use their sha512sum here).
+        digest="${sha512sum}"
+
+        pkg_cas_root="${TORCX_CAS_ROOT}/${name}/${digest}"
+        pkg_cas_file="${pkg_cas_root}/${name}:${version}.torcx.tgz"
+        mkdir -p "${pkg_cas_root}"
+        mv "${tmpfile}" "${pkg_cas_file}"
+
+        update_default=false
+        if [[ "${type}" == "default" ]]; then
+                update_default=true
+                pkg_locations+=("/usr/share/torcx/store/${name}:${version}.torcx.tgz")
+        fi
+        if [[ "${FLAGS_upload}" -eq ${FLAGS_TRUE} ]]; then
+                pkg_locations+=("$(download_tectonic_torcx_url "pkgs/${BOARD}/${name}/${digest}/${name}:${version}.torcx.tgz")")
+        fi
+        torcx_manifest::add_pkg "${manifest_path}" \
+            "${name}" \
+            "${version}" \
+            "sha512-${sha512sum}" \
+            "${digest}" \
+            "${source_pkg}" \
+            "${update_default}" \
+            "${pkg_locations[@]}"
+
         trap - EXIT
 }
 
@@ -166,13 +221,44 @@ DEFAULT_IMAGES=(
         =app-torcx/docker-17.06
 )
 
+# This list contains extra images which will be uploaded and included in the
+# generated manifest, but won't be included in the vendor store.
+EXTRA_IMAGES=(
+        =app-torcx/docker-1.12
+)
+
 mkdir -p "${BUILD_DIR}"
-for pkg in "${@:-${DEFAULT_IMAGES[@]}}" ; do torcx_package "${pkg#=}" ; done
+manifest_path="${BUILD_DIR}/torcx_manifest.json"
+torcx_manifest::create_empty "${manifest_path}"
+for pkg in "${@:-${DEFAULT_IMAGES[@]}}" ; do torcx_package "${pkg#=}" "${manifest_path}" "default" ; done
+for pkg in "${EXTRA_IMAGES[@]}" ; do torcx_package "${pkg#=}" "${manifest_path}" "extra" ; done
 
 set_build_symlinks latest "${FLAGS_group}-latest"
 
+# Upload the pkgs referenced by this manifest
+for pkg in $(torcx_manifest::get_pkg_names "${manifest_path}"); do
+        for digest in $(torcx_manifest::get_digests "${manifest_path}" "${pkg}"); do
+            # no need to sign; the manifest includes their shasum and is signed.
+            upload_files \
+                'torcx pkg' \
+                "${TORCX_UPLOAD_ROOT}/pkgs/${BOARD}/${pkg}/${digest}" \
+                "" \
+                "${TORCX_CAS_ROOT}/${pkg}/${digest}"/*.torcx.tgz
+      done
+done
+
+# Upload the manifest
+# Note: the manifest is uploaded to 'UPLOAD_ROOT' rather than
+# 'TORCX_UPLOAD_ROOT'.
+# For non-release builds, those two locations will be the same, so it usually
+# won't matter.
+# However, for release builds, torcx packages may be uploaded directly to their
+# final location, while the manifest still has to go through build bucket in
+# order to get signed.
 sign_and_upload_files \
-    'torcx images' \
-    "${UPLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION}" \
-    torcx/ \
-    "${BUILD_DIR}"/*.torcx.tgz
+    'torcx manifest' \
+    "${UPLOAD_ROOT}/torcx/manifests/${BOARD}/${COREOS_VERSION}" \
+    "" \
+    "${manifest_path}"
+
+# vim: tabstop=8 softtabstop=4 shiftwidth=8 expandtab
