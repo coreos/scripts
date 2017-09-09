@@ -56,6 +56,8 @@ script build_torcx_store \
     --sign="${SIGNING_USER}" \
     --sign_digests="${SIGNING_USER}" \
     --upload_root="${UPLOAD_ROOT}" \
+    --torcx_upload_root="${TORCX_PKG_DOWNLOAD_ROOT}" \
+    --tectonic_torcx_download_root="${TECTONIC_TORCX_DOWNLOAD_ROOT}" \
     --upload
 
 enter ccache --show-stats

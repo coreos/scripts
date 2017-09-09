@@ -40,26 +40,28 @@ else
         script set_official --board="${BOARD}" --noofficial
 fi
 
-# Retrieve this version's torcx vendor store.
+# Retrieve this version's torcx manifest
+mkdir -p torcx/pkgs
 enter gsutil cp -r \
-    "${DOWNLOAD_ROOT}/boards/${BOARD}/${COREOS_VERSION}/torcx" \
-    /mnt/host/source/
-for image in torcx/*.torcx.tgz
-do
-        gpg --verify "${image}.sig"
-done
+    "${DOWNLOAD_ROOT}/torcx/manifests/${BOARD}/${COREOS_VERSION}/torcx_manifest.json"{,.sig} \
+    /mnt/host/source/torcx/
+gpg --verify torcx/torcx_manifest.json.sig
 
-# Work around the lack of symlink support in GCS.
-shopt -s nullglob
-for default in torcx/*:com.coreos.cl.torcx.tgz
+# Download all cas references from the manifest and verify their checksums
+# TODO: technically we can skip ones that don't have a 'path' since they're not
+# included in the image.
+while read name digest hash
 do
-        for image in torcx/*.torcx.tgz
-        do
-                [ "x${default}" != "x${image}" ] &&
-                cmp --silent -- "${default}" "${image}" &&
-                ln -fns "${image##*/}" "${default}"
-        done
-done
+        mkdir -p "torcx/pkgs/${BOARD}/${name}/${digest}"
+        enter gsutil cp -r "${TORCX_PKG_DOWNLOAD_ROOT}/pkgs/${BOARD}/${name}/${digest}" \
+            "/mnt/host/source/torcx/pkgs/${BOARD}/${name}/"
+        downloaded_hash=$(sha512sum "torcx/pkgs/${BOARD}/${name}/${digest}/"*.torcx.tgz | awk '{print $1}')
+        if [[ "sha512-${downloaded_hash}" != "${hash}" ]]
+        then
+                echo "Torcx package had wrong hash: ${downloaded_hash} instead of ${hash}"
+                exit 1
+        fi
+done < <(jq -r '.value.packages[] | . as $p | .name as $n | $p.versions[] | [.casDigest, .hash] | join(" ") | [$n, .] | join(" ")' "torcx/torcx_manifest.json")
 
 script build_image \
     --board="${BOARD}" \
@@ -68,6 +70,7 @@ script build_image \
     --getbinpkgver="${COREOS_VERSION}" \
     --sign="${SIGNING_USER}" \
     --sign_digests="${SIGNING_USER}" \
-    --torcx_store=/mnt/host/source/torcx \
+    --torcx_manifest=/mnt/host/source/torcx/torcx_manifest.json \
+    --torcx_root=/mnt/host/source/torcx/ \
     --upload_root="${UPLOAD_ROOT}" \
     --upload prod container
