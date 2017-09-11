@@ -127,3 +127,9 @@ function torcx_manifest::default_version() {
   local name="${2}"
   jq -r ".value.packages[] | select(.name == \"${name}\").defaultVersion" < "${file}"
 }
+
+# sources_on_disk returns the list of source packages of all torcx images installed on disk
+function torcx_manifest::sources_on_disk() {
+  local file="${1}"
+  jq -r ".value.packages[].versions[] | select(.locations[].path).sourcePackage" < "${file}"
+}
