@@ -259,6 +259,11 @@ image_packages() {
             query_available_package "${pkg}"
         done < "${profile}/package.provided"
     fi
+
+    # Include source packages of all torcx images installed on disk.
+    [ -z "${FLAGS_torcx_manifest}" ] ||
+    torcx_manifest::sources_on_disk "${FLAGS_torcx_manifest}" |
+    while read pkg ; do query_available_package "${pkg}" ; done
 }
 
 # Generate a list of installed packages in the format:
