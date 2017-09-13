@@ -21,7 +21,7 @@ download() {
     mkdir -p "${dir}"
     pushd "${dir}" >/dev/null
 
-    gsutil cp \
+    gsutil -m cp \
         "${gs}/coreos_production_image.vmlinuz" \
         "${gs}/coreos_production_image.vmlinuz.sig" \
         "${gs}/coreos_production_update.bin.bz2" \
