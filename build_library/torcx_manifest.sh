@@ -96,7 +96,7 @@ function torcx_manifest::local_store_path() {
   local file="${1}"
   local name="${2}"
   local version="${3}"
-  jq -r ".value.packages[] | select(.name == \"${name}\") | .versions[] | select(.version == \"${version}\") | .locations[].path" < "${file}"
+  jq -r ".value.packages[] | select(.name == \"${name}\") | .versions[] | select(.version == \"${version}\") | .locations[] | select(.path).path" < "${file}"
 }
 
 # get_digest returns the cas digest for a given package version
