@@ -75,6 +75,22 @@ IGNORE_MISSING = {
                                  SonameAtom("x86_64", "libebtable_broute.so"),
                                  SonameAtom("x86_64", "libebtable_filter.so"),
                                  SonameAtom("x86_64", "libebtable_nat.so")],
+
+    # Ignore the Rust libraries in their own libdir.
+    "dev-libs/rustlib":         [SonameAtom("arm_64", "librustc_data_structures.so"),
+                                 SonameAtom("arm_64", "librustc_errors.so"),
+                                 SonameAtom("arm_64", "libserialize.so"),
+                                 SonameAtom("arm_64", "libstd.so"),
+                                 SonameAtom("arm_64", "libsyntax.so"),
+                                 SonameAtom("arm_64", "libsyntax_pos.so"),
+                                 SonameAtom("arm_64", "libterm.so"),
+                                 SonameAtom("x86_64", "librustc_data_structures.so"),
+                                 SonameAtom("x86_64", "librustc_errors.so"),
+                                 SonameAtom("x86_64", "libserialize.so"),
+                                 SonameAtom("x86_64", "libstd.so"),
+                                 SonameAtom("x86_64", "libsyntax.so"),
+                                 SonameAtom("x86_64", "libsyntax_pos.so"),
+                                 SonameAtom("x86_64", "libterm.so")],
 }
 
 USR_LINKS = ("/bin/", "/sbin/", "/lib/", "/lib32/", "/lib64/")
