@@ -231,11 +231,13 @@ IMG_brightbox_OEM_USE=brightbox
 IMG_pxe_DISK_FORMAT=cpio
 IMG_pxe_PARTITIONED_IMG=0
 IMG_pxe_CONF_FORMAT=pxe
+IMG_pxe_MEM=2048
 
 ## iso, which is an cpio image
 IMG_iso_DISK_FORMAT=iso
 IMG_iso_PARTITIONED_IMG=0
 IMG_iso_CONF_FORMAT=iso
+IMG_iso_MEM=2048
 
 ## gce, image tarball
 IMG_gce_DISK_LAYOUT=vm
