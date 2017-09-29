@@ -219,7 +219,7 @@ function torcx_package() {
 # swapping default package versions for different OS releases by reordering.
 DEFAULT_IMAGES=(
         =app-torcx/docker-1.12
-        =app-torcx/docker-17.06
+        =app-torcx/docker-17.09
 )
 
 # This list contains extra images which will be uploaded and included in the
