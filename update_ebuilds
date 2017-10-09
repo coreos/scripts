@@ -14,7 +14,7 @@ DEFINE_string portage "git" \
     "Path to a local portage tree or 'rsync' or 'git' to fetch from remote."
 DEFINE_string portage_stable "${SRC_ROOT}/third_party/portage-stable" \
     "Path to the portage-stable git checkout."
-DEFINE_string git "https://github.com/gentoo/gentoo.git" \
+DEFINE_string git "https://github.com/gentoo-mirror/gentoo.git" \
     "git location for the gentoo portage repo (for use with --portage=git)"
 DEFINE_string rsync "rsync://rsync.gentoo.org/gentoo-portage" \
     "Rsync location for gentoo-portage to use with --portage=rsync"
@@ -58,8 +58,8 @@ for pkg in "$@"; do
             git remote rm update_ebuilds || true
             git remote add update_ebuilds "${FLAGS_git}"
         fi
-        git fetch update_ebuilds
-        git checkout refs/remotes/update_ebuilds/master -- "$pkg"
+        git fetch update_ebuilds stable
+        git checkout refs/remotes/update_ebuilds/stable -- "$pkg"
     else
         if [[ "$FLAGS_portage" == rsync ]]; then
             FLAGS_portage="${FLAGS_rsync}"
