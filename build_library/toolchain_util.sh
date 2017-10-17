@@ -194,7 +194,9 @@ get_cross_pkgs() {
 # Get portage arguments restricting toolchains to binary packages only.
 get_binonly_args() {
     local pkgs=( "${TOOLCHAIN_PKGS[@]}" $(get_cross_pkgs "$@") )
-    echo "${pkgs[@]/#/--useoldpkg-atoms=}" "${pkgs[@]/#/--rebuild-exclude=}"
+    # XXX: Revert this binutils change after stable > 1535.
+    local tmppkgs=( ${pkgs[*]##*/binutils} )
+    echo "${tmppkgs[@]/#/--useoldpkg-atoms=}" "${pkgs[@]/#/--rebuild-exclude=}"
 }
 
 ### Toolchain building utilities ###
