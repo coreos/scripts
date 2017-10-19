@@ -2,10 +2,13 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-GLSA_WHITELIST="201412-09"
+GLSA_WHITELIST=(
+	201412-09 # incompatible CA certificate version numbers
+	201709-02 # updating binutils breaks amd64 Linux uncompression
+)
 
 glsa_image() {
-  if glsa-check-$BOARD -t all | grep -v "$GLSA_WHITELIST"; then
+  if glsa-check-$BOARD -t all | grep -Fvx "${GLSA_WHITELIST[@]/#/-e}"; then
     echo "The above GLSAs apply to $ROOT"
     return 1
   fi
