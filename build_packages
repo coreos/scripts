@@ -212,10 +212,11 @@ break_dep_loop() {
   # Disable any other problematic flags
   extra_args=""
   while [[ $# -gt 0 ]]; do
-      sudo_append "${flag_file}" <<<"$1 -$2"
+      sudo_append "${flag_file}" <<<"$1 -${2//,/ -}"
       extra_args+=" --buildpkg-exclude=$1 --useoldpkg-atoms=$1"
       shift 2
   done
+
   # rebuild-if-unbuilt is disabled to prevent portage from needlessly
   # rebuilding zlib for some unknown reason, in turn triggering more rebuilds.
   sudo -E "${EMERGE_CMD[@]}" "${EMERGE_FLAGS[@]}" \
@@ -227,7 +228,10 @@ break_dep_loop() {
 
 if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_FALSE}" ]]; then
   # util-linux[udev] -> virtual->udev -> systemd -> util-linux
-  break_dep_loop sys-apps/util-linux udev,systemd sys-apps/systemd cryptsetup
+  break_dep_loop sys-apps/util-linux udev,systemd \
+    sys-apps/systemd udev,cryptsetup \
+    sys-fs/lvm2 udev \
+    sys-fs/cryptsetup udev
 
   # systemd[cryptsetup] -> cryptsetup -> lvm2 -> virtual/udev -> systemd
   break_dep_loop sys-apps/systemd cryptsetup
