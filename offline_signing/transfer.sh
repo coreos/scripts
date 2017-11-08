@@ -29,9 +29,21 @@ download() {
         "${gs}/coreos_production_update.zip" \
         "${gs}/coreos_production_update.zip.sig" ./
 
+    # torcx manifest: try embargoed release bucket first
+    local torcx_base="gs://builds.release.core-os.net/embargoed/devfiles/torcx/manifests/${board}/${version}"
+    if ! gsutil -q stat "${torcx_base}/torcx_manifest.json"; then
+        # Non-embargoed release
+        local torcx_base="gs://builds.developer.core-os.net/torcx/manifests/${board}/${version}"
+    fi
+    gsutil -m cp \
+        "${torcx_base}/torcx_manifest.json" \
+        "${torcx_base}/torcx_manifest.json.sig" \
+        ./
+
     gpg2 --verify "coreos_production_image.vmlinuz.sig"
     gpg2 --verify "coreos_production_update.bin.bz2.sig"
     gpg2 --verify "coreos_production_update.zip.sig"
+    gpg2 --verify "torcx_manifest.json.sig"
 
     popd >/dev/null
 }
@@ -41,11 +53,17 @@ upload() {
     local version="$2"
     local board="$3"
 
-    local payload="${BASEDIR}/${board}/${version}/coreos_production_update.gz"
-    if [[ ! -e "${payload}" ]]; then
-        echo "No such file: ${payload}" >&2
-        exit 1
-    fi
+    local dir="${BASEDIR}/${board}/${version}"
+    local payload="${dir}/coreos_production_update.gz"
+    local torcx_manifest="${dir}/torcx_manifest.json"
+    local torcx_manifest_sig="${dir}/torcx_manifest.json.asc"
+    local path
+    for path in "${payload}" "${torcx_manifest}" "${torcx_manifest_sig}"; do
+        if [[ ! -e "${path}" ]]; then
+            echo "No such file: ${path}" >&2
+            exit 1
+        fi
+    done
 
     "$(dirname $0)/../core_roller_upload" \
         --user="${ROLLER_USERNAME}" \
@@ -54,6 +72,12 @@ upload() {
         --board="${board}" \
         --version="${version}" \
         --payload="${payload}"
+
+    # Upload torcx manifests
+    gsutil cp \
+        "${torcx_manifest}" \
+        "${torcx_manifest_sig}" \
+        "gs://coreos-tectonic-torcx/manifests/${board}/${version}/"
 
     # Update version in a canary channel if one is defined.
     local -n canary_channel="ROLLER_CANARY_CHANNEL_${channel^^}"
