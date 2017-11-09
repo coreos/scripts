@@ -63,6 +63,7 @@ start_modify_image() {
         "${pcr_data}"
         "${production_prefix}_contents.txt"
         "${production_prefix}_packages.txt"
+        "${production_prefix}_kernel_config.txt"
         "${COREOS_DEVELOPER_CONTAINER_NAME}"
         "${container_prefix}_contents.txt"
         "${container_prefix}_packages.txt"

@@ -425,6 +425,7 @@ finish_image() {
   local pcr_policy="$6"
   local image_grub="$7"
   local image_shim="$8"
+  local image_kconfig="$9"
 
   local install_grub=0
   local disk_img="${BUILD_DIR}/${image_name}"
@@ -498,6 +499,11 @@ EOF
     sudo cp "${FLAGS_developer_data}" "${root_fs_dir}/${data_path}"
     systemd_enable "${root_fs_dir}" system-config.target \
         "system-cloudinit@.service" "system-cloudinit@${unit_path}.service"
+  fi
+
+  if [[ -n "${image_kconfig}" ]]; then
+    cp "${root_fs_dir}/usr/boot/config" \
+        "${BUILD_DIR}/${image_kconfig}"
   fi
 
   write_contents "${root_fs_dir}" "${BUILD_DIR}/${image_contents}"
