@@ -66,6 +66,7 @@ create_prod_image() {
   local image_contents="${image_name%.bin}_contents.txt"
   local image_packages="${image_name%.bin}_packages.txt"
   local image_licenses="${image_name%.bin}_licenses.json"
+  local image_kconfig="${image_name%.bin}_kernel_config.txt"
   local image_kernel="${image_name%.bin}.vmlinuz"
   local image_pcr_policy="${image_name%.bin}_pcr_policy.zip"
   local image_grub="${image_name%.bin}.grub"
@@ -126,7 +127,8 @@ EOF
       "${image_kernel}" \
       "${image_pcr_policy}" \
       "${image_grub}" \
-      "${image_shim}"
+      "${image_shim}" \
+      "${image_kconfig}"
 
   # Upload
   local to_upload=(
@@ -137,6 +139,7 @@ EOF
     "${BUILD_DIR}/${image_kernel}"
     "${BUILD_DIR}/${image_pcr_policy}"
     "${BUILD_DIR}/${image_grub}"
+    "${BUILD_DIR}/${image_kconfig}"
   )
   # FIXME(bgilbert): no shim on arm64
   if [[ -f "${BUILD_DIR}/${image_shim}" ]]; then
