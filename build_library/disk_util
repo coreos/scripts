@@ -16,19 +16,12 @@ import uuid
 # First sector we can use.
 GPT_RESERVED_SECTORS = 34
 
-# Default MBR boot code for GPT
-DEFAULT_MBR_BOOT_CODE = '/usr/share/syslinux/gptmbr.bin'
-
 
 class ConfigNotFound(Exception):
   pass
 class PartitionNotFound(Exception):
   pass
 class InvalidLayout(Exception):
-  pass
-class InvalidAdjustment(Exception):
-  pass
-class InvalidBootCode(Exception):
   pass
 
 
@@ -282,7 +275,6 @@ def WritePartitionTable(options, config=None, partitions=None):
       image_fd.truncate(config['metadata']['bytes'])
     Cgpt('repair', options.disk_image)
 
-  syslinux = False
   hybrid = None
   prioritize = []
   for partition in partitions.itervalues():
@@ -296,32 +288,14 @@ def WritePartitionTable(options, config=None, partitions=None):
                   options.disk_image)
 
       features = partition.get('features', [])
-      if not hybrid and ('syslinux' in features or 'hybrid' in features):
+      if not hybrid and 'hybrid' in features:
         hybrid = partition['num']
-      if 'syslinux' in features:
-        syslinux = True
       if 'prioritize' in features:
         prioritize.append(partition)
 
   if hybrid:
     # Enable legacy boot flag and generate a hybrid MBR partition table
     Cgpt('add', '-i', hybrid, '-B1', options.disk_image)
-
-  if syslinux and options.mbr_boot_code:
-    try:
-      with open(options.mbr_boot_code, 'r') as mbr_fd:
-        mbr_code = mbr_fd.read()
-    except IOError, ex:
-      raise InvalidBootCode("Failed to read %s: %s",
-                            options.mbr_boot_code, ex)
-
-    # The boot code must fit in the first 440 bytes of disk
-    if len(mbr_code) != 440:
-      raise InvalidBootCode("Invalid %s size %s, must be 440 bytes",
-                            options.mbr_boot_code, len(mbr_code))
-
-    with open(options.disk_image, 'r+') as image_fd:
-      image_fd.write(mbr_code)
 
   prioritize.reverse()
   for i, partition in enumerate(prioritize):
@@ -450,24 +424,6 @@ def FormatFat(part, device):
   if 'fs_label' in part:
     cmd += ['-n', part['fs_label']]
   Sudo(cmd + [device, vfat_blocks], stdout_null=True)
-
-  if 'syslinux' in part.get('features', []):
-    # Install using extlinux so we can operate on the mounted filesystem and
-    # avoid possible issues with mtools. Also hpa told me to. :)
-    # cgpt uses 255 heads and 63 sectors when generating the hybrid MBR which
-    # doesn't actually have to match what we use here but doesn't hurt either.
-    vfat_mount = tempfile.mkdtemp()
-    syslinux_dir = os.path.join(vfat_mount, 'syslinux')
-    Sudo(['mount', '-t', 'vfat', device, vfat_mount])
-    try:
-      Sudo(['mkdir', syslinux_dir])
-      Sudo(['extlinux', '--heads=255', '--sectors=63',
-                        '--install', syslinux_dir])
-    finally:
-      Sudo(['umount', vfat_mount])
-      os.rmdir(vfat_mount)
-
-    print "Installed SYSLINUX to %s" % part['label']
 
 
 @contextlib.contextmanager
@@ -1008,21 +964,15 @@ def main(argv):
           help='initialize new partition table')
   a.add_argument('--update', action='store_false', dest='create',
           help='update existing partition table')
-  a.add_argument('--mbr_boot_code', default=DEFAULT_MBR_BOOT_CODE,
-          help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
   a.set_defaults(func=WritePartitionTable)
 
   a = actions.add_parser('format', help='write gpt and filesystems to image')
-  a.add_argument('--mbr_boot_code', default=DEFAULT_MBR_BOOT_CODE,
-          help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
   a.set_defaults(func=Format, create=True)
 
   a = actions.add_parser('update',
           help='write gpt, resize filesystems, and format free partitions')
-  a.add_argument('--mbr_boot_code', default=DEFAULT_MBR_BOOT_CODE,
-          help='path to mbr boot block, such as syslinux/gptmbr.bin')
   a.add_argument('disk_image', help='path to disk image file')
   a.set_defaults(func=Update, create=False)
 
