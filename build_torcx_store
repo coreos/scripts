@@ -167,8 +167,13 @@ function torcx_package() {
                 :  # Set $? to 0 or the pipeline fails and -e quits.
         done
 
-        # Move anything we plan to package to its root
+        # Move anything we plan to package to its root.
         sudo mv "${tmproot}"/{.torcx,bin,lib} "${tmppkgroot}"
+        if [ -e "${tmproot}/usr/share" ]
+        then
+                sudo mkdir "${tmppkgroot}/usr"
+                sudo mv "${tmproot}/usr/share" "${tmppkgroot}/usr/"
+        fi
 
         tmpfile="${BUILD_DIR}/${name}:${version}.torcx.tgz"
         tar --force-local -C "${tmppkgroot}" -czf "${tmpfile}" .
