@@ -145,6 +145,7 @@ function torcx_package() {
                 sudo find "${tmproot}/lib/systemd/system" -type f -exec sed -i \
                     -e '/^\[Unit]/aRequires=torcx.target\nAfter=torcx.target' \
                     -e '/^\[Service]/aEnvironmentFile=/run/metadata/torcx' \
+                    -e "/^\[Service]/aEnvironment=TORCX_IMAGEDIR=/${name}" \
                     -e 's,/usr/s\?bin/,${TORCX_BINDIR}/,g' \
                     -e 's,^\([^ ]*=\)\(.{TORCX_BINDIR}\)/,\1/usr/bin/env PATH=\2:${PATH} \2/,' {} +
         fi
