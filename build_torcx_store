@@ -145,6 +145,7 @@ function torcx_package() {
                 sudo find "${tmproot}/lib/systemd/system" -type f -exec sed -i \
                     -e '/^\[Unit]/aRequires=torcx.target\nAfter=torcx.target' \
                     -e '/^\[Service]/aEnvironmentFile=/run/metadata/torcx' \
+                    -e "/^\[Service]/aEnvironment=TORCX_IMAGEDIR=/${name}" \
                     -e 's,/usr/s\?bin/,${TORCX_BINDIR}/,g' \
                     -e 's,^\([^ ]*=\)\(.{TORCX_BINDIR}\)/,\1/usr/bin/env PATH=\2:${PATH} \2/,' {} +
         fi
@@ -167,8 +168,13 @@ function torcx_package() {
                 :  # Set $? to 0 or the pipeline fails and -e quits.
         done
 
-        # Move anything we plan to package to its root
+        # Move anything we plan to package to its root.
         sudo mv "${tmproot}"/{.torcx,bin,lib} "${tmppkgroot}"
+        if [ -e "${tmproot}/usr/share" ]
+        then
+                sudo mkdir "${tmppkgroot}/usr"
+                sudo mv "${tmproot}/usr/share" "${tmppkgroot}/usr/"
+        fi
 
         tmpfile="${BUILD_DIR}/${name}:${version}.torcx.tgz"
         tar --force-local -C "${tmppkgroot}" -czf "${tmpfile}" .
@@ -219,7 +225,7 @@ function torcx_package() {
 # swapping default package versions for different OS releases by reordering.
 DEFAULT_IMAGES=(
         =app-torcx/docker-1.12
-        =app-torcx/docker-17.10
+        =app-torcx/docker-17.11
 )
 
 # This list contains extra images which will be uploaded and included in the
