@@ -423,9 +423,6 @@ def FormatFat(part, device):
   cmd = ['mkfs.vfat']
   if 'fs_label' in part:
     cmd += ['-n', part['fs_label']]
-  if part['type'] == 'efi':
-    # ESP is FAT32 irrespective of size
-    cmd += ['-F', '32']
   Sudo(cmd + [device, vfat_blocks], stdout_null=True)
 
 
