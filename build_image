@@ -82,7 +82,7 @@ DEFINE_string version "" \
 # Parse command line.
 FLAGS "$@" || exit 1
 
-eval set -- "${FLAGS_ARGV:-dev}"
+eval set -- "${FLAGS_ARGV:-prod}"
 
 # Only now can we die on error.  shflags functions leak non-zero error codes,
 # so will die prematurely if 'switch_to_strict_mode' is specified before now.
@@ -234,11 +234,11 @@ EOF
 # Print out the images we generated.
 if [[ "${PROD_IMAGE}" -eq 1 ]]; then
   echo "CoreOS Production image created as ${COREOS_PRODUCTION_IMAGE_NAME}"
-  print_image_to_vm "prod"
+  print_image_to_vm
 fi
 if [[ "${DEV_IMAGE}" -eq 1 ]]; then
   echo "Developer image created as ${COREOS_DEVELOPER_IMAGE_NAME}"
-  print_image_to_vm
+  print_image_to_vm dev
 fi
 
 command_completed
