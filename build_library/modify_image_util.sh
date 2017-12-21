@@ -95,7 +95,7 @@ finish_modify_image() {
     info "Done. Updated image is in ${BUILD_DIR}"
     cat << EOF
 To convert it to a virtual machine image, use:
-  ./image_to_vm.sh --from=${OUTSIDE_OUTPUT_DIR} --board=${BOARD} --prod_image
+  ./image_to_vm.sh --from=${OUTSIDE_OUTPUT_DIR} --board=${BOARD}
 
 The default type is qemu, see ./image_to_vm.sh --help for other options.
 EOF
