@@ -4,7 +4,6 @@
 
 GLSA_WHITELIST=(
 	201412-09 # incompatible CA certificate version numbers
-	201709-02 # updating binutils breaks amd64 Linux uncompression
 	201710-23 # we handle Go differently; drop when 1.9 builds everything
 )
 
