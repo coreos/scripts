@@ -36,8 +36,8 @@ DEFINE_string disk_layout "" \
   "The disk layout type to use for this image."
 DEFINE_integer mem "${DEFAULT_MEM}" \
   "Memory size for the vm config in MBs."
-DEFINE_boolean prod_image "${FLAGS_FALSE}" \
-  "Use the production image instead of the default developer image."
+DEFINE_boolean dev_image "${FLAGS_FALSE}" \
+  "Use the development image instead of the default production image."
 DEFINE_string to "" \
   "Destination folder for VM output file(s)"
 DEFINE_string oem_pkg "" \
@@ -107,21 +107,19 @@ if [ -f "${FLAGS_from}/version.txt" ]; then
     COREOS_VERSION_STRING="${COREOS_VERSION}"
 fi
 
-if [ ${FLAGS_prod_image} -eq ${FLAGS_TRUE} ]; then
-  set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${COREOS_PRODUCTION_IMAGE_NAME}"
-else
-  # Use the standard image
+if [ ${FLAGS_dev_image} -eq ${FLAGS_TRUE} ]; then
   set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${COREOS_DEVELOPER_IMAGE_NAME}"
+  if [[ "${FLAGS_disk_layout}" == "" ]]; then
+    FLAGS_disk_layout=devel
+  fi
+else
+  set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${COREOS_PRODUCTION_IMAGE_NAME}"
 fi
 
 # Make sure things are cleaned up on failure
 trap vm_cleanup EXIT
 
 fix_mtab
-
-if [[ "${FLAGS_prod_image}" -eq "${FLAGS_FALSE}" && "${FLAGS_disk_layout}" == "" ]]; then
-    FLAGS_disk_layout=devel
-fi
 
 # Setup new (raw) image, possibly resizing filesystems
 setup_disk_image "${FLAGS_disk_layout}"

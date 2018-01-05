@@ -45,7 +45,6 @@ enter lbunzip2 -k -f "/mnt/host/source/${img}.bz2"
 script image_to_vm.sh \
     --board="${BOARD}" \
     --format="${FORMAT}" \
-    --prod_image \
     --getbinpkg \
     --getbinpkgver="${COREOS_VERSION}" \
     --from=/mnt/host/source/src \
