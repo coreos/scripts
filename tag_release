@@ -68,8 +68,11 @@ if [[ ${FLAGS_branch} -eq ${FLAGS_TRUE} ]]; then
     if [[ ${FLAGS_major} -ne ${CURRENT_VERSION[0]} ]]; then
         die_notrace "Branch major should be ${CURRENT_VERSION[0]}"
     fi
-    if [[ ${FLAGS_minor} -le ${CURRENT_VERSION[1]} ]]; then
-        die_notrace "Branch minor should be greater than ${CURRENT_VERSION[1]}"
+    if [[ ${FLAGS_minor} -lt ${CURRENT_VERSION[1]} ]]; then
+        die_notrace "Branch minor should be at least ${CURRENT_VERSION[1]}"
+    fi
+    if [[ ${FLAGS_minor} -eq ${CURRENT_VERSION[1]} && ${FLAGS_patch} -le ${CURRENT_VERSION[2]} ]]; then
+        die_notrace "With minor ${FLAGS_minor}, branch patch should be greater than ${CURRENT_VERSION[2]}"
     fi
 fi
 
