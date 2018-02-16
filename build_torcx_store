@@ -176,8 +176,8 @@ function torcx_package() {
                 sudo mv "${tmproot}/usr/share" "${tmppkgroot}/usr/"
         fi
 
-        tmpfile="${BUILD_DIR}/${name}:${version}.torcx.tgz"
-        tar --force-local -C "${tmppkgroot}" -czf "${tmpfile}" .
+        tmpfile="${BUILD_DIR}/${name}:${version}.torcx.squashfs"
+	mksquashfs "${tmppkgroot}" "${tmpfile}"
         sha512sum=$(sha512sum "${tmpfile}" | awk '{print $1}')
 
         # TODO(euank): this opaque digest, if it were reproducible, could save
@@ -188,24 +188,24 @@ function torcx_package() {
         # *MUST* ensure that a given pair of (digest, sha512sum) referenced in
         # a previous torcx package remains correct.
         # Because this code, as written, clobbers existing things with the same
-        # digest (but the sha512sum of the .torcx.tgz can differ, e.g. due to ctime)
-        # that property doesn't hold.
+	# digest (but the sha512sum of the archive can differ, e.g. due to
+	# ctime) that property doesn't hold.
         # To switch this back to a reprodicble digest, we *must* never clobber
         # existing objects (and thus re-use their sha512sum here).
         digest="${sha512sum}"
 
         pkg_cas_root="${TORCX_CAS_ROOT}/${name}/${digest}"
-        pkg_cas_file="${pkg_cas_root}/${name}:${version}.torcx.tgz"
+        pkg_cas_file="${pkg_cas_root}/${name}:${version}.torcx.squashfs"
         mkdir -p "${pkg_cas_root}"
         mv "${tmpfile}" "${pkg_cas_file}"
 
         update_default=false
         if [[ "${type}" == "default" ]]; then
                 update_default=true
-                pkg_locations+=("/usr/share/torcx/store/${name}:${version}.torcx.tgz")
+                pkg_locations+=("/usr/share/torcx/store/${name}:${version}.torcx.squashfs")
         fi
         if [[ "${FLAGS_upload}" -eq ${FLAGS_TRUE} ]]; then
-                pkg_locations+=("$(download_tectonic_torcx_url "pkgs/${BOARD}/${name}/${digest}/${name}:${version}.torcx.tgz")")
+                pkg_locations+=("$(download_tectonic_torcx_url "pkgs/${BOARD}/${name}/${digest}/${name}:${version}.torcx.squashfs")")
         fi
         torcx_manifest::add_pkg "${manifest_path}" \
             "${name}" \
@@ -251,7 +251,7 @@ for pkg in $(torcx_manifest::get_pkg_names "${manifest_path}"); do
                 'torcx pkg' \
                 "${TORCX_UPLOAD_ROOT}/pkgs/${BOARD}/${pkg}/${digest}" \
                 "" \
-                "${TORCX_CAS_ROOT}/${pkg}/${digest}"/*.torcx.tgz
+                "${TORCX_CAS_ROOT}/${pkg}/${digest}"/*.torcx.squashfs
       done
 done
 

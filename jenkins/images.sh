@@ -55,7 +55,7 @@ do
         mkdir -p "torcx/pkgs/${BOARD}/${name}/${digest}"
         enter gsutil cp -r "${TORCX_PKG_DOWNLOAD_ROOT}/pkgs/${BOARD}/${name}/${digest}" \
             "/mnt/host/source/torcx/pkgs/${BOARD}/${name}/"
-        downloaded_hash=$(sha512sum "torcx/pkgs/${BOARD}/${name}/${digest}/"*.torcx.tgz | awk '{print $1}')
+        downloaded_hash=$(sha512sum "torcx/pkgs/${BOARD}/${name}/${digest}/"*.torcx.squashfs | awk '{print $1}')
         if [[ "sha512-${downloaded_hash}" != "${hash}" ]]
         then
                 echo "Torcx package had wrong hash: ${downloaded_hash} instead of ${hash}"

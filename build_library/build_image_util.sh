@@ -438,13 +438,13 @@ finish_image() {
         local on_disk_path="$(torcx_manifest::local_store_path "${FLAGS_torcx_manifest}" "${pkg}" "${version}")"
         if [[ -n "${on_disk_path}" ]]; then
           local casDigest="$(torcx_manifest::get_digest "${FLAGS_torcx_manifest}" "${pkg}" "${version}")"
-          sudo cp "${FLAGS_torcx_root}/pkgs/${BOARD}/${pkg}/${casDigest}/${pkg}:${version}.torcx.tgz" \
+          sudo cp "${FLAGS_torcx_root}/pkgs/${BOARD}/${pkg}/${casDigest}/${pkg}:${version}.torcx.squashfs" \
             "${root_fs_dir}${on_disk_path}"
 
           if [[ "${version}" == "${default_version}" ]]; then
             # Create the default symlink for this package
             sudo ln -fns "${on_disk_path##*/}" \
-              "${root_fs_dir}/${on_disk_path%/*}/${pkg}:com.coreos.cl.torcx.tgz"
+              "${root_fs_dir}/${on_disk_path%/*}/${pkg}:com.coreos.cl.torcx.squashfs"
           fi
         fi
       done
