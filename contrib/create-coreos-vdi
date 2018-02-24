@@ -4,22 +4,19 @@ VERSION_ID=stable
 
 USAGE="Usage: $0 [-V version] [-d /target/path]
 Options:
-    -d DEST     Create CoreOS VDI image to the given path.
-    -V VERSION  Version to install (e.g. alpha) [default: ${VERSION_ID}]
-    -h          This help
+    -d DEST       Create CoreOS VDI image to the given path.
+    -V VERSION    Version to install (e.g. alpha) [default: ${VERSION_ID}]
+    -c CACHE_DIR  Cache files in CACHE_DIR directory.
+    -h            This help
 
 This tool creates a CoreOS VDI image to be used with VirtualBox.
 "
 
-# Image signing key: buildbot@coreos.com
-GPG_KEY_URL="https://coreos.com/security/image-signing-key/CoreOS_Image_Signing_Key.pem"
-GPG_LONG_ID="50E0885593D2DCB4"
-GPG_KEY="$(wget -qO- $GPG_KEY_URL)"
-
-while getopts "V:d:a:h" OPTION
+while getopts "V:d:a:c:h" OPTION
 do
     case $OPTION in
         V) VERSION_ID="$OPTARG" ;;
+        c) CACHE_DIR="$OPTARG" ;;
         d) DEST="$OPTARG" ;;
         h) echo "$USAGE"; exit;;
         *) exit 1;;
@@ -32,12 +29,16 @@ if [ $(id -u) -eq 0 ]; then
     exit 1
 fi
 
-# VirtualBox tools required
-which VBoxManage &>/dev/null
-if [ $? -ne 0 ]; then
-    echo "$0: VBoxManage tool is required to convert image." >&2
-    exit 1
-fi
+declare -i err=0
+for tool in  VBoxManage wget gpg bzcat openssl; do
+    if ! which -s "${tool}" && (( ++err )); then 
+        case tool in
+            VBoxManage) echo "VBoxManage not found (VirtualBox must be installed)" >&2;;
+            *) echo "${tool} binary not found (consider installing with homebrew if on macos)" >&2;;
+        esac
+    fi
+done
+[ "${err}" -gt 0 ] && exit "${err}"
 
 if [ -z "${DEST}" ]; then
     DEST=$PWD
@@ -48,9 +49,26 @@ if [[ ! -d "${DEST}" ]]; then
     exit 1
 fi
 
-WORKDIR="${DEST}/tmp.${RANDOM}"
-mkdir "$WORKDIR"
-trap "rm -rf '${WORKDIR}'" EXIT
+
+WORKDIR="${CACHE_DIR:-${DEST}/tmp.${RANDOM}}"
+mkdir -p "$WORKDIR"
+declare err_msg="
+fatal error running $0 $*
+not deleting temp dir at ${WORKDIR}
+remove corrupt or incomplete files in ${WORKDIR} and run the following to retry:
+$0 -c ${WORKDIR} $*"
+trap "[ $? != 0 -a -d '${WORKDIR}' ] && echo '${err_msg}' >&2" EXIT
+
+# Prepare image signing key: buildbot@coreos.com
+export GNUPGHOME="${WORKDIR}/gnupg"
+mkdir -p -m "700" "${GNUPGHOME}"
+GPG_KEY_URL="https://coreos.com/security/image-signing-key/CoreOS_Image_Signing_Key.pem"
+GPG_LONG_ID="50E0885593D2DCB4"
+if gpg --list-key "${GPG_LONG_ID}" &> "/dev/null"; then
+    gpg --keyserver "pool.sks-keyservers.net" --refresh-key "${GPG_LONG_ID}"
+else
+    wget -qO- $GPG_KEY_URL | gpg --batch --quiet --import || { echo "failed to import gpg key"; exit 1; }
+fi
 
 RAW_IMAGE_NAME="coreos_production_image.bin"
 IMAGE_NAME="${RAW_IMAGE_NAME}.bz2"
@@ -80,18 +98,13 @@ fi
 # Gets CoreOS verion from version.txt file
 VERSION_NAME="version.txt"
 VERSION_URL="${BASE_URL}/${VERSION_NAME}"
-wget --no-verbose -O "${WORKDIR}/${VERSION_NAME}" "${VERSION_URL}"
+[ -f "${WORKDIR}/${VERSION_NAME}" ] || wget --no-verbose -O "${WORKDIR}/${VERSION_NAME}" "${VERSION_URL}"
 . "${WORKDIR}/${VERSION_NAME}"
 VDI_IMAGE_NAME="coreos_production_${COREOS_BUILD}.${COREOS_BRANCH}.${COREOS_PATCH}.vdi"
 VDI_IMAGE="${DEST}/${VDI_IMAGE_NAME}"
 
-# Setup GnuPG for verifying the image signature
-export GNUPGHOME="${WORKDIR}/gnupg"
-mkdir "${GNUPGHOME}"
-gpg --batch --quiet --import <<<"$GPG_KEY"
-
 echo "Downloading and verifying ${IMAGE_NAME}..."
-wget --no-verbose -O "${WORKDIR}/${DIGESTS_NAME}" "${DIGESTS_URL}"
+[ -f "${WORKDIR}/${DIGESTS_NAME}" ] || wget --no-verbose -O "${WORKDIR}/${DIGESTS_NAME}" "${DIGESTS_URL}"
 if ! gpg --batch --trusted-key "${GPG_LONG_ID}" \
     --verify "${WORKDIR}/${DIGESTS_NAME}"
 then
@@ -99,24 +112,25 @@ then
     exit 1
 fi
 
-wget -O "${WORKDIR}/${IMAGE_NAME}" "${IMAGE_URL}"
+[ -f "${WORKDIR}/${IMAGE_NAME}" ] || wget -O "${WORKDIR}/${IMAGE_NAME}" "${IMAGE_URL}"
 
 # DIGESTS may include README and other extra files we don't need, filter them.
 # Also filter one hash at a time, not required but avoids warnings from *sum.
-for sum in sha1 sha512; do
-    (cd "${WORKDIR}"
-    grep -i -A1 "^# ${sum} HASH$" "${WORKDIR}/${DIGESTS_NAME}" \
-        | grep "${IMAGE_NAME}$" | ${sum}sum -c /dev/stdin)
+for hash in sha1 sha512; do
+    reqd_sum=$( grep -i -A1 "^# ${hash} HASH$" "${WORKDIR}/${DIGESTS_NAME}" | awk '$2 == "'${IMAGE_NAME}'" { print $1 }' )
+    echo "verifying ${hash} hash: ${reqd_sum:?error: missing ${hash} hash}"
+    actual_sum=$( openssl dgst -${hash} "${WORKDIR}/${IMAGE_NAME}" | awk '{ print $2 }' )
+    [ "${reqd_sum}" = "${actual_sum}" ] || { echo "${hash} hash verification failed" >&2; exit 1; }
 done
 
-echo "Writing ${IMAGE_NAME} to ${DOWN_IMAGE}..."
-bzcat -v --stdout "${WORKDIR}/${IMAGE_NAME}" >"${DOWN_IMAGE}"
+echo "Writing ${IMAGE_NAME} to ${DOWN_IMAGE} (this may take a couple minutes)"
+bzcat -v --stdout "${WORKDIR}/${IMAGE_NAME}" >"${DOWN_IMAGE}" || { echo "failed to extract ${IMAGE_NAME}" ; exit 1; }
 
-echo "Converting ${RAW_IMAGE_NAME} to VirtualBox format..."
-VBoxManage convertdd "${DOWN_IMAGE}" "${VDI_IMAGE}" --format VDI
+echo "Converting ${RAW_IMAGE_NAME} to VirtualBox format (this may take a couple minutes)"
+[ -f "${VDI_IMAGE}" ] && rm -rf "${VDI_IMAGE}"
+VBoxManage convertdd "${DOWN_IMAGE}" "${VDI_IMAGE}" --format VDI || { echo "failed to create ${VDI_IMAGE}" ; exit 1; }
 
-rm -rf "${WORKDIR}"
-trap - EXIT
+[ -z "${CACHE_DIR}" ] && rm -rf "${WORKDIR}"
 
 echo "Success! CoreOS ${VERSION_ID} VDI image was created on ${VDI_IMAGE_NAME}"
 
