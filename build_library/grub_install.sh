@@ -52,6 +52,12 @@ CORE_NAME=
 # fixed up the board root's grub will always be used.
 BOARD_GRUB=0
 
+# This may be useful if you're running the build process inside a container
+# (e.g. docker/podman/etc) distinct from the host; in that case you'll have
+# a distinct /dev normally and won't pick up udev probed devices.  But if you
+# do the probe from the host side, it should show up in the container.
+LOOP_NO_UDEV=${LOOP_NO_UDEV:-0}
+
 case "${FLAGS_target}" in
     i386-pc)
         CORE_MODULES+=( biosdisk serial )
@@ -110,6 +116,21 @@ info "Installing GRUB ${FLAGS_target} in ${FLAGS_disk_image##*/}"
 LOOP_DEV=$(sudo losetup --find --show --partscan "${FLAGS_disk_image}")
 ESP_DIR=$(mktemp --directory)
 
+# Hack available for doing the build in a container; see the LOOP_NO_UDEV
+# comments above.
+if [[ ${LOOP_NO_UDEV} -eq 1 ]]; then
+    echo "LOOP_NO_UDEV enabled, creating device nodes directly"
+    LOOPNUM=$(echo ${LOOP_DEV} | sed -e 's,/dev/loop,,')
+    for d in /sys/block/loop${LOOPNUM}/loop${LOOPNUM}p*; do
+        p=$(cat ${d}/partition)
+        dev=$(cat ${d}/dev)
+        min=${dev##*:}
+        maj=${dev%:*}
+        devpath=/dev/loop${LOOPNUM}p${p}
+        sudo rm -f ${devpath}
+        sudo mknod -m 660 ${devpath} b ${maj} ${min}
+    done
+fi
 # work around slow/buggy udev, make sure the node is there before mounting
 if [[ ! -b "${LOOP_DEV}p1" ]]; then
     # sleep a little just in case udev is ok but just not finished yet
@@ -119,11 +140,12 @@ if [[ ! -b "${LOOP_DEV}p1" ]]; then
         if [[ -b "${LOOP_DEV}p1" ]]; then
             break
         fi
-        warn "looback device node still ${LOOP_DEV}p1 missing, reprobing..."
+        warn "loopback device node still ${LOOP_DEV}p1 missing, reprobing..."
         sudo blockdev --rereadpt ${LOOP_DEV}
         sleep 0.5
     done
     if [[ ! -b "${LOOP_DEV}p1" ]]; then
+        ls -al /dev/loop*
         failboat "${LOOP_DEV}p1 where art thou? udev has forsaken us!"
     fi
 fi
