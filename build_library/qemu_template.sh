@@ -198,7 +198,8 @@ if [ -n "${VM_UUID}" ]; then
 fi
 
 if [ -n "${VM_CDROM}" ]; then
-    set -- -cdrom "${SCRIPT_DIR}/${VM_CDROM}" "$@"
+    set -- -boot order=d \
+	-drive file="${SCRIPT_DIR}/${VM_CDROM}",media=cdrom,format=raw "$@"
 fi
 
 if [ -n "${VM_PFLASH_RO}" ] && [ -n "${VM_PFLASH_RW}" ]; then
