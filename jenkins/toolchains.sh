@@ -1,7 +1,7 @@
 #!/bin/bash -ex
 
 enter() {
-        bin/cork enter --experimental -- "$@"
+        bin/cork enter --bind-gpg-agent -- "$@"
 }
 
 source .repo/manifests/version.txt
@@ -17,6 +17,7 @@ S=/mnt/host/source/src/scripts
 enter sudo emerge -uv --jobs=2 catalyst
 enter sudo ${S}/build_toolchains \
     --sign="${SIGNING_USER}" \
+    --signing_pin="${GPG_SECRET_KEY_PIN-}" \
     --sign_digests="${SIGNING_USER}" \
     --upload_root="${UPLOAD_ROOT}" \
     --upload
