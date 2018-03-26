@@ -10,7 +10,7 @@ enter() {
         sudo ln -f verify.asc chroot/etc/portage/gangue.asc &&
         verify_key=--verify-key=/etc/portage/gangue.asc
         sudo ln -f "${GS_DEVEL_CREDS}" chroot/etc/portage/gangue.json
-        bin/cork enter --experimental -- env \
+        bin/cork enter --bind-gpg-agent -- env \
             COREOS_DEV_BUILDS="${GS_DEVEL_ROOT}" \
             {FETCH,RESUME}COMMAND_GS="/usr/bin/gangue get \
 --json-key=/etc/portage/gangue.json $verify_key \
@@ -50,6 +50,7 @@ script image_to_vm.sh \
     --from=/mnt/host/source/src \
     --to=/mnt/host/source/tmp \
     --sign="${SIGNING_USER}" \
+    --signing_pin="${GPG_SECRET_KEY_PIN-}" \
     --sign_digests="${SIGNING_USER}" \
     --download_root="${DOWNLOAD_ROOT}" \
     --upload_root="${UPLOAD_ROOT}" \

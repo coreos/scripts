@@ -38,6 +38,8 @@ DEFINE_string tectonic_torcx_download_path "" \
   "HTTP download path, overrides --tectonic_torcx_download_root."
 DEFINE_string sign "" \
   "Sign all files to be uploaded with the given GPG key."
+DEFINE_string signing_pin "" \
+  "Pass this pin as a gpg --passphrase for GPG signing, for use with --sign"
 DEFINE_string sign_digests "" \
   "Sign image DIGESTS files with the given GPG key."
 
@@ -136,9 +138,7 @@ sign_and_upload_files() {
 
             for sigfile in $(find "${file}" ! -type d); do
                 mkdir -p "${sigdir}/${sigfile%/*}"
-                gpg --batch --local-user "${FLAGS_sign}" \
-                    --output "${sigdir}/${sigfile}.sig" \
-                    --detach-sign "${sigfile}" || die "gpg failed"
+                gpgsign "${sigfile}" "${sigdir}/${sigfile}.sig"
             done
 
             [ -d "${file}" ] &&
@@ -148,6 +148,24 @@ sign_and_upload_files() {
     fi
 
     upload_files "${msg}" "${path}" "${suffix}" "$@" "${sigs[@]}"
+}
+
+gpgsign() {
+  local file="$1"
+  local sig="$2"
+
+  if [[ -n "${FLAGS_signing_pin}" ]]; then
+    gpg --batch --no-tty --pinentry-mode loopback \
+        --passphrase "${FLAGS_signing_pin}" \
+        --local-user "${FLAGS_sign}" \
+        --output "${sig}" \
+        --detach-sign "${file}" || die "gpg failed"
+
+  else
+    gpg --batch --local-user "${FLAGS_sign}" \
+        --output "${sig}" \
+        --detach-sign "${file}" || die "gpg failed"
+  fi
 }
 
 upload_packages() {

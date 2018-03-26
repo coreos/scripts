@@ -12,7 +12,7 @@ enter() {
         verify_key=--verify-key=/etc/portage/gangue.asc
         sudo ln -f "${GOOGLE_APPLICATION_CREDENTIALS}" \
             chroot/etc/portage/gangue.json
-        bin/cork enter --experimental -- env \
+        bin/cork enter --bind-gpg-agent -- env \
             CCACHE_DIR=/mnt/host/source/.cache/ccache \
             CCACHE_MAXSIZE=5G \
             COREOS_DEV_BUILDS="${DOWNLOAD_ROOT}" \
@@ -47,6 +47,7 @@ script build_packages \
     --skip_chroot_upgrade \
     --skip_torcx_store \
     --sign="${SIGNING_USER}" \
+    --signing_pin="${GPG_SECRET_KEY_PIN-}" \
     --sign_digests="${SIGNING_USER}" \
     --upload_root="${UPLOAD_ROOT}" \
     --upload
@@ -54,6 +55,7 @@ script build_packages \
 script build_torcx_store \
     --board="${BOARD}" \
     --sign="${SIGNING_USER}" \
+    --signing_pin="${GPG_SECRET_KEY_PIN-}" \
     --sign_digests="${SIGNING_USER}" \
     --upload_root="${UPLOAD_ROOT}" \
     --torcx_upload_root="${TORCX_PKG_DOWNLOAD_ROOT}" \
