@@ -592,6 +592,15 @@ EOF
           --disk_image="${disk_img}" \
           "${grub_args[@]}"
     done
+    # hack hack hack to work around grub bug. I'm so sorry
+    # FIXME: ajeddeloh
+    for target in ${target_list}; do
+      ${BUILD_LIBRARY_DIR}/grub_install.sh \
+          --board="${BOARD}" \
+          --target="${target}" \
+          --disk_image="${disk_img}" \
+          "${grub_args[@]}"
+    done
   fi
 
   if [[ -n "${pcr_policy}" ]]; then
