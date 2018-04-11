@@ -241,9 +241,6 @@ sudo -E ${EMERGE_CMD} "${EMERGE_FLAGS[@]}" \
     coreos-devel/sdk-depends world
 
 info "Removing obsolete packages"
-# XXX: Remove these next two lines after stable > 1632.
-cats=( '<=sys-devel' "${BOARD_CHOSTS[@]/#/<=cross-}" )
-sudo -E emerge --quiet --unmerge "${cats[@]/%//binutils-2.29.0}" "${cats[@]/%//gcc-7.2.0}" 2>/dev/null || :
 sudo -E ${EMERGE_CMD} --quiet --depclean @unavailable
 
 if portageq list_preserved_libs / >/dev/null; then

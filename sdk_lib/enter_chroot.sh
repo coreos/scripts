@@ -158,43 +158,6 @@ promote_api_keys() {
   fi
 }
 
-generate_locales() {
-  # Going forward the SDK will no longer include locale-gen and instead
-  # glibc will just install the full locale archive, skipping this goo.
-  [[ -x "${FLAGS_chroot}/usr/sbin/locale-gen" ]] || return 0
-
-  # Make sure user's requested locales are available
-  # http://crosbug.com/19139
-  # And make sure en_US{,.UTF-8} are always available as
-  # that what buildbot forces internally
-  local l locales gen_locales=()
-
-  locales=$(printf '%s\n' en_US en_US.UTF-8 ${LANG} \
-    $LC_{ADDRESS,ALL,COLLATE,CTYPE,IDENTIFICATION,MEASUREMENT,MESSAGES} \
-    $LC_{MONETARY,NAME,NUMERIC,PAPER,TELEPHONE,TIME} | \
-    sort -u | sed '/^C$/d')
-  for l in ${locales}; do
-    if [[ ${l} == *.* ]]; then
-      enc=${l#*.}
-    else
-      enc="ISO-8859-1"
-    fi
-    case $(echo ${enc//-} | tr '[:upper:]' '[:lower:]') in
-    utf8) enc="UTF-8";;
-    esac
-    gen_locales+=("${l} ${enc}")
-  done
-  if [[ ${#gen_locales[@]} -gt 0 ]] ; then
-    # Force LC_ALL=C to workaround slow string parsing in bash
-    # with long multibyte strings.  Newer setups have this fixed,
-    # but locale-gen doesn't need to be run in any locale in the
-    # first place, so just go with C to keep it fast.
-    chroot "${FLAGS_chroot}" /usr/bin/env \
-      PATH="/usr/sbin:/usr/bin:/sbin:/bin" LC_ALL=C \
-      locale-gen -q -u -G "$(printf '%s\n' "${gen_locales[@]}")"
-  fi
-}
-
 setup_env() {
   (
     flock 200
@@ -234,9 +197,6 @@ setup_env() {
     fi
     mkdir -p "${MOUNTED_PATH}/run/user/${SUDO_UID}"
     chown ${SUDO_UID}:${SUDO_GID} "${MOUNTED_PATH}/run/user/${SUDO_UID}"
-
-    # Do this early as it's slow and only needs basic mounts (above).
-    generate_locales &
 
     mkdir -p "${FLAGS_chroot}/${CHROOT_TRUNK_DIR}"
     setup_mount "${FLAGS_trunk}" "--rbind" "${CHROOT_TRUNK_DIR}"
