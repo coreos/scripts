@@ -508,16 +508,18 @@ EOF
 
   write_contents "${root_fs_dir}" "${BUILD_DIR}/${image_contents}"
 
+  # Build the selinux policy
+  if pkg_use_enabled coreos-base/coreos selinux; then
+      setup_qemu_static "${root_fs_dir}"
+      sudo chroot "${root_fs_dir}" bash -c "cd /usr/share/selinux/mcs && semodule -s mcs -i *.pp"
+      clean_qemu_static "${root_fs_dir}"
+  fi
+
   # Zero all fs free space to make it more compressible so auto-update
   # payloads become smaller, not fatal since it won't work on linux < 3.2
   sudo fstrim "${root_fs_dir}" || true
   if mountpoint -q "${root_fs_dir}/usr"; then
     sudo fstrim "${root_fs_dir}/usr" || true
-  fi
-
-  # Build the selinux policy
-  if pkg_use_enabled coreos-base/coreos selinux; then
-      sudo chroot "${root_fs_dir}" bash -c "cd /usr/share/selinux/mcs && semodule -s mcs -i *.pp"
   fi
 
   # Make the filesystem un-mountable as read-write and setup verity.
