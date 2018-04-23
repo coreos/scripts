@@ -99,7 +99,8 @@ roll() {
     local board="$3"
 
     # Only ramp rollouts on AMD64; ARM64 is too small
-    if [[ "$board" = "amd64-usr" ]]; then
+    if [[ "$board" = "arm64-usr" ]]; then
+        echo "Setting rollout for arm64-usr to 100%"
         updateservicectl \
             --server="https://public.update.core-os.net" \
             --user="${ROLLER_USERNAME}" \
@@ -107,8 +108,18 @@ roll() {
             group update \
             --app-id="${APPID[${board}]}" \
             --group-id="${channel}" \
-            --update-count=3 \
-            --update-interval=60
+            --update-percent=100
+    else
+        # TODO(sdemos): update this behavior when rollout strategies land in roller
+        echo "Rollout set to 0%"
+        updateservicectl \
+            --server="https://public.update.core-os.net" \
+            --user="${ROLLER_USERNAME}" \
+            --key="${ROLLER_API_KEY}" \
+            group update \
+            --app-id="${APPID[${board}]}" \
+            --group-id="${channel}" \
+            --update-percent=0
     fi
 
     # FIXME(bgilbert): We set --publish=true because there's no way to
