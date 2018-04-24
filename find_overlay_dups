@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Prints packages which are in both portage-stable and coreos-overlay
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+DEFINE_string overlay_path "${SRC_ROOT}/third_party/coreos-overlay" \
+    "Directory containing the overlay"
+DEFINE_string portage_stable_path "${SRC_ROOT}/third_party/portage-stable" \
+    "Path to portage-stable"
+
+# Parse flags
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+function get_tree_packages() {
+	# gets a list of all packages in a tree
+	find "$1" -maxdepth 3 -type f -name "*.ebuild" -printf "%P\n" | xargs dirname | sort | uniq
+}
+
+portage_stable_packages=$(get_tree_packages ${FLAGS_portage_stable_path})
+overlay_packages=$(get_tree_packages ${FLAGS_overlay_path})
+
+all_packages="$portage_stable_packages $overlay_packages"
+dups=$(sort <<< "$all_packages" | uniq -D | uniq)
+
+if [[ -z "$dups" ]]; then
+	info "No duplicate packages, all good!"
+	exit 0
+fi
+
+warn "Found duplicate package(s):"
+warn "$dups"
+exit 1
