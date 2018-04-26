@@ -12,7 +12,6 @@ VALID_IMG_TYPES=(
     iso
     openstack
     openstack_mini
-    oracle_oci_qcow
     qemu
     qemu_uefi
     qemu_uefi_secure
@@ -53,7 +52,6 @@ VALID_OEM_PACKAGES=(
     exoscale
     gce
     hyperv
-    oracle-oci
     rackspace
     rackspace-onmetal
     vagrant
@@ -244,10 +242,6 @@ IMG_gce_DISK_LAYOUT=vm
 IMG_gce_CONF_FORMAT=gce
 IMG_gce_OEM_PACKAGE=oem-gce
 IMG_gce_OEM_ACI=gce
-
-## Oracle OCI
-IMG_oracle_oci_qcow_DISK_FORMAT=qcow2
-IMG_oracle_oci_qcow_OEM_PACKAGE=oem-oracle-oci
 
 ## rackspace
 IMG_rackspace_OEM_PACKAGE=oem-rackspace

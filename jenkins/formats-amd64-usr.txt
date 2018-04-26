@@ -16,7 +16,6 @@ hyperv
 niftycloud
 openstack
 openstack_mini
-oracle_oci_qcow
 packet
 parallels
 rackspace
