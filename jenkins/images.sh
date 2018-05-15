@@ -47,21 +47,25 @@ enter gsutil cp -r \
     /mnt/host/source/torcx/
 gpg --verify torcx/torcx_manifest.json.sig
 
-# Download all cas references from the manifest and verify their checksums
-# TODO: technically we can skip ones that don't have a 'path' since they're not
-# included in the image.
+enter gsutil cp -r \
+    "${DOWNLOAD_ROOT}/torcx/manifests/${BOARD}/${COREOS_VERSION}/torcx_ondisk_manifest.json"{,.sig} \
+    /mnt/host/source/torcx/
+gpg --verify torcx/torcx_ondisk_manifest.json.sig
+
+# Download all cas references that will end up in the image and verify their
+# hashes
 while read name digest hash
 do
         mkdir -p "torcx/pkgs/${BOARD}/${name}/${digest}"
         enter gsutil cp -r "${TORCX_PKG_DOWNLOAD_ROOT}/pkgs/${BOARD}/${name}/${digest}" \
             "/mnt/host/source/torcx/pkgs/${BOARD}/${name}/"
-        downloaded_hash=$(sha512sum "torcx/pkgs/${BOARD}/${name}/${digest}/"*.torcx.squashfs | awk '{print $1}')
+        downloaded_hash=$(sha512sum "torcx/pkgs/${BOARD}/${name}/${digest}/"*.torcx.* | awk '{print $1}')
         if [[ "sha512-${downloaded_hash}" != "${hash}" ]]
         then
                 echo "Torcx package had wrong hash: ${downloaded_hash} instead of ${hash}"
                 exit 1
         fi
-done < <(jq -r '.value.packages[] | . as $p | .name as $n | $p.versions[] | [.casDigest, .hash] | join(" ") | [$n, .] | join(" ")' "torcx/torcx_manifest.json")
+done < <(jq -r '.value.packages[] | . as $p | .name as $n | $p.versions[] | [.casDigest, .hash] | join(" ") | [$n, .] | join(" ")' "torcx/torcx_ondisk_manifest.json")
 
 script build_image \
     --board="${BOARD}" \
@@ -70,7 +74,7 @@ script build_image \
     --getbinpkgver="${COREOS_VERSION}" \
     --sign="${SIGNING_USER}" \
     --sign_digests="${SIGNING_USER}" \
-    --torcx_manifest=/mnt/host/source/torcx/torcx_manifest.json \
+    --torcx_manifest=/mnt/host/source/torcx/torcx_ondisk_manifest.json \
     --torcx_root=/mnt/host/source/torcx/ \
     --upload_root="${UPLOAD_ROOT}" \
     --upload prod container

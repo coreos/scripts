@@ -32,7 +32,7 @@ DEFINE_string base_pkg "coreos-base/coreos" \
   "The base portage package to base the build off of (only applies to prod images)"
 DEFINE_string base_dev_pkg "coreos-base/coreos-dev" \
   "The base portage package to base the build off of (only applies to dev images)"
-DEFINE_string torcx_manifest "${DEFAULT_BUILD_ROOT}/torcx/${DEFAULT_BOARD}/latest/torcx_manifest.json" \
+DEFINE_string torcx_manifest "${DEFAULT_BUILD_ROOT}/torcx/${DEFAULT_BOARD}/latest/torcx_ondisk_manifest.json" \
   "The torcx manifest describing torcx packages for this image (or blank for none)"
 DEFINE_string torcx_root "${DEFAULT_BUILD_ROOT}/torcx" \
   "Directory in which torcx packages can be found"
@@ -91,8 +91,8 @@ switch_to_strict_mode
 check_gsutil_opts
 
 # Patch around default values not being able to depend on other flags.
-if [ "x${FLAGS_torcx_manifest}" = "x${DEFAULT_BUILD_ROOT}/torcx/${DEFAULT_BOARD}/latest/torcx_manifest.json" ]; then
-  FLAGS_torcx_manifest="${DEFAULT_BUILD_ROOT}/torcx/${FLAGS_board}/latest/torcx_manifest.json"
+if [ "x${FLAGS_torcx_manifest}" = "x${DEFAULT_BUILD_ROOT}/torcx/${DEFAULT_BOARD}/latest/torcx_ondisk_manifest.json" ]; then
+  FLAGS_torcx_manifest="${DEFAULT_BUILD_ROOT}/torcx/${FLAGS_board}/latest/torcx_ondisk_manifest.json"
 fi
 
 # If downloading packages is enabled ensure the board is configured properly.
