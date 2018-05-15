@@ -220,6 +220,7 @@ case "${VM_BOARD}" in
             -m ${VM_MEMORY} \
             -net nic,vlan=0,model=virtio \
             -net user,vlan=0,hostfwd=tcp::"${SSH_PORT}"-:22,hostname="${VM_NAME}" \
+            -object rng-random,filename=/dev/urandom,id=rng0 -device virtio-rng-pci,rng=rng0 \
             "$@"
         ;;
     arm64-usr)
@@ -228,6 +229,7 @@ case "${VM_BOARD}" in
             -m ${VM_MEMORY} \
             -netdev user,id=eth0,hostfwd=tcp::"${SSH_PORT}"-:22,hostname="${VM_NAME}" \
             -device virtio-net-device,netdev=eth0 \
+            -object rng-random,filename=/dev/urandom,id=rng0 -device virtio-rng-pci,rng=rng0 \
             "$@"
         ;;
     *) die "Unsupported arch" ;;
