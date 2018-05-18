@@ -506,6 +506,16 @@ EOF
         "${BUILD_DIR}/${image_kconfig}"
   fi
 
+  # Build the selinux policy and apply file labels.
+  if pkg_use_enabled coreos-base/coreos selinux; then
+    setup_qemu_static "${root_fs_dir}"
+    sudo chroot "${root_fs_dir}" /bin/bash << 'EOF'
+      (cd /usr/share/selinux/mcs && semodule -s mcs -i *.pp)
+      setfiles -F /usr/lib/selinux/mcs/contexts/files/file_contexts /usr/lib/modules
+EOF
+    clean_qemu_static "${root_fs_dir}"
+  fi
+
   write_contents "${root_fs_dir}" "${BUILD_DIR}/${image_contents}"
 
   # Zero all fs free space to make it more compressible so auto-update
@@ -513,13 +523,6 @@ EOF
   sudo fstrim "${root_fs_dir}" || true
   if mountpoint -q "${root_fs_dir}/usr"; then
     sudo fstrim "${root_fs_dir}/usr" || true
-  fi
-
-  # Build the selinux policy
-  if pkg_use_enabled coreos-base/coreos selinux; then
-      setup_qemu_static "${root_fs_dir}"
-      sudo chroot "${root_fs_dir}" bash -c "cd /usr/share/selinux/mcs && semodule -s mcs -i *.pp"
-      clean_qemu_static "${root_fs_dir}"
   fi
 
   # Make the filesystem un-mountable as read-write and setup verity.
