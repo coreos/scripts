@@ -20,7 +20,6 @@ assert_not_root_user
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/vm_image_util.sh" || exit 1
-. "${SCRIPT_ROOT}/lib/cros_vm_constants.sh" || exit 1
 
 # Flags
 DEFINE_string board "${DEFAULT_BOARD}" \
