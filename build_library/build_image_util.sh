@@ -517,7 +517,9 @@ EOF
 
   # Build the selinux policy
   if pkg_use_enabled coreos-base/coreos selinux; then
+      setup_qemu_static "${root_fs_dir}"
       sudo chroot "${root_fs_dir}" bash -c "cd /usr/share/selinux/mcs && semodule -s mcs -i *.pp"
+      clean_qemu_static "${root_fs_dir}"
   fi
 
   # Make the filesystem un-mountable as read-write and setup verity.
