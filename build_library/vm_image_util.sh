@@ -113,9 +113,6 @@ IMG_DEFAULT_CONF_FORMAT=
 # Bundle configs and disk image into some archive
 IMG_DEFAULT_BUNDLE_FORMAT=
 
-# Memory size to use in any config files
-IMG_DEFAULT_MEM=1024
-
 # Number of CPUs to use in any config files
 IMG_DEFAULT_CPUS=2
 
@@ -323,6 +320,19 @@ set_vm_type() {
         fi
     done
     return 1
+}
+
+# Print memory size to use in any config files
+get_vm_mem() {
+    local board="$1"
+    local vm_mem="$(_get_vm_opt MEM)"
+    if [[ -z ${vm_mem} ]]; then
+        case "$board" in
+            arm64-usr) vm_mem="2048";;
+            *)         vm_mem="1024";;
+        esac
+    fi
+    echo "${vm_mem}"
 }
 
 # Validate and set the oem package, colon delimited USE optional
