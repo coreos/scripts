@@ -417,16 +417,6 @@ warn_if_nfs() {
   fi
 }
 
-# Enter a chroot and restart the current script if needed
-restart_in_chroot_if_needed() {
-  # NB:  Pass in ARGV:  restart_in_chroot_if_needed "$@"
-  if [[ ${INSIDE_CHROOT} -ne 1 ]]; then
-    # Get inside_chroot path for script.
-    local chroot_path="$(reinterpret_path_for_chroot "$0")"
-    exec ${GCLIENT_ROOT}/chromite/bin/cros_sdk -- "${chroot_path}" "$@"
-  fi
-}
-
 # Fail unless we're inside the chroot.  This guards against messing up your
 # workstation.
 assert_inside_chroot() {

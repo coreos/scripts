@@ -7,7 +7,7 @@
 . "$(dirname "$0")/common.sh" || exit 1
 
 # Script must run inside the chroot
-restart_in_chroot_if_needed "$@"
+assert_inside_chroot
 
 assert_not_root_user
 
