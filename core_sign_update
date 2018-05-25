@@ -18,9 +18,13 @@ export GCLIENT_ROOT=$(readlink -f "${SCRIPT_ROOT}/../../")
 DEFINE_string image "" "The filesystem image of /usr"
 DEFINE_string kernel "" "The kernel image"
 DEFINE_string output "" "Output file"
-DEFINE_string private_keys "" "Path or pkcs11 URI to private keys."
+DEFINE_string private_keys "" "Path, pkcs11 URI, or fero:<keyname> for private keys."
 DEFINE_string public_keys "" "Path to public keys in .pem format."
 DEFINE_string keys_separator ":" "Separator for the above keys"
+DEFINE_string user_signatures "" \
+    "Colon-separated paths to user signatures to provide to signing server"
+DEFINE_string signing_server_address "" "Hostname of the signing server"
+DEFINE_integer signing_server_port "50051" "Port of the signing server"
 
 # Parse command line
 FLAGS "$@" || exit 1
@@ -41,6 +45,7 @@ cleanup() {
 
 trap cleanup INT TERM EXIT
 
+echo "=== Creating signable update payload... ==="
 delta_generator \
     -new_image "$FLAGS_image" \
     -new_kernel "$FLAGS_kernel" \
@@ -62,6 +67,16 @@ for key in "${private_keys[@]}"; do
 	let "i += 1"
 done
 signature_sizes="${signature_sizes:1:${#signature_sizes}}"
+
+# We don't need to maintain backwards compatibility with old `sign.sh` scripts here, so we only
+# allow colon-separated values for user signature files.
+IFS=":" read -a user_signatures <<< "$FLAGS_user_signatures"
+
+user_signatures_arg=""
+for user_signature in "${user_signatures[@]}"; do
+    user_signatures_arg="${user_signatures_arg} --signature ${user_signature}"
+done
+user_signatures_arg="${user_signatures_arg:1:${#user_signatures_arg}}"
 
 delta_generator \
 	--signature_size ${signature_sizes} \
@@ -116,12 +131,21 @@ cat padding-pkcs11 update.hash > update.pkcs11-padhash
 echo "AAH/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////ADAxMA0GCWCGSAFlAwQCAQUABCA=" | base64 -d > padding
 cat padding update.hash > update.padhash
 
-
+echo "===      Signing update payload...      ==="
 i=1
 signature_sizes=""
 for key in "${private_keys[@]}"; do
 	if [[ "${key}" == pkcs11* ]]; then
 		openssl rsautl -engine pkcs11 -pkcs -sign -inkey ${key} -keyform engine -in update.pkcs11-padhash -out update.sig.${i}
+	elif [[ "${key}" == fero* ]]; then
+		fero-client \
+			--address $FLAGS_signing_server_address \
+			--port $FLAGS_signing_server_port \
+			sign --pkcs1 \
+			--file update.hash \
+			--output update.sig.${i} \
+			--secret-key ${key:5:${#key}} \
+			${user_signatures_arg}
 	else
 		openssl rsautl -raw -sign -inkey ${key} -in update.padhash -out update.sig.${i}
 	fi
@@ -148,6 +172,7 @@ for key in "${public_keys[@]}"; do
 done
 
 mv update.signed ${FLAGS_output}
+echo "=== Update payload signed successfully. ==="
 
 trap - INT TERM EXIT
 cleanup noexit
