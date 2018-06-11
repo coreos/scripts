@@ -7,7 +7,7 @@
 . "$(dirname "$0")/common.sh" || exit 1
 
 # Script must run inside the chroot
-restart_in_chroot_if_needed "$@"
+assert_inside_chroot
 
 assert_not_root_user
 
@@ -85,8 +85,6 @@ if [[ "${FLAGS_usepkgonly}" -eq "${FLAGS_TRUE}" ]]; then
 fi
 
 check_gsutil_opts
-
-CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
 
 # Before we can run any tools, we need to update chroot or setup_board.
 UPDATE_ARGS=( --regen_configs )
@@ -170,8 +168,7 @@ fi
 # Build cros_workon packages when they are changed.
 CROS_WORKON_PKGS=()
 if [ "${FLAGS_workon}" -eq "${FLAGS_TRUE}" ]; then
-  LIST_MODIFIED_PACKAGES="${CHROMITE_BIN}/cros_list_modified_packages"
-  CROS_WORKON_PKGS+=( $("${LIST_MODIFIED_PACKAGES}" --board=${FLAGS_board}) )
+  CROS_WORKON_PKGS+=( $(cros_workon list --board=${FLAGS_board}) )
 fi
 
 if [[ ${#CROS_WORKON_PKGS[@]} -gt 0 ]]; then

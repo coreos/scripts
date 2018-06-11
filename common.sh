@@ -417,16 +417,6 @@ warn_if_nfs() {
   fi
 }
 
-# Enter a chroot and restart the current script if needed
-restart_in_chroot_if_needed() {
-  # NB:  Pass in ARGV:  restart_in_chroot_if_needed "$@"
-  if [[ ${INSIDE_CHROOT} -ne 1 ]]; then
-    # Get inside_chroot path for script.
-    local chroot_path="$(reinterpret_path_for_chroot "$0")"
-    exec ${GCLIENT_ROOT}/chromite/bin/cros_sdk -- "${chroot_path}" "$@"
-  fi
-}
-
 # Fail unless we're inside the chroot.  This guards against messing up your
 # workstation.
 assert_inside_chroot() {
@@ -870,72 +860,6 @@ is_interactive() {
 assert_interactive() {
   if ! is_interactive; then
     die "Script ${0##*/} tried to get user input on a non-interactive terminal."
-  fi
-}
-
-# Selection menu with a default option: this is similar to bash's select
-# built-in, only that in case of an empty selection it'll return the default
-# choice. Like select, it uses PS3 as the prompt.
-#
-# $1:   name of variable to be assigned the selected value; it better not be of
-#       the form choose_foo to avoid conflict with local variables.
-# $2:   default value to return in case of an empty user entry.
-# $3:   value to return in case of an invalid choice.
-# $...: options for selection.
-#
-# Usage example:
-#
-#  PS3="Select one [1]: "
-#  choose reply "foo" "ERROR" "foo" "bar" "foobar"
-#
-# This will present the following menu and prompt:
-#
-#  1) foo
-#  2) bar
-#  3) foobar
-#  Select one [1]:
-#
-# The return value will be stored in a variable named 'reply'. If the input is
-# 1, 2 or 3, the return value will be "foo", "bar" or "foobar", respectively.
-# If it is empty (i.e. the user clicked Enter) it will be "foo".  Anything else
-# will return "ERROR".
-choose() {
-  typeset -i choose_i=1
-
-  # Retrieve output variable name and default return value.
-  local choose_reply=$1
-  local choose_default=$2
-  local choose_invalid=$3
-  shift 3
-
-  # Select a return value
-  unset REPLY
-  if [[ $# -gt 0 ]]; then
-    assert_interactive
-
-    # Actual options provided, present a menu and prompt for a choice.
-    local choose_opt
-    for choose_opt in "$@"; do
-      echo "${choose_i}) ${choose_opt}" >&2
-      : $(( ++choose_i ))
-    done
-    read -p "$PS3"
-  fi
-  # Filter out strings containing non-digits.
-  if [[ ${REPLY} != "${REPLY%%[!0-9]*}" ]]; then
-    REPLY=0
-  fi
-  choose_i="${REPLY}"
-
-  if [[ ${choose_i} -ge 1 && ${choose_i} -le $# ]]; then
-    # Valid choice, return the corresponding value.
-    eval ${choose_reply}=\""${!choose_i}"\"
-  elif [[ -z ${REPLY} ]]; then
-    # Empty choice, return default value.
-    eval ${choose_reply}=\""${choose_default}"\"
-  else
-    # Invalid choice, return corresponding value.
-    eval ${choose_reply}=\""${choose_invalid}\""
   fi
 }
 

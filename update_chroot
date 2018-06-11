@@ -227,9 +227,8 @@ if [[ "${FLAGS_skip_toolchain_update}" -eq "${FLAGS_FALSE}" && \
 fi
 
 # Build cros_workon packages when they are changed.
-CHROMITE_BIN="${GCLIENT_ROOT}/chromite/bin"
 if [ "${FLAGS_workon}" -eq "${FLAGS_TRUE}" ]; then
-  for pkg in $("${CHROMITE_BIN}/cros_list_modified_packages" --host); do
+  for pkg in $(cros_workon list --host); do
     EMERGE_FLAGS+=( "--reinstall-atoms=${pkg}" "--usepkg-exclude=${pkg}" )
   done
 fi

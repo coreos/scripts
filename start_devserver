@@ -10,7 +10,7 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 
 # Script must be run inside the chroot if not in 'always serve' mode.
 if [[ "$1" != "--archive_dir" ]]; then
-  restart_in_chroot_if_needed "$@"
+  assert_inside_chroot
 fi
 
 # This is the location of the script now.
