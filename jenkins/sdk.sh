@@ -1,7 +1,7 @@
 #!/bin/bash -ex
 
 enter() {
-        bin/cork enter --experimental -- "$@"
+        bin/cork enter --bind-gpg-agent=false -- "$@"
 }
 
 source .repo/manifests/version.txt
