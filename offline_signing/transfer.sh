@@ -105,18 +105,17 @@ roll() {
             --server="https://public.update.core-os.net" \
             --user="${ROLLER_USERNAME}" \
             --key="${ROLLER_API_KEY}" \
-            group update \
+            group percent \
             --app-id="${APPID[${board}]}" \
             --group-id="${channel}" \
             --update-percent=100
     else
-        # TODO(sdemos): update this behavior when rollout strategies land in roller
         echo "Rollout set to 0%"
         updateservicectl \
             --server="https://public.update.core-os.net" \
             --user="${ROLLER_USERNAME}" \
             --key="${ROLLER_API_KEY}" \
-            group update \
+            group percent \
             --app-id="${APPID[${board}]}" \
             --group-id="${channel}" \
             --update-percent=0
