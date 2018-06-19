@@ -93,33 +93,22 @@ upload() {
     fi
 }
 
-roll() {
+ready() {
     local channel="$1"
     local version="$2"
     local board="$3"
 
-    # Only ramp rollouts on AMD64; ARM64 is too small
-    if [[ "$board" = "arm64-usr" ]]; then
-        echo "Setting rollout for arm64-usr to 100%"
-        updateservicectl \
-            --server="https://public.update.core-os.net" \
-            --user="${ROLLER_USERNAME}" \
-            --key="${ROLLER_API_KEY}" \
-            group percent \
-            --app-id="${APPID[${board}]}" \
-            --group-id="${channel}" \
-            --update-percent=100
-    else
-        echo "Rollout set to 0%"
-        updateservicectl \
-            --server="https://public.update.core-os.net" \
-            --user="${ROLLER_USERNAME}" \
-            --key="${ROLLER_API_KEY}" \
-            group percent \
-            --app-id="${APPID[${board}]}" \
-            --group-id="${channel}" \
-            --update-percent=0
-    fi
+    # setting the percent will deactivate (not delete) any existing rollouts for
+    # this specific group.
+    echo "Rollout set to 0% for ${board}"
+    updateservicectl \
+        --server="https://public.update.core-os.net" \
+        --user="${ROLLER_USERNAME}" \
+        --key="${ROLLER_API_KEY}" \
+        group percent \
+        --app-id="${APPID[${board}]}" \
+        --group-id="${channel}" \
+        --update-percent=0
 
     # FIXME(bgilbert): We set --publish=true because there's no way to
     # say --publish=unchanged
@@ -134,9 +123,44 @@ roll() {
         --version="${version}"
 }
 
+roll() {
+    local channel="$1"
+    local hours="$2"
+    local board="$3"
+
+    local seconds=$((${hours} * 3600))
+
+    # Only ramp rollouts on AMD64; ARM64 is too small
+    if [[ "$board" = "arm64-usr" ]]; then
+        echo "Setting rollout for arm64-usr to 100%"
+        updateservicectl \
+            --server="https://public.update.core-os.net" \
+            --user="${ROLLER_USERNAME}" \
+            --key="${ROLLER_API_KEY}" \
+            group percent \
+            --app-id="${APPID[${board}]}" \
+            --group-id="${channel}" \
+            --update-percent=100
+    else
+        # creating a new rollout deletes any existing rollout for this group and
+        # automatically activates the new one.
+        echo "Creating linear rollout for ${board} that will get to 100% in ${hours}h"
+        updateservicectl \
+            --server="https://public.update.core-os.net" \
+            --user="${ROLLER_USERNAME}" \
+            --key="${ROLLER_API_KEY}" \
+            rollout create linear \
+            --app-id="${APPID[${board}]}" \
+            --group-id="${channel}" \
+            --duration="${seconds}" \
+            --frame-size="60"
+    fi
+}
+
 usage() {
     echo "Usage: $0 {download|upload} <ARTIFACT-DIR> [{-a|-b|-s} <VERSION>]..." >&2
-    echo "Usage: $0 roll [{-a|-b|-s} <VERSION>]..." >&2
+    echo "Usage: $0 ready [{-a|-b|-s} <VERSION>]..." >&2
+    echo "Usage: $0 roll [{-a|-b|-s} <HOURS-TO-100-PERCENT>]..." >&2
     exit 1
 }
 
@@ -146,7 +170,7 @@ shift ||:
 case "${CMD}" in
     download)
         ;;
-    upload|roll)
+    upload|ready|roll)
         if [[ -e "${HOME}/.config/roller.conf" ]]; then
             . "${HOME}/.config/roller.conf"
         fi
@@ -180,7 +204,7 @@ esac
 # Walk argument pairs.
 while [[ $# > 0 ]]; do
     c="$1"
-    v="${2?Must provide a version (e.g. 1234.0.0)}"
+    v="${2?Must provide an argument for each channel (see usage)}"
     shift 2
 
     case "${c}" in
