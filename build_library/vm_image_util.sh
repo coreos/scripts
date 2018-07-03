@@ -113,9 +113,6 @@ IMG_DEFAULT_CONF_FORMAT=
 # Bundle configs and disk image into some archive
 IMG_DEFAULT_BUNDLE_FORMAT=
 
-# Memory size to use in any config files
-IMG_DEFAULT_MEM=1024
-
 # Number of CPUs to use in any config files
 IMG_DEFAULT_CPUS=2
 
@@ -323,6 +320,19 @@ set_vm_type() {
         fi
     done
     return 1
+}
+
+# Print memory size to use in any config files
+get_vm_mem() {
+    local board="$1"
+    local vm_mem="$(_get_vm_opt MEM)"
+    if [[ -z ${vm_mem} ]]; then
+        case "$board" in
+            arm64-usr) vm_mem="2048";;
+            *)         vm_mem="1024";;
+        esac
+    fi
+    echo "${vm_mem}"
 }
 
 # Validate and set the oem package, colon delimited USE optional
@@ -669,7 +679,7 @@ write_vm_conf() {
 
 _write_qemu_common() {
     local script="$1"
-    local vm_mem="$(_get_vm_opt MEM)"
+    local vm_mem="$2"
 
     sed -e "s%^VM_NAME=.*%VM_NAME='${VM_NAME}'%" \
         -e "s%^VM_MEMORY=.*%VM_MEMORY='${vm_mem}'%" \
@@ -701,14 +711,14 @@ _write_qemu_conf() {
     local script="$(_dst_dir)/$(_dst_name ".sh")"
     local dst_name=$(basename "$VM_DST_IMG")
 
-    _write_qemu_common "${script}"
+    _write_qemu_common "${script}" "$@"
     sed -e "s%^VM_IMAGE=.*%VM_IMAGE='${dst_name}'%" -i "${script}"
 }
 
 _write_qemu_uefi_conf() {
     local script="$(_dst_dir)/$(_dst_name ".sh")"
 
-    _write_qemu_conf
+    _write_qemu_conf "$@"
 
     local flash_ro="$(_dst_name "_efi_code.fd")"
     local flash_rw="$(_dst_name "_efi_vars.fd")"
@@ -741,7 +751,7 @@ _write_qemu_uefi_conf() {
 _write_qemu_uefi_secure_conf() {
     local flash_rw="$(_dst_name "_efi_vars.fd")"
 
-    _write_qemu_uefi_conf
+    _write_qemu_uefi_conf "$@"
     cert-to-efi-sig-list "/usr/share/sb_keys/PK.crt" "${VM_TMP_DIR}/PK.esl"
     cert-to-efi-sig-list "/usr/share/sb_keys/KEK.crt" "${VM_TMP_DIR}/KEK.esl"
     cert-to-efi-sig-list "/usr/share/sb_keys/DB.crt" "${VM_TMP_DIR}/DB.esl"
@@ -755,7 +765,7 @@ _write_pxe_conf() {
     local vmlinuz_name="$(_dst_name ".vmlinuz")"
     local dst_name=$(basename "$VM_DST_IMG")
 
-    _write_qemu_common "${script}"
+    _write_qemu_common "${script}" "$@"
     sed -e "s%^VM_KERNEL=.*%VM_KERNEL='${vmlinuz_name}'%" \
         -e "s%^VM_INITRD=.*%VM_INITRD='${dst_name}'%" -i "${script}"
 
@@ -772,14 +782,14 @@ EOF
 _write_iso_conf() {
     local script="$(_dst_dir)/$(_dst_name ".sh")"
     local dst_name=$(basename "$VM_DST_IMG")
-    _write_qemu_common "${script}"
+    _write_qemu_common "${script}" "$@"
     sed -e "s%^VM_CDROM=.*%VM_CDROM='${dst_name}'%" -i "${script}"
 }
 
 # Generate the vmware config file
 # A good reference doc: http://www.sanbarrow.com/vmx.html
 _write_vmx_conf() {
-    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local vm_mem="${1}"
     local src_name=$(basename "$VM_SRC_IMG")
     local dst_name=$(basename "$VM_DST_IMG")
     local dst_dir=$(dirname "$VM_DST_IMG")
@@ -840,7 +850,7 @@ _write_vmware_zip_conf() {
     local vmx_file=$(basename "${vmx_path}")
     local zip="${dst_dir}/$(_src_to_dst_name "${src_name}" ".zip")"
 
-    _write_vmx_conf "$1"
+    _write_vmx_conf "$@"
 
     # Move the disk/vmx to tmp, they will be zipped.
     mv "${VM_DST_IMG}" "${VM_TMP_DIR}/${dst_name}"
@@ -892,7 +902,7 @@ EOF
 
 # Generate a new-style (xl) Xen config file for both pvgrub and pygrub
 _write_xl_conf() {
-    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local vm_mem="${1}"
     local src_name=$(basename "$VM_SRC_IMG")
     local dst_name=$(basename "$VM_DST_IMG")
     local dst_dir=$(dirname "$VM_DST_IMG")
@@ -939,7 +949,7 @@ EOF
 }
 
 _write_ovf_virtualbox_conf() {
-    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local vm_mem="${1}"
     local src_name=$(basename "$VM_SRC_IMG")
     local dst_name=$(basename "$VM_DST_IMG")
     local dst_dir=$(dirname "$VM_DST_IMG")
@@ -961,7 +971,7 @@ EOF
 }
 
 _write_vagrant_conf() {
-    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local vm_mem="${1}"
     local ovf="${VM_TMP_DIR}/box/box.ovf"
     local mac="${VM_TMP_DIR}/box/base_mac.rb"
 
@@ -974,16 +984,15 @@ _write_vagrant_conf() {
 }
 
 _write_vagrant_vmware_fusion_conf() {
-    local vm_mem="${1:-$(_get_vm_opt MEM)}"
     local vmx=$(_dst_path ".vmx")
 
     mkdir -p "${VM_TMP_DIR}/box"
-    _write_vmx_conf ${vm_mem}
+    _write_vmx_conf "$@"
     mv "${vmx}" "${VM_TMP_DIR}/box"
 }
 
 _write_vagrant_parallels_conf() {
-    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local vm_mem="${1}"
     local pvs=$(_dst_path ".pvs")
 
     "${BUILD_LIBRARY_DIR}/parallels_pvs.sh" \
@@ -995,7 +1004,7 @@ _write_vagrant_parallels_conf() {
 }
 
 _write_pvs_conf() {
-    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local vm_mem="${1}"
     local pvs=$(_dst_path ".pvs")
 
     "${BUILD_LIBRARY_DIR}/parallels_pvs.sh" \
@@ -1016,7 +1025,7 @@ _write_gce_conf() {
 }
 
 _write_niftycloud_conf() {
-    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local vm_mem="${1}"
     local src_name=$(basename "$VM_SRC_IMG")
     local dst_name=$(basename "$VM_DST_IMG")
     local ovf="$(_dst_dir)/$(_src_to_dst_name "${src_name}" ".ovf")"
@@ -1036,7 +1045,7 @@ EOF
 }
 
 _write_ovf_vmware_conf() {
-    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local vm_mem="${1}"
     local vm_cpus="$(_get_vm_opt CPUS)"
     local vmdk_file_size=$(du --bytes "${VM_DST_IMG}" | cut -f1)
     local vmdk_capacity=$(vmdk-convert -i "${VM_DST_IMG}" | jq .capacity)
@@ -1055,7 +1064,7 @@ _write_ovf_vmware_conf() {
 }
 
 _write_interoute_conf() {
-    local vm_mem="${1:-$(_get_vm_opt MEM)}"
+    local vm_mem="${1}"
     local vm_cpus="$(_get_vm_opt CPUS)"
     local vmdk_file_size=$(du --bytes "${VM_DST_IMG}" | cut -f1)
     local vmdk_capacity=$(vmdk-convert -i "${VM_DST_IMG}" | jq .capacity)

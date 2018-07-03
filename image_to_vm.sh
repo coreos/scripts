@@ -20,7 +20,6 @@ assert_not_root_user
 . "${BUILD_LIBRARY_DIR}/toolchain_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/vm_image_util.sh" || exit 1
-. "${SCRIPT_ROOT}/lib/cros_vm_constants.sh" || exit 1
 
 # Flags
 DEFINE_string board "${DEFAULT_BOARD}" \
@@ -34,7 +33,7 @@ DEFINE_string from "" \
   "Directory containing coreos_developer_image.bin or coreos_production_image.bin."
 DEFINE_string disk_layout "" \
   "The disk layout type to use for this image."
-DEFINE_integer mem "${DEFAULT_MEM}" \
+DEFINE_integer mem "" \
   "Memory size for the vm config in MBs."
 DEFINE_boolean dev_image "${FLAGS_FALSE}" \
   "Use the development image instead of the default production image."
@@ -73,6 +72,10 @@ fi
 
 if [ -z "${FLAGS_board}" ] ; then
   die_notrace "--board is required."
+fi
+
+if [[ -z "${FLAGS_mem}" ]]; then
+  FLAGS_mem=$(get_vm_mem ${FLAGS_board})
 fi
 
 # If downloading packages is enabled ensure the board is configured properly.
