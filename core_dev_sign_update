@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+
+SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
+. "${SCRIPT_ROOT}/common.sh" || exit 1
+
+assert_inside_chroot
+
+DEFINE_string data_dir "" "Directory containing downloaded release artifacts"
+DEFINE_string board "" "Board to sign artifacts for"
+DEFINE_string version "" "Version to sign artifacts for"
+DEFINE_integer n_signatures "2" "Number of signatures this release will be signed with"
+DEFINE_string output_dir "" "Output directory"
+DEFINE_string gpg_key "" "Value for '--default-key' argument to gpg --sign"
+
+FLAGS "$@" || exit 1
+eval set -- "${FLAGS_ARGV}"
+
+set -e
+
+data_dir="${FLAGS_data_dir}/${FLAGS_board}/${FLAGS_version}"
+output_dir="${FLAGS_output_dir}/${FLAGS_board}/${FLAGS_version}"
+mkdir -p "$output_dir"
+
+cleanup() {
+	# core_sign_update expects to unpack this too, so we'll clean it up.
+	rm -f "${data_dir}/coreos_production_update.bin"
+
+	rm -f "${data_dir}/update"
+	rm -f "${data_dir}/update.hash"
+}
+
+trap cleanup INT TERM EXIT
+
+# delta_generator expects a list of colon-separated sizes for signature hash algorithms in order to
+# build the update payload protobuf properly. Since we already assume sha256 elsewhere in
+# core_sign_update, do it here as well.
+signature_sizes=""
+for i in $(seq 1 $FLAGS_n_signatures); do
+	signature_sizes="${signature_sizes}:256"
+done
+signature_sizes="${signature_sizes:1:${#signature_sizes}}"
+
+echo "===     Verifying update payload...     ==="
+gpg2 --verify "${data_dir}/coreos_production_update.bin.bz2.sig"
+gpg2 --verify "${data_dir}/coreos_production_image.vmlinuz.sig"
+gpg2 --verify "${data_dir}/coreos_production_update.zip.sig"
+echo "===   Decompressing update payload...   ==="
+bunzip2 --keep "${data_dir}/coreos_production_update.bin.bz2"
+
+echo "=== Creating signable update payload... ==="
+delta_generator \
+	-new_image "${data_dir}/coreos_production_update.bin" \
+	-new_kernel "${data_dir}/coreos_production_image.vmlinuz" \
+	-out_file "${data_dir}/update"
+delta_generator \
+	--signature_size ${signature_sizes} \
+	--in_file "${data_dir}/update" \
+	--out_hash_file "${data_dir}/update.hash"
+
+echo "===      Signing update payload...      ==="
+if [[ -z "${FLAGS_gpg_key}" ]]; then
+	gpg2 \
+		--output "${output_dir}/update.sig.$(whoami)" \
+		--armor --detach-sign "${data_dir}/update.hash"
+else
+	gpg2 \
+		--local-user "$FLAGS_gpg_key" \
+		--output "${output_dir}/update.sig.$(whoami)" \
+		--armor --detach-sign "${data_dir}/update.hash"
+fi
+echo "=== Update payload signed successfully. ==="
+
+echo "===     Verifying torcx manifest...     ==="
+gpg2 --verify "${data_dir}/torcx_manifest.json.sig"
+echo "===      Signing torcx manifest...      ==="
+if [[ -z "${FLAGS_gpg_key}" ]]; then
+	gpg2 \
+		--output "${output_dir}/torcx_manifest.json.sig.$(whoami)" \
+		--detach-sign --armor "${data_dir}/torcx_manifest.json"
+else
+	gpg2 \
+		--local-user "$FLAGS_gpg_key" \
+		--output "${output_dir}/torcx_manifest.json.sig.$(whoami)" \
+		--detach-sign --armor "${data_dir}/torcx_manifest.json"
+fi
+echo "=== Torcx manifest signed successfully. ==="
