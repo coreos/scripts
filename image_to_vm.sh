@@ -31,13 +31,11 @@ DEFINE_string board "${DEFAULT_BOARD}" \
 DEFINE_string format "" \
   "Output format, one of: ${VALID_IMG_TYPES[*]}"
 DEFINE_string from "" \
-  "Directory containing coreos_developer_image.bin or coreos_production_image.bin."
+  "Directory containing coreos_production_image.bin."
 DEFINE_string disk_layout "" \
   "The disk layout type to use for this image."
 DEFINE_integer mem "${DEFAULT_MEM}" \
   "Memory size for the vm config in MBs."
-DEFINE_boolean dev_image "${FLAGS_FALSE}" \
-  "Use the development image instead of the default production image."
 DEFINE_string to "" \
   "Destination folder for VM output file(s)"
 DEFINE_string oem_pkg "" \
@@ -107,14 +105,7 @@ if [ -f "${FLAGS_from}/version.txt" ]; then
     COREOS_VERSION_STRING="${COREOS_VERSION}"
 fi
 
-if [ ${FLAGS_dev_image} -eq ${FLAGS_TRUE} ]; then
-  set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${COREOS_DEVELOPER_IMAGE_NAME}"
-  if [[ "${FLAGS_disk_layout}" == "" ]]; then
-    FLAGS_disk_layout=devel
-  fi
-else
-  set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${COREOS_PRODUCTION_IMAGE_NAME}"
-fi
+set_vm_paths "${FLAGS_from}" "${FLAGS_to}" "${COREOS_PRODUCTION_IMAGE_NAME}"
 
 # Make sure things are cleaned up on failure
 trap vm_cleanup EXIT
