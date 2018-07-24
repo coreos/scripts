@@ -106,7 +106,7 @@ fi
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/prod_image_util.sh" || exit 1
-. "${BUILD_LIBRARY_DIR}/dev_image_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/dev_container_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/torcx_manifest.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/vm_image_util.sh" || exit 1
@@ -166,7 +166,7 @@ fix_mtab
 
 if [[ "${CONTAINER}" -eq 1 ]]; then
   IMAGE_BUILD_TYPE="container"
-  create_dev_image "${COREOS_DEVELOPER_CONTAINER_NAME}" "${CONTAINER_LAYOUT}" "${FLAGS_group}" ${FLAGS_base_dev_pkg}
+  create_dev_container "${COREOS_DEVELOPER_CONTAINER_NAME}" "${CONTAINER_LAYOUT}" "${FLAGS_group}" ${FLAGS_base_dev_pkg}
 fi
 
 if [[ "${PROD_IMAGE}" -eq 1 ]]; then

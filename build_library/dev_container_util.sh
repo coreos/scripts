@@ -54,7 +54,7 @@ EOF
         eselect profile set --force $(get_board_profile $BOARD)/dev
 }
 
-create_dev_image() {
+create_dev_container() {
   local image_name=$1
   local disk_layout=$2
   local update_group=$3
