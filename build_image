@@ -31,7 +31,7 @@ DEFINE_boolean enable_rootfs_verification ${FLAGS_TRUE} \
 DEFINE_string base_pkg "coreos-base/coreos" \
   "The base portage package to base the build off of (only applies to prod images)"
 DEFINE_string base_dev_pkg "coreos-base/coreos-dev" \
-  "The base portage package to base the build off of (only applies to dev images)"
+  "The base portage package to base the build off of (only applies to dev containers)"
 DEFINE_string torcx_manifest "${DEFAULT_BUILD_ROOT}/torcx/${DEFAULT_BOARD}/latest/torcx_manifest.json" \
   "The torcx manifest describing torcx packages for this image (or blank for none)"
 DEFINE_string torcx_root "${DEFAULT_BUILD_ROOT}/torcx" \
@@ -57,12 +57,11 @@ This script is used to build a CoreOS image. CoreOS comes in many
 different forms.  This scripts can be used to build the following:
 
 prod - Production image for CoreOS. This image is for booting.
-dev - Developer image. Like base but with additional developer packages.
 container - Developer image with single filesystem, bootable by nspawn.
 
 Examples:
 
-build_image --board=<board> [dev] [prod] [container] - builds developer and production images.
+build_image --board=<board> [prod] [container] - builds developer and production images.
 ...
 "
 show_help_if_requested "$@"
@@ -107,18 +106,16 @@ fi
 . "${BUILD_LIBRARY_DIR}/board_options.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/build_image_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/prod_image_util.sh" || exit 1
-. "${BUILD_LIBRARY_DIR}/dev_image_util.sh" || exit 1
+. "${BUILD_LIBRARY_DIR}/dev_container_util.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/test_image_content.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/torcx_manifest.sh" || exit 1
 . "${BUILD_LIBRARY_DIR}/vm_image_util.sh" || exit 1
 
 PROD_IMAGE=0
-DEV_IMAGE=0
 CONTAINER=0
 for arg in "$@"; do
   case "${arg}" in
     prod) PROD_IMAGE=1 ;;
-    dev)  DEV_IMAGE=1 ;;
     container) CONTAINER=1 ;;
     *)    die_notrace "Unknown image type ${arg}" ;;
   esac
@@ -146,8 +143,6 @@ fi
 mkdir -p "${BUILD_DIR}"
 
 DISK_LAYOUT="${FLAGS_disk_layout:-base}"
-DEV_DISK_LAYOUT="${FLAGS_disk_layout:-devel}"
-
 CONTAINER_LAYOUT="${FLAGS_disk_layout:-container}"
 
 if [[ -n "${FLAGS_developer_data}" ]]; then
@@ -169,17 +164,9 @@ fi
 
 fix_mtab
 
-if [[ "${DEV_IMAGE}" -eq 1 ]]; then
-  IMAGE_BUILD_TYPE="dev"
-  create_dev_image ${COREOS_DEVELOPER_IMAGE_NAME} ${DEV_DISK_LAYOUT} ${FLAGS_group} ${FLAGS_base_dev_pkg}
-  if [[ ${FLAGS_extract_update} -eq ${FLAGS_TRUE} ]]; then
-    extract_update "${COREOS_DEVELOPER_IMAGE_NAME}" "${DEV_DISK_LAYOUT}"
-  fi
-fi
-
 if [[ "${CONTAINER}" -eq 1 ]]; then
   IMAGE_BUILD_TYPE="container"
-  create_dev_image "${COREOS_DEVELOPER_CONTAINER_NAME}" "${CONTAINER_LAYOUT}" "${FLAGS_group}" ${FLAGS_base_dev_pkg}
+  create_dev_container "${COREOS_DEVELOPER_CONTAINER_NAME}" "${CONTAINER_LAYOUT}" "${FLAGS_group}" ${FLAGS_base_dev_pkg}
 fi
 
 if [[ "${PROD_IMAGE}" -eq 1 ]]; then
@@ -235,10 +222,6 @@ EOF
 if [[ "${PROD_IMAGE}" -eq 1 ]]; then
   echo "CoreOS Production image created as ${COREOS_PRODUCTION_IMAGE_NAME}"
   print_image_to_vm
-fi
-if [[ "${DEV_IMAGE}" -eq 1 ]]; then
-  echo "Developer image created as ${COREOS_DEVELOPER_IMAGE_NAME}"
-  print_image_to_vm dev
 fi
 
 command_completed
