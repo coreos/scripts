@@ -232,7 +232,6 @@ DEFAULT_IMAGES=(
 # generated manifest, but won't be included in the vendor store.
 EXTRA_IMAGES=(
 	=app-torcx/docker-17.03
-	=app-torcx/docker-18.03
 )
 
 mkdir -p "${BUILD_DIR}"
