@@ -2,9 +2,8 @@
 
 set -eux
 
-declare -A APPID
-APPID[amd64-usr]=e96281a6-d1af-4bde-9a0a-97b76e56dc57
-APPID[arm64-usr]=103867da-e3a2-4c92-b0b3-7fbd7f7d8b71
+APPID=e96281a6-d1af-4bde-9a0a-97b76e56dc57
+BOARD=amd64-usr
 
 declare -A RELEASE_CHANNEL
 RELEASE_CHANNEL[alpha]=Alpha
@@ -14,10 +13,9 @@ RELEASE_CHANNEL[stable]=Stable
 download() {
     local channel="$1"
     local version="$2"
-    local board="$3"
 
-    local gs="gs://builds.release.core-os.net/${channel}/boards/${board}/${version}"
-    local dir="${BASEDIR}/${board}/${version}"
+    local gs="gs://builds.release.core-os.net/${channel}/boards/${BOARD}/${version}"
+    local dir="${BASEDIR}/${BOARD}/${version}"
     mkdir -p "${dir}"
     pushd "${dir}" >/dev/null
 
@@ -30,10 +28,10 @@ download() {
         "${gs}/coreos_production_update.zip.sig" ./
 
     # torcx manifest: try embargoed release bucket first
-    local torcx_base="gs://builds.release.core-os.net/embargoed/devfiles/torcx/manifests/${board}/${version}"
+    local torcx_base="gs://builds.release.core-os.net/embargoed/devfiles/torcx/manifests/${BOARD}/${version}"
     if ! gsutil -q stat "${torcx_base}/torcx_manifest.json"; then
         # Non-embargoed release
-        local torcx_base="gs://builds.developer.core-os.net/torcx/manifests/${board}/${version}"
+        local torcx_base="gs://builds.developer.core-os.net/torcx/manifests/${BOARD}/${version}"
     fi
     gsutil -m cp \
         "${torcx_base}/torcx_manifest.json" \
@@ -51,9 +49,8 @@ download() {
 upload() {
     local channel="$1"
     local version="$2"
-    local board="$3"
 
-    local dir="${BASEDIR}/${board}/${version}"
+    local dir="${BASEDIR}/${BOARD}/${version}"
     local payload="${dir}/coreos_production_update.gz"
     local torcx_manifest="${dir}/torcx_manifest.json"
     local torcx_manifest_sig="${dir}/torcx_manifest.json.asc"
@@ -68,8 +65,8 @@ upload() {
     "$(dirname $0)/../core_roller_upload" \
         --user="${ROLLER_USERNAME}" \
         --api_key="${ROLLER_API_KEY}" \
-        --app_id="${APPID[${board}]}" \
-        --board="${board}" \
+        --app_id="${APPID}" \
+        --board="${BOARD}" \
         --version="${version}" \
         --payload="${payload}"
 
@@ -77,7 +74,7 @@ upload() {
     gsutil cp \
         "${torcx_manifest}" \
         "${torcx_manifest_sig}" \
-        "gs://coreos-tectonic-torcx/manifests/${board}/${version}/"
+        "gs://coreos-tectonic-torcx/manifests/${BOARD}/${version}/"
 
     # Update version in a canary channel if one is defined.
     local -n canary_channel="ROLLER_CANARY_CHANNEL_${channel^^}"
@@ -87,7 +84,7 @@ upload() {
             --user="${ROLLER_USERNAME}" \
             --key="${ROLLER_API_KEY}" \
             channel update \
-            --app-id="${APPID[${board}]}" \
+            --app-id="${APPID}" \
             --channel="${canary_channel}" \
             --version="${version}"
     fi
@@ -96,17 +93,16 @@ upload() {
 ready() {
     local channel="$1"
     local version="$2"
-    local board="$3"
 
     # setting the percent will deactivate (not delete) any existing rollouts for
     # this specific group.
-    echo "Rollout set to 0% for ${board}"
+    echo "Rollout set to 0%"
     updateservicectl \
         --server="https://public.update.core-os.net" \
         --user="${ROLLER_USERNAME}" \
         --key="${ROLLER_API_KEY}" \
         group percent \
-        --app-id="${APPID[${board}]}" \
+        --app-id="${APPID}" \
         --group-id="${channel}" \
         --update-percent=0
 
@@ -117,7 +113,7 @@ ready() {
         --user="${ROLLER_USERNAME}" \
         --key="${ROLLER_API_KEY}" \
         channel update \
-        --app-id="${APPID[${board}]}" \
+        --app-id="${APPID}" \
         --channel="${RELEASE_CHANNEL[${channel}]}" \
         --publish=true \
         --version="${version}"
@@ -126,35 +122,21 @@ ready() {
 roll() {
     local channel="$1"
     local hours="$2"
-    local board="$3"
 
     local seconds=$((${hours} * 3600))
 
-    # Only ramp rollouts on AMD64; ARM64 is too small
-    if [[ "$board" = "arm64-usr" ]]; then
-        echo "Setting rollout for arm64-usr to 100%"
-        updateservicectl \
-            --server="https://public.update.core-os.net" \
-            --user="${ROLLER_USERNAME}" \
-            --key="${ROLLER_API_KEY}" \
-            group percent \
-            --app-id="${APPID[${board}]}" \
-            --group-id="${channel}" \
-            --update-percent=100
-    else
-        # creating a new rollout deletes any existing rollout for this group and
-        # automatically activates the new one.
-        echo "Creating linear rollout for ${board} that will get to 100% in ${hours}h"
-        updateservicectl \
-            --server="https://public.update.core-os.net" \
-            --user="${ROLLER_USERNAME}" \
-            --key="${ROLLER_API_KEY}" \
-            rollout create linear \
-            --app-id="${APPID[${board}]}" \
-            --group-id="${channel}" \
-            --duration="${seconds}" \
-            --frame-size="60"
-    fi
+    # creating a new rollout deletes any existing rollout for this group and
+    # automatically activates the new one.
+    echo "Creating linear rollout that will get to 100% in ${hours}h"
+    updateservicectl \
+        --server="https://public.update.core-os.net" \
+        --user="${ROLLER_USERNAME}" \
+        --key="${ROLLER_API_KEY}" \
+        rollout create linear \
+        --app-id="${APPID}" \
+        --group-id="${channel}" \
+        --duration="${seconds}" \
+        --frame-size="60"
 }
 
 usage() {
@@ -209,15 +191,13 @@ while [[ $# > 0 ]]; do
 
     case "${c}" in
     -a)
-        $CMD "alpha" "${v}" "amd64-usr"
-        $CMD "alpha" "${v}" "arm64-usr"
+        $CMD "alpha" "${v}"
         ;;
     -b)
-        $CMD "beta" "${v}" "amd64-usr"
-        $CMD "beta" "${v}" "arm64-usr"
+        $CMD "beta" "${v}"
         ;;
     -s)
-        $CMD "stable" "${v}" "amd64-usr"
+        $CMD "stable" "${v}"
         ;;
     *)
         usage
