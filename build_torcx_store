@@ -79,12 +79,25 @@ function torcx_build() (
         [ -s "${tmproot}/etc/portage/bashrc" ] &&
         . "${tmproot}/etc/portage/bashrc"
 
+        # Build binary packages using dev files in the board root.
+        emerge-${BOARD} \
+            --buildpkg \
+            --buildpkgonly \
+            --nodeps \
+            --oneshot \
+            --quiet \
+            --root-deps=rdeps \
+            "${pkg}"
+
+        # Install the binary packages in the temporary torcx image root.
         emerge-${BOARD} \
             --nodeps \
             --oneshot \
+            --quiet \
             --root="${tmproot}" \
             --root-deps=rdeps \
-            --quiet \
+            --sysroot="${tmproot}" \
+            --usepkgonly \
             "${pkg}"
 )
 
