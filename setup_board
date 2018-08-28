@@ -305,19 +305,28 @@ if [[ ${FLAGS_regen_configs} -eq ${FLAGS_FALSE} ]]; then
       EMERGE_FLAGS+=" --usepkg"
     fi
     EMERGE_FLAGS+=" --getbinpkg"
-    EMERGE_TOOLCHAIN_FLAGS+=" --usepkgonly --getbinpkg --rebuilt-binaries n"
-  else
-    # When binary packages are disabled we need to make sure the cross
-    # sysroot includes any build dependencies for the toolchain.
-    info "Installing toolchain build dependencies"
-    install_cross_libs "${BOARD_CHOST}" ${EMERGE_FLAGS} --buildpkg=n
   fi
 
   info "Installing baselayout"
   "${EMERGE_WRAPPER}" ${EMERGE_FLAGS} --nodeps sys-apps/baselayout
 
+  if [[ "${FLAGS_usepkg}" -ne "${FLAGS_TRUE}" ||
+        "${FLAGS_getbinpkg}" -ne "${FLAGS_TRUE}" ]]
+  then
+    # When binary packages are disabled we need to make sure the cross
+    # sysroot includes any build dependencies for the toolchain.
+    info "Installing toolchain build dependencies"
+    install_cross_libs "${BOARD_CHOST}" ${EMERGE_FLAGS} --buildpkg=n
+
+    info "Building toolchain"
+    "${EMERGE_WRAPPER}" --buildpkg --buildpkgonly \
+        --root="/usr/${BOARD_CHOST}" --sysroot="/usr/${BOARD_CHOST}" \
+	${EMERGE_TOOLCHAIN_FLAGS} "${TOOLCHAIN_PKGS[@]}"
+  fi
+
   info "Installing toolchain"
-  SYSROOT="/usr/${BOARD_CHOST}" "${EMERGE_WRAPPER}" \
+  "${EMERGE_WRAPPER}" \
+      --usepkgonly --getbinpkg --rebuilt-binaries n \
       ${EMERGE_TOOLCHAIN_FLAGS} "${TOOLCHAIN_PKGS[@]}"
 fi
 
