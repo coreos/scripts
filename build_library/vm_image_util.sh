@@ -464,7 +464,7 @@ install_oem_package() {
     # build anything else from source here. emerge doesn't have a way to
     # enforce this in a single command.
     info "Building ${oem_pkg}"
-    USE="${oem_use}" emerge-${BOARD} --root="${oem_tmp}" \
+    USE="${oem_use}" emerge-${BOARD} \
         --nodeps --buildpkgonly --usepkg n \
         --quiet "${oem_pkg}"
 
@@ -474,7 +474,8 @@ install_oem_package() {
     fi
 
     info "Installing ${oem_pkg} to OEM partition"
-    USE="${oem_use}" emerge-${BOARD} --root="${oem_tmp}" \
+    USE="${oem_use}" emerge-${BOARD} \
+        --root="${oem_tmp}" --sysroot="${oem_tmp}" \
         --root-deps=rdeps --usepkgonly ${getbinpkg} \
         --quiet --jobs=2 "${oem_pkg}"
     sudo rsync -a "${oem_tmp}/usr/share/oem/" "${VM_TMP_ROOT}/usr/share/oem/"

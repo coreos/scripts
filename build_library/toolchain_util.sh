@@ -257,7 +257,7 @@ _configure_sysroot() {
     $sudo eselect profile set --force "$profile"
 
     $sudo tee "${ROOT}/etc/portage/make.conf" >/dev/null <<EOF
-$(portageq envvar -v CHOST CBUILD ROOT SYSROOT \
+$(portageq envvar -v CHOST CBUILD ROOT \
     PORTDIR PORTDIR_OVERLAY DISTDIR PKGDIR)
 HOSTCC=\${CBUILD}-gcc
 PKG_CONFIG_PATH="\${SYSROOT}/usr/lib/pkgconfig/"
@@ -372,7 +372,7 @@ install_cross_libs() {
     done | $sudo tee "${package_provided}/cross-${cross_chost}" >/dev/null
 
     # OK, clear as mud? Install those dependencies now!
-    PORTAGE_CONFIGROOT="$ROOT" ROOT="$ROOT" $sudo emerge "$@" -u $cross_deps
+    PORTAGE_CONFIGROOT="$ROOT" $sudo emerge --root="$ROOT" --sysroot="$ROOT" "$@" -u $cross_deps
 }
 
 # Get the latest GCC profile for a given CHOST

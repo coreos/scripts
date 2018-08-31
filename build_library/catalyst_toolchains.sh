@@ -19,17 +19,22 @@ configure_target_root() {
     CBUILD="$(portageq envvar CBUILD)" \
         CHOST="${cross_chost}" \
         ROOT="/build/${board}" \
-        SYSROOT="/usr/${cross_chost}" \
+        SYSROOT="/build/${board}" \
         _configure_sysroot "${profile}"
 }
 
 build_target_toolchain() {
     local board="$1"
     local ROOT="/build/${board}"
+    local SYSROOT="/usr/$(get_board_chost "${board}")"
+
+    mkdir -p "${ROOT}/usr"
+    cp -at "${ROOT}" "${SYSROOT}"/lib*
+    cp -at "${ROOT}"/usr "${SYSROOT}"/usr/include "${SYSROOT}"/usr/lib*
 
     # --root is required because run_merge overrides ROOT=
     PORTAGE_CONFIGROOT="$ROOT" \
-        run_merge -u --root="$ROOT" "${TOOLCHAIN_PKGS[@]}"
+        run_merge -u --root="$ROOT" --sysroot="$ROOT" "${TOOLCHAIN_PKGS[@]}"
 }
 
 configure_crossdev_overlay / /tmp/crossdev
