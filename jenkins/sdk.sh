@@ -14,7 +14,6 @@ gpg --import "${GPG_SECRET_KEY_FILE}"
 sudo rm -rf src/build
 
 S=/mnt/host/source/src/scripts
-enter ${S}/update_chroot
 enter sudo emerge -uv --jobs=2 catalyst
 enter sudo ${S}/bootstrap_sdk \
     --sign="${SIGNING_USER}" \
