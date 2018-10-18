@@ -94,6 +94,7 @@ create_prod_image() {
   # clean-ups of things we do not need
   sudo rm ${root_fs_dir}/etc/csh.env
   sudo rm -rf ${root_fs_dir}/etc/env.d
+  sudo rm -rf ${root_fs_dir}/usr/include
   sudo rm -rf ${root_fs_dir}/var/db/pkg
 
   sudo mv ${root_fs_dir}/etc/profile.env \
