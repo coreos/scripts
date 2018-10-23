@@ -6,7 +6,7 @@ SCRIPT_ROOT=$(dirname $(readlink -f "$0"))
 assert_inside_chroot
 
 DEFINE_string data_dir "" "Directory containing downloaded release artifacts"
-DEFINE_string board "" "Board to sign artifacts for"
+DEFINE_string board "amd64-usr" "Board to sign artifacts for"
 DEFINE_string version "" "Version to sign artifacts for"
 DEFINE_integer n_signatures "2" "Number of signatures this release will be signed with"
 DEFINE_string output_dir "" "Output directory"
