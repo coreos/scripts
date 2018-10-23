@@ -1,5 +1,0 @@
-openstack
-openstack_mini
-packet
-pxe
-qemu_uefi
