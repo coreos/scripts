@@ -56,7 +56,10 @@ fero-client \
 	--secret-key coreos-app-signing-key \
 	${torcx_signature_arg}
 gpg2 --enarmor \
-	--output "${DATA_DIR}/torcx_manifest.json.asc" \
-	"${DATA_DIR}/torcx_manifest.json.sig-fero"
+	--output - \
+	"${DATA_DIR}/torcx_manifest.json.sig-fero" \
+	| sed 's/ARMORED FILE/SIGNATURE/' \
+	> "${DATA_DIR}/torcx_manifest.json.asc"
+
 echo "=== Torcx manifest signed successfully. ==="
 rm -f "${DATA_DIR}/torcx_manifest.json.sig-fero"
