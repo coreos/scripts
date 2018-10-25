@@ -712,8 +712,8 @@ _write_qemu_uefi_conf() {
 
     case $BOARD in
         amd64-usr)
-            cp "/usr/share/edk2/OVMF_CODE.fd" "$(_dst_dir)/${flash_ro}"
-            cp "/usr/share/edk2/OVMF_VARS.fd" "$(_dst_dir)/${flash_rw}"
+            cp "/usr/share/edk2-ovmf/OVMF_CODE.fd" "$(_dst_dir)/${flash_ro}"
+            cp "/usr/share/edk2-ovmf/OVMF_VARS.fd" "$(_dst_dir)/${flash_rw}"
             ;;
     esac
 
