@@ -383,6 +383,8 @@ if [[ -f ${GCLIENT_ROOT}/src/scripts/.default_board ]]; then
     die ".default_board: invalid name detected; please fix:" \
         "'${DEFAULT_BOARD}'"
   fi
+elif [ -z "${DEFAULT_BOARD-}" ]; then
+  DEFAULT_BOARD=amd64-usr
 fi
 
 # Directory to store built images.  Should be set by sourcing script when used.
