@@ -153,10 +153,6 @@ else
             set -- -machine accel=kvm -cpu host -smp "${VM_NCPUS}" "$@" ;;
         amd64-usr+*)
             set -- -machine pc-q35-2.8 -cpu kvm64 -smp 1 -nographic "$@" ;;
-        arm64-usr+aarch64)
-            set -- -machine virt,accel=kvm,gic-version=3 -cpu host -smp "${VM_NCPUS}" -nographic "$@" ;;
-        arm64-usr+*)
-            set -- -machine virt -cpu cortex-a57 -smp 1 -nographic "$@" ;;
         *)
             die "Unsupported arch" ;;
     esac
@@ -177,10 +173,6 @@ if [ -n "${VM_IMAGE}" ]; then
     case "${VM_BOARD}" in
         amd64-usr)
             set -- -drive if=virtio,file="${SCRIPT_DIR}/${VM_IMAGE}" "$@" ;;
-        arm64-usr)
-            set -- -drive if=none,id=blk,file="${SCRIPT_DIR}/${VM_IMAGE}" \
-            -device virtio-blk-device,drive=blk "$@"
-            ;;
         *) die "Unsupported arch" ;;
     esac
 fi
@@ -220,15 +212,6 @@ case "${VM_BOARD}" in
             -m ${VM_MEMORY} \
             -netdev user,id=eth0,hostfwd=tcp::"${SSH_PORT}"-:22,hostname="${VM_NAME}" \
             -device virtio-net-pci,netdev=eth0 \
-            -object rng-random,filename=/dev/urandom,id=rng0 -device virtio-rng-pci,rng=rng0 \
-            "$@"
-        ;;
-    arm64-usr)
-        qemu-system-aarch64 \
-            -name "$VM_NAME" \
-            -m ${VM_MEMORY} \
-            -netdev user,id=eth0,hostfwd=tcp::"${SSH_PORT}"-:22,hostname="${VM_NAME}" \
-            -device virtio-net-device,netdev=eth0 \
             -object rng-random,filename=/dev/urandom,id=rng0 -device virtio-rng-pci,rng=rng0 \
             "$@"
         ;;

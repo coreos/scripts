@@ -48,10 +48,6 @@ CORE_MODULES=( normal search test fat part_gpt search_fs_uuid gzio search_part_l
 # Name of the core image, depends on target
 CORE_NAME=
 
-# Whether the SDK's grub or the board root's grub is used. Once amd64 is
-# fixed up the board root's grub will always be used.
-BOARD_GRUB=0
-
 case "${FLAGS_target}" in
     i386-pc)
         CORE_MODULES+=( biosdisk serial )
@@ -64,21 +60,11 @@ case "${FLAGS_target}" in
     x86_64-xen)
         CORE_NAME="core.elf"
         ;;
-    arm64-efi)
-        CORE_MODULES+=( serial linux efi_gop getenv smbios efinet verify http tftp )
-        CORE_NAME="core.efi"
-        BOARD_GRUB=1
-        ;;
     *)
         die_notrace "Unknown GRUB target ${FLAGS_target}"
         ;;
 esac
 
-if [[ $BOARD_GRUB -eq 1 ]]; then
-    info "Updating GRUB in ${BOARD_ROOT}"
-    emerge-${BOARD} --nodeps --select -qugKN sys-boot/grub
-    GRUB_SRC="${BOARD_ROOT}/usr/lib/grub/${FLAGS_target}"
-fi
 [[ -d "${GRUB_SRC}" ]] || die "GRUB not installed at ${GRUB_SRC}"
 
 # In order for grub-setup-bios to properly detect the layout of the disk
@@ -229,18 +215,6 @@ case "${FLAGS_target}" in
             "${ESP_DIR}/xen/pvboot-x86_64.elf"
         sudo cp "${BUILD_LIBRARY_DIR}/menu.lst" \
             "${ESP_DIR}/boot/grub/menu.lst"
-        ;;
-    arm64-efi)
-        info "Installing default arm64 UEFI bootloader."
-        sudo mkdir -p "${ESP_DIR}/EFI/boot"
-        #FIXME(andrejro): shim not ported to aarch64
-        sudo cp "${ESP_DIR}/${GRUB_DIR}/${CORE_NAME}" \
-            "${ESP_DIR}/EFI/boot/bootaa64.efi"
-        if [[ -n "${FLAGS_copy_efi_grub}" ]]; then
-            # copying from vfat so ignore permissions
-            cp --no-preserve=mode "${ESP_DIR}/EFI/boot/bootaa64.efi" \
-                "${FLAGS_copy_efi_grub}"
-        fi
         ;;
 esac
 

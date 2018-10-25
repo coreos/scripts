@@ -40,7 +40,6 @@ ebuild_aci_write_manifest() {
 
     case "${BOARD}" in
         amd64-usr) appc_arch=amd64 ;;
-        arm64-usr) appc_arch=aarch64 ;;
         *) die_notrace "Cannot map \"${BOARD}\" to an appc arch" ;;
     esac
 

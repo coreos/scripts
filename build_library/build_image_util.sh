@@ -103,8 +103,6 @@ generate_update() {
 run_ldconfig() {
   local root_fs_dir=$1
   case ${ARCH} in
-  arm64)
-    sudo qemu-aarch64 "${root_fs_dir}"/usr/sbin/ldconfig -r "${root_fs_dir}";;
   x86|amd64)
     sudo ldconfig -r "${root_fs_dir}";;
   *)
@@ -115,8 +113,6 @@ run_ldconfig() {
 run_localedef() {
   local root_fs_dir="$1" loader=()
   case ${ARCH} in
-  arm64)
-    loader=( qemu-aarch64 -L "${root_fs_dir}" );;
   amd64)
     loader=( "${root_fs_dir}/usr/lib64/ld-linux-x86-64.so.2" \
                --library-path "${root_fs_dir}/usr/lib64" );;
@@ -460,7 +456,6 @@ finish_image() {
   # Only enable rootfs verification on supported boards.
   case "${FLAGS_board}" in
     amd64-usr) verity_offset=64 ;;
-    arm64-usr) verity_offset=512 ;;
     *) disable_read_write=${FLAGS_FALSE} ;;
   esac
 
@@ -532,7 +527,6 @@ EOF
     # Magic alert!  Root hash injection works by writing the hash value to a
     # known unused SHA256-sized location in the kernel image.
     # For amd64 the rdev error message is used.
-    # For arm64 an area between the EFI headers and the kernel text is used.
     # Our modified GRUB extracts the hash and adds it to the cmdline.
     printf %s "$(cat ${BUILD_DIR}/${image_name%.bin}_verity.txt)" | \
         sudo dd of="${root_fs_dir}/boot/coreos/vmlinuz-a" conv=notrunc \
@@ -570,9 +564,6 @@ EOF
   if [[ "${install_grub}" -eq 1 ]]; then
     local target
     local target_list="i386-pc x86_64-efi x86_64-xen"
-    if [[ ${BOARD} == "arm64-usr" ]]; then
-      target_list="arm64-efi"
-    fi
     local grub_args=()
     if [[ ${disable_read_write} -eq ${FLAGS_TRUE} ]]; then
       grub_args+=(--verity)
