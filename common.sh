@@ -383,6 +383,8 @@ if [[ -f ${GCLIENT_ROOT}/src/scripts/.default_board ]]; then
     die ".default_board: invalid name detected; please fix:" \
         "'${DEFAULT_BOARD}'"
   fi
+elif [ -z "${DEFAULT_BOARD-}" ]; then
+  DEFAULT_BOARD=amd64-usr
 fi
 
 # Directory to store built images.  Should be set by sourcing script when used.
@@ -926,19 +928,10 @@ BOAT
 }
 
 # The binfmt_misc support in the kernel is required.
-# The aarch64 binaries should be executed through
-# "/usr/bin/qemu-aarch64-static"
 setup_qemu_static() {
   local root_fs_dir="$1"
   case "${BOARD}" in
     amd64-usr) return 0;;
-    arm64-usr)
-      if [[ -f "${root_fs_dir}/sbin/ldconfig" ]]; then
-        sudo cp /usr/bin/qemu-aarch64 "${root_fs_dir}"/usr/bin/qemu-aarch64-static
-      else
-        die "Missing basic layout in target rootfs"
-      fi
-    ;;
     *) die "Unsupported arch" ;;
   esac
 }
@@ -947,13 +940,6 @@ clean_qemu_static() {
   local root_fs_dir="$1"
   case "${BOARD}" in
     amd64-usr) return 0;;
-    arm64-usr)
-      if [[ -f "${root_fs_dir}/usr/bin/qemu-aarch64-static" ]]; then
-        sudo rm "${root_fs_dir}"/usr/bin/qemu-aarch64-static
-      else
-        die "File not found"
-      fi
-    ;;
     *) die "Unsupported arch" ;;
   esac
 }

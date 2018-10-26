@@ -59,7 +59,7 @@ contents="auto"
 digests="md5 sha1 sha512 whirlpool"
 hash_function="crc32"
 options="pkgcache"
-sharedir="/usr/lib/catalyst"
+sharedir="/usr/share/catalyst"
 storedir="$CATALYST_ROOT"
 distdir="$DISTDIR"
 envscript="$TEMPDIR/catalystrc"
@@ -120,7 +120,7 @@ cat <<EOF
 target: stage1
 # stage1 packages aren't published, save in tmp
 pkgcache_path: ${TEMPDIR}/stage1-${ARCH}-packages
-update_seed: yes
+#update_seed: yes
 EOF
 catalyst_stage_default
 }

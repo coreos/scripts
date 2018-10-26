@@ -303,9 +303,6 @@ get_default_vm_type() {
     amd64-usr)
         echo "qemu"
         ;;
-    arm64-usr)
-        echo "qemu_uefi"
-        ;;
     *)
         return 1
         ;;
@@ -622,7 +619,6 @@ _write_cpio_disk() {
     local grub_arch
     case $BOARD in
         amd64-usr) grub_arch="x86_64-efi" ;;
-        arm64-usr) grub_arch="arm64-efi" ;;
     esac
 
     cp "${base_dir}/boot/coreos/grub/${grub_arch}/core.efi" "${dst_dir}/${grub_name}"
@@ -716,21 +712,8 @@ _write_qemu_uefi_conf() {
 
     case $BOARD in
         amd64-usr)
-            cp "/usr/share/edk2/OVMF_CODE.fd" "$(_dst_dir)/${flash_ro}"
-            cp "/usr/share/edk2/OVMF_VARS.fd" "$(_dst_dir)/${flash_rw}"
-            ;;
-        arm64-usr)
-            # Get edk2 files into local build workspace.
-            info "Updating edk2 in /build/${BOARD}"
-            emerge-${BOARD} --nodeps --select -qugKN sys-firmware/edk2
-            # Create 64MiB flash device image files.
-            dd if=/dev/zero bs=1M count=64 of="$(_dst_dir)/${flash_rw}" \
-                status=none
-            cp "/build/${BOARD}/usr/share/edk2/QEMU_EFI.fd" \
-                "$(_dst_dir)/${flash_ro}.work"
-            truncate --reference="$(_dst_dir)/${flash_rw}" \
-                "$(_dst_dir)/${flash_ro}.work"
-            mv "$(_dst_dir)/${flash_ro}.work" "$(_dst_dir)/${flash_ro}"
+            cp "/usr/share/edk2-ovmf/OVMF_CODE.fd" "$(_dst_dir)/${flash_ro}"
+            cp "/usr/share/edk2-ovmf/OVMF_VARS.fd" "$(_dst_dir)/${flash_rw}"
             ;;
     esac
 

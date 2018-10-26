@@ -34,9 +34,6 @@ while [[ $# -gt 0 ]]; do
 	amd64|amd64-usr)
 		board="amd64-usr"
 		;;
-	arm64|arm64-usr)
-		board="arm64-usr"
-		;;
 	*)
 		echo "Error: Unknown arg: $1"
 		exit 1

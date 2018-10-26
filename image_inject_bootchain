@@ -77,11 +77,9 @@ if [[ -n "${FLAGS_kernel_path}" ]]; then
     do_copy "${FLAGS_kernel_path}" "/boot/coreos/vmlinuz-a"
 fi
 
-# FIXME(bgilbert): no shim on arm64
 if [[ -n "${FLAGS_efi_grub_path}" ]]; then
     case "${BOARD}" in
     amd64-usr) image_name="grub.efi" ;;
-    arm64-usr) image_name="bootaa64.efi" ;;
     *) die "GRUB filename not known for this board" ;;
     esac
 

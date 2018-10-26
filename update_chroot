@@ -233,6 +233,9 @@ if [ "${FLAGS_workon}" -eq "${FLAGS_TRUE}" ]; then
   done
 fi
 
+# XXX: Work around a rename; delete this after SDKs contain the new package.
+sudo -E ${EMERGE_CMD} --rage-clean app-crypt/sbsigntool 2>/dev/null || :
+
 # Second pass, update everything else.
 EMERGE_FLAGS+=( --deep )
 info "Updating all SDK packages"

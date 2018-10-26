@@ -59,7 +59,7 @@ DEFINE_string variant "" \
   "Board variant."
 
 
-# builds wrappers like equery-arm-generic.
+# builds wrappers like equery-amd64-usr.
 # args:
 #   $1:  command to wrap
 #   rest:  extra arguments to pass to the command

@@ -67,11 +67,11 @@ def process_emerge_output(eout):
 
 
 def get_board_packages(board):
-    """ gets a list of packages used by a board. valid boards are {arm,amd}64-usr, sdk, and bootstrap"""
+    """ gets a list of packages used by a board. valid boards are amd64-usr, sdk, and bootstrap"""
     emerge_args = "--emptytree --pretend --verbose --unordered-display"
     if board == "sdk":
         cmd = "emerge {} @system sdk-depends sdk-extras".format(emerge_args)
-    elif board == "amd64-usr" or board == "arm64-usr":
+    elif board == "amd64-usr":
         cmd = "emerge-{} {} @system board-packages".format(board, emerge_args)
     elif board == "bootstrap":
         pkgs = exec_command_strict("/usr/lib64/catalyst/targets/stage1/build.py")
@@ -92,7 +92,6 @@ def print_table(report, head, line_head, line_tail, tail, joiner, pkg_joiner):
                       "upstream": ["Upstream"],
                       "tag": "Tag",
                       "sdk": ["sdk"],
-                      "arm64-usr": ["arm64-usr"],
                       "amd64-usr": ["amd64-usr"],
                       "bootstrap": ["bootstrap"],
                       "modified": "Modified"})
@@ -103,7 +102,6 @@ def print_table(report, head, line_head, line_tail, tail, joiner, pkg_joiner):
               pkg_joiner.join(entry.get("upstream",[])),
               entry.get("tag",""),
               pkg_joiner.join(entry.get("sdk", [])),
-              pkg_joiner.join(entry.get("arm64-usr", [])),
               pkg_joiner.join(entry.get("amd64-usr", [])),
               pkg_joiner.join(entry.get("bootstrap", [])),
               entry.get("modified","")]) + line_tail)
@@ -140,7 +138,7 @@ def main():
         subprocess.check_call(["git", "-C", args.upstream_path, "pull"])
 
     pkg_lists = {}
-    sources = ["sdk", "bootstrap", "amd64-usr", "arm64-usr", "image"]
+    sources = ["sdk", "bootstrap", "amd64-usr", "image"]
     for i in sources:
         pkg_lists[i] = get_board_packages(i)
 

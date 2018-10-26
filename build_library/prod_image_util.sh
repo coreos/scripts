@@ -85,7 +85,7 @@ create_prod_image() {
 
   # Assert that if this is supposed to be an official build that the
   # official update keys have been used.
-  if [[ ${COREOS_OFFICIAL:-0} -eq 1 && "${BOARD}" != arm64-usr ]]; then
+  if [[ ${COREOS_OFFICIAL:-0} -eq 1 ]]; then
       grep -q official \
           "${root_fs_dir}"/var/db/pkg/coreos-base/coreos-au-key-*/USE \
           || die_notrace "coreos-au-key is missing the 'official' use flag"
@@ -141,11 +141,8 @@ EOF
     "${BUILD_DIR}/${image_kernel}"
     "${BUILD_DIR}/${image_pcr_policy}"
     "${BUILD_DIR}/${image_grub}"
+    "${BUILD_DIR}/${image_shim}"
     "${BUILD_DIR}/${image_kconfig}"
   )
-  # FIXME(bgilbert): no shim on arm64
-  if [[ -f "${BUILD_DIR}/${image_shim}" ]]; then
-    to_upload+=("${BUILD_DIR}/${image_shim}")
-  fi
   upload_image -d "${BUILD_DIR}/${image_name}.bz2.DIGESTS" "${to_upload[@]}"
 }
