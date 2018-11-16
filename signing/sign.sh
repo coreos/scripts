@@ -10,7 +10,7 @@ fi
 DATA_DIR="$(readlink -f "$1")"
 KEYS_DIR="$(readlink -f "$(dirname "$0")")"
 SIGS_DIR="$(readlink -f "$2")"
-SERVER_ADDR="${3:-10.7.68.100}"
+SERVER_ADDR="${3:-10.7.68.102}"
 SERVER_PORT="${4:-50051}"
 
 echo "===     Verifying update payload...     ==="
