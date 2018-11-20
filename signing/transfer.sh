@@ -175,11 +175,6 @@ case "${CMD}" in
         if [[ -z "${BASEDIR}" ]]; then
             usage
         fi
-
-        if [[ -d "${BASEDIR}" && ! -O "${BASEDIR}" ]]; then
-            echo "Fixing ownership of ${BASEDIR}..."
-            sudo chown -R "${USER}" "${BASEDIR}"
-        fi
         ;;
 esac
 
