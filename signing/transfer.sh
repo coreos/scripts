@@ -46,6 +46,28 @@ download() {
     popd >/dev/null
 }
 
+devsign() {
+    local channel="$1"
+    local version="$2"
+
+    "$(dirname $0)/../core_dev_sign_update" \
+        --data_dir "${BASEDIR}" \
+        --version "${version}" \
+        --output_dir "${SIGDIR}"
+
+    git -C "${SIGDIR}" add .
+    git -C "${SIGDIR}" commit -m "Add sigs from ${USER} for ${channel} ${version}"
+}
+
+sign() {
+    local channel="$1"
+    local version="$2"
+
+    "$(dirname $0)/sign.sh" \
+        "${BASEDIR}/${BOARD}/${version}" \
+        "${SIGDIR}/${BOARD}/${version}"
+}
+
 upload() {
     local channel="$1"
     local version="$2"
@@ -141,6 +163,7 @@ roll() {
 
 usage() {
     echo "Usage: $0 {download|upload} <ARTIFACT-DIR> [{-a|-b|-s} <VERSION>]..." >&2
+    echo "Usage: $0 {devsign|sign} <ARTIFACT-DIR> <SIG-DIR> [{-a|-b|-s} <VERSION>]..." >&2
     echo "Usage: $0 ready [{-a|-b|-s} <VERSION>]..." >&2
     echo "Usage: $0 roll [{-a|-b|-s} <HOURS-TO-100-PERCENT>]..." >&2
     exit 1
@@ -150,7 +173,7 @@ usage() {
 CMD="${1:-}"
 shift ||:
 case "${CMD}" in
-    download)
+    download|devsign|sign)
         ;;
     upload|ready|roll)
         if [[ -e "${HOME}/.config/roller.conf" ]]; then
@@ -167,19 +190,31 @@ case "${CMD}" in
         ;;
 esac
 
-# Parse basedir if necessary.
+# Parse fixed args if necessary.
 case "${CMD}" in
-    download|upload)
+    download|devsign|sign|upload)
         BASEDIR="${1:-}"
         shift ||:
         if [[ -z "${BASEDIR}" ]]; then
             usage
         fi
-
-        if [[ -d "${BASEDIR}" && ! -O "${BASEDIR}" ]]; then
-            echo "Fixing ownership of ${BASEDIR}..."
-            sudo chown -R "${USER}" "${BASEDIR}"
+        ;;
+esac
+case "${CMD}" in
+    devsign|sign)
+        SIGDIR="${1:-}"
+        shift ||:
+        if [[ -z "${SIGDIR}" ]]; then
+            usage
         fi
+        ;;
+esac
+
+# Sync SIGDIR exactly once.
+case "${CMD}" in
+    devsign|sign)
+        echo "Updating ${SIGDIR}..."
+        git -C "${SIGDIR}" pull -r
         ;;
 esac
 
