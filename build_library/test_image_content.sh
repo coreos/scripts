@@ -4,9 +4,6 @@
 
 GLSA_WHITELIST=(
 	201412-09 # incompatible CA certificate version numbers
-	201710-23 # we handle Go differently; drop when 1.9 builds everything
-	201803-03 # same as above, drop when all Go < 1.9 packages are gone
-	201804-12 # same as above, except this requires only Go 1.10 or later
 	201810-10 # we fixed the systemd CVEs in 238, but this wants 239
 )
 
