@@ -29,7 +29,8 @@ IGNORE_MISSING = {
                                  SonameAtom("x86_64", "libc.so.6")],
 
     # RPATHs and symlinks apparently confuse the perl-5.24 package
-    "dev-lang/perl":            [SonameAtom("x86_64", "libperl.so.5.24.1")],
+    "dev-lang/perl":            [SonameAtom("x86_64", "libperl.so.5.26.2")],
+    "sys-apps/texinfo":         [SonameAtom("x86_64", "libperl.so.5.26")],
 
     # https://bugs.gentoo.org/show_bug.cgi?id=554582
     "net-firewall/ebtables":    [SonameAtom("x86_64", "libebt_802_3.so"),
