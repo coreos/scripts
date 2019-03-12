@@ -4,7 +4,6 @@
 
 GLSA_WHITELIST=(
 	201412-09 # incompatible CA certificate version numbers
-	201810-10 # we fixed the systemd CVEs in 238, but this wants 239
 )
 
 glsa_image() {
