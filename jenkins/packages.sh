@@ -2,7 +2,7 @@
 
 # Use a ccache dir that persists across SDK recreations.
 # XXX: alternatively use a ccache dir that is usable by all jobs on a given node.
-mkdir -p .cache/ccache
+mkdir -p ccache
 
 enter() {
         local verify_key=
@@ -13,7 +13,7 @@ enter() {
         sudo ln -f "${GOOGLE_APPLICATION_CREDENTIALS}" \
             chroot/etc/portage/gangue.json
         bin/cork enter --bind-gpg-agent=false -- env \
-            CCACHE_DIR=/mnt/host/source/.cache/ccache \
+            CCACHE_DIR=/mnt/host/source/ccache \
             CCACHE_MAXSIZE=5G \
             COREOS_DEV_BUILDS="${DOWNLOAD_ROOT}" \
             {FETCH,RESUME}COMMAND_GS="/usr/bin/gangue get \
