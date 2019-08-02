@@ -20,6 +20,3 @@ enter sudo ${S}/bootstrap_sdk \
     --sign_digests="${SIGNING_USER}" \
     --upload_root="${UPLOAD_ROOT}" \
     --upload
-
-# Free some disk space only on success to allow debugging failures.
-sudo rm -rf src/build/catalyst/builds
