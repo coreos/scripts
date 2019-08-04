@@ -188,7 +188,7 @@ get_cross_pkgs() {
 }
 
 # Get portage arguments restricting toolchains to binary packages only.
-get_binonly_args() {
+get_binonly_args() { return ;
     local pkgs=( "${TOOLCHAIN_PKGS[@]}" $(get_cross_pkgs "$@") )
     echo "${pkgs[@]/#/--useoldpkg-atoms=}" "${pkgs[@]/#/--rebuild-exclude=}"
 }
