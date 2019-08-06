@@ -13,9 +13,7 @@ gpg --import "${GPG_SECRET_KEY_FILE}"
 # Wipe all of catalyst.
 sudo rm -rf src/build
 
-S=/mnt/host/source/src/scripts
-enter sudo emerge -uv --jobs=2 catalyst
-enter sudo ${S}/bootstrap_sdk \
+enter sudo /mnt/host/source/src/scripts/bootstrap_sdk \
     --sign="${SIGNING_USER}" \
     --sign_digests="${SIGNING_USER}" \
     --upload_root="${UPLOAD_ROOT}" \
