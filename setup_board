@@ -339,6 +339,11 @@ if [ $FLAGS_default -eq $FLAGS_TRUE ] ; then
   echo $BOARD_VARIANT > "$GCLIENT_ROOT/src/scripts/.default_board"
 fi
 
+# workaround for https://wiki.gentoo.org/wiki/Binutils_2.32_upgrade_notes/elfutils_0.175:_unable_to_initialize_decompress_status_for_section_.debug_info
+# Sets the binutils back to the correct version for beta in case alpha/master messed with it when sharing SDKs.
+sudo binutils-config 'x86_64-cros-linux-gnu-2.31.1'
+sudo binutils-config 'x86_64-pc-linux-gnu-2.31.1'
+
 command_completed
 info "The SYSROOT is: ${BOARD_ROOT}"
 
