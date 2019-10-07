@@ -39,6 +39,13 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# GPG tools required
+which gpg &>/dev/null
+if [ $? -ne 0 ]; then
+    echo "$0: gpg is required to verify GPG signature." >&2
+    exit 1
+fi
+
 if [ -z "${DEST}" ]; then
     DEST=$PWD
 fi
