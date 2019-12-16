@@ -11,6 +11,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 
 # First sector we can use.
@@ -433,11 +434,22 @@ def FormatFat(part, device):
 def PartitionLoop(options, partition):
   """Allocate (and automatically free) loop devices for a partition."""
 
-  loop_dev = subprocess.check_output(['sudo', 'losetup',
-      '--offset', str(partition['first_byte']),
-      '--sizelimit', str(partition['bytes']),
-      '--find', '--show', options.disk_image])
-  loop_dev = loop_dev.strip()
+  for i in range(0,5):
+    try:
+      loop_dev = subprocess.check_output(['sudo', 'losetup',
+        '--offset', str(partition['first_byte']),
+        '--sizelimit', str(partition['bytes']),
+        '--find', '--show', options.disk_image])
+      loop_dev = loop_dev.strip()
+      err = None
+      break
+    except subprocess.CalledProcessError as error:
+      print("Failed to set up loopback, attempt %d" % i)
+      err = error
+      time.sleep(5)
+
+  if err is not None:
+    raise err
 
   try:
     yield loop_dev
