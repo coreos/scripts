@@ -586,9 +586,22 @@ def Mount(options):
       mount_opts.append('subvol=%s' % mount['fs_subvolume'])
 
     Sudo(['mkdir', '-p', full_path])
-    Sudo(['mount', '-t', mount.get('fs_type', 'auto'),
-                   '-o', ','.join(mount_opts),
-                   options.disk_image, full_path])
+    # This tends to fail, retry if it does
+    err = None
+    for i in range(0,5):
+      try:
+        Sudo(['mount', '-t', mount.get('fs_type', 'auto'),
+                       '-o', ','.join(mount_opts),
+                       options.disk_image, full_path])
+        err = None
+        break
+      except subprocess.CalledProcessError as e:
+        print("Error mounting %s, attempt %d" % (full_path, i))
+        err = e
+        time.sleep(5)
+
+    if err is not None:
+      raise err
 
     for src, dst in mount.get('binds', {}).iteritems():
       # src may be relative or absolute, os.path.join handles this.
