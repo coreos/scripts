@@ -8,6 +8,13 @@ GLSA_WHITELIST=(
 	201909-01 # Perl, SDK only
 	201909-08 # backported fix
 	201911-01 # package too old to even have the affected USE flag
+	202003-20 # backported fix
+	202003-12 # only applies to old, already-fixed CVEs
+	202003-24 # SDK only
+	202003-26 # SDK only
+	202003-30 # fixed by updating within older minor release
+	202003-31 # SDK only
+	202003-52 # difficult to update :-(
 )
 
 glsa_image() {
