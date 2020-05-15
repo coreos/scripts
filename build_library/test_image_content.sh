@@ -15,6 +15,9 @@ GLSA_WHITELIST=(
 	202003-30 # fixed by updating within older minor release
 	202003-31 # SDK only
 	202003-52 # difficult to update :-(
+	202004-13 # fixed by updating within older minor release
+	202005-02 # SDK only
+	202005-09 # SDK only
 )
 
 glsa_image() {
