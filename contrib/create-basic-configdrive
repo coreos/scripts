@@ -26,7 +26,7 @@ This tool creates a basic config-drive ISO image.
 CLOUD_CONFIG="#cloud-config
 
 coreos:
-  etcd2:
+  etcd-member:
     name: <ETCD_NAME>
     advertise-client-urls: <ETCD_ADDR>
     initial-advertise-peer-urls: <ETCD_PEER_URLS>
@@ -34,9 +34,7 @@ coreos:
     listen-peer-urls: <ETCD_LISTEN_PEER_URLS>
     listen-client-urls: <ETCD_LISTEN_CLIENT_URLS>
   units:
-    - name: etcd2.service
-      command: start
-    - name: fleet.service
+    - name: etcd-member.service
       command: start
 ssh_authorized_keys:
   - <SSH_KEY>
