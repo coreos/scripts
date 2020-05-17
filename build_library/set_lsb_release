@@ -26,7 +26,7 @@ ROOT_FS_DIR="$FLAGS_root"
 [ -d "$ROOT_FS_DIR" ] || die "Root FS does not exist? ($ROOT_FS_DIR)"
 
 OS_NAME="Container Linux by CoreOS"
-OS_CODENAME="Rhyolite"
+OS_CODENAME="Oklo"
 OS_ID="coreos"
 OS_PRETTY_NAME="$OS_NAME $COREOS_VERSION (${OS_CODENAME})"
 
