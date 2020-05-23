@@ -12,6 +12,7 @@ cloudstack
 cloudstack_vhd
 digitalocean
 exoscale
+hcloud
 hyperv
 niftycloud
 openstack
