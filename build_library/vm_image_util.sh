@@ -33,6 +33,7 @@ VALID_IMG_TYPES=(
     brightbox
     cloudstack
     cloudstack_vhd
+    cloudstack_qcow
     digitalocean
     exoscale
     azure
@@ -257,6 +258,8 @@ IMG_rackspace_onmetal_OEM_PACKAGE=oem-rackspace-onmetal
 IMG_cloudstack_OEM_PACKAGE=oem-cloudstack
 IMG_cloudstack_vhd_DISK_FORMAT=vhd
 IMG_cloudstack_vhd_OEM_PACKAGE=oem-cloudstack
+IMG_cloudstack_qcow_DISK_FORMAT=qcow2
+IMG_cloudstack_qcow_OEM_PACKAGE=oem-cloudstack
 
 ## digitalocean
 IMG_digitalocean_OEM_PACKAGE=oem-digitalocean
